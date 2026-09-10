@@ -295,6 +295,9 @@
     .mic-btn .mic-meter i:nth-child(3) { transform: scaleY(calc(0.35 + var(--voice, 0) * 0.65)); transition-delay: 0.08s; }
     .mic-btn.live { background: linear-gradient(135deg, #16a34a, #4ade80); color: #fff; border-color: rgba(255,255,255,0.25); box-shadow: 0 4px 18px rgba(74,222,128,0.45); }
     .mic-btn.live .mic-meter { display: inline-flex; }
+    /* 收听开关：只听不播，默认开；静音后虚化提示 */
+    .listen-btn { white-space: nowrap; }
+    .listen-btn.off { opacity: 0.6; }
 
     /* 抽卡氛围增强 */
     .choice-card { position: relative; overflow: hidden; }
@@ -576,6 +579,7 @@
       <button class="btn btn-primary" id="btn-start" disabled>等待玩家加入...</button>
       <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
         <button class="btn btn-secondary mic-btn js-mic-btn" id="btn-mic-lobby"><span class="mic-meter"><i></i><i></i><i></i></span>🎙️ <span class="mic-label">连麦</span></button>
+        <button class="btn btn-secondary listen-btn js-listen-btn" id="btn-listen-lobby" title="不点连麦也能听到开麦的人；这里只关自己听到的声音">🔊 <span class="listen-label">收听</span></button>
         <button class="btn btn-secondary only-host" id="btn-settings-lobby">⚙️ 设置 · 题库</button>
         <button class="btn btn-secondary" id="btn-guide-lobby">❓ 怎么玩</button>
         <button class="btn btn-secondary" id="btn-leave">退出房间</button>
@@ -648,6 +652,7 @@
     </div>
     <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;justify-content:center">
       <button class="btn btn-secondary mic-btn js-mic-btn" id="btn-mic-game" style="font-size:0.8rem;padding:6px 14px"><span class="mic-meter"><i></i><i></i><i></i></span>🎙️ <span class="mic-label">连麦</span></button>
+      <button class="btn btn-secondary listen-btn js-listen-btn" id="btn-listen-game" style="font-size:0.8rem;padding:6px 14px" title="不点连麦也能听到开麦的人；这里只关自己听到的声音">🔊 <span class="listen-label">收听</span></button>
       <button class="btn btn-secondary" id="btn-stats" style="font-size:0.8rem;padding:6px 14px">📊 战况</button>
       <button class="btn btn-secondary only-host" id="btn-settings-game" style="font-size:0.8rem;padding:6px 14px">⚙️ 设置 · 题库</button>
       <button class="btn btn-secondary only-host" id="btn-pick-next" style="font-size:0.8rem;padding:6px 14px">🎲 随机点名</button>
@@ -1564,8 +1569,8 @@ function applyState(s) {
     else { revealAnim = false; cardDealt = false; }
   }
   renderScreen();
-  // 连麦对账：开麦名单变化时增删 WebRTC 链路
-  const micSig = S.players.filter(p => p.micOn).map(p => p.id).join(',') + '|' + (MIC.on ? 1 : 0);
+  // 连麦对账：开麦名单、本端开麦/收听开关任一变化都要重算链路
+  const micSig = S.players.map(p => p.id + (p.micOn ? 'M' : '') + (p.micListen === false ? 'q' : 'Q')).join(',') + '|' + (MIC.on ? 1 : 0) + (MIC.listen ? 1 : 0);
   if (micSig !== MIC.sig) { MIC.sig = micSig; syncMicPeers(); renderMicUI(); }
   if (turnChanged) {
     if (firstApply) renderStageStatic();
@@ -1608,6 +1613,7 @@ function myPlayerTemplate() {
     id: myId, name: myName, avatar: myAvatar, joinedAt: myJoinedAt, lastSeen: Date.now(),
     skips: r.skips || 0, draws: r.draws || 0, truth: r.truth || 0, dare: r.dare || 0,
     score: r.score || 0, passes: r.passes == null ? PASSES_PER_GAME : r.passes, micOn: r.micOn || false,
+    micListen: r.micListen == null ? !!MIC.listen : !!r.micListen,
   };
 }
 let myName = '', myAvatar = '', myJoinedAt = 0;
@@ -2657,13 +2663,18 @@ const VOICE_HOLD_MS = 320;     // 短暂停顿不熄灭“正在说话”
 const MIC_SIGNAL_TTL = 15000;  // 本地模式 localStorage 会回放旧信令：超龄丢弃
 const MIC_LINK_WARN_MS = 14000;   // 协商完成后这么久 ICE 还没通 → 大概率缺 TURN，主动告知
 const MIC_INBOUND_WARN_MS = 6000; // 链路 connected 但一个音频包都没收到 → 对端没推流
+const LISTEN_KEY = 'tod:listen';  // 收听开关（默认开）：开麦=广播，不收听就不建链
+// 链路方向位：1=我在广播（开麦） 2=对方在广播 → 3=全双工
+// 开麦只发给房间里其他人，没开麦的人只听不播 → 一个人开麦全房能听
+function micLive() { return MIC.on || MIC.listen; }
 
 const MIC = {
   on: false, stream: null, ctx: null, analyser: null, tmp: null,
-  peers: new Map(),   // pid -> { pc, el, src, gain, analyser, tmp, ice[], remoteSet, sdpSent, level, hold, ... }
+  peers: new Map(),   // pid -> { pc, el, src, gain, analyser, tmp, ice[], remoteSet, sdpSent, dir, level, hold, ... }
   seen: new Set(),    // 信令 mid 去重
   localLevel: 0, hold: 0, raf: 0, sig: '',
   since: 0, watch: null, unlock: null, warnedLink: false,
+  listen: (() => { try { return localStorage.getItem(LISTEN_KEY) !== '0'; } catch { return true; } })(),
 };
 
 function rmsLevel(analyser, tmp) {
@@ -2676,6 +2687,45 @@ function voiceSpeaking(st, lvl) {
   if (lvl > VOICE_OPEN) st.hold = Date.now() + VOICE_HOLD_MS;
   return Date.now() < st.hold;
 }
+
+function peerMicOn(pid) { return !!(S && S.players.some(p => p.id === pid && p.micOn)); }
+// 对方在不在听（收不听开关）：旧房间状态没这个字段时按“在听”处理，不能让老玩家变成黑洞
+function peerListenOf(pid) { const p = S && S.players.find(x => x.id === pid); return !p || p.micListen !== false; }
+// 广播要对着“在听的人”发：不然我单方面留着链路，声音只会打进黑洞，对方重新打开收听时也接不上
+function iBroadcast(pid) { return !!MIC.on && peerListenOf(pid); }
+function theyBroadcast(pid) { return peerMicOn(pid) && !!MIC.listen; }
+function peerDir(pid) { return (iBroadcast(pid) ? 1 : 0) | (theyBroadcast(pid) ? 2 : 0); }
+// 这条链路还需不需要：只要有一方在广播就需要（双向都需要）
+function peerNeeded(pid) { return !!S && S.players.some(p => p.id === pid && p.id !== myId) && (iBroadcast(pid) || theyBroadcast(pid)); }
+// 谁发 offer：只有一方广播时由广播方发（这样只听的一方永远是应答端，方向不会谈歪）；
+// 双方都广播时回到字典序，避免互发 offer 的 glare
+function iAmOfferer(pid) {
+  const me = iBroadcast(pid), them = theyBroadcast(pid);
+  if (me !== them) return me;
+  return myId < pid;
+}
+// 把本端的开麦/收听两个开关写回房间状态（对方靠它们决定要不要往我这里推流）
+function publishMicFlags() {
+  if (!joined || !link) return Promise.resolve();
+  return mutate(n => {
+    const p = n.players.find(x => x.id === myId);
+    if (p) { p.micOn = !!MIC.on; p.micListen = !!MIC.listen; }
+  }).catch(() => {});
+}
+
+// 只听不播的人不走 getUserMedia（不弹麦克风权限），但头像波动/自动播放兜底还需要一个 AudioContext
+function ensureMicCtx() {
+  try {
+    MIC.ctx = MIC.ctx || new (window.AudioContext || window.webkitAudioContext)();
+    if (MIC.ctx.state === 'suspended') MIC.ctx.resume().catch(() => {});
+  } catch { MIC.ctx = null; }
+}
+function startMicRuntime() {
+  if (!micLive()) return;
+  ensureMicCtx();
+  startMicMeter(); startMicWatch(); startMicUnlock();
+}
+function stopMicRuntime() { stopMicMeter(); stopMicWatch(); stopMicUnlock(); }
 
 async function toggleMic() {
   if (!joined || !link) { toast('先进入房间才能连麦', 'error'); return; }
@@ -2696,27 +2746,39 @@ async function toggleMic() {
     MIC.ctx.createMediaStreamSource(MIC.stream).connect(MIC.analyser);
   } catch { /* 分析器建不起来不阻断通话，仅头像不波动 */ }
   MIC.on = true; MIC.since = Date.now(); MIC.warnedLink = false;
-  startMicMeter();
-  startMicWatch();
-  startMicUnlock();
+  startMicRuntime();
   renderMicUI();
-  await mutate(n => { const p = n.players.find(x => x.id === myId); if (p) p.micOn = true; });
-  toast('🎙️ 连麦已开启，说话时头像会波动', 'success');
+  await publishMicFlags();
+  toast('🎙️ 麦克风已开，房里所有人都能听到你', 'success');
+}
+
+// 收听开关：只听不播，不需要麦克风权限；关掉后不再建任何语音链路
+async function toggleListen() {
+  MIC.listen = !MIC.listen;
+  try { localStorage.setItem(LISTEN_KEY, MIC.listen ? '1' : '0'); } catch {}
+  if (MIC.listen) startMicRuntime();
+  else if (!MIC.on) stopMicRuntime();
+  syncMicPeers();   // 按新的方向位该拆的拆、该重谈的重谈（我还在广播的那几路要留住，不能一概拆掉）
+  await publishMicFlags();   // 通知广播方：别往我这边推流了（不发的话对方会留一串黑洞链路）
+  renderMicUI();
+  toast(MIC.listen ? '🔊 已恢复收听' : '🔇 已静音收听（不影响你自己的麦克风）', '', 2600);
 }
 
 function closeMic(silent) {
   const was = MIC.on;
   MIC.on = false;
-  for (const pid of [...MIC.peers.keys()]) {
-    if (was && !silent && link) { try { link.publishMic({ from: myId, to: pid, kind: 'bye', mid: genId(), t: Date.now() }); } catch {} }
-    destroyPeer(pid);
+  // 只拆“我作为广播方”参与的那些链路（方向变了就必须重谈）；“我在听他播”的那几路原样留着，
+  // 否则我一关麦就会把别人讲话的声音一起干掉
+  for (const [pid, pr] of [...MIC.peers]) {
+    if (was && !silent && link && (pr.dir & 1)) { try { link.publishMic({ from: myId, to: pid, kind: 'bye', mid: genId(), t: Date.now() }); } catch {} }
+    if (pr.dir !== 2 || silent) destroyPeer(pid);   // silent = 退房/重进房：静默拆干净，不留收听链路
   }
   MIC.stream && MIC.stream.getTracks().forEach(t => t.stop());
   MIC.stream = null; MIC.analyser = null;
-  // 关麦后挂起 AudioContext：不然它的音频线程会一直转（白发热），下次开麦再 resume
-  try { MIC.ctx && MIC.ctx.state === 'running' && MIC.ctx.suspend(); } catch {}
-  stopMicMeter(); stopMicWatch(); stopMicUnlock();
-  if (was && !silent && joined && link) mutate(n => { const p = n.players.find(x => x.id === myId); if (p) p.micOn = false; });
+  // 挂起 AudioContext：不再需要它（没人收听或已无链路）时才挂，不然音频线程一直转（白发热）
+  try { MIC.ctx && MIC.ctx.state === 'running' && (!micLive() || !MIC.peers.size) && MIC.ctx.suspend(); } catch {}
+  if (!micLive()) stopMicRuntime();
+  if (was && !silent) publishMicFlags();
   renderMicUI();
 }
 
@@ -2733,7 +2795,15 @@ function destroyPeer(pid) {
 function makePeer(pid) {
   if (MIC.peers.has(pid)) return MIC.peers.get(pid);
   const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-  const pr = { pid, pc, at: Date.now(), el: null, src: null, gain: null, gainOn: false, analyser: null, tmp: null, ice: [], remoteSet: false, sdpSent: false, dead: false, relay: false, bytes: 0, gotAt: 0, trackAt: 0, nextTry: 0, warnedPlay: false, warnedMute: false, level: 0, hold: 0 };
+  const pr = { pid, pc, at: Date.now(), dir: peerDir(pid), el: null, src: null, gain: null, gainOn: false, analyser: null, tmp: null, ice: [], remoteSet: false, sdpSent: false, dead: false, relay: false, bytes: 0, gotAt: 0, trackAt: 0, nextTry: 0, warnedPlay: false, warnedMute: false, level: 0, hold: 0 };
+  if (MIC.on && MIC.stream) {
+    // 我开麦：挂上音轨（sendrecv）。只听的一方会回 recvonly，协商结果就是单向广播
+    MIC.stream.getAudioTracks().forEach(t => pc.addTrack(t, MIC.stream));
+  } else if (peerMicOn(pid)) {
+    // 我只收听：必须显式加一条 recvonly 音频 m-line，否则 SDP 里没有接收端，ontrack 永远不会触发
+    try { pc.addTransceiver('audio', { direction: 'recvonly' }); }
+    catch { /* 老浏览器没 addTransceiver：这种配对只能退回双方都开麦的全双工 */ }
+  }
   // 对方推的音轨：streams[0] 在部分浏览器/不带 msid 的对端上是空数组，兜底用 track 自拼一个流，否则永远没声音
   pc.ontrack = e => attachRemote(pid, pr, (e.streams && e.streams[0]) || (e.track ? new MediaStream([e.track]) : null));
   // 6s 兜底发出的 SDP 可能还没收集完候选（实测 gatherAtSend 就是 'gathering'）：
@@ -2743,12 +2813,11 @@ function makePeer(pid) {
     try { link.publishMic({ from: myId, to: pid, kind: 'ice', c: e.candidate, mid: genId(), t: Date.now() }); } catch {}
   };
   pc.onconnectionstatechange = () => {
-    if (!MIC.on || !MIC.peers.get(pid) || pr.pc !== pc) return;
-    // 链路断了：只有发起端（字典序小的一方）重建，避免双方轮流重连
-    if (pc.connectionState === 'failed' && myId < pid) { destroyPeer(pid); createPeerTo(pid); }
+    if (!micLive() || !MIC.peers.get(pid) || pr.pc !== pc) return;
+    // 链路断了：只有发起端重建，避免双方轮流重连
+    if (pc.connectionState === 'failed' && iAmOfferer(pid)) { destroyPeer(pid); createPeerTo(pid); }
     renderMicUI();   // 接通/掉线即时反映到按钮标签
   };
-  if (MIC.stream) MIC.stream.getAudioTracks().forEach(t => pc.addTrack(t, MIC.stream));
   MIC.peers.set(pid, pr);
   return pr;
 }
@@ -2775,13 +2844,14 @@ async function createPeerTo(pid) {
     const offer = await pr.pc.createOffer();
     await pr.pc.setLocalDescription(offer);
     sendLocalSdp(pid, pr, 'offer');
-    // 信令丢失兑底：9s 还没成链且对方状态里是开麦的，重来一次
+    // 信令丢失兜底：9s 还没成链且这条链路仍然需要，重来一次
     setTimeout(() => {
-      if (MIC.peers.get(pid) === pr && !pr.remoteSet && MIC.on && myId < pid && S && S.players.some(p => p.id === pid && p.micOn)) {
+      if (MIC.peers.get(pid) === pr && !pr.remoteSet && micLive() && peerNeeded(pid) && iAmOfferer(pid)) {
         destroyPeer(pid); createPeerTo(pid);
       }
     }, 9000);
   } catch {}
+  return pr;
 }
 
 function attachRemote(pid, pr, stream) {
@@ -2845,16 +2915,21 @@ function startMicUnlock() {
 }
 function stopMicUnlock() { if (MIC.unlock) { document.removeEventListener('pointerdown', MIC.unlock); MIC.unlock = null; } }
 
-// 玩家列表 / micOn 变化时对账网状网：新开麦的建链，关麦/退房的拆链
+// 玩家列表 / micOn 变化时对账网状网：该建的建、该拆的拆、方向变了的重谈
 function syncMicPeers() {
-  const want = new Set(MIC.on && S ? S.players.filter(p => p.id !== myId && p.micOn).map(p => p.id) : []);
-  for (const pid of [...MIC.peers.keys()]) if (!want.has(pid)) destroyPeer(pid);
-  if (!MIC.on) return;
+  // 我开麦 → 和房里每个人都要有一路（我广播给他们）；我没开麦 → 只连开了麦的人（我听他们）
+  const want = new Set(S && joined ? S.players.filter(p => p.id !== myId && (iBroadcast(p.id) || theyBroadcast(p.id))).map(p => p.id) : []);
+  for (const [pid, pr] of [...MIC.peers]) {
+    // 方向签名变了（比如我后开麦、对方后开麦）必须拆重谈：recvonly 的旧链路不会因为我单方面 addTrack 就变成双向
+    if (!want.has(pid) || pr.dir !== peerDir(pid)) destroyPeer(pid);
+  }
   for (const pid of want) {
     if (MIC.peers.has(pid)) continue;
-    if (myId < pid) createPeerTo(pid);   // 发起端：主动 offer
-    else makePeer(pid);                  // 响应端：先挂好回调等 offer
+    if (iAmOfferer(pid)) createPeerTo(pid);   // 发起端：主动 offer
+    else makePeer(pid);                        // 响应端：先挂好回调等 offer
   }
+  if (MIC.peers.size) startMicRuntime();
+  else if (!MIC.on) stopMicRuntime();
 }
 
 async function onMicMsg(m) {
@@ -2866,10 +2941,12 @@ async function onMicMsg(m) {
     if (MIC.seen.size > 500) MIC.seen.clear();
     MIC.seen.add(m.mid);
   }
-  if (!MIC.on) return;
+  if (!micLive()) return;
   if (m.kind === 'bye') { destroyPeer(m.from); return; }
   if (m.kind === 'offer') {
-    if (myId < m.from) return;   // 双方都发 offer 的冲突兜底：字典序小的那方只应自己发
+    if (iAmOfferer(m.from)) return;   // 双方都发 offer 的冲突兜底：该自己发的那一方不去答对方
+    // 对方抓在我本地开关生效前发来 offer：按最新方向位这条链路不该存在，建了就是个孤儿
+    if (!peerNeeded(m.from) || !peerDir(m.from)) return;
     // 对端 9s 重建后重发的 offer：旧链路已死透，拆掉重谈，而不是当作重复消息丢弃
     if (MIC.peers.has(m.from) && MIC.peers.get(m.from).remoteSet) destroyPeer(m.from);
     const pr = makePeer(m.from);
@@ -2947,7 +3024,7 @@ function stopMicMeter() { if (MIC.raf) cancelAnimationFrame(MIC.raf); MIC.raf = 
 function startMicWatch() {
   if (MIC.watch) return;
   MIC.watch = setInterval(async () => {
-    if (!MIC.on) return;
+    if (!micLive()) return;
     const now = Date.now();
     let live = 0, stale = 0;
     for (const pr of MIC.peers.values()) {
@@ -2970,7 +3047,8 @@ function startMicWatch() {
       } catch {}
       pr.bytes = bytes; pr.relay = relay;
       if (bytes > 0) { if (!pr.gotAt) pr.gotAt = now; }
-      else if (!pr.warnedMute && now - (pr.trackAt || pr.at) > MIC_INBOUND_WARN_MS) {
+      // 只有“对方应该在广播”的链路才需要入向流量；我开麦、对方只听时，收不到包是正常的
+      else if ((pr.dir & 2) && !pr.warnedMute && now - (pr.trackAt || pr.at) > MIC_INBOUND_WARN_MS) {
         pr.warnedMute = true;
         toast('🔇 链路已通但没收到对方的声音：对方麦克风未推流或未放行', 'error', 4200);
       }
@@ -3000,11 +3078,19 @@ function renderMicUI() {
     : '语音通话（WebRTC）';
   document.querySelectorAll('.js-mic-btn').forEach(b => {
     b.classList.toggle('live', MIC.on);
-    b.title = detail;
+    b.title = MIC.on ? detail : '开麦即广播：房里其他人不用开麦就能听到你';
     const label = b.querySelector('.mic-label');
     if (label) label.textContent = MIC.on
       ? (live ? `连麦中 · ${live + 1} 人${pending || dead ? '（链路未全通）' : ''}` : (n > 1 ? (pending ? '连麦中 · 接通中…' : '连麦中 · 连不通') : '连麦中 · 等待他人开麦'))
       : (n > 1 ? `连麦（房内 ${n} 人开麦）` : '连麦');
+  });
+  // 收听开关：默认开，所以这里只是“不想听”的出口
+  const speaking = S ? S.players.filter(p => p.micOn && p.id !== myId).length : 0;
+  document.querySelectorAll('.js-listen-btn').forEach(b => {
+    b.classList.toggle('off', !MIC.listen);
+    b.setAttribute('aria-pressed', MIC.listen ? 'true' : 'false');
+    const label = b.querySelector('.listen-label');
+    if (label) label.textContent = MIC.listen ? (speaking ? `收听中 · ${speaking} 人在说` : '收听（没人开麦）') : '已静音';
   });
 }
 function updateMicBadges() {
@@ -3591,6 +3677,7 @@ $('btn-leave-game').addEventListener('click', doLeave);
 $('card-truth').addEventListener('click', () => choose('truth'));
 $('card-dare').addEventListener('click', () => choose('dare'));
 document.querySelectorAll('.js-mic-btn').forEach(b => b.addEventListener('click', toggleMic));
+document.querySelectorAll('.js-listen-btn').forEach(b => b.addEventListener('click', toggleListen));
 $('btn-accept').addEventListener('click', () => finishTurn(false));
 $('btn-skip').addEventListener('click', () => finishTurn(true));
 $('btn-pass').addEventListener('click', usePass);

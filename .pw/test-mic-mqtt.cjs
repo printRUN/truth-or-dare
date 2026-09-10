@@ -116,10 +116,28 @@ async function joinTab(ctx, { name, room, tag }) {
       log(tag, '扬声器真出声（audio 元素在推时间轴）');
     }
 
-    // 7) B 关麦 → A 的 peer 被拆
+    // 7) B 关麦：广播模型下不该拆干净——A 仍单向播给 B，B 仍留着收听 A 的那一路
     await B.click('#btn-mic-lobby');
-    await A.waitForFunction(() => MIC.peers.size === 0, null, { timeout: 10000 });
-    log('bye teardown ok');
+    await A.waitForFunction(() => {
+      const pr = [...MIC.peers.values()][0];
+      return MIC.peers.size === 1 && pr.dir === 1 && pr.pc.connectionState === 'connected';
+    }, null, { timeout: 15000 }).catch(async () => {
+      const d = await A.evaluate(() => [...MIC.peers.values()].map(pr => ({ dir: pr.dir, cs: pr.pc.connectionState })));
+      throw new Error(`A 关麦后应只剩 dir=1 的广播路: ${JSON.stringify(d)}`);
+    });
+    await B.waitForFunction(() => {
+      const pr = [...MIC.peers.values()][0];
+      return MIC.peers.size === 1 && pr.dir === 2 && pr.pc.connectionState === 'connected';
+    }, null, { timeout: 15000 }).catch(async () => {
+      const d = await B.evaluate(() => [...MIC.peers.values()].map(pr => ({ dir: pr.dir, cs: pr.pc.connectionState })));
+      throw new Error(`B 关麦后应保留 dir=2 的收听路: ${JSON.stringify(d)}`);
+    });
+    // 核心验收：B 自己没开麦，但依然听得到 A
+    await B.waitForFunction(() => {
+      const els = [...document.querySelectorAll('audio')].filter(el => el.srcObject);
+      return els.length > 0 && els.every(el => !el.paused && el.currentTime > 0.05);
+    }, null, { timeout: 15000 });
+    log('broadcast teardown ok（A 留 dir=1 广播、B 留 dir=2 收听且仍有声音）');
 
     // 8) 开局进游戏：游戏页连麦按钮可用（B 重新开麦，验证 A 自动重新成链）
     await A.click('#btn-start');

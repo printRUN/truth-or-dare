@@ -76,15 +76,16 @@
 ### Phase 2: Avatar Display
 - Grid of circular avatars with name labels below
 - Active player's avatar pulses with glow ring
-- 连麦中（micOn）的玩家头像左下角显示 🎤 徐章；正在说话时叠加绿色声波环
+- 连麦中（micOn）的玩家头像左下角显示 🎤 徽章；正在说话时叠加绿色声波环
 - Avatars arranged in a semi-circle / grid layout
 
 ### Phase 2.5: 连麦（语音通话）
-- 大厅和游戏页均有 🎙️ 连麦开关（btn-secondary 胶囊，开启后变绿色 live 态 + 三色音量条）；开关麦状态以 `player.micOn` 写入房间状态，全房可见
-- 语音 = WebRTC 网状网（每人 ↔ 其他开麦者）；信令走房间新 topic `tod/v1/<房间>/mic`（非 retained，点对点定向），MQTT/本地两种传输都复用同一条 RoomLink
-- 防冲水：两端按 clientId 字典序决定发起方（小者发 offer）；非 trickle，等 ICE 收集完发整份 SDP（本地模式 localStorage 单槽位不丢候选），**但收集有 6s 上限**：到点先发出整份 SDP，之后新收集到的候选改走 `kind:'ice'` 单条补发（晚到的 srflx/relay 不再永久丢失，否则跳 NAT 必挂）；9s 不成链发起端重建一次；关麦发 bye 拆链
+- 大厅和游戏页均有 🎙️ 连麦开关（btn-secondary 胶囊，开启后变绿色 live 态 + 三色音量条）和 🔊 收听开关；**开麦 = 广播**：一个人点连麦，房里其他人在什么都不点的情况下就能听到他（不需要双方都开麦）；收听默认开（`localStorage['tod:listen']`），且只是自己这端的出口——关它不影响自己讲话，也不影响别人互听；两个开关都以 `player.micOn` / `player.micListen` 写进房间状态全房可见（**必须同步给对方**：广播方靠它决定要不要往这个人推流，不同步就会在对方静音后留下一串“声音打进黑洞”的死链路，而且对方恢复收听时再也接不上）
+- 语音 = WebRTC 网状网，一条链路只要**有一方在广播**就该存在；方向位 `pr.dir`：1=我在播、2=对方在播、3=全双工，由 `iBroadcast(pid) = 我开麦 && 对方在听` 和 `theyBroadcast(pid) = 对方开麦 && 我在听` 算出，两端各算各的且天然互补；want 集或 `pr.dir` 任一变化就拆链重谈（`recvonly` 的旧链路不会因为我单方面 `addTrack` 就变成双向，不重谈会“显示接通但其实没声”）；信令走房间新 topic `tod/v1/<房间>/mic`（非 retained，点对点定向），MQTT/本地两种传输都复用同一条 RoomLink
+- 带宽实话：N 人房里 1 人开麦 = 该人上行 N-1 份独立编码的音频流（Opus 约 40kbps/路），开麦的人越多、房间越大，每个广播者的上行压力线性增长；纯收听方只上行信令，几乎零带宽
+- 防冲水：只有一方在广播时由**广播方**发 offer（纯收听的一方永远是应答端，方向不会被谈歪）；双方都在广播时才回到 clientId 字典序（小者发 offer），避免互发 offer 的 glare；非 trickle，等 ICE 收集完发整份 SDP（本地模式 localStorage 单槽位不丢候选），**但收集有 6s 上限**：到点先发出整份 SDP，之后新收集到的候选改走 `kind:'ice'` 单条补发（晚到的 srflx/relay 不再永久丢失，否则跳 NAT 必挂）；9s 不成链发起端重建一次；关麦发 bye 拆链（但 `pr.dir === 2` 的收听链路会留着，我一关麦不该把别人讲话的声音一起干掉）
 - 出声三级保障：`<audio>` 自动播放被拦时 `AnalyserNode` 照样有波形（=“对方头像在动但一点声音都没有”），所以 `play()` 失败后会把远端流再接一路 `GainNode → AudioContext.destination` 兜底出声，并在下一次 `pointerdown` 手势重试；元素一旦真出声（`playing`）就撤掉兜底避免两路叠音，`pause` 则由 rAF 里的 `ensureAudible` 限流 1.2s 重新拉起；AudioContext 在 `toggleMic` 的**手势内同步**创建并 resume（先 `await getUserMedia` 再 resume 在 iOS 上已不算手势）
-- 链路自检（2.5s 一次，getStats）：connected 但 `inbound-rtp` 一个音频包都没收到 → 「对方未推流」；协商完成但 14s 还没成链 → 「跳运营商/对称 NAT 需要 TURN 中继」；走没走中继记在 `pr.relay` 并写进按钮 `title` 明细
+- 链路自检（2.5s 一次，getStats）：connected 但 `inbound-rtp` 一个音频包都没收到 → 「对方未推流」，**只在该链路 `dir & 2`（对方本该在播）时判定**，我单向广播给别人时收不到包是正常的事，不许误报；协商完成但 14s 还没成链 → 「跳运营商/对称 NAT 需要 TURN 中继」；走没走中继记在 `pr.relay` 并写进按钮 `title` 明细
 - 音量可视化零网络开销：本地麦 + 每个远端音轨各挂一个 AnalyserNode，rAF 循环算 RMS → 写 `--voice` / `.speaking`，头像波动即音量计；门槛 RMS 0.045 + 320ms 拖尾防闪烁
 - 已知限制：无 TURN 服务器（纯静态单文件零后端），对称 NAT / 严格防火墙下可能连不通；无麦克风权限时优雅降级为纯文字游戏
 
@@ -171,7 +172,7 @@
 {
   "id": "uuid", "name": "string",
   "avatar": "\"av:P01\"…\"av:P24\" 预设短索引 | \"dcb:{s,d,b}\" 定制配方(~54B) | dataURL(上传照片/旧版头像)",
-  "joinedAt": "number", "lastSeen": "number(心跳；写方时钟。各端另维护 HbMax/HbLocal 水位，发布不回退、在线判断用本端到达时刻)", "micOn": "boolean",
+  "joinedAt": "number", "lastSeen": "number(心跳；写方时钟。各端另维护 HbMax/HbLocal 水位，发布不回退、在线判断用本端到达时刻)", "micOn": "boolean", "micListen": "boolean(在不在听别人广播；缺字段按 true 处理，防旧状态把新玩家当黑洞)",
   "passes": "number(剩余免答牌)", "skips": "number", "draws": "number",
   "truth": "number", "dare": "number", "score": "number(可负)"
 }
@@ -212,6 +213,7 @@ big bank never inflates per-turn sync traffic. 旧版纯字符串题库按 `{x: 
 
 - [x] Players can join with name + avatar
 - [x] 连麦：开/关麦全房同步，WebRTC 语音互通（本地 + MQTT 信令双链路 E2E 验证），说话者头像随音量波动/发光/声波环，关麦/退房即时拆链；**验收看“真出声”而不是“有元素”**：断言远端 `<audio>` 不 paused 且 `currentTime` 在推进（test-mic / test-mic-mqtt）
+- [x] **开麦=广播**：A 单方开麦、B/C 零点击即可听声，且收听方 `getUserMedia` 调用数为 0（不弹麦克风权限）、`MIC.stream === null`、链路 `dir` 为 2/1 互补、广播方 `outbound-rtp.bytesSent > 0` 且跨满 3 轮自检不误报 🔇（test-mic-broadcast.cjs 9 步 / test-mic-3way.cjs 6 步：含三人房扇出、收听关闭→广播方同步撤链、恢复收听→链路自动重建、双方开麦→dir=3 全双工、广播者关麦后降级为纯收听）
 - [x] 启动/加入加载动画：3D 抽卡 overlay 分阶段文案，首屏可见且完成后移除（Playwright detached 断言）
 - [x] All joined players visible in real-time
 - [x] Truth/Dare selection with animated cards
@@ -231,5 +233,5 @@ big bank never inflates per-turn sync traffic. 旧版纯字符串题库按 `{x: 
 - [x] 性能回归（`.pw/test-perf.cjs`）：光球无 `filter:blur` 但保留飘动、`buildBg` 只在启动时调用（纸屑固定 26 片不逐轮累积）、软件光栅 + DPR3 下大厅 16 人与牌桌均 ≥50fps（p95 ≤25ms）、牌桌内连抽 6 轮后 DOM 节点与运行中动画数不增长、爆彩粒子残留为 0、防重复清单有上限、切走冻结/切回恢复、省电三档生效且刷新后记住、人为塞回 blur 层造成持续掉帧时被实测捕获并自动降载；全程零 JS 报错
 - [x] 头像定制与持久化：31 风格 DiceBear 全量 vendored（~2MB IIFE，file:// 冷启动实测 ~2.2s）；定制器三轴（风格×seed×底色）+「就用它 / 保存到我的」；`dcb:` 配方进状态（~54B，双端逐字节一致）；「我的」localStorage 持久化（去重置顶封顶 30、上传压 96px JPEG、tod:me 下次访问自动恢复）；两连点删除 + 删使用中回落 av:P01 + 触屏角标常显；`.pw/test-avatars.cjs` 8 步 E2E 全绿
 - [x] Layout polish: 单列宽度统一到 540px，触控目标 ≥ 40px，:focus-visible 描边，prefers-reduced-motion 降噪，窄屏头像/统计条收紧
-- [x] E2E verified via Playwright: both modes × (local + MQTT) transports, sync/guard/stats all pass；连麦专项（test-mic.cjs / test-mic-mqtt.cjs）全绿；主持闭环专项（test-host.cjs，15 步）全绿
+- [x] E2E verified via Playwright: both modes × (local + MQTT) transports, sync/guard/stats all pass；连麦专项（test-mic.cjs / test-mic-mqtt.cjs / test-mic-broadcast.cjs / test-mic-3way.cjs）全绿；主持闭环专项（test-host.cjs，15 步）全绿
 - [x] 连麦“没声音”专项：自动播放被拦时的兜底出声（test-mic-autoplay.cjs：复现 paused+有波形 → gain 路有输出 rms>0.005 → 手势后元素接管且兜底已撤）、晚到 ICE 候选补发 + 标签诚实性（test-mic-trickle.cjs）全绿；`check-syntax.cjs` 作为内联脚本语法门禁
