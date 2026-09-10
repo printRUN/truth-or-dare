@@ -4,8 +4,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const ROOT = 'D:/myidea/truth-or-dare';
-const PORT = 8751;
-
+const PORT = 8752;
 const server = http.createServer((req, res) => {
   const f = path.join(ROOT, req.url === '/' ? 'index.html' : decodeURIComponent(req.url.split('?')[0]));
   fs.readFile(f, (err, data) => {
@@ -14,24 +13,33 @@ const server = http.createServer((req, res) => {
     res.end(data);
   });
 });
-
 (async () => {
   await new Promise(r => server.listen(PORT, '127.0.0.1', r));
   const b = await chromium.launch({ args: ['--no-sandbox'] });
-  const p = await b.newPage();
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 } });
+  const p = await ctx.newPage();
   p.on('pageerror', e => console.log('PAGEERROR', String(e).slice(0, 300)));
-  await p.goto(`http://127.0.0.1:${PORT}/index.html?room=PERF01`);
-  for (let i = 0; i < 8; i++) {
-    await p.waitForTimeout(3000);
+  await p.goto(`http://127.0.0.1:${PORT}/index.html?room=PERF01`, { waitUntil: 'domcontentloaded' });
+  await p.waitForSelector('#screen-join.active');
+  await p.waitForTimeout(500);
+  await p.evaluate(() => closeGuide());
+  console.log('room field:', JSON.stringify(await p.inputValue('#input-room')));
+  await p.fill('#input-name', 'Perf');
+  await p.click('#btn-join');
+  for (let i = 0; i < 12; i++) {
+    await p.waitForTimeout(4000);
     const st = await p.evaluate(() => ({
-      visible: [...document.querySelectorAll('section,div')].filter(e => { const r = e.getBoundingClientRect(); return r.width > 100 && r.height > 100 && getComputedStyle(e).display !== 'none'; }).map(e => e.id).filter(Boolean).slice(0, 12),
       loading: (document.getElementById('loading-text') || {}).textContent,
-      joinVisible: !!document.querySelector('#join-screen:not(.hidden)'),
+      overlay: !!document.querySelector('#loading-overlay:not(.hidden)') && getComputedStyle(document.getElementById('loading-overlay')).display,
+      toast: (document.getElementById('toast') || {}).textContent,
       net: (document.getElementById('net-text') || {}).textContent,
+      lobby: !!document.querySelector('#screen-lobby.active'),
+      join: !!document.querySelector('#screen-join.active'),
+      alive: typeof link !== 'undefined' && link ? link.alive : null,
+      mode: typeof link !== 'undefined' && link ? link.mode : null,
     }));
-    console.log(i * 3 + 's', JSON.stringify(st));
-    if (st.joinVisible) break;
+    console.log((i * 4) + 's', JSON.stringify(st));
+    if (st.lobby) break;
   }
-  await b.close();
-  server.close();
+  await b.close(); server.close();
 })();

@@ -16,10 +16,12 @@
     body { font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: var(--bg); color: #fff; min-height: 100vh; overflow-x: hidden; position: relative; }
 
     #bg-canvas { position: fixed; inset: 0; z-index: 0; overflow: hidden; }
-    .orb { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.4; will-change: transform; }
-    .orb-1 { width: 500px; height: 500px; background: radial-gradient(circle, #8b5cf6, transparent 70%); animation: drift-1 25s ease-in-out infinite alternate; }
-    .orb-2 { width: 400px; height: 400px; background: radial-gradient(circle, #f472b6, transparent 70%); animation: drift-2 30s ease-in-out infinite alternate; }
-    .orb-3 { width: 350px; height: 350px; background: radial-gradient(circle, #22d3ee, transparent 70%); animation: drift-3 20s ease-in-out infinite alternate; }
+    /* 背景光球：用多段 radial-gradient 直接画出柔边。以前是 blur(80px)——一个每帧都要重光栅化的大半径模糊层，
+       实测是手机发热/卡顿的头号原因（软件光栅下 16 fps → 60 fps，观感等价） */
+    .orb { position: absolute; border-radius: 50%; opacity: 0.4; will-change: transform; }
+    .orb-1 { width: 500px; height: 500px; background: radial-gradient(circle, rgba(139,92,246,0.60) 0%, rgba(139,92,246,0.38) 32%, rgba(139,92,246,0.17) 55%, rgba(139,92,246,0.05) 75%, transparent 90%); animation: drift-1 25s ease-in-out infinite alternate; }
+    .orb-2 { width: 400px; height: 400px; background: radial-gradient(circle, rgba(244,114,182,0.55) 0%, rgba(244,114,182,0.34) 32%, rgba(244,114,182,0.15) 55%, rgba(244,114,182,0.04) 75%, transparent 90%); animation: drift-2 30s ease-in-out infinite alternate; }
+    .orb-3 { width: 350px; height: 350px; background: radial-gradient(circle, rgba(34,211,238,0.50) 0%, rgba(34,211,238,0.30) 32%, rgba(34,211,238,0.13) 55%, rgba(34,211,238,0.04) 75%, transparent 90%); animation: drift-3 20s ease-in-out infinite alternate; }
     @keyframes drift-1 { 0% { transform: translate(0,0) scale(1); } 100% { transform: translate(8vw,12vh) scale(1.2); } }
     @keyframes drift-2 { 0% { transform: translate(0,0) scale(1); } 100% { transform: translate(-10vw,15vh) scale(0.9); } }
     @keyframes drift-3 { 0% { transform: translate(0,0) scale(1); } 100% { transform: translate(12vw,-8vh) scale(1.1); } }
@@ -419,7 +421,11 @@
     /* 按钮二次确认态 */
     .btn.armed { background: linear-gradient(135deg, #dc2626, #f97316); }
 
-    /* ── 低端设备降载：砍背景动效与毛玻璃（paint 大户） ── */
+    /* 无障碍与性能：系统降噪 / 低端设备自动降载 */
+    /* 切到微信聊天窗口或后台：看不见的屏幕没必要继续烧电，冻结全部装饰动画 */
+    body.paused *, body.paused *::before, body.paused *::after { animation-play-state: paused !important; }
+
+    /* 低端设备降载：砍背景动效与毛玻璃（paint 大户） */
     body.loperf .orb { animation: none; opacity: 0.3; }
     body.loperf .confetti { display: none; }
     body.loperf h1 { animation: none; }
@@ -689,6 +695,13 @@
       <span class="type-badge">💬 真心话 · 示例</span>
       <p>「你小时候最害怕什么？」</p>
     </div>
+    <div class="set-group"><label>🔋 省电模式（关掉背景光球/纸屑与毛玻璃，手机不发热）</label>
+      <div class="mini-row">
+        <button type="button" class="mini-opt" id="btn-perf-auto">自动</button>
+        <button type="button" class="mini-opt" id="btn-perf-on">开启</button>
+        <button type="button" class="mini-opt" id="btn-perf-off">关闭</button>
+      </div>
+    </div>
     <button class="btn btn-primary" id="btn-guide-ok" style="align-self:center">明白啦 🎉</button>
   </div>
 </div>
@@ -723,9 +736,59 @@ const DRAWING_MAX_MS = 9000;  // 抽卡阶段最迟 9s 内必须出结果（后�
 const ANIM_DRAWING_MIN_MS = 2600; // 抽卡动画最短播放时长，保证各端节奏一致
 const PASSES_PER_GAME = 2;    // 每人每局免答牌张数（静默换题，不计跳过、不扣分）
 const SCORE_ACCEPT = 10, SCORE_SKIP = -5; // 计分竞技局的得失分
-// 无障碍与性能：系统降噪 / 低端设备（小内存或 ≤4 核）自动降载
+// 无障碍与性能：系统降噪优先；省电模式三档（auto 自适应 / low 省电 / full 全效），用户选过就听他的
 const REDUCED = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-const LOWPERF = (navigator.deviceMemory && navigator.deviceMemory <= 3) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
+const PERF_PREF_KEY = 'tod:perf';
+let perfPref = 'auto';
+try { if (localStorage.getItem(PERF_PREF_KEY)) perfPref = localStorage.getItem(PERF_PREF_KEY); } catch {}
+// 静态启发式只能当地板：主流手机 hardwareConcurrency 普遍是 8，iOS 连 deviceMemory 都不报，
+// 真正的判据是下面实测的帧率，不能只靠猜型号
+let LOWPERF = perfPref === 'low' || (perfPref === 'auto' && autoLowPerf());
+function autoLowPerf() {   // 设备静态启发式：只能挡住极少数上古机器，拿不准情况交给 perfWatch 实测
+  return !!((navigator.deviceMemory && navigator.deviceMemory <= 3) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4));
+}
+
+// 省电模式：开场后实测几秒帧率，连续掉帧才降载，并把结果记进 localStorage；
+// 只自动降级、不自动升级：用户仍可在「怎么玩」里手动改回全特效（改了就不再自动测）
+function setLowPerf(on, pref) {
+  LOWPERF = !!on;
+  document.body.classList.toggle('loperf', LOWPERF);
+  if (pref) {
+    perfPref = pref;
+    try { localStorage.setItem(PERF_PREF_KEY, pref); } catch {}
+  }
+  syncPerfBtns();
+}
+const PERF_PREF_OF = { auto: 'auto', on: 'low', off: 'full' };   // 按钮→存储值（low=省电 full=全效 auto=自适应）
+function syncPerfBtns() {
+  ['auto', 'on', 'off'].forEach(k => {
+    const b = document.getElementById('btn-perf-' + k);
+    if (b) b.classList.toggle('sel', perfPref === PERF_PREF_OF[k]);
+  });
+}
+let perfSamples = 0, perfBusy = false, perfLast = 0;
+function perfWatch(ms = 2600) {
+  // 牌桌才是真负载，但大厅测不到的手机也要能补测：最多 3 次，每次隔 ≥20s，不然3 次会连在同一刻
+  if (perfPref !== 'auto' || LOWPERF || REDUCED || perfBusy || perfSamples >= 3) return;
+  if (Date.now() - perfLast < 20000) return;
+  perfSamples++; perfBusy = true; perfLast = Date.now();
+  const gaps = [];
+  let last = performance.now();
+  const start = last;
+  const step = t => {
+    gaps.push(t - last); last = t;
+    if (t - start < ms) { requestAnimationFrame(step); return; }
+    perfBusy = false;
+    const g = gaps.slice(2).sort((a, b) => a - b);         // 头两帧含调度噪声，丢掉
+    if (g.length < 20) return;                             // 本就没在刷帧（切后台了），不算样本
+    const med = g[Math.floor(g.length / 2)];
+    if (med > 26) {                                        // 中位帧间隔 >26ms ≈ 跑不满 38fps
+      setLowPerf(true, 'auto');
+      toast('检测到这台手机跑不满动画，已自动开启省电模式（「怎么玩」里可改回全特效）', '', 4200);
+    }
+  };
+  requestAnimationFrame(step);
+}
 const LEVELS = { mild: '🟢温和', normal: '🟡普通', hot: '🔴刺激' };
 const PACKS_META = { party: '🎉 热闹派对', couple: '💑 情侣私语', office: '🏢 办公室安全' };
 
@@ -1557,6 +1620,7 @@ function currentScreen() {
 }
 function renderScreen() {
   const name = currentScreen();
+  if (name === 'game') perfWatch();   // 牌桌才是真负载，大厅测不出来的手机在这里补测一次
   document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === 'screen-' + name));
   if (name === 'lobby') renderLobby();
   if (name === 'game') renderGameStatic();
@@ -2573,20 +2637,33 @@ function stopTimers() { clearInterval(hbTimer); clearInterval(pruneTimer); hbTim
 //   - 音量不经过网络同步：每端用 AnalyserNode 就地分析自己收到的音轨，驱动头像波动
 //   - 公网 NAT 下依赖 STUN；无 TURN 时跨运营商网络可能连不通，属公共演示服务的已知限制
 // ═══════════════════════════════════════════════════════════
-// 多挂几家公共 STUN：谷歌在国内常不可达，metered/twilio 兜底；仍无 TURN（纯静态零后端的已知限制）
-const ICE_SERVERS = [
-  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
-  { urls: ['stun:global.stun.twilio.com:3478'] },
-];
+// 多挂几家公共 STUN：谷歌在国内常不可达，twilio 兜底。
+// 但 STUN 只能穿过锥形 NAT：对称 NAT / 部分运营商网络必须走 TURN 中继，否则两边都拿不到
+// 可用候选 → 信令能通、SDP 能交换，语音就是一点声音都没有。
+// 本项目是纯静态零后端，没自带 TURN；自建 coturn 后把它的地址写进 localStorage['tod:ice']
+// （内容就是 RTCConfiguration.iceServers 的 JSON 数组）即可覆盖，不用改代码。
+const ICE_SERVERS = (() => {
+  try {
+    const own = JSON.parse(localStorage.getItem('tod:ice') || 'null');
+    if (Array.isArray(own) && own.length) return own;
+  } catch { /* 配错就当没配，用默认 STUN */ }
+  return [
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+    { urls: ['stun:global.stun.twilio.com:3478'] },
+  ];
+})();
 const VOICE_OPEN = 0.045;      // RMS 门槛：超过即认为在说话
 const VOICE_HOLD_MS = 320;     // 短暂停顿不熄灭“正在说话”
 const MIC_SIGNAL_TTL = 15000;  // 本地模式 localStorage 会回放旧信令：超龄丢弃
+const MIC_LINK_WARN_MS = 14000;   // 协商完成后这么久 ICE 还没通 → 大概率缺 TURN，主动告知
+const MIC_INBOUND_WARN_MS = 6000; // 链路 connected 但一个音频包都没收到 → 对端没推流
 
 const MIC = {
   on: false, stream: null, ctx: null, analyser: null, tmp: null,
-  peers: new Map(),   // pid -> { pc, el, src, analyser, tmp, ice[], remoteSet, level, hold }
+  peers: new Map(),   // pid -> { pc, el, src, gain, analyser, tmp, ice[], remoteSet, sdpSent, level, hold, ... }
   seen: new Set(),    // 信令 mid 去重
   localLevel: 0, hold: 0, raf: 0, sig: '',
+  since: 0, watch: null, unlock: null, warnedLink: false,
 };
 
 function rmsLevel(analyser, tmp) {
@@ -2604,18 +2681,24 @@ async function toggleMic() {
   if (!joined || !link) { toast('先进入房间才能连麦', 'error'); return; }
   if (!navigator.mediaDevices?.getUserMedia || typeof RTCPeerConnection === 'undefined') { toast('当前浏览器不支持连麦（WebRTC）', 'error'); return; }
   if (MIC.on) { closeMic(); return; }
+  // 先在手势内同步拉起 AudioContext：await getUserMedia 会弹权限提示，那之后再 resume 已经不算用户手势
+  // （iOS Safari 就会把它停在 suspended，头像不波动、兜底的出声链路也放不出声）
+  try {
+    MIC.ctx = MIC.ctx || new (window.AudioContext || window.webkitAudioContext)();
+    if (MIC.ctx.state === 'suspended') MIC.ctx.resume().catch(() => {});
+  } catch { MIC.ctx = null; }
   try {
     MIC.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
   } catch { toast('麦克风权限被拒绝，无法连麦', 'error'); return; }
   try {
-    MIC.ctx = MIC.ctx || new (window.AudioContext || window.webkitAudioContext)();
-    await MIC.ctx.resume();
     MIC.analyser = MIC.ctx.createAnalyser(); MIC.analyser.fftSize = 512;
     MIC.tmp = new Uint8Array(MIC.analyser.fftSize);
     MIC.ctx.createMediaStreamSource(MIC.stream).connect(MIC.analyser);
   } catch { /* 分析器建不起来不阻断通话，仅头像不波动 */ }
-  MIC.on = true;
+  MIC.on = true; MIC.since = Date.now(); MIC.warnedLink = false;
   startMicMeter();
+  startMicWatch();
+  startMicUnlock();
   renderMicUI();
   await mutate(n => { const p = n.players.find(x => x.id === myId); if (p) p.micOn = true; });
   toast('🎙️ 连麦已开启，说话时头像会波动', 'success');
@@ -2630,7 +2713,9 @@ function closeMic(silent) {
   }
   MIC.stream && MIC.stream.getTracks().forEach(t => t.stop());
   MIC.stream = null; MIC.analyser = null;
-  stopMicMeter();
+  // 关麦后挂起 AudioContext：不然它的音频线程会一直转（白发热），下次开麦再 resume
+  try { MIC.ctx && MIC.ctx.state === 'running' && MIC.ctx.suspend(); } catch {}
+  stopMicMeter(); stopMicWatch(); stopMicUnlock();
   if (was && !silent && joined && link) mutate(n => { const p = n.players.find(x => x.id === myId); if (p) p.micOn = false; });
   renderMicUI();
 }
@@ -2639,16 +2724,24 @@ function destroyPeer(pid) {
   const pr = MIC.peers.get(pid);
   if (!pr) return;
   MIC.peers.delete(pid);
+  pr.dead = true;
   try { pr.pc.close(); } catch {}
   if (pr.el) { pr.el.pause(); pr.el.srcObject = null; pr.el.remove(); }
-  try { pr.src && pr.src.disconnect(); pr.analyser && pr.analyser.disconnect(); } catch {}
+  try { pr.gain && pr.gain.disconnect(); pr.src && pr.src.disconnect(); pr.analyser && pr.analyser.disconnect(); } catch {}
 }
 
 function makePeer(pid) {
   if (MIC.peers.has(pid)) return MIC.peers.get(pid);
   const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-  const pr = { pc, el: null, src: null, analyser: null, tmp: null, ice: [], remoteSet: false, level: 0, hold: 0 };
-  pc.ontrack = e => attachRemote(pid, pr, e.streams[0]);
+  const pr = { pid, pc, at: Date.now(), el: null, src: null, gain: null, gainOn: false, analyser: null, tmp: null, ice: [], remoteSet: false, sdpSent: false, dead: false, relay: false, bytes: 0, gotAt: 0, trackAt: 0, nextTry: 0, warnedPlay: false, warnedMute: false, level: 0, hold: 0 };
+  // 对方推的音轨：streams[0] 在部分浏览器/不带 msid 的对端上是空数组，兜底用 track 自拼一个流，否则永远没声音
+  pc.ontrack = e => attachRemote(pid, pr, (e.streams && e.streams[0]) || (e.track ? new MediaStream([e.track]) : null));
+  // 6s 兜底发出的 SDP 可能还没收集完候选（实测 gatherAtSend 就是 'gathering'）：
+  // 晚到的 srflx/relay 候选单独补发，不然它们永远传不出去，跨 NAT 就必挂
+  pc.onicecandidate = e => {
+    if (!e.candidate || !pr.sdpSent || !link || MIC.peers.get(pid) !== pr) return;
+    try { link.publishMic({ from: myId, to: pid, kind: 'ice', c: e.candidate, mid: genId(), t: Date.now() }); } catch {}
+  };
   pc.onconnectionstatechange = () => {
     if (!MIC.on || !MIC.peers.get(pid) || pr.pc !== pc) return;
     // 链路断了：只有发起端（字典序小的一方）重建，避免双方轮流重连
@@ -2671,7 +2764,10 @@ function whenGatheringComplete(pc) {
 async function sendLocalSdp(pid, pr, kind) {
   await Promise.race([whenGatheringComplete(pr.pc), sleep(6000)]);
   if (MIC.peers.get(pid) !== pr || !pr.pc.localDescription || !link) return;
-  try { link.publishMic({ from: myId, to: pid, kind, sdp: pr.pc.localDescription, mid: genId(), t: Date.now() }); } catch {}
+  try {
+    link.publishMic({ from: myId, to: pid, kind, sdp: pr.pc.localDescription, mid: genId(), t: Date.now() });
+    pr.sdpSent = true;   // 整份 SDP 已走 → 之后新收集到的候选改走单条 ice 消息
+  } catch {}
 }
 async function createPeerTo(pid) {
   const pr = makePeer(pid);
@@ -2690,18 +2786,64 @@ async function createPeerTo(pid) {
 
 function attachRemote(pid, pr, stream) {
   if (!stream || pr.el) return;
-  pr.el = document.createElement('audio');
-  pr.el.autoplay = true; pr.el.style.display = 'none';
-  pr.el.srcObject = stream;
-  document.body.appendChild(pr.el);
-  pr.el.play().catch(() => {});
+  const el = document.createElement('audio');
+  pr.el = el;
+  el.autoplay = true; el.playsInline = true; el.style.display = 'none';
+  el.srcObject = stream;
+  document.body.appendChild(el);
   try {
     pr.src = MIC.ctx.createMediaStreamSource(stream);
     pr.analyser = MIC.ctx.createAnalyser(); pr.analyser.fftSize = 512;
     pr.tmp = new Uint8Array(pr.analyser.fftSize);
     pr.src.connect(pr.analyser);   // 只接分析器不外放，声音由 audio 元素播
   } catch {}
+  el.addEventListener('canplay', () => { if (el.paused) playRemote(pid, pr); });
+  el.addEventListener('playing', () => unlockOff(pr));   // 元素真的出声了 → 撤掉兜底，避免两路叠音
+  el.addEventListener('pause', () => { pr.nextTry = 0; });
+  pr.trackAt = Date.now();
+  playRemote(pid, pr);
 }
+
+// audio 元素被自动播放策略拦住时，AnalyserNode 照样有波形（头像照常波动），但扬声器一点声音都
+// 没有——这正是“对方头像在动却没声音”的形态。三级兜底：重试 → 改走 AudioContext 直接出声 → 下次触摸再试。
+function playRemote(pid, pr) {
+  const el = pr.el;
+  if (!el || pr.dead || !document.body.contains(el)) return;
+  el.play().then(() => unlockOff(pr)).catch(() => {
+    if (!pr.gainOn && pr.src && MIC.ctx) {
+      // 重复 connect 同一个节点是 no-op，所以这里不需要“只试一次”的守卫
+      try {
+        if (MIC.ctx.state === 'suspended') MIC.ctx.resume().catch(() => {});
+        pr.gain = pr.gain || MIC.ctx.createGain();
+        pr.src.connect(pr.gain);
+        pr.gain.connect(MIC.ctx.destination);
+        pr.gainOn = true;
+      } catch { /* AudioContext 也不可用：只能靠下一次触摸解锁 */ }
+    }
+    if (!pr.warnedPlay) { pr.warnedPlay = true; toast('🔇 浏览器拦住了语音自动播放，再点一下页面任意处就出声', 'error', 4200); }
+  });
+}
+// 光靠一次 play() 不够：autoplay 属性可能先起播又被打断（iOS 音频会话抢占、后台切换），
+// 这时元素停在 paused、AudioContext 兜底又被 playing 撤走 → 又是“波形在动但没声音”。
+// 所以每帧确认“至少有一条出声路径”，没有就限流重试。
+function ensureAudible(pr, now) {
+  if (!pr.el || pr.gainOn || !pr.el.paused) return;
+  if (pr.nextTry > now) return;
+  pr.nextTry = now + 1200;
+  playRemote(pr.pid, pr);
+}
+function unlockOff(pr) {
+  if (!pr.gainOn) return;
+  pr.gainOn = false;
+  try { pr.gain && pr.gain.disconnect(); } catch {}
+}
+// 自动播放只在“有一次真实手势”后才放行；开麦期间每一次触摸都顺手把还没出声的链路推一把
+function startMicUnlock() {
+  if (MIC.unlock) return;
+  MIC.unlock = () => { for (const [pid, pr] of MIC.peers) if (pr.el && pr.el.paused) playRemote(pid, pr); };
+  document.addEventListener('pointerdown', MIC.unlock, { passive: true });
+}
+function stopMicUnlock() { if (MIC.unlock) { document.removeEventListener('pointerdown', MIC.unlock); MIC.unlock = null; } }
 
 // 玩家列表 / micOn 变化时对账网状网：新开麦的建链，关麦/退房的拆链
 function syncMicPeers() {
@@ -2791,6 +2933,7 @@ function startMicMeter() {
         pr.level += (raw - pr.level) * 0.35;
         paintVoice(pid, pr.level, voiceSpeaking(pr, pr.level));
       }
+      ensureAudible(pr, Date.now());
       any = true;
     }
     if (any) MIC.raf = requestAnimationFrame(loop);
@@ -2800,16 +2943,67 @@ function startMicMeter() {
 }
 function stopMicMeter() { if (MIC.raf) cancelAnimationFrame(MIC.raf); MIC.raf = 0; resetVoice(); }
 
+// 语音自检：“按钮显示连麦中、头像也在波动，但就是没声音”是连麦最难自查的一类，这里主动把它报出来
+function startMicWatch() {
+  if (MIC.watch) return;
+  MIC.watch = setInterval(async () => {
+    if (!MIC.on) return;
+    const now = Date.now();
+    let live = 0, stale = 0;
+    for (const pr of MIC.peers.values()) {
+      const cs = pr.pc.connectionState;
+      if (cs !== 'connected') {
+        // 计时从“这条链路建立”起算，不是从本端开麦起算：对端晚开麦不该被当成卡死
+        if (pr.remoteSet && now - pr.at > MIC_LINK_WARN_MS) stale++;
+        continue;
+      }
+      live++;
+      let bytes = pr.bytes, relay = pr.relay;
+      try {
+        const st = await pr.pc.getStats();
+        const cand = new Map();
+        st.forEach(s => { if (s.type === 'local-candidate') cand.set(s.id, s.candidateType); });
+        st.forEach(s => {
+          if (s.type === 'inbound-rtp' && s.kind === 'audio') bytes = Math.max(bytes, s.bytesReceived || 0);
+          if (s.type === 'candidate-pair' && (s.selected || s.nominated) && cand.get(s.localCandidateId) === 'relay') relay = true;
+        });
+      } catch {}
+      pr.bytes = bytes; pr.relay = relay;
+      if (bytes > 0) { if (!pr.gotAt) pr.gotAt = now; }
+      else if (!pr.warnedMute && now - (pr.trackAt || pr.at) > MIC_INBOUND_WARN_MS) {
+        pr.warnedMute = true;
+        toast('🔇 链路已通但没收到对方的声音：对方麦克风未推流或未放行', 'error', 4200);
+      }
+    }
+    if (!live && stale && !MIC.warnedLink && now - MIC.since > MIC_LINK_WARN_MS) {
+      MIC.warnedLink = true;
+      toast('📶 语音链路一直连不通：跳运营商/对称 NAT 需要 TURN 中继，换网络（如手机热点）再试', 'error', 5200);
+    }
+    if (live) MIC.warnedLink = false;
+    renderMicUI();   // 中继/断开等统计变化也能反映到按钮 title
+  }, 2500);
+}
+function stopMicWatch() { clearInterval(MIC.watch); MIC.watch = null; }
+
 function renderMicUI() {
   const n = S ? S.players.filter(p => p.micOn).length : 0;
-  // 标签说实话：统计真正接通（协商完成）的链路数，而不是「开了麦的人数」
-  let live = 0;
-  for (const pr of MIC.peers.values()) if (pr.remoteSet) live++;
+  // 标签说实话：协商完成不等于听得见声音，只有 ICE/DTLS 真正 connected 才算一路接通
+  let live = 0, pending = 0, dead = 0, relay = 0;
+  for (const pr of MIC.peers.values()) {
+    const cs = pr.pc.connectionState;
+    if (cs === 'connected') { live++; if (pr.relay) relay++; }
+    else if (cs === 'failed' || cs === 'disconnected' || cs === 'closed') dead++;
+    else pending++;
+  }
+  const detail = MIC.on
+    ? `语音链路：已接通 ${live} 路 · 协商未完 ${pending} · 已断开 ${dead}${relay ? ` · ${relay} 路走中继` : ''}`
+    : '语音通话（WebRTC）';
   document.querySelectorAll('.js-mic-btn').forEach(b => {
     b.classList.toggle('live', MIC.on);
+    b.title = detail;
     const label = b.querySelector('.mic-label');
     if (label) label.textContent = MIC.on
-      ? (live ? `连麦中 · ${live + 1} 人` : (n > 1 ? '连麦中 · 接通中…' : '连麦中 · 等待他人开麦'))
+      ? (live ? `连麦中 · ${live + 1} 人${pending || dead ? '（链路未全通）' : ''}` : (n > 1 ? (pending ? '连麦中 · 接通中…' : '连麦中 · 连不通') : '连麦中 · 等待他人开麦'))
       : (n > 1 ? `连麦（房内 ${n} 人开麦）` : '连麦');
   });
 }
@@ -3380,7 +3574,11 @@ $('input-room').addEventListener('paste', e => {   // 邀请文字直接粘进�
   if (code && code !== raw.trim().toUpperCase()) { e.preventDefault(); $('input-room').value = code; toast(`已从邀请提取房间号 ${code} 📋`, 'success'); }
 });
 // 从聊天窗口切回本页面时，自动读一次剪贴板（浏览器可能弹粘贴授权，拒绝则静默跳过）
-document.addEventListener('visibilitychange', () => { if (!document.hidden && !joined && !$('input-room').value.trim()) pasteRoom(true); });
+document.addEventListener('visibilitychange', () => {
+  // 切去聊天窗口/后台：背景动画继续跑只会白烧电→手机发烫，直接冻结
+  document.body.classList.toggle('paused', document.hidden);
+  if (!document.hidden && !joined && !$('input-room').value.trim()) pasteRoom(true);
+});
 document.querySelectorAll('#mode-pick .mode-opt').forEach(b => b.addEventListener('click', () => {
   pickedMode = b.dataset.mode;
   document.querySelectorAll('#mode-pick .mode-opt').forEach(x => x.classList.toggle('sel', x === b));
@@ -3455,7 +3653,10 @@ $('btn-resync').addEventListener('click', async () => {
 $('copy-link-btn').addEventListener('click', async () => {
   await doCopyInvite($('copy-link-btn'));
 });
-window.addEventListener('pagehide', () => {
+window.addEventListener('pagehide', e => {
+  // 进 bfcache（微信里页面没真销毁）时把麦收了，不然麦克风会一直亮着发热；
+  // 真卸载的话不用管，进程结束本身就会把资源带走
+  if (e.persisted) { try { closeMic(); } catch {} }
   // 尽力而为：离开页面时把自己移出房间
   try {
     if (joined && S && link && link.alive) {
@@ -3475,6 +3676,12 @@ window.addEventListener('pagehide', () => {
 // 初始化
 // ═══════════════════════════════════════════════════════════════
 if (LOWPERF) document.body.classList.add('loperf');   // 低端机自动降载：砍背景动效/毛玻璃，保住交互帧率
+['auto', 'on', 'off'].forEach(k => {
+  const b = document.getElementById('btn-perf-' + k);
+  if (b) b.addEventListener('click', () => setLowPerf(k === 'on' || (k === 'auto' && autoLowPerf()), PERF_PREF_OF[k]));
+});
+syncPerfBtns();
+setTimeout(() => perfWatch(), 2500);   // 字体/背景就绪后再测，不然首帧成本会误判
 buildBg();
 buildAvatarSelector();
 renderMine();

@@ -40,7 +40,11 @@
 - **轮到自己抽卡**：真心话/大冒险双卡呼吸发光（brightness 脉动，不动几何位置，不影响点击稳定性）+ 卡面扫光循环
 - **Card selection**: Card flies to center with scale-up
 - **Card draw**: Card flips with 3D CSS transform, then reveals punishment；洗牌为真实交叉效果：`.deck.shuffling` 期间顶层两张牌按 `shuffle-left/right/mid`（0.55s）交替向左右交叉、中层微位移，容器整体 brightness 脉动；牌堆常驻扫光为窄光带（`left:-60%; width:60%` 平移 0→300%），`overflow:hidden` 裁切在卡面边界内，与 choice-card 扫光共用同一几何与关键帧
-- **无障碍与低端机**：`prefers-reduced-motion` 命中时走 REDUCED 静态路径（跳过运镜/飞牌/洗牌/打字机，翻面 700ms 后直接呈现全文，翻牌动画锁仍生效）；`deviceMemory ≤ 3` 或 `hardwareConcurrency ≤ 4` 判定 LOWPERF → `body.loperf` 收紧动效 + 粒子/彩带减半；选择类控件全部 `button` 元素（键盘可聚焦、Enter/Space 可触发）
+- **背景光球不用 `filter: blur()`**：三个光球（500/400/350px）的柔边由多段 `radial-gradient` color-stop 直接画出。旧的 `blur(80px)` 是一个每帧都要重光栅化的大半径模糊层，实测（软件光栅 + DPR3）是大厅 16fps / 牌桌 16fps 的唯一主因；去掉后两处均钉回 60fps（p95 100ms → 16.7ms），而纸屑、`backdrop-filter` 毛玻璃、每人一个的旋转头像环单独开关均测不出成本（全在噪声里），因此保留不动
+- **省电模式（三档，`localStorage['tod:perf']`）**：`auto` 自适应 / `low` 省电 / `full` 全效，入口在「🎭 怎么玩」弹窗（所有人可用，不依赖主持人）。猜型号不可靠（主流手机 `hardwareConcurrency` 普遍是 8，iOS 根本不报 `deviceMemory`），所以 `perfWatch()` 在开场与首次上牌桌时实测 rAF 帧间隔（最多 3 次、每次隔 ≥20s），中位帧间隔 >26ms（≈跑不满 38fps）才自动降载并 toast 告知；只自动降级不自动升级，用户手动选过就不再自动测
+- **切后台即冻结**：`visibilitychange` 给 `body` 加 `paused`，`body.paused *::before/::after { animation-play-state: paused }`——切到微信聊天窗口时背景不再继续烧电
+- **关麦后挂起 AudioContext**：`closeMic()` 里 `MIC.ctx.suspend()`（音频线程不空转），下次开麦 `resume`；进 bfcache（`pagehide` 且 `e.persisted`）时直接收麦，避免麦克风在后台常亮
+- **无障碍与低端机**：`prefers-reduced-motion` 命中时走 REDUCED 静态路径（跳过运镜/飞牌/洗牌/打字机，翻面 700ms 后直接呈现全文，翻牌动画锁仍生效）；LOWPERF（`body.loperf`）砍背景光球/纸屑/毛玻璃/头像环旋转与扫光，并把爆彩粒子限量；选择类控件全部 `button` 元素（键盘可聚焦、Enter/Space 可触发）
 - **抽卡一镜到底时序**（多端以 `turn.ts` 为统一时钟）：头像飞入卡堆(0-1.1s) → 洗牌(0-1.4s) → 飞牌落向中央(1.5-2.2s，落点在目标布局下预先测量，修复旧版 hidden 零 rect 飞向左上角的 bug) → 牌背“抽取中”呼吸到 2.6s（`ANIM_DRAWING_MIN_MS`）→ 蓄势微抬 240ms → 翻面 850ms → 打字机揭晓 → 彩带
 - **防闪答案动画锁**：`applyState` 在 `renderScreen` 绘帧前上锁（`revealAnim`/`cardDealt`），`renderGameStatic` 的 drawing/revealed 分支在动画窗口内直接 return；`playReveal` 用 `transition:none` 瞬时归位牌背再翻，保证“答案不会先闪现再翻回去”；`clearStageTimers` 同时清打字机 timer，防止旧回合对隐藏元素补放彩带
 - **Punishment reveal**: Typewriter text effect with blinking caret, confetti burst
@@ -78,7 +82,9 @@
 ### Phase 2.5: 连麦（语音通话）
 - 大厅和游戏页均有 🎙️ 连麦开关（btn-secondary 胶囊，开启后变绿色 live 态 + 三色音量条）；开关麦状态以 `player.micOn` 写入房间状态，全房可见
 - 语音 = WebRTC 网状网（每人 ↔ 其他开麦者）；信令走房间新 topic `tod/v1/<房间>/mic`（非 retained，点对点定向），MQTT/本地两种传输都复用同一条 RoomLink
-- 防冲水：两端按 clientId 字典序决定发起方（小者发 offer）；非 trickle，等 ICE 收集完发整份 SDP（本地模式 localStorage 单槽位不丢候选）；9s 不成链发起端重建一次；关麦发 bye 拆链
+- 防冲水：两端按 clientId 字典序决定发起方（小者发 offer）；非 trickle，等 ICE 收集完发整份 SDP（本地模式 localStorage 单槽位不丢候选），**但收集有 6s 上限**：到点先发出整份 SDP，之后新收集到的候选改走 `kind:'ice'` 单条补发（晚到的 srflx/relay 不再永久丢失，否则跳 NAT 必挂）；9s 不成链发起端重建一次；关麦发 bye 拆链
+- 出声三级保障：`<audio>` 自动播放被拦时 `AnalyserNode` 照样有波形（=“对方头像在动但一点声音都没有”），所以 `play()` 失败后会把远端流再接一路 `GainNode → AudioContext.destination` 兜底出声，并在下一次 `pointerdown` 手势重试；元素一旦真出声（`playing`）就撤掉兜底避免两路叠音，`pause` 则由 rAF 里的 `ensureAudible` 限流 1.2s 重新拉起；AudioContext 在 `toggleMic` 的**手势内同步**创建并 resume（先 `await getUserMedia` 再 resume 在 iOS 上已不算手势）
+- 链路自检（2.5s 一次，getStats）：connected 但 `inbound-rtp` 一个音频包都没收到 → 「对方未推流」；协商完成但 14s 还没成链 → 「跳运营商/对称 NAT 需要 TURN 中继」；走没走中继记在 `pr.relay` 并写进按钮 `title` 明细
 - 音量可视化零网络开销：本地麦 + 每个远端音轨各挂一个 AnalyserNode，rAF 循环算 RMS → 写 `--voice` / `.speaking`，头像波动即音量计；门槛 RMS 0.045 + 320ms 拖尾防闪烁
 - 已知限制：无 TURN 服务器（纯静态单文件零后端），对称 NAT / 严格防火墙下可能连不通；无麦克风权限时优雅降级为纯文字游戏
 
@@ -198,12 +204,14 @@ big bank never inflates per-turn sync traffic. 旧版纯字符串题库按 `{x: 
 - 降级：本地模式（BroadcastChannel + localStorage），同一浏览器多标签页可玩；因为公共 broker 在部分移动网络不可达，降级时大厅分享区会显式提示「只有同一浏览器多标签能互相看见」，且 keeper 仍每 7s 在后台补连，连上即自动升回在线（不用刷新）
 - **刷新自动回房（按标签页身份）**：加入成功后写 sessionStorage `tod:tab` 票（id/房间/名字/头像/local 标记/时间戳，天然按标签页隔离，多开不串号）；带票刷新 → 启动过场后自动 doJoin，同房间沿用旧 id，房间里的旧记录被原地替换，不会出现「两个一样的自己」，且回合 chooserId 不丢；主动退出（doLeave）/加入失败均擦票，刷新不再自动回房；票 30 分钟过期（与房间 expiresAt 对齐），**心跳里同步续期**（长局中途刷新不会因票过期中断身份复用）
 - 回合阶段机：choosing → drawing → revealed（由 turn.seq 驱动，所有客户端同步重放动画）
-- WebRTC 连通率：STUN 双源（Google + Twilio）；被叫端已 `remoteSet` 后又收到 offer（对方重建）时先拆旧 peer 再重建，防卡死；连麦徽标按「已完成协商的在连 peer 数」计数（接通中≠已接通）
+- WebRTC 连通率：默认只配公共 STUN（Google + Twilio），**没有 TURN 就穿不过对称 NAT**（实测 metered/peerjs/stunprotocol 几台免费中继都拿不到 relay 候选，写进去只会白拖慢收集），因此改成 `localStorage['tod:ice']` 可覆盖：自建 coturn 后把 `RTCConfiguration.iceServers` 的 JSON 数组写进去即可，不用改代码
+- 连麦标签只数 `connectionState === 'connected'` 的链路（**协商完成 ≠ 听得见声音**，旧版按 `remoteSet` 计数会把“根本没通”显示成「连麦中 · 2 人」）；按钮 `title` 给出「已接通 N 路 · 协商未完 N · 已断开 N · N 路走中继」明细
+- 被叫端已 `remoteSet` 后又收到 offer（对方重建）时先拆旧 peer 再重建，防卡死
 
 ## 6. Acceptance Criteria
 
 - [x] Players can join with name + avatar
-- [x] 连麦：开/关麦全房同步，WebRTC 语音互通（本地 + MQTT 信令双链路 E2E 验证），说话者头像随音量波动/发光/声波环，关麦/退房即时拆链
+- [x] 连麦：开/关麦全房同步，WebRTC 语音互通（本地 + MQTT 信令双链路 E2E 验证），说话者头像随音量波动/发光/声波环，关麦/退房即时拆链；**验收看“真出声”而不是“有元素”**：断言远端 `<audio>` 不 paused 且 `currentTime` 在推进（test-mic / test-mic-mqtt）
 - [x] 启动/加入加载动画：3D 抽卡 overlay 分阶段文案，首屏可见且完成后移除（Playwright detached 断言）
 - [x] All joined players visible in real-time
 - [x] Truth/Dare selection with animated cards
@@ -220,6 +228,8 @@ big bank never inflates per-turn sync traffic. 旧版纯字符串题库按 `{x: 
 - [x] 韧性修复：reveal 双写仲裁、prune 死代码、票续期、resync 真实回报、撞号确认、re-offer 重建、40s 灰化
 - [x] 同步韧性专项（`.pw/test-sync.cjs`）：3 台 broker 同时在线且写入 fan-out 到每一台 / 对端时钟慢 3 分钟仍显示在线 / 连发整文档不回退对方心跳 / 名单双向对称 / 全断降级本地后 keeper 自动升回在线且断网期间建的房间别人仍能加入；file:// 本地页不拿私有地址当链接、无 clipboard API 时复制仍有结果（已复制或手动弹窗）且全程零 JS 报错
 - [x] 体验与性能：首进自动引导一次、DiceBear 本地打包默认头像（pixel-art + shapes，vendored MIT，零外网）+ av:P## 头像短索引（整帧状态 <1KB 量级）、REDUCED 静态动画路径、LOWPERF 降档、全按钮键盘可达
+- [x] 性能回归（`.pw/test-perf.cjs`）：光球无 `filter:blur` 但保留飘动、`buildBg` 只在启动时调用（纸屑固定 26 片不逐轮累积）、软件光栅 + DPR3 下大厅 16 人与牌桌均 ≥50fps（p95 ≤25ms）、牌桌内连抽 6 轮后 DOM 节点与运行中动画数不增长、爆彩粒子残留为 0、防重复清单有上限、切走冻结/切回恢复、省电三档生效且刷新后记住、人为塞回 blur 层造成持续掉帧时被实测捕获并自动降载；全程零 JS 报错
 - [x] 头像定制与持久化：31 风格 DiceBear 全量 vendored（~2MB IIFE，file:// 冷启动实测 ~2.2s）；定制器三轴（风格×seed×底色）+「就用它 / 保存到我的」；`dcb:` 配方进状态（~54B，双端逐字节一致）；「我的」localStorage 持久化（去重置顶封顶 30、上传压 96px JPEG、tod:me 下次访问自动恢复）；两连点删除 + 删使用中回落 av:P01 + 触屏角标常显；`.pw/test-avatars.cjs` 8 步 E2E 全绿
 - [x] Layout polish: 单列宽度统一到 540px，触控目标 ≥ 40px，:focus-visible 描边，prefers-reduced-motion 降噪，窄屏头像/统计条收紧
 - [x] E2E verified via Playwright: both modes × (local + MQTT) transports, sync/guard/stats all pass；连麦专项（test-mic.cjs / test-mic-mqtt.cjs）全绿；主持闭环专项（test-host.cjs，15 步）全绿
+- [x] 连麦“没声音”专项：自动播放被拦时的兜底出声（test-mic-autoplay.cjs：复现 paused+有波形 → gain 路有输出 rms>0.005 → 手势后元素接管且兜底已撤）、晚到 ICE 候选补发 + 标签诚实性（test-mic-trickle.cjs）全绿；`check-syntax.cjs` 作为内联脚本语法门禁

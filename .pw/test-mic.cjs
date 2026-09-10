@@ -105,10 +105,18 @@ await page.click('#chk-local');
     log('voice levels on A:', JSON.stringify(levels));
     await A.screenshot({ path: 'shots/mic-speaking.png' });
 
-    // 6) 远端 audio 元素在播
-    const audioCount = await A.evaluate(() => [...document.querySelectorAll('audio')].filter(el => el.srcObject).length);
-    if (!audioCount) throw new Error('no remote audio element');
-    log('remote audio element playing');
+    // 6) 真出声：光有 audio 元素不算——必须 paused=false 且 currentTime 在往前走
+    //（AnalyserNode 有波形不代表听得到：自动播放被拦时头像照常波动却没声音）
+    for (const [p, tag] of [[A, 'A'], [B, 'B']]) {
+      await p.waitForFunction(() => {
+        const els = [...document.querySelectorAll('audio')].filter(el => el.srcObject);
+        return els.length > 0 && els.every(el => !el.paused && el.currentTime > 0.05 && !el.muted && el.volume > 0 && el.readyState >= 2);
+      }, null, { timeout: 15000 }).catch(async () => {
+        const d = await p.evaluate(() => [...document.querySelectorAll('audio')].filter(el => el.srcObject).map(el => ({ paused: el.paused, t: +el.currentTime.toFixed(3), muted: el.muted, vol: el.volume, rs: el.readyState, tracks: el.srcObject.getAudioTracks().length })));
+        throw new Error(`${tag} 远端音频没出声: ${JSON.stringify(d)}`);
+      });
+      log(tag, '扬声器真出声（audio 元素在推时间轴）');
+    }
 
     // 7) B 关麦 → A 的 peer 被拆
     await B.click('#btn-mic-lobby');
