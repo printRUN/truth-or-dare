@@ -54,7 +54,7 @@
        方向由 .world.tx-back 上的 --tx-* 变量整体反转（回退时反过来），见下方 3D 舞台段。 */
     @keyframes scene-in {
       from { opacity: 0; transform: perspective(1200px) translate3d(0, 0, var(--tx-zin, -520px)) rotateY(calc(-1 * var(--tx-ry, 6deg))) rotateX(var(--tx-tilt, 1.4deg)) scale(1); }
-      45%  { opacity: 0.6; }
+      22%  { opacity: 1; }   /* 尽早坐实：加载层还在淡出时它已经是不透明的，幕一揭开就是画面，不会先露一段黑底 */
       to   { opacity: 1; transform: perspective(1200px) translate3d(0, 0, 0) rotateY(0deg) rotateX(0deg) scale(1); }
     }
     @keyframes scene-out {
@@ -1939,14 +1939,21 @@ function ensureOverlay() {
   return o;
 }
 function showLoading(text) {
+  const fresh = !$('loading-overlay');
   const o = ensureOverlay();
-  o.classList.remove('hide');
+  clearTimeout(o._rm); o._hid = false;   // 把上一轮 hideLoading 排的「移除」取消，否则加载层会在中途自己消失
   if (text) o.querySelector('.loading-text').textContent = text;
+  if (fresh) {
+    // 重新建出来的加载层：先隐形、下一帧再淡入，否则满屏深色会硬闪一下
+    o.classList.add('hide');
+    void o.offsetWidth;
+    requestAnimationFrame(() => { if (o.isConnected && !o._hid) o.classList.remove('hide'); });
+  } else o.classList.remove('hide');
 }
 function setLoadingText(text) { const o = $('loading-overlay'); if (o) o.querySelector('.loading-text').textContent = text; }
 function hideLoading() {
   const o = $('loading-overlay');
-  if (o) { o.classList.add('hide'); setTimeout(() => o.remove(), 520); }
+  if (o) { o._hid = true; o.classList.add('hide'); clearTimeout(o._rm); o._rm = setTimeout(() => o.remove(), 520); }
   // 加载层收起＝过场的一段：此时才放新屏的入场，两者叠在一起读成一次镜头推进
   if (pendingSceneEnter) { const p = pendingSceneEnter; pendingSceneEnter = null; playSceneEnter(p.name, p.back); }
 }
@@ -2083,15 +2090,22 @@ function playSceneEnter(name, back) {
   clearTimeout(s._txT);
   s._txT = setTimeout(() => s.classList.remove('entering'), 1000);
 }
+function overlayUp() { const o = $('loading-overlay'); return !!(o && o.isConnected && !o._hid); }
+// 放新屏入场：必须在它已经 display（.active）之后再挂，否则 CSS 动画在 display:none 期间不会跑，
+// 一显形就已经是终态/或先满屏闪一帧。加载层还盖着时先攒着，等 hideLoading 那一刻再放。
+function queueSceneEnter(name, back) {
+  if (overlayUp()) pendingSceneEnter = { name, back };
+  else playSceneEnter(name, back);
+}
 function renderScreen() {
   const name = currentScreen();
   if (name === 'game') perfWatch();   // 牌桌才是真负载，大厅测不出来的手机在这里补测一次
+  let changed = false, txPrev = null, txBack = false;
   if (name !== lastScreenName) {
-    const prev = lastScreenName;
-    lastScreenName = name;
-    const back = prev ? (SCENE_ORDER[name] ?? 0) < (SCENE_ORDER[prev] ?? 0) : false;
-    if (prev) {
-      const old = $('screen-' + prev);
+    changed = true; txPrev = lastScreenName; lastScreenName = name;
+    txBack = txPrev ? (SCENE_ORDER[name] ?? 0) < (SCENE_ORDER[txPrev] ?? 0) : false;
+    if (txPrev) {
+      const old = $('screen-' + txPrev);
       // 旧屏先退场（绝对定位掠过镜头），新屏同时从景深里推近——读起来是一次连续运镜，不是硬切
       if (old && !REDUCED) {
         old.classList.remove('entering');
@@ -2101,15 +2115,15 @@ function renderScreen() {
       }
       SFX.play(name === 'result' ? 'win' : 'whoosh');
     }
-    Cam.enter(name, back ? -1 : 1);
-    if (prev) playSceneEnter(name, back);
-    else if (name !== 'join') pendingSceneEnter = { name, back: false };   // 首次进场（加入成功）留给加载层收起那一刻
+    Cam.enter(name, txBack ? -1 : 1);
   }
+  // 先切 active（新屏显形），再挂入场动画
   document.querySelectorAll('.screen').forEach(s => {
     const on = s.id === 'screen-' + name;
     if (on) { s.classList.remove('leaving'); clearTimeout(s._txL); }   // 快速连跳时别让上一轮的退场类把它藏起来
     s.classList.toggle('active', on);
   });
+  if (changed && !(txPrev === null && name === 'join')) queueSceneEnter(name, txBack);   // 开机的加入页不播转场
   updateReactBar();
   if (name === 'lobby') renderLobby();
   if (name === 'game') renderGameStatic();
@@ -3793,22 +3807,24 @@ async function doLeave() {
   if (!joined) return;
   try { sessionStorage.removeItem('tod:tab'); } catch {}   // 主动退出后刷新不再自动回房
   closeMic(true);
+  // 先把「离开后的房间状态」抓下来，但**不等广播落地**：网络一旦慢，等待就会变成退房时的空白卡顿。
+  // 先切回加入页（即时反馈），退房广播/关链路丢到后台补发——失败也无所谓，心跳超时同样会把我清掉。
+  let linkRef = link, next = null, empty = false;
   try {
-    if (S && link) {
-      const next = JSON.parse(JSON.stringify(S));
+    if (S && linkRef) {
+      next = JSON.parse(JSON.stringify(S));
       next.players = next.players.filter(p => p.id !== myId);
       if (!next.players.some(p => p.id === next.turn.chooserId)) resetTurnStage(next);
       next.ts = Date.now();
-      if (!next.players.length) { next.expiresAt = Date.now(); next.gameStarted = false; }
+      empty = !next.players.length;
+      if (empty) { next.expiresAt = Date.now(); next.gameStarted = false; }
       stampHb(next);
-      await link.publishState(next);
-      if (!next.players.length) await link.clearPool();   // 房间空了：顺带擦掉 retained 题库
     }
   } catch {}
   resetHb();
   SPool = null; poolTs = 0;
   stopTimers();
-  link && link.close(); link = null;
+  link = null;                                            // 先摘链路：后面的心跳/重连钩子不再往旧房间写
   joined = false; S = null; firstApply = true; lastAppliedSeq = -1; myRecord = null;
   clearStageTimers();
   document.body.classList.remove('is-host');
@@ -3817,6 +3833,12 @@ async function doLeave() {
   $('room-chip').style.display = 'none';
   try { history.replaceState(null, '', location.href.split('?')[0].split('#')[0]); } catch {}
   toast('已退出房间');
+  if (linkRef) {
+    try {
+      if (next) { await linkRef.publishState(next); if (empty) await linkRef.clearPool(); }   // 房间空了：顺带擦掉 retained 题库
+    } catch {}
+    try { linkRef.close(); } catch {}
+  }
 }
 
 // 幽灵清理 + 心跳 + 回房票续期
