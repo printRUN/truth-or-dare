@@ -9,16 +9,16 @@
 ## 2. Visual & Rendering Specification
 
 ### Scene Setup
-- **View**: 3D 舞台（CSS 3D）——`#app { perspective: 1400px }` 提供透视，`#world3d`（`.world`）是唯一的「摄影机 rig」，四个屏（join/lobby/game/result）都在这一层里；屏自身不再挂静态 3D 变换，每屏的常态机位搬到了 JS `Cam.base`
+- **View**: 3D 舞台（CSS 3D）——`#app { perspective: 1400px }` 提供透视，`#world3d`（`.world`）是唯一的「摄影机 rig」，四个屏（join/lobby/game/result）都在这一层里；屏常态下不挂 3D 变换（只有换屏那 ~0.8s 走 `scene-in/out` 的临时 transform），每屏的常态机位在 JS `Cam.base`
 - **Background**: Animated gradient with floating particle confetti, continuous slow-motion drift (one-shot camera feel)
-- **Camera**: 无用户相机控制，全部由 `Cam` 调度为一条连续时间轴：`Cam.enter(name)`（每屏 spawn→base 的入场推/拉）、`Cam.home()`、`Cam.focus(el)`（推近到元素）、`Cam.nudge(el)`（滑向持麦人）、`Cam.shake()`（翻牌/暴击的震动）、`Cam.parallax(nx,ny)`（鼠标微视差）
+- **Camera**: 无用户相机控制，全部由 `Cam` 调度为一条连续时间轴：`Cam.enter(name, dir)`（换屏时从**当前机位**续接的一段推进——先过冲再缓收常态，不再瞬移到 spawn；`dir<0` 为回退，镜头反向）、`Cam.home()`、`Cam.focus(el)`（推近到元素）、`Cam.nudge(el)`（滑向持麦人）、`Cam.shake()`（翻牌/暴击的震动）、`Cam.parallax(nx,ny)`（鼠标微视差）
 - **Lighting**: Soft glow on active elements, neon accents on cards；牌桌由 `.table3d`（rotateX 74° 的椭圆渐变台面 + `#cam` 自带 `perspective: 900px`）充当「桌面反射」
 
 #### 3D 实现的红线（踩过的坑，改动前必读）
 - **`.world` 绝不能开 `transform-style: preserve-3d`**：一旦开启，浏览器做 3D 命中测试时父平面（z=0）会盖过 `translateZ(-40px)` 的子屏，`document.elementFromPoint` 返回 `.world`，**全站按钮/输入框点不动**（`details/adv summary` 都打不开）。现在就义：世界层是「带透视的单平面」，屏内命中就是普通 2D；`.cam` 自己开 `perspective` 给牌桌子元素用。回归锁在 `.pw/test-3d.cjs`（`transformStyle === 'flat'` + `elementFromPoint` 命中自身）
 - **`#app` 的 `perspective` 会把它变成 fixed 后代的包含块**：`.toast` / `.burst-container` / `.react-bar` / `.modal-mask` 必须留在 `#app` 外，否则定位基准会变
 - **3D 座次只写 CSS 变量**（`--rx/--ry/--rs` + `zIndex`）：`layoutRing()` 只在名单结构变化/窗口 resize 时重排，不逐帧计算；前排（`--ry` 大）必须同时 `--rs` 大、`zIndex` 大（近大远小 + 前后遮挡）
-- **每屏入场动画只动 opacity**（`@keyframes screen-in`）：屏的 transform 归位到镜头层后，屏内不再有 `transform` 动画可抢，避免旧版 `fade-in` 的 translateY 与 3D 姿态互撞
+- **每屏入场/退场是一段 3D 景深穿行**（`@keyframes scene-in` / `scene-out`）：换屏时新屏从走廊深处 `translate3d(0,0,-520px) rotateY(-6deg)` 推近到落位，旧屏从落位飞到 `translate3d(0,0,240px) rotateY(6deg)` 掠过镜头再淡出；透视直接写进 transform 的 `perspective(1200px)`，**不去动 `.world` 的渲染上下文**（红线：`preserve-3d` 绝不开，`.world` 仍 `transform-style: flat`）。方向变量 `--tx-zin/--tx-zout/--tx-ry/--tx-tilt` 挂在 `.world` 上，回退时 `.world.tx-back` 整体反向。两个动画都只在换屏那 0.8s 里动 transform，`animationend`/超时后 `entering`/`leaving` 类移除，**常态回到 `transform: none`** ——命中测试与布局不受影响（旧版 `screen-in` 只动 opacity 的做法已废弃）
 - **低端机 / 降噪**：`body.loperf` 把 `.table3d` 拍平，`Cam.to()` 在 LOWPERF 下自动砍掉旋转/缩放、位移减半；`prefers-reduced-motion` 下 `.world { transform: none !important }`，同时 `Cam.to()` 走瞬时跳转（`Cam.jump` 会作废在跑的补间）
 - **3D 命中不能影响正常点击**：`.flip-card` 只让可见的那一面接收点击（`:not(.flipped) .card-front` / `.flipped .card-back` 置 `pointer-events:none`）：部分浏览器会把背面也算进命中栈，翻牌后按钮点不动；E2E 里等待应用自己的动画锁 `revealAnim === false` 再点击，避免撞上翻牌过渡
 
@@ -42,7 +42,8 @@
 
 ### Animation System (One-Shot Camera Feel)
 - **一镜到底（2026-09 统一为 Cam 调度）**：所有运镜都写 `#world3d` 的 transform 字符串（`translate3d` + `rotateX/Y/Z` + `scale`），`Cam.to(pose, ms, ease)` 用 rAF 补间；**新镜头接管 = `token++`**，旧镜头（含它的 done 回调）当场作废并从当前位置续接，所以永远不会跳帧
-- **换屏 = 运镜不切台**：`renderScreen()` 只在换屏时干活——旧屏加 `.leaving`（绝对定位 + 淡出缩小 0.42s）留在原地，同时 `Cam.enter(新屏)` 从 spawn 机位推到 base 机位；join→lobby→game→result 连起来读是一条连续镜头
+- **换屏 = 一镜到底的场景穿行**：`renderScreen()` 只在换屏时干活——`Cam.enter(新屏, dir)` 从当前机位续接（540ms 过冲推进 → 660ms 缓收常态，**绝不瞬移**），旧屏加 `.leaving`（绝对定位、叠在上层、不接点击）沿景深飞掠出画，新屏加 `.entering` 从走廊深处推近； `.world.tx-back` 标记回退方向（join<lobby<game<result 由 `SCENE_ORDER` 定）。加入成功（加载层还盖着）时先把入场攒在 `pendingSceneEnter`，等 `hideLoading()` 收起加载层那一刻才放——加载层自身的放大+模糊淡出就是这段过场的开场。join→lobby→game→result 连起来读是一条连续镜头
+- **头个回合不抢镜**：进入牌桌时 `Cam.enter` 正在跑推进段，`runStage('choosing')` 用 `Cam.enteredAt` 判定「刚换屏」——刚换屏就不重复 `Cam.home`、把滑向持麦人的 `Cam.nudge` 拖到 1240ms（等推进段落定）；回合内交接才维持 `home(420)` + 460ms 后 `nudge`
 - **牌桌常态机位**：game = `{z:-24, rx:5, s:1}`（微微俯视）；抽卡时 `focusCam(deck)` → `{z:-44, s:1.05}`，落牌后推卡牌 `{s:1.05}`，翻前 `Cam.shake()` 轻震；交接回合 `Cam.home(420)` 回桌心 → 460ms 后 `Cam.nudge(新持麦人)` 滑过去
 - **启动加载动画**：3D 抽卡预加载 overlay（透视翻牌 + 三颗环绕光点 + 扫光进度条 + 分阶段文案），doJoin 全程复用同一层展示「创建房间 → 连接服务器 → 同步状态 → 载入题库 → 落座」；退场时淡出 + 放大 + 模糊（.hide 过渡后 remove）
 - **Background**: Continuous slow drift of gradient orbs + confetti particles, 60s loop
@@ -90,7 +91,7 @@
 - **文档永不被 3D 投影撑宽**：`.table3d` 经 `#cam` 的 900px 透视放大后包围盒比视口宽（1280 视口实测被撑到 1318px），`.world` 的 rotateX + 透视投影也会外溢 —— 这会把移动仿真/平板上的 layout viewport 顶宽，连带把 `position: fixed` 的横屏开关与互动浮窗推出可视区。现在 `#app { overflow-x: clip }` + `#cam { overflow-x: clip; overflow-clip-margin: 28px }`（clip 不影响纵向，body 仍是唯一的页面滚动容器；28px 出血留给座次环前后排卡片的轻微溢出）。取证：`.pw/probe-overflow.cjs`（1280×800 / 1024×768 / 768×1024 三视口 ×3 屏，实测 `scrollWidth === clientWidth`）
 - **矮屏桌面/平板（宽 >600 且高 ≤920，且非手机横屏）**：压档上限从 880 提到 920，因为 1440×900（笔电 / retina 缩放最常见档）下揭晓页「跳过」底 903.8 > 901 刚好掉出折线；座次环收到 `clamp(180px, 26.5vh, 268px)`、选卡 136×158、牌面 300×400、统计/回合文案降一档；**揭晓时用 `:has()` 收起座次环**（`body:not(.landui) #screen-game:has(#card-section:not([hidden])) .players-grid.ring3d { display:none }`），把首屏让给题面与「完成/跳过/免答牌」—— 修「1024×768 / 1280×800 下选卡与跳过掉到折线以下」。手机横屏 landui 是左右分栏，用 `body:not(.landui)` 排除
 - **⚠ 这段压档规则必须写在基础规则「之后」**：它和 `.players-grid.ring3d`（基础值 `clamp(210px, 44vh, 340px)`，在 3D 舞台那一段里）同特异度，写在前面就会被反向盖掉 —— 早先这段在文件前部，座次环高度一直是死代码（1024×768 选卡底越界 22px 就是这么露出来的）。现已整段挪到 `body.loperf` 之后、`body.landui` 之前（landui 靠更高特异度继续接管横屏）
-- **宽屏内容列居中**：`.screen` 是 `.world`（`width:100%`，1920 视口下 1880px）的普通块级子元素，光有 `max-width:920px` 会整块贴左边（3D 舞台落地后一直如此：`#app` 里的标题/状态条居中，屏内容偏左，右半边全空）—— 现在 `.screen { margin-left/right: auto }`；`body.landui .screen { max-width:none }` 与绝对定位的 `.screen.leaving`（auto margin 归 0、仍由 `translateX(-50%)` 居中）都不受影响
+- **宽屏内容列居中**：`.screen` 是 `.world`（`width:100%`，1920 视口下 1880px）的普通块级子元素，光有 `max-width:920px` 会整块贴左边（3D 舞台落地后一直如此：`#app` 里的标题/状态条居中，屏内容偏左，右半边全空）—— 现在 `.screen { margin-left/right: auto }`；`body.landui .screen { max-width:none }` 与绝对定位的 `.screen.leaving`（`left:0; right:0; margin:auto` 居中，不用 `translateX(-50%)`，因为它的 transform 现在要留给 `scene-out`）都不受影响
 - **宽屏加入页两栏**（`min-width:760px` 且非 landui）：`.join-box` 改 grid（左表单 + 右 264px 头像墙，`#grp-avatar` 用 `grid-row: 2/9` + `overflow-y:auto` 吃满行高不撑大文档），“加入游戏”从 y≈877 抬到 y≈566，720/768/900 高的笔记本首屏直接可点；窄屏与 landui 三栏版不变
 - **宽屏房间页两栏**（`min-width:1440px` 且非 landui）：`#screen-lobby.active` 改 grid（`minmax(0,1fr) minmax(0,1.08fr)`，内容列放宽到 1180px），左列邀请码/玩法/统计、右列座次环（`grid-area:1/2/5/3`）、底部操作条跨两列 —— 1920 下 920px 内容列右侧近半屏全空的问题就地消化。门槛定在 1440 而不是 1280：1280 时 1180px 内容列右缘（1230）会被展开的互动浮窗（x≈1228 起）压住。实测 1440×900 / 1920×1000 左列中心偏移 -313px、座次环 +290px（真两栏），1280×800 及以下仍是单列
 - **互动浮窗在 PC/平板上**：位置与手机一致（右上角），`.screen` 最宽 920px 居中，宽屏时浮标恰好落在内容列右侧留白里；桌面鼠标可用、Esc 收起；`.pw/probe-reactdock.cjs` 留了各视口的浮窗遮挡取证
@@ -290,7 +291,8 @@ big bank never inflates per-turn sync traffic. 旧版纯字符串题库按 `{x: 
 - [x] Layout polish: 单列宽度统一到 540px，触控目标 ≥ 40px，:focus-visible 描边，prefers-reduced-motion 降噪，窄屏头像/统计条收紧
 - [x] E2E verified via Playwright: both modes × (local + MQTT) transports, sync/guard/stats all pass；连麦专项（test-mic.cjs / test-mic-mqtt.cjs / test-mic-broadcast.cjs / test-mic-3way.cjs）全绿；主持闭环专项（test-host.cjs，15 步）全绿
 - [x] 连麦“没声音”专项：自动播放被拦时的兜底出声（test-mic-autoplay.cjs：复现 paused+有波形 → gain 路有输出 rms>0.005 → 手势后元素接管且兜底已撤）、晚到 ICE 候选补发 + 标签诚实性（test-mic-trickle.cjs）全绿；`check-syntax.cjs` 作为内联脚本语法门禁
-- [x] 3D 舞台与一镜到底（`.pw/test-3d.cjs`，31 条断言全绿）：`#app` 透视 1400px、`.world` 必须 `transform-style: flat`（防 3D 命中测试吃掉点击，`elementFromPoint` 锁）；join→lobby→game 每屏 spawn→base 推镜且 1.5s 内收敛到常态机位（game `rx≈5`）；`.table3d` + `#cam` 透视存在；3D 座次前排更大更靠下且 zIndex 分层、每张卡中心都能命中自己；抽卡期间 `Cam.cur.z` 脱离常态实现推近；REDUCED 下 `Cam.to` 同 tick 瞬时到位且 world 计算值 `none`；全程零报错
+- [x] 3D 舞台与一镜到底（`.pw/test-3d.cjs`，31 条断言全绿）：`#app` 透视 1400px、`.world` 必须 `transform-style: flat`（防 3D 命中测试吃掉点击，`elementFromPoint` 锁）、每个 `.screen` 常态 `transform: none`；join→lobby→game 换屏时 `Cam.enter` 从当前机位续接且 1.5s 内收敛到常态机位（game `rx≈5`）；`.table3d` + `#cam` 透视存在；3D 座次前排更大更靠下且 zIndex 分层、每张卡中心都能命中自己；抽卡期间 `Cam.cur.z` 脱离常态实现推近；REDUCED 下 `Cam.to` 同 tick 瞬时到位且 world 计算值 `none`；全程零报错
+- [x] 换屏一镜到底取证（`.pw/probe-scene.cjs`）：逐帧采样换屏期间的世界层机位——无瞬移（前 8 帧 z 单调推进）、新屏有 3D 入场且旧屏在飞掠、动画结束进屋态后每屏 `transform` 回到 `none` 且选卡仍可命中；加入页→大厅的入场确实在加载层收起那一刻才播；game→lobby 回退带 `tx-back`；`shots/scene-fwd-*.png` / `scene-back-*.png` 留帧
 - [x] 趣味互动（`.pw/test-fun.cjs`）：表情雨本机+对端互达、浮窗点开才展开（6 颗 emoji，按钮文本 = 实际广播的表情）、320ms 防刷屏、白名单拒绝非法表情、粒子自动清理；音效开关持久化且 `SFX.play` 不抛错；加倍挑战仅持麦人可见、对端同步 stake=2、完成 +20、收尾复位（未加倍仍 +10）；连击 ×2 徽章同步且不改分（20+10=30）、跳过清零 30−5=25；限时 15 秒倒计时在走、到点显示超时且不自动跳过；命运转盘停在新玩家且光点动画可观测；**押注**：面板只给旁观者、押注同步/可取消、押中 +5 押错 −3 且只动押注者分、结算播报全场可见、押注清空、计分关时不出面板；**惊喜卡**：同题同 seq 推导确定、触发率落在 1/5 区间（400 次命中 40-130）、金卡上色两端一致、主持关闭后 200 次全部为空
 - [x] 背景音乐、点击反馈与连麦压低（`.pw/test-audio.cjs`）：BGM 默认开、首次手势后自动出声（音频上下文 running 且增益缓入到默认 90%）、音量滑杆改到 30% 即时生效并持久化、关闭后停播且持久化、指南入口标签同步；**ducking（双总线）**：空闲两总线均 0.2 / 广播音乐压到 0.028 而**音效总线保持 0.2** / 仅收听（有链路）音乐压到 0.1 而音效仍 0.2 / 无链路不无端压低 / 关掉开关后广播也满音量 / 设置持久化与复原；新增 tap/draw/spark 音效不抛错；选卡/卡堆/翻牌按下回弹 + 涟漪生成并在 0.9s 内自动清理、翻牌扫光元素生成；全程零 JS 报错。连麦回归：`.pw/test-mic.cjs`、`.pw/test-mic-broadcast.cjs` 全绿
 - [x] 互动浮窗不挡操作（`.pw/test-landscape.cjs`）：844×390 / 390×844 / 1280×800 / 1024×768 下浮标与展开的 6 颗 emoji 均落在屏内且与所有 `button/input/.player-card/.choice-card` 零重叠、浮标可真实点击（Playwright 点击，非 DOM 兜底）；Esc 可收起；旧版「底栏常驻」在 390×844 会压住选卡/工具栏、横屏左中会压住玩法切换的问题已消除

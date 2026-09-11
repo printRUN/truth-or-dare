@@ -46,11 +46,24 @@
 
     /* margin auto：宽屏（>960px）下 .world 有 100% 宽，屏幕必须自己居中，否则整块内容贴左边
        （landui 里 max-width:none + width:100%，auto margin 无副作用；.leaving 是绝对定位，auto 归 0） */
-    .screen { display: none; width: 100%; max-width: 920px; margin-left: auto; margin-right: auto; animation: screen-in 0.45s ease; }
+    .screen { display: none; width: 100%; max-width: 920px; margin-left: auto; margin-right: auto; transform-origin: 50% 42%; backface-visibility: hidden; }
     .screen.active { display: flex; flex-direction: column; align-items: center; }
     @keyframes fade-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-    /* 屏内淡入只动透明度：位置的「动」交给 3D 镜头，避免和 .screen 的静态 3D 姿态抢 transform */
-    @keyframes screen-in { from { opacity: 0; } to { opacity: 1; } }
+    /* 一镜到底：屏在「走廊」里沿景深前后穿行——新屏从深处推近（scene-in），旧屏掠过镜头飞向观者（scene-out）。
+       透视直接写进 transform 的 perspective()，不去动 .world 的渲染上下文（红线：绝不开 preserve-3d，命中测试保持平面）。
+       方向由 .world.tx-back 上的 --tx-* 变量整体反转（回退时反过来），见下方 3D 舞台段。 */
+    @keyframes scene-in {
+      from { opacity: 0; transform: perspective(1200px) translate3d(0, 0, var(--tx-zin, -520px)) rotateY(calc(-1 * var(--tx-ry, 6deg))) rotateX(var(--tx-tilt, 1.4deg)) scale(1); }
+      45%  { opacity: 0.6; }
+      to   { opacity: 1; transform: perspective(1200px) translate3d(0, 0, 0) rotateY(0deg) rotateX(0deg) scale(1); }
+    }
+    @keyframes scene-out {
+      from { opacity: 1; transform: perspective(1200px) translate3d(0, 0, 0) rotateY(0deg) rotateX(0deg) scale(1); }
+      50%  { opacity: 0.45; }
+      to   { opacity: 0; transform: perspective(1200px) translate3d(0, 0, var(--tx-zout, 240px)) rotateY(var(--tx-ry, 6deg)) rotateX(calc(-1 * var(--tx-tilt, 1.4deg))) scale(1.02); }
+    }
+    @keyframes scene-in-lite  { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes scene-out-lite { from { opacity: 1; } to { opacity: 0; } }
 
     /* Loading — 3D 抽卡加载动画 */
     .loading-overlay { position: fixed; inset: 0; background: rgba(10,10,26,0.95); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; transition: opacity 0.5s ease, transform 0.5s ease, filter 0.5s ease; }
@@ -489,9 +502,19 @@
        按钮/输入框全部点不动；现在世界层是一个带透视的平面，屏内命中就是普通 2D，稳。
        全部用 CSS 3D，不引 WebGL：file:// 离线可用，软件光栅（--disable-gpu）下也能钉住 60fps。 */
     #app { perspective: 1400px; perspective-origin: 50% 36%; }
-    .world { width: 100%; transform-origin: 50% 40%; will-change: transform; }
-    /* 旧屏退场：绝对定位 + 淡出缩小，让新屏的推镜读起来是「一镜」而不是切台 */
-    .screen.leaving { display: flex !important; flex-direction: column; align-items: center; position: absolute; left: 50%; top: 24px; width: min(100%, 920px); transform: translateX(-50%) scale(0.93); opacity: 0; transition: opacity 0.42s ease, transform 0.42s ease; pointer-events: none; z-index: 0; }
+    /* .world 上的 --tx-* 是「走廊」的景深参数：前进时新屏从 -520px 深处推近、旧屏飞到 +240px 掠过镜头；
+       tx-back（回退）整体反向。参数只喂给 scene-in/out 两个关键帧，落位后 .screen 上不留任何 transform。 */
+    .world { width: 100%; transform-origin: 50% 40%; will-change: transform;
+      --tx-zin: -520px; --tx-zout: 240px; --tx-ry: 6deg; --tx-tilt: 1.4deg; }
+    .world.tx-back { --tx-zin: 240px; --tx-zout: -520px; --tx-ry: -6deg; --tx-tilt: -1.4deg; }
+    /* 换屏的两个半场：新屏入场 / 旧屏退场。都只在换屏那 ~0.9s 里动 transform，动画结束即 class 移除、归位 none
+       （所以常态下每屏都没有 3D 姿态，命中测试保持纯平面；离开的旧屏绝对定位叠在上层、不接收点击） */
+    .screen.entering { will-change: transform, opacity; animation: scene-in 0.8s cubic-bezier(0.16, 0.84, 0.28, 1); }
+    .screen.leaving { display: flex !important; flex-direction: column; align-items: center; position: absolute; left: 0; right: 0; top: 0; width: 100%; max-width: 920px; margin-left: auto; margin-right: auto;
+      opacity: 0; pointer-events: none; z-index: 6; will-change: transform, opacity; animation: scene-out 0.46s cubic-bezier(0.5, 0, 0.75, 0.25); }
+    /* 省电档：一镜到底降级成纯淡入淡出（不做景深/旋转，避免大图层逐帧重光栅） */
+    body.loperf .screen.entering { animation-name: scene-in-lite; will-change: opacity; }
+    body.loperf .screen.leaving  { animation-name: scene-out-lite; will-change: opacity; }
 
     /* 牌桌：躺在 3D 空间里的一块椭圆台面（纯 radial-gradient，不用 blur/滤镜）
        #cam 横向裁剪：台面经透视放大后的包围盒比屏幕宽（1280 视口会被撑到 1318），
@@ -1923,9 +1946,9 @@ function showLoading(text) {
 function setLoadingText(text) { const o = $('loading-overlay'); if (o) o.querySelector('.loading-text').textContent = text; }
 function hideLoading() {
   const o = $('loading-overlay');
-  if (!o) return;
-  o.classList.add('hide');
-  setTimeout(() => o.remove(), 520);
+  if (o) { o.classList.add('hide'); setTimeout(() => o.remove(), 520); }
+  // 加载层收起＝过场的一段：此时才放新屏的入场，两者叠在一起读成一次镜头推进
+  if (pendingSceneEnter) { const p = pendingSceneEnter; pendingSceneEnter = null; playSceneEnter(p.name, p.back); }
 }
 
 // 修改状态：先本地应用（保证发起端无回显的本地模式也同步生效），再发布
@@ -2047,24 +2070,46 @@ function currentScreen() {
   return S && S.gameStarted ? 'game' : 'lobby';
 }
 let lastScreenName = null;   // 一镜到底：只在换屏那一刻开机位
+let pendingSceneEnter = null;   // 加载层还盖着时先攒着：等它收起那一刻再放新屏入场（加载层淡出本身就是过场的一段）
+const SCENE_ORDER = { join: 0, lobby: 1, game: 2, result: 3 };   // 屏序：前进=镜头推进，回退=反向
+function playSceneEnter(name, back) {
+  if (REDUCED || !Cam.el) return;
+  Cam.el.classList.toggle('tx-back', !!back);   // 走廊方向（scene-in/out 依赖的 --tx-* 变量）
+  const s = $('screen-' + name);
+  if (!s) return;
+  s.classList.remove('entering');
+  void s.offsetWidth;                            // 强制回流，让入场动画能重放
+  s.classList.add('entering');
+  clearTimeout(s._txT);
+  s._txT = setTimeout(() => s.classList.remove('entering'), 1000);
+}
 function renderScreen() {
   const name = currentScreen();
   if (name === 'game') perfWatch();   // 牌桌才是真负载，大厅测不出来的手机在这里补测一次
   if (name !== lastScreenName) {
     const prev = lastScreenName;
     lastScreenName = name;
+    const back = prev ? (SCENE_ORDER[name] ?? 0) < (SCENE_ORDER[prev] ?? 0) : false;
     if (prev) {
       const old = $('screen-' + prev);
-      // 旧屏先退场（绝对定位淡出），新屏同时推镜进入——读起来是一次连续运镜，不是硬切
+      // 旧屏先退场（绝对定位掠过镜头），新屏同时从景深里推近——读起来是一次连续运镜，不是硬切
       if (old && !REDUCED) {
+        old.classList.remove('entering');
         old.classList.add('leaving');
-        setTimeout(() => old.classList.remove('leaving'), 480);
+        clearTimeout(old._txL);
+        old._txL = setTimeout(() => old.classList.remove('leaving'), 520);
       }
       SFX.play(name === 'result' ? 'win' : 'whoosh');
     }
-    Cam.enter(name);
+    Cam.enter(name, back ? -1 : 1);
+    if (prev) playSceneEnter(name, back);
+    else if (name !== 'join') pendingSceneEnter = { name, back: false };   // 首次进场（加入成功）留给加载层收起那一刻
   }
-  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === 'screen-' + name));
+  document.querySelectorAll('.screen').forEach(s => {
+    const on = s.id === 'screen-' + name;
+    if (on) { s.classList.remove('leaving'); clearTimeout(s._txL); }   // 快速连跳时别让上一轮的退场类把它藏起来
+    s.classList.toggle('active', on);
+  });
   updateReactBar();
   if (name === 'lobby') renderLobby();
   if (name === 'game') renderGameStatic();
@@ -2396,7 +2441,7 @@ const CAM_EASE = {
   in: k => k * k * k,
 };
 const Cam = {
-  el: null, cur: { ...CAM_ID }, par: { x: 0, y: 0 }, raf: 0, raf2: 0, token: 0, busy: false, curScreen: 'join',
+  el: null, cur: { ...CAM_ID }, par: { x: 0, y: 0 }, raf: 0, raf2: 0, token: 0, busy: false, curScreen: 'join', enteredAt: 0,
   // 每屏常态机位：镜头停在这（这就是「牌桌微微俯视」的来源）
   base: {
     join: { x: 0, y: 0, z: -40, rx: 2.2, ry: -3, rz: 0, s: 1 },
@@ -2434,7 +2479,7 @@ const Cam = {
     this.busy = true;
     const step = now => {
       if (my !== this.token) return;   // 已被新镜头接管：旧镜头作废（连带它的 done 回调）
-      const k = Math.min(1, (now - t0) / dur), e = fn(k);
+      const k = Math.min(1, Math.max(0, (now - t0) / dur)), e = fn(k);
       for (const key in CAM_ID) this.cur[key] = from[key] + (target[key] - from[key]) * e;
       this.apply();
       if (k < 1) this.raf = requestAnimationFrame(step);
@@ -2443,7 +2488,17 @@ const Cam = {
     cancelAnimationFrame(this.raf);
     this.raf = requestAnimationFrame(step);
   },
-  enter(name) { this.curScreen = name; this.jump(this.spawn[name] || CAM_ID); this.to(this.baseOf(name), name === 'game' ? 950 : 780, 'dolly'); },
+  // 换屏：不瞬移机位，从当前位置继续推进（一镜到底的接续段）。dir<0 = 回退，镜头反向（先拉后收）。
+  // 两段接力：540ms 过冲推进 → 660ms 缓收回常态，读起来是一次连着呼吸的推镜，而不是“跳到 spawn 再 dolly”。
+  enter(name, dir = 1) {
+    this.curScreen = name;
+    this.enteredAt = performance.now();
+    const b = this.baseOf(name);
+    if (REDUCED || !this.el) { this.jump(b); return; }
+    const ahead = dir < 0 ? -1 : 1;
+    const push = { z: b.z - 46 * ahead, rx: b.rx + 2.2 * ahead, ry: (b.ry || 0) + 1.5 * ahead, s: b.s * (ahead > 0 ? 1.02 : 0.98) };
+    this.to(push, 540, 'out', () => { if (this.curScreen === name) this.to(b, 660, 'dolly'); });
+  },
   home(ms = 750, done) { this.to(this.baseOf(this.curScreen), ms, 'dolly', done); },
   // 把元素缓缓带到画面中心（旧 focusCam 的 3D 升级版）：位移小、只动 transform，不会糊字
   focus(el, { push = 1.05, dur = 900, ease = 'dolly' } = {}) {
@@ -2499,10 +2554,12 @@ async function runStage(stage) {
     const grid = $('game-players-grid');
     const activeCard = grid.querySelector(`.player-card[data-pid="${CSS.escape(activePlayerId() || '')}"] .avatar-ring`);
     if (activeCard) { activeCard.classList.remove('pass'); void activeCard.offsetWidth; activeCard.classList.add('pass'); }
-    // 一镜到底：镜头先回桌心，再滑向本回合持麦人（两段接力，读起来是一次连续机位调整）
-    Cam.home(420);
+    // 一镜到底：刚换到牌桌时不抢镜——等 Cam.enter 的推进段落定再滑向持麦人；
+    // 回合内交接（相机已在牌桌上）才先回桌心再滑过去，两段接力读成一次连续机位调整。
+    const fresh = performance.now() - (Cam.enteredAt || 0) < 1300;
+    if (!fresh) Cam.home(420);
     const seat = activeCard && activeCard.closest('.player-card');
-    if (seat) stageTimers.push(setTimeout(() => Cam.nudge(seat), 460));
+    if (seat) stageTimers.push(setTimeout(() => Cam.nudge(seat), fresh ? 1240 : 460));
     return;
   }
   if (stage === 'drawing') {
