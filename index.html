@@ -41,9 +41,11 @@
     .conn-dot.syncing { background: #fbbf24; animation: pulse 0.5s infinite alternate; }
     @keyframes pulse { to { opacity: 0.3; } }
 
-    .screen { display: none; width: 100%; max-width: 920px; animation: fade-in 0.6s ease; }
+    .screen { display: none; width: 100%; max-width: 920px; animation: screen-in 0.45s ease; }
     .screen.active { display: flex; flex-direction: column; align-items: center; }
     @keyframes fade-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    /* 屏内淡入只动透明度：位置的「动」交给 3D 镜头，避免和 .screen 的静态 3D 姿态抢 transform */
+    @keyframes screen-in { from { opacity: 0; } to { opacity: 1; } }
 
     /* Loading — 3D 抽卡加载动画 */
     .loading-overlay { position: fixed; inset: 0; background: rgba(10,10,26,0.95); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; transition: opacity 0.5s ease, transform 0.5s ease, filter 0.5s ease; }
@@ -232,6 +234,9 @@
     .flip-card { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transition: transform 0.85s cubic-bezier(0.4,0.1,0.2,1); }
     .flip-card.flipped { transform: rotateY(180deg); }
     .flip-card .card-face { position: absolute; inset: 0; border-radius: 24px; backface-visibility: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 22px; text-align: center; }
+    /* 只有可见的那一面接收点击：否则部分浏览器会把背面也算进命中栈，按钮点不动 */
+    .flip-card:not(.flipped) .card-front { pointer-events: none; }
+    .flip-card.flipped .card-back { pointer-events: none; }
     .card-back { background: linear-gradient(135deg, var(--primary), var(--accent-pink)); box-shadow: 0 10px 40px rgba(139,92,246,0.4); }
     .card-back .draw-icon { font-size: 4.5rem; animation: draw-spin 1.5s ease-in-out infinite; }
     @keyframes draw-spin { 0% { transform: rotateY(0deg) scale(1); } 50% { transform: rotateY(180deg) scale(1.1); } 100% { transform: rotateY(360deg) scale(1); } }
@@ -338,6 +343,11 @@
       .avatar-ring::before, .avatar-ring.active::before, .avatar-ring.active, .avatar-ring.pass, .active-badge, .card-back .draw-icon,
       .player-card, .screen, .loader-progress i, .conn-dot.syncing { animation: none !important; }
       .cam, .flip-card { transition: none !important; }
+      .card-front.surprise::after { animation: none !important; }
+      .world { transform: none !important; }
+      .screen.leaving { display: none !important; }
+      .players-grid.ring3d .player-card { transform: translate(-50%, -50%) !important; transition: none !important; }
+      .react-rain { animation-duration: 0.01s; }
     }
 
     /* ── 通用弹层（设置 / 战况）── */
@@ -424,6 +434,79 @@
     /* 按钮二次确认态 */
     .btn.armed { background: linear-gradient(135deg, #dc2626, #f97316); }
 
+    /* ══════════ 3D 舞台 · 镜头（一镜到底） ══════════
+       整个界面住进一个有透视的空间：#app 提供 perspective，.world 是唯一的「摄影机 rig」——
+       所有运镜都是对 .world 的一次 transform（translate3d / rotate / scale），由 JS 的 Cam 调度成
+       连续时间轴（进房推进 → 桌心 → 滑向持麦人 → 推近卡堆 → 翻牌 → 交棒平移），屏与屏之间不再硬切。
+       刻意「不让 .world 参与 3D 排序」（不开 preserve-3d）：否则父平面会在 3D 命中测试里盖过子元素，
+       按钮/输入框全部点不动；现在世界层是一个带透视的平面，屏内命中就是普通 2D，稳。
+       全部用 CSS 3D，不引 WebGL：file:// 离线可用，软件光栅（--disable-gpu）下也能钉住 60fps。 */
+    #app { perspective: 1400px; perspective-origin: 50% 36%; }
+    .world { width: 100%; transform-origin: 50% 40%; will-change: transform; }
+    /* 旧屏退场：绝对定位 + 淡出缩小，让新屏的推镜读起来是「一镜」而不是切台 */
+    .screen.leaving { display: flex !important; flex-direction: column; align-items: center; position: absolute; left: 50%; top: 24px; width: min(100%, 920px); transform: translateX(-50%) scale(0.93); opacity: 0; transition: opacity 0.42s ease, transform 0.42s ease; pointer-events: none; z-index: 0; }
+
+    /* 牌桌：躺在 3D 空间里的一块椭圆台面（纯 radial-gradient，不用 blur/滤镜） */
+    #cam { position: relative; perspective: 900px; }   /* 牌桌自带透视：台面 rotateX 躺下不会被拍成平图 */
+    .table3d { position: absolute; left: 50%; top: 44%; width: min(98vw, 940px); height: min(64vh, 540px); transform: translate(-50%, -50%) rotateX(74deg) translateZ(-40px); border-radius: 50%; pointer-events: none; z-index: 0;
+      background: radial-gradient(ellipse at 50% 46%, rgba(139,92,246,0.30) 0%, rgba(139,92,246,0.15) 40%, rgba(34,211,238,0.09) 60%, rgba(10,10,26,0) 78%);
+      box-shadow: inset 0 0 90px rgba(139,92,246,0.22), 0 0 0 2px rgba(255,255,255,0.06); }
+    #cam > :not(.table3d) { position: relative; z-index: 2; }
+
+    /* 3D 座次：玩家沿椭圆围桌（静态 left/top/scale 三变量，不逐帧重排） */
+    .players-grid.ring3d { position: relative; display: block; width: min(96vw, 900px); height: clamp(210px, 44vh, 340px); }
+    .players-grid.ring3d .player-card { position: absolute; left: var(--rx, 50%); top: var(--ry, 50%); transform: translate(-50%, -50%) scale(var(--rs, 1)); transition: left 0.55s cubic-bezier(0.22,0.61,0.36,1), top 0.55s cubic-bezier(0.22,0.61,0.36,1), transform 0.45s cubic-bezier(0.22,0.61,0.36,1); animation: none; }
+    .players-grid.ring3d .player-card .player-name { max-width: 92px; }
+    /* 命运转盘：光点扫过谁，谁亮起 */
+    .player-card.spot .avatar-ring { box-shadow: 0 0 0 4px rgba(251,191,36,0.9), 0 0 28px rgba(251,191,36,0.85); }
+    .player-card.spot .player-name { color: #fbbf24; }
+
+    /* 连击徽章 */
+    .combo-tag { position: absolute; top: -12px; left: -10px; background: linear-gradient(135deg, #f97316, #ef4444); color: #fff; font-size: 0.6rem; font-weight: 800; padding: 1px 6px; border-radius: 8px; z-index: 3; box-shadow: 0 2px 10px rgba(239,68,68,0.55); animation: combo-pop 0.5s cubic-bezier(0.34,1.56,0.64,1); }
+    @keyframes combo-pop { from { transform: scale(0.3) rotate(-12deg); opacity: 0; } }
+
+    /* 加倍挑战 */
+    .stake-row { display: flex; justify-content: center; }
+    .stake-btn { padding: 7px 14px; min-height: 38px; border-radius: 999px; border: 1px solid rgba(251,191,36,0.5); background: rgba(251,191,36,0.12); color: #fbbf24; font-family: inherit; font-size: 0.82rem; font-weight: 700; cursor: pointer; transition: all 0.25s; }
+    .stake-btn:hover { background: rgba(251,191,36,0.24); transform: scale(1.04); }
+    .stake-btn:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 3px; }
+    .stake-badge { position: absolute; top: 10px; right: 12px; background: linear-gradient(135deg, #f59e0b, #ef4444); color: #fff; font-size: 0.72rem; font-weight: 800; padding: 2px 9px; border-radius: 10px; box-shadow: 0 2px 12px rgba(239,68,68,0.5); }
+
+    /* 限时挑战：倒计时条（只动 transform，交给合成器） */
+    .timer-wrap { width: 100%; display: none; flex-direction: column; gap: 4px; align-items: center; flex: none; }
+    .timer-wrap.on { display: flex; }
+    .timer-bar { width: 100%; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.12); overflow: hidden; }
+    .timer-bar i { display: block; height: 100%; width: 100%; border-radius: 3px; background: linear-gradient(90deg, #4ade80, #fbbf24 55%, #ef4444); transform-origin: left center; }
+    .timer-text { font-size: 0.74rem; color: rgba(255,255,255,0.7); font-variant-numeric: tabular-nums; }
+    .timer-wrap.urgent .timer-text { color: #fbbf24; font-weight: 700; }
+    .timer-wrap.up .timer-text { color: #ef4444; font-weight: 700; }
+
+    /* 表情雨：围观也能起哄 */
+    .react-bar { position: fixed; left: 50%; bottom: 70px; transform: translateX(-50%); display: flex; gap: 5px; padding: 5px 9px; border-radius: 999px; background: rgba(12,10,28,0.86); border: 1px solid var(--glass-border); z-index: 1300; box-shadow: 0 10px 30px rgba(0,0,0,0.45); }
+    .react-bar button { width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); font-size: 1.1rem; line-height: 1; cursor: pointer; transition: transform 0.18s cubic-bezier(0.34,1.56,0.64,1), background 0.18s; padding: 0; }
+    .react-bar button:hover { transform: translateY(-3px) scale(1.12); background: rgba(255,255,255,0.16); }
+    .react-bar button:active { transform: scale(0.92); }
+    .react-bar button:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 2px; }
+    .react-rain { position: fixed; z-index: 1290; pointer-events: none; font-size: 1.7rem; animation: react-rise 2.4s ease-out forwards; }
+    @keyframes react-rise { 0% { transform: translate3d(0, 0, 0) scale(0.6); opacity: 0; } 12% { opacity: 1; transform: translate3d(0, -16px, 0) scale(1.18); } 100% { transform: translate3d(var(--rdx, 0px), -36vh, 0) scale(0.85) rotate(var(--rrot, 0deg)); opacity: 0; } }
+
+    /* ── 🎲 观众押注 ── */
+    .bet-box { width: 100%; max-width: 460px; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 11px 14px; border-radius: 16px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); }
+    .bet-q { font-size: 0.84rem; color: rgba(255,255,255,0.82); text-align: center; }
+    .bet-q span { color: var(--accent-cyan); font-weight: 700; margin-left: 6px; }
+    .bet-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+    .bet-btn { padding: 8px 15px; min-height: 40px; border-radius: 12px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.85); font-family: inherit; font-weight: 700; font-size: 0.84rem; cursor: pointer; transition: all 0.2s; }
+    .bet-btn:hover { background: rgba(255,255,255,0.14); transform: translateY(-1px); }
+    .bet-btn.sel { border-color: var(--accent-cyan); background: rgba(34,211,238,0.16); color: #fff; box-shadow: 0 0 14px rgba(34,211,238,0.25); }
+    .bet-btn:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 2px; }
+    .bet-note { font-size: 0.72rem; color: rgba(255,255,255,0.55); text-align: center; }
+
+    /* ── 🎁 惊喜卡（纯气氛）── */
+    .card-front.surprise { border-color: #fbbf24 !important; box-shadow: 0 0 0 3px rgba(251,191,36,0.32), 0 10px 50px rgba(251,191,36,0.38) !important; }
+    .card-front.surprise::after { content: ''; position: absolute; inset: 0; border-radius: 24px; pointer-events: none; background: linear-gradient(120deg, transparent 32%, rgba(255,255,255,0.32) 50%, transparent 68%); background-size: 260% 100%; animation: surprise-sheen 2.4s linear infinite; }
+    @keyframes surprise-sheen { from { background-position: 220% 0; } to { background-position: -80% 0; } }
+    .surprise-tag { position: absolute; top: 10px; left: 12px; background: linear-gradient(135deg, #fbbf24, #f472b6); color: #2a1205; font-size: 0.7rem; font-weight: 800; padding: 2px 9px; border-radius: 10px; z-index: 1; }
+
     /* 无障碍与性能：系统降噪 / 低端设备自动降载 */
     /* 切到微信聊天窗口或后台：看不见的屏幕没必要继续烧电，冻结全部装饰动画 */
     body.paused *, body.paused *::before, body.paused *::after { animation-play-state: paused !important; }
@@ -439,6 +522,10 @@
     body.loperf #choice-section.mine .choice-card, body.loperf #choice-section.mine .choice-card::before { animation: none; }
     body.loperf .active-badge { animation: none; }
     body.loperf .card-back .draw-icon { animation: none; }
+    body.loperf .card-front.surprise::after { display: none; }
+    /* 低端机：3D 场景平面化（保留空间布局，砍掉斜切与大位移的每帧重光栅化） */
+    body.loperf .table3d { transform: translate(-50%, -50%); opacity: 0.3; }
+    body.loperf .players-grid.ring3d .player-card { transition: none; }
   </style>
 </head>
 <body>
@@ -463,6 +550,9 @@
     <span id="net-text">未连接</span>
     <b id="room-chip" style="display:none"></b>
   </div>
+
+  <!-- ═══ 3D 世界：所有屏住在同一台摄影机下（Cam 只动这一层） ═══ -->
+  <div class="world" id="world3d">
 
   <!-- JOIN -->
   <div id="screen-join" class="screen active">
@@ -581,6 +671,7 @@
         <button class="btn btn-secondary mic-btn js-mic-btn" id="btn-mic-lobby"><span class="mic-meter"><i></i><i></i><i></i></span>🎙️ <span class="mic-label">连麦</span></button>
         <button class="btn btn-secondary listen-btn js-listen-btn" id="btn-listen-lobby" title="不点连麦也能听到开麦的人；这里只关自己听到的声音">🔊 <span class="listen-label">收听</span></button>
         <button class="btn btn-secondary only-host" id="btn-settings-lobby">⚙️ 设置 · 题库</button>
+        <button class="btn btn-secondary js-sfx-btn" id="btn-sfx-lobby" title="本机音效开关（WebAudio 合成，不下载资源）">🔊 音效</button>
         <button class="btn btn-secondary" id="btn-guide-lobby">❓ 怎么玩</button>
         <button class="btn btn-secondary" id="btn-leave">退出房间</button>
       </div>
@@ -590,6 +681,7 @@
   <!-- GAME -->
   <div id="screen-game" class="screen">
     <div class="cam" id="cam">
+      <div class="table3d" aria-hidden="true"></div>
       <div class="stats-row">
         <div class="stat-chip">第 <span id="stat-turn">1</span> 轮</div>
         <div class="stat-chip" id="mode-chip">🔄 轮流</div>
@@ -599,7 +691,7 @@
         <div class="stat-chip" id="chip-leader" hidden>🏆 领先 <span id="stat-leader">-</span></div>
       </div>
       <div class="turn-info" id="turn-info"></div>
-      <div class="players-grid" id="game-players-grid"></div>
+      <div class="players-grid ring3d" id="game-players-grid"></div>
       <p class="pick-tip" id="pick-tip" hidden>🎯 点玩家头像即可指定 TA 玩这一轮，或按下方「🎲 随机点名」</p>
       <div id="ghost-bar" style="display:none;flex-direction:column;align-items:center;gap:8px">
         <p class="wait-note" id="ghost-note" style="color:#fbbf24"></p>
@@ -616,6 +708,9 @@
           <button type="button" class="choice-card dare" id="card-dare" aria-label="选择大冒险">
             <span class="icon">🎯</span><span class="label">大冒险</span>
           </button>
+        </div>
+        <div class="stake-row" id="stake-row" hidden>
+          <button type="button" class="stake-btn" id="btn-stake" title="只影响这一轮：完成翻倍得分、跳过翻倍扣分">🔥 加倍挑战（+20 / −10）</button>
         </div>
       </div>
 
@@ -636,9 +731,15 @@
             <div class="draw-icon">🎰</div><div class="draw-text">抽取中...</div>
           </div>
           <div class="card-face card-front" id="card-front">
+            <div class="stake-badge" id="stake-badge" hidden>🔥 加倍 ×2</div>
+            <div class="surprise-tag" id="surprise-tag" hidden>🎁 惊喜卡</div>
             <div class="type-badge" id="type-badge"></div>
             <div class="card-owner" id="card-owner"></div>
             <div class="punishment-text" id="punishment-text"></div>
+            <div class="timer-wrap" id="timer-wrap" role="timer">
+              <div class="timer-bar"><i id="timer-fill"></i></div>
+              <div class="timer-text" id="timer-text"></div>
+            </div>
             <div class="card-actions" id="card-actions">
               <button class="btn-accept" id="btn-accept">完成啦 ✅</button>
               <button class="btn-pass" id="btn-pass" hidden>🃏 免答牌 <span id="pass-left"></span></button>
@@ -650,10 +751,19 @@
         </div>
       </div>
     </div>
+    <div class="bet-box" id="bet-box" hidden>
+      <p class="bet-q">🎲 押注：TA 会完成这张牌吗？<span id="bet-count"></span></p>
+      <div class="bet-row">
+        <button type="button" class="bet-btn" id="bet-accept">✅ 会完成 +5</button>
+        <button type="button" class="bet-btn" id="bet-skip">⏭ 会跳过 +5</button>
+      </div>
+      <p class="bet-note" id="bet-note"></p>
+    </div>
     <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;justify-content:center">
       <button class="btn btn-secondary mic-btn js-mic-btn" id="btn-mic-game" style="font-size:0.8rem;padding:6px 14px"><span class="mic-meter"><i></i><i></i><i></i></span>🎙️ <span class="mic-label">连麦</span></button>
       <button class="btn btn-secondary listen-btn js-listen-btn" id="btn-listen-game" style="font-size:0.8rem;padding:6px 14px" title="不点连麦也能听到开麦的人；这里只关自己听到的声音">🔊 <span class="listen-label">收听</span></button>
       <button class="btn btn-secondary" id="btn-stats" style="font-size:0.8rem;padding:6px 14px">📊 战况</button>
+      <button class="btn btn-secondary js-sfx-btn" id="btn-sfx-game" style="font-size:0.8rem;padding:6px 14px" title="本机音效开关">🔊 音效</button>
       <button class="btn btn-secondary only-host" id="btn-settings-game" style="font-size:0.8rem;padding:6px 14px">⚙️ 设置 · 题库</button>
       <button class="btn btn-secondary only-host" id="btn-pick-next" style="font-size:0.8rem;padding:6px 14px">🎲 随机点名</button>
       <button class="btn btn-secondary only-host" id="btn-finish-game" style="font-size:0.8rem;padding:6px 14px">🏁 结算</button>
@@ -677,6 +787,8 @@
       </div>
     </div>
   </div>
+
+  </div><!-- /.world3d -->
 </div>
 
 <!-- 通用弹层（设置 / 战况） -->
@@ -707,11 +819,25 @@
         <button type="button" class="mini-opt" id="btn-perf-off">关闭</button>
       </div>
     </div>
+    <div class="set-group"><label>🔊 游戏音效（本机开关，WebAudio 合成、不下载资源）</label>
+      <div class="mini-row">
+        <button type="button" class="mini-opt" id="btn-sfx-guide">音效：开</button>
+      </div>
+    </div>
     <button class="btn btn-primary" id="btn-guide-ok" style="align-self:center">明白啦 🎉</button>
   </div>
 </div>
 
 <div class="burst-container" id="burst-container"></div>
+<!-- 表情雨：围观也能起哄（房间内广播，不落库） -->
+<div class="react-bar" id="react-bar" hidden role="group" aria-label="表情互动">
+  <button type="button" data-react="👏" aria-label="鼓掌">👏</button>
+  <button type="button" data-react="😂" aria-label="大笑">😂</button>
+  <button type="button" data-react="😱" aria-label="震惊">😱</button>
+  <button type="button" data-react="🔥" aria-label="火爆">🔥</button>
+  <button type="button" data-react="😈" aria-label="使坏">😈</button>
+  <button type="button" data-react="❤️" aria-label="爱心">❤️</button>
+</div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -741,6 +867,7 @@ const DRAWING_MAX_MS = 9000;  // 抽卡阶段最迟 9s 内必须出结果（后�
 const ANIM_DRAWING_MIN_MS = 2600; // 抽卡动画最短播放时长，保证各端节奏一致
 const PASSES_PER_GAME = 2;    // 每人每局免答牌张数（静默换题，不计跳过、不扣分）
 const SCORE_ACCEPT = 10, SCORE_SKIP = -5; // 计分竞技局的得失分
+const SCORE_BET_WIN = 5, SCORE_BET_LOSS = -3; // 🎲 观众押注：押对 +5 / 押错 −3（只动押注者自己的分）
 // 无障碍与性能：系统降噪优先；省电模式三档（auto 自适应 / low 省电 / full 全效），用户选过就听他的
 const REDUCED = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const PERF_PREF_KEY = 'tod:perf';
@@ -1182,7 +1309,8 @@ class RoomLink {
     this.topic = `tod/v1/${room}/state`;
     this.poolTopic = `tod/v1/${room}/pool`;   // 题库单独一路：不随每次抽卡重发，状态包小很多
     this.micTopic = `tod/v1/${room}/mic`;     // 连麦信令（WebRTC offer/answer/ice，非点对点广播）
-    this.cbs = { state: null, pool: null, mic: null };
+    this.reactTopic = `tod/v1/${room}/react`; // 表情雨（即发即忘、不 retained：不污染房间状态体积）
+    this.cbs = { state: null, pool: null, mic: null, react: null };
     this.slots = [];              // { url, host, t, dead } —— 每个可达 broker 一条链路
     this.kind = 'online';
     this.statusCb = () => {};
@@ -1196,13 +1324,14 @@ class RoomLink {
   get client() { const s = this.slots.find(x => !x.dead); return s ? s.t : null; }   // 兼容旧引用：任一存活链路
   get alive() { return this.slots.some(s => !s.dead); }
   _disp(key) {   // 每条链路各装一份派发闭包：重新 subscribe 时替换的是同一个语义，回调永远读最新的 this.cbs
-    const topic = key === 'state' ? this.topic : key === 'pool' ? this.poolTopic : this.micTopic;
+    const topic = key === 'state' ? this.topic : key === 'pool' ? this.poolTopic : key === 'react' ? this.reactTopic : this.micTopic;
     return bytes => { try { const v = JSON.parse(dec.decode(bytes)); const cb = this.cbs[key]; if (cb) cb(v); } catch {} };
   }
   _wire(t) {   // 新连接/重连都要把三路订阅上（解析失败静默丢弃，不阻断消息循环）
     t.subscribe(this.topic, this._disp('state'));
     t.subscribe(this.poolTopic, this._disp('pool'));
     t.subscribe(this.micTopic, this._disp('mic'));
+    t.subscribe(this.reactTopic, this._disp('react'));
     return t;
   }
   _add(t, url) {
@@ -1268,7 +1397,7 @@ class RoomLink {
     }, 7000);
   }
   useLocal() {
-    if (!this.slots.some(s => s.url === '')) this._add(new LocalTransport(this.room, [this.topic, this.poolTopic, this.micTopic]), '');
+    if (!this.slots.some(s => s.url === '')) this._add(new LocalTransport(this.room, [this.topic, this.poolTopic, this.micTopic, this.reactTopic]), '');
     this.kind = 'local';
     this.currentHost = '本地';
     this.statusCb('online', '本地');
@@ -1284,12 +1413,17 @@ class RoomLink {
   subscribe(cb) { this.cbs.state = cb; this._resub(this.topic, 'state'); }
   subscribePool(cb) { this.cbs.pool = cb; this._resub(this.poolTopic, 'pool'); }
   subscribeMic(cb) { this.cbs.mic = cb; this._resub(this.micTopic, 'mic'); }
+  subscribeReact(cb) { this.cbs.react = cb; this._resub(this.reactTopic, 'react'); }
   _resub(topic, key) { for (const s of this.slots) { try { s.t.subscribe(topic, this._disp(key)); } catch {} } }   // 重新 SUBSCRIBE → broker 重投 retained
-  resubscribe() { this._resub(this.topic, 'state'); this._resub(this.poolTopic, 'pool'); this._resub(this.micTopic, 'mic'); }
+  resubscribe() { this._resub(this.topic, 'state'); this._resub(this.poolTopic, 'pool'); this._resub(this.micTopic, 'mic'); this._resub(this.reactTopic, 'react'); }
   async publishState(obj) { return this._pub(this.topic, obj); }
   async publishPool(obj) { return this._pub(this.poolTopic, obj); }
   publishMic(obj) {   // 信令即发即忘：不 retained、不重发，错过就靠重协商补
     this._pubBytes(this.micTopic, enc.encode(JSON.stringify(obj)), { retain: false, qos1: false });
+    return Promise.resolve(this.alive);
+  }
+  publishReact(obj) {  // 表情雨同样是即发即忘：迟到的旧表情在接收端按时间戳丢弃
+    this._pubBytes(this.reactTopic, enc.encode(JSON.stringify(obj)), { retain: false, qos1: false });
     return Promise.resolve(this.alive);
   }
   clearPool() {   // 空零长度 retained = 从 broker 上擦除房间题库
@@ -1338,7 +1472,7 @@ let lastAppliedSeq = -1;    // 动画去重
 let joined = false;
 let firstApply = true;
 let stageTimers = [];
-let hbTimer = null, pruneTimer = null;
+let hbTimer = null, pruneTimer = null, watchTimer = null;
 let pendingRevealTimer = null, drawingEnterTs = 0;
 let cardDealt = false, revealAnim = false;   // 动画锁：落牌后心跳重渲染不回退卡堆；翻牌/打字期间禁止提前绘制答案（防“闪出”）
 
@@ -1408,8 +1542,8 @@ function freshState(room) {
   return {
     v: 1, room, ver: Date.now(), ts: Date.now(), expiresAt: Date.now() + 30 * 60 * 1000,
     players: [], gameStarted: false, startedAt: 0, turnIndex: 0, mode: 'turn',
-    hostId: null, level: 'normal', scoring: true, roundLimit: 0, finished: null,
-    turn: { stage: 'choosing', chooserId: null, choice: null, punishment: null, seq: 0, ts: Date.now(), by: null },
+    hostId: null, level: 'normal', scoring: true, roundLimit: 0, finished: null, timer: 0, surprise: true,
+    turn: { stage: 'choosing', chooserId: null, choice: null, punishment: null, seq: 0, ts: Date.now(), by: null, stake: 1, bets: {}, betLog: null },
     stats: { truth: 0, dare: 0, skips: 0, rounds: 0 },
     recent: { truth: [], dare: [] }     // 全场防重复：近几题文本（洗牌轮抽）
   };
@@ -1421,6 +1555,15 @@ function normState(s) {
   if (s.level !== 'mild' && s.level !== 'normal' && s.level !== 'hot') s.level = 'normal';
   if (typeof s.scoring !== 'boolean') s.scoring = true;
   if (typeof s.roundLimit !== 'number' || s.roundLimit < 0) s.roundLimit = 0;
+  if (typeof s.timer !== 'number' || s.timer < 0) s.timer = 0;   // ⏱ 限时挑战（0=不限）
+  if (typeof s.surprise !== 'boolean') s.surprise = true;         // 🎁 惊喜卡（纯气氛，主持可关）
+  if (s.turn.stake !== 2) s.turn.stake = 1;                       // 🔥 加倍挑战（仅本回合）
+  // 🎲 观众押注：只留「还在房里的人 + 合法选项」，全员确定性清理
+  if (!s.turn.bets || typeof s.turn.bets !== 'object' || Array.isArray(s.turn.bets)) s.turn.bets = {};
+  for (const k of Object.keys(s.turn.bets)) {
+    if (!s.players.some(p => p.id === k) || (s.turn.bets[k] !== 'accept' && s.turn.bets[k] !== 'skip')) delete s.turn.bets[k];
+  }
+  if (s.turn.betLog && (!Array.isArray(s.turn.betLog.items) || typeof s.turn.betLog.at !== 'number')) s.turn.betLog = null;
   if (!s.finished) s.finished = null;
   if (!s.recent || !Array.isArray(s.recent.truth) || !Array.isArray(s.recent.dare)) s.recent = { truth: [], dare: [] };
   if (!s.stats || typeof s.stats !== 'object') s.stats = { truth: 0, dare: 0, skips: 0, rounds: 0 };
@@ -1431,6 +1574,7 @@ function normState(s) {
     if (typeof p.dare !== 'number') p.dare = 0;
     if (typeof p.score !== 'number') p.score = 0;
     if (typeof p.passes !== 'number') p.passes = PASSES_PER_GAME;
+    if (typeof p.combo !== 'number') p.combo = 0;   // 🔥 连击计数（旧文档补齐，全员同值）
   }
   if (!s.hostId || !s.players.some(p => p.id === s.hostId)) {
     s.hostId = s.players.length ? oldestOf(s.players) : null;
@@ -1461,6 +1605,9 @@ function resetTurnStage(n) {
   n.turn.stage = 'choosing';
   n.turn.choice = null;
   n.turn.punishment = null;
+  n.turn.stake = 1;
+  n.turn.bets = {};
+  n.turn.betLog = null;
   if (n.mode === 'free') {
     n.turn.chooserId = null;
   } else {
@@ -1624,10 +1771,26 @@ function currentScreen() {
   if (S && S.finished) return 'result';
   return S && S.gameStarted ? 'game' : 'lobby';
 }
+let lastScreenName = null;   // 一镜到底：只在换屏那一刻开机位
 function renderScreen() {
   const name = currentScreen();
   if (name === 'game') perfWatch();   // 牌桌才是真负载，大厅测不出来的手机在这里补测一次
+  if (name !== lastScreenName) {
+    const prev = lastScreenName;
+    lastScreenName = name;
+    if (prev) {
+      const old = $('screen-' + prev);
+      // 旧屏先退场（绝对定位淡出），新屏同时推镜进入——读起来是一次连续运镜，不是硬切
+      if (old && !REDUCED) {
+        old.classList.add('leaving');
+        setTimeout(() => old.classList.remove('leaving'), 480);
+      }
+      SFX.play(name === 'result' ? 'win' : 'whoosh');
+    }
+    Cam.enter(name);
+  }
   document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === 'screen-' + name));
+  updateReactBar();
   if (name === 'lobby') renderLobby();
   if (name === 'game') renderGameStatic();
   if (name === 'result') renderResult();
@@ -1662,6 +1825,7 @@ function renderPlayers(gridId, showActive) {
       `;
       grid.appendChild(card);
     });
+    if (gridId === 'game-players-grid') layoutRing(grid);   // 新名单 → 重排 3D 座次
   }
   // 每帧同步徽章/灰化：旧版只在结构变化时重绘，跳过分与离线标记会「冻」在旧值
   const scoring = S.scoring !== false;
@@ -1681,6 +1845,13 @@ function renderPlayers(gridId, showActive) {
     } else if (st) st.remove();
     const stale = seenAgo(p) > STALE_GRAY_MS && p.id !== myId;   // 本机收到的心跳到达时刻，不吃跨设备时钟偏差
     c.classList.toggle('stale', stale);
+    // 🔥 连击徽章：连续完成挑战的荣誉（不参与计分，纯气氛）
+    let cb = c.querySelector('.combo-tag');
+    if ((p.combo || 0) >= 2) {
+      if (!cb) { cb = document.createElement('span'); cb.className = 'combo-tag'; c.querySelector('.avatar-wrap').appendChild(cb); }
+      const txt = '🔥×' + p.combo;
+      if (cb.textContent !== txt) cb.textContent = txt;
+    } else if (cb) cb.remove();
     // 「👑 主持人」徽章：跟着 S.hostId 实时走（移交/让位即时生效），大厅和牌桌通用
     let hb = c.querySelector('.host-tag');
     if (S.hostId === p.id) {
@@ -1819,16 +1990,21 @@ function renderGameStatic() {
   const chooserId = S.turn.chooserId || activePlayerId();
   const chooser = S.players.find(p => p.id === chooserId);
   updateGhostBar(stage);
+  renderBetBox(stage, chooserId, scoring);
+  paintSurprise(stage);
+  paintBetLog();
   $('btn-reroll').hidden = true;
   if (stage === 'choosing') {
     $('choice-section').hidden = false; $('deck-section').hidden = true; $('card-section').hidden = true;
     $('flip-card').classList.remove('flipped');
     $('card-truth').classList.remove('picked'); $('card-dare').classList.remove('picked');
+    // 🔥 加倍挑战入口：只给本回合持麦人（不计分局不出）
+    $('stake-row').hidden = !(chooserId === myId && scoring && S.turn.stake !== 2);
     if (isFree && !S.turn.chooserId) {
       $('turn-info').textContent = '🎤 自由对决 · 抢麦抽卡！';
       $('choice-hint').textContent = '麦克风开放，谁先点谁先抽～';
       setChoiceEnabled(true);
-    } else if (chooserId === myId) { $('turn-info').textContent = '🎭 轮到你了！'; $('choice-hint').textContent = '选择一项：'; setChoiceEnabled(true); }
+    } else if (chooserId === myId) { $('turn-info').textContent = '🎭 轮到你了！'; $('choice-hint').textContent = S.turn.stake === 2 ? '🔥 加倍挑战已开启：完成 +20 / 跳过 −10' : '选择一项：'; setChoiceEnabled(true); }
     else { $('turn-info').textContent = `轮到「${chooser?.name || '???'}」了`; $('choice-hint').textContent = '等待对方选择...'; setChoiceEnabled(false); }
   } else if (stage === 'drawing') {
     if (cardDealt) return;   // 牌已飞向中央：中途任何重渲染都不该把画面拽回卡堆
@@ -1844,7 +2020,11 @@ function renderGameStatic() {
     $('type-badge').textContent = t.choice === 'truth' ? '💬 真心话' : '🎯 大冒险';
     $('card-owner').textContent = `——「${chooser?.name || '???'}」抽到的题`;
     $('punishment-text').textContent = t.punishment || '';
+    $('stake-badge').hidden = t.stake !== 2;
+    $('btn-accept').textContent = t.stake === 2 ? '完成啦 ✅ +20' : '完成啦 ✅';
+    $('btn-skip').textContent = t.stake === 2 ? '这题先跳过 −10' : '这题先跳过';
     $('flip-card').classList.add('flipped');
+    startTurnTimer();   // 限时挑战：按 turn.ts 统一时钟跑倒计时
     $('reveal-wait').style.display = chooserId === myId ? 'none' : '';
     $('reveal-wait').textContent = `等待「${chooser?.name || '???'}」完成挑战或跳过`;
     $('card-actions').style.display = chooserId === myId ? '' : 'none';
@@ -1889,6 +2069,8 @@ function renderResult() {
   if (dd) chips.push(['🎯', '玩得起奖', dd.name]);
   const calm = S.players.filter(p => (p.draws || 0) > 0).sort((a, b) => (a.skips || 0) - (b.skips || 0))[0];
   if (calm && scoring) chips.push(['😌', '稳如泰山奖', calm.name]);
+  const streak = S.players.filter(p => (p.combo || 0) >= 3).sort((a, b) => b.combo - a.combo)[0];
+  if (streak) chips.push(['🔥', '连击王 ×' + streak.combo, streak.name]);
   $('result-awards').innerHTML = chips.map(c => `<span class="award-chip">${c[0]} ${c[1]} · ${esc(c[2])}</span>`).join('');
   $('result-list').innerHTML = sorted.map(p => `<div class="result-row">
       <img src="${esc(resolveAvatar(p.avatar))}" alt="" data-fallback />
@@ -1915,7 +2097,7 @@ function renderStageStatic() {
   renderGameStatic();
   void fc.offsetWidth;
   fc.style.transition = '';
-  resetCam();
+  resetCam(true);
 }
 
 function clearStageTimers() {
@@ -1923,14 +2105,114 @@ function clearStageTimers() {
   stageTimers = [];
   clearTimeout(pendingRevealTimer);
   clearTimeout(twTimer);   // 旧打字机若还在写，会在新回合里对着隐藏元素补 burst(0,0)
+  stopTurnTimer();
   const pt = $('punishment-text');
   if (pt) pt.classList.remove('typing');
+}
+
+// ───────────────────────────── 3D 镜头 · 一镜到底调度 ─────────────────────────────
+// .world 就是摄影机：一次运镜 = 对它的一次 transform。Cam 用 rAF 补间把多个「镜头段」串成一条
+// 时间轴（进房推进会 → 桌心 → 滑向持麦人 → 推近卡堆 → 翻牌 → 拉回），新镜头接管时从当前位置续接，
+// 永远不跳帧也不切镜。REDUCED：全部瞬时到位；LOWPERF：只留小幅平移，砍掉旋转/缩放（省每帧重光栅化）。
+const CAM_ID = { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0, s: 1 };
+const CAM_EASE = {
+  dolly: k => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2),
+  out: k => 1 - Math.pow(1 - k, 3),
+  in: k => k * k * k,
+};
+const Cam = {
+  el: null, cur: { ...CAM_ID }, par: { x: 0, y: 0 }, raf: 0, raf2: 0, token: 0, busy: false, curScreen: 'join',
+  // 每屏常态机位：镜头停在这（这就是「牌桌微微俯视」的来源）
+  base: {
+    join: { x: 0, y: 0, z: -40, rx: 2.2, ry: -3, rz: 0, s: 1 },
+    lobby: { ...CAM_ID },
+    game: { x: 0, y: 0, z: -24, rx: 5, ry: 0, rz: 0, s: 1 },
+    result: { x: 0, y: 0, z: -60, rx: 9, ry: 0, rz: 0, s: 1 },
+  },
+  // 每屏入场机位：镜头从哪推/拉到常态位（「一镜到底」的开场段）
+  spawn: {
+    join: { z: 150, rx: -5, s: 1.05 },
+    lobby: { z: -240, rx: 10, s: 1.12 },
+    game: { z: -380, rx: 16, s: 1.18 },
+    result: { z: 180, rx: -7, s: 0.92 },
+  },
+  baseOf(name) { return this.base[name] || CAM_ID; },
+  init() { this.el = $('world3d'); this.curScreen = 'join'; this.jump(this.spawn.join); this.enter('join'); },
+  jump(p) { this.token++; cancelAnimationFrame(this.raf); this.raf = 0; this.busy = false; Object.assign(this.cur, CAM_ID, p || {}); this.apply(); },   // 瞬跳 = 当场接管，在跑的补间作废（否则下一帧又会被拖回旧轨迹）
+  apply() {
+    if (!this.el) return;
+    const c = this.cur;
+    this.el.style.transform =
+      `translate3d(${c.x.toFixed(2)}px, ${c.y.toFixed(2)}px, ${c.z.toFixed(1)}px) ` +
+      `rotateX(${(c.rx + this.par.y).toFixed(2)}deg) rotateY(${(c.ry + this.par.x).toFixed(2)}deg) ` +
+      `rotateZ(${c.rz.toFixed(2)}deg) scale(${c.s.toFixed(3)})`;
+  },
+  to(p, ms, ease = 'dolly', done) {
+    const target = { ...this.cur, ...(p || {}) };
+    if (LOWPERF) {   // 低端机：平面化 + 半幅平移
+      target.rx = 0; target.ry = 0; target.rz = 0; target.s = 1;
+      target.z *= 0.4; target.x *= 0.5; target.y *= 0.5;
+    }
+    if (REDUCED || !this.el) { this.jump(target); done && done(); return; }
+    const from = { ...this.cur }, dur = Math.max(1, ms | 0), t0 = performance.now(), my = ++this.token;
+    const fn = CAM_EASE[ease] || CAM_EASE.dolly;
+    this.busy = true;
+    const step = now => {
+      if (my !== this.token) return;   // 已被新镜头接管：旧镜头作废（连带它的 done 回调）
+      const k = Math.min(1, (now - t0) / dur), e = fn(k);
+      for (const key in CAM_ID) this.cur[key] = from[key] + (target[key] - from[key]) * e;
+      this.apply();
+      if (k < 1) this.raf = requestAnimationFrame(step);
+      else { this.busy = false; this.raf = 0; done && done(); }
+    };
+    cancelAnimationFrame(this.raf);
+    this.raf = requestAnimationFrame(step);
+  },
+  enter(name) { this.curScreen = name; this.jump(this.spawn[name] || CAM_ID); this.to(this.baseOf(name), name === 'game' ? 950 : 780, 'dolly'); },
+  home(ms = 750, done) { this.to(this.baseOf(this.curScreen), ms, 'dolly', done); },
+  // 把元素缓缓带到画面中心（旧 focusCam 的 3D 升级版）：位移小、只动 transform，不会糊字
+  focus(el, { push = 1.05, dur = 900, ease = 'dolly' } = {}) {
+    if (!el || REDUCED) return;
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const b = this.baseOf(this.curScreen);
+    const nx = (r.left + r.width / 2 - window.innerWidth / 2) / window.innerWidth;
+    const ny = (r.top + r.height / 2 - window.innerHeight / 2) / window.innerHeight;
+    this.to({ x: b.x + Math.max(-46, Math.min(46, -nx * 190)), y: b.y + Math.max(-34, Math.min(34, -ny * 150)), z: b.z - 20, s: b.s * push }, dur, ease);
+  },
+  nudge(el) { this.focus(el, { push: 1.035, dur: 820 }); },
+  // 冲击震动（翻到大冒险 / 暴击）：独立 rAF 槽，不打扰正在跑的运镜
+  shake(mag = 7, ms = 300) {
+    if (REDUCED || LOWPERF || !this.el) return;
+    const t0 = performance.now();
+    cancelAnimationFrame(this.raf2);
+    const step = now => {
+      const k = Math.min(1, (now - t0) / ms), a = mag * (1 - k);
+      this.par.x = (Math.random() * 2 - 1) * a * 0.5;
+      this.par.y = (Math.random() * 2 - 1) * a * 0.35;
+      this.apply();
+      if (k < 1) this.raf2 = requestAnimationFrame(step);
+      else { this.par.x = 0; this.par.y = 0; this.apply(); this.raf2 = 0; }
+    };
+    this.raf2 = requestAnimationFrame(step);
+  },
+  // 鼠标微视差：镜头随指针轻摆（低端机/降噪模式关闭；无人移动指针时零开销）
+  parallax(nx, ny) {
+    if (REDUCED || LOWPERF) return;
+    this.par.x = -nx * 1.8; this.par.y = ny * 1.3;
+    if (!this.busy && !this.raf2) this.apply();
+  },
+};
+function initCamParallax() {
+  if (REDUCED) return;
+  window.addEventListener('pointermove', e => {
+    Cam.parallax(e.clientX / window.innerWidth - 0.5, e.clientY / window.innerHeight - 0.5);
+  }, { passive: true });
 }
 
 // ───────────────────────────── 一镜到底动画编排 ─────────────────────────────
 async function runStage(stage) {
   if (stage === 'choosing') {
-    resetCam();
     cardDealt = false; revealAnim = false;
     document.querySelectorAll('.deck-card.gone').forEach(c => c.classList.remove('gone'));   // 上一局被抽走的牌归队
     renderGameStatic();
@@ -1941,6 +2223,10 @@ async function runStage(stage) {
     const grid = $('game-players-grid');
     const activeCard = grid.querySelector(`.player-card[data-pid="${CSS.escape(activePlayerId() || '')}"] .avatar-ring`);
     if (activeCard) { activeCard.classList.remove('pass'); void activeCard.offsetWidth; activeCard.classList.add('pass'); }
+    // 一镜到底：镜头先回桌心，再滑向本回合持麦人（两段接力，读起来是一次连续机位调整）
+    Cam.home(420);
+    const seat = activeCard && activeCard.closest('.player-card');
+    if (seat) stageTimers.push(setTimeout(() => Cam.nudge(seat), 460));
     return;
   }
   if (stage === 'drawing') {
@@ -2092,6 +2378,7 @@ async function playReveal() {
     $('punishment-text').textContent = t.punishment || '（空）';
     revealAnim = false;
     renderGameStatic();
+    playSurpriseFx();   // 降噪下也告知一声（不带粒子/震动）
     return;
   }
   const flip = $('flip-card');
@@ -2110,10 +2397,14 @@ async function playReveal() {
   ], { duration: 240, easing: 'ease-out' });
   stageTimers.push(setTimeout(() => {
     flip.classList.add('flipped');
+    SFX.play('flip');
+    if (t.choice === 'dare') Cam.shake(7, 300);   // 大冒险翻牌：镜头一颤，气氛拉满
     stageTimers.push(setTimeout(() => {
+      SFX.play('reveal');
       typewriter($('punishment-text'), t.punishment || '（空）', 32, () => {
         revealAnim = false;   // 动画谢幕，后续心跳重渲染直接画终态即可
         renderGameStatic();   // 补一次同步绘制：turn-info/按钮状态不能等到下一次心跳才更新
+        playSurpriseFx();     // 🎁 1/5 概率开出惊喜卡（确定性：同题同 seq 全场同结论）
         const r = $('card-section').getBoundingClientRect();
         burst(r.left + r.width / 2, r.top + r.height / 2);
       });
@@ -2121,15 +2412,294 @@ async function playReveal() {
   }, 240));
 }
 
-// 相机聚焦（内层 cam 位移缩放，不干扰外层）
-function focusCam(el) {
-  if (!el || REDUCED) return;
-  const r = el.getBoundingClientRect();
-  const dx = (window.innerWidth / 2 - (r.left + r.width / 2)) * 0.12;
-  const dy = (window.innerHeight / 2 - (r.top + r.height / 2)) * 0.10;
-  $('cam').style.transform = `translate(${Math.max(-40, Math.min(40, dx))}px, ${Math.max(-30, Math.min(30, dy))}px) scale(1.03)`;
+// 相机聚焦（世界层缓推；3D 姿态由各屏的静态机位叠加）
+function focusCam(el) { Cam.focus(el, { push: 1.05, dur: 950 }); }
+function resetCam(instant) { if (instant) Cam.jump(Cam.baseOf(Cam.curScreen)); else Cam.home(750); }
+
+// ───────────────────────────── 趣味互动：音效 / 表情雨 / 加倍 / 限时 / 命运转盘 ─────────────────────────────
+// 音效：WebAudio 现场合成，不下载任何资源（离线单文件）；首次手势后才建 AudioContext，避免自动播放告警
+const SFX = {
+  on: true, ctx: null, master: null,
+  init() {
+    try { this.on = localStorage.getItem('tod:sfx') !== 'off'; } catch {}
+    document.addEventListener('pointerdown', () => this.ensure(), { once: true, passive: true });
+    syncSfxBtns();
+  },
+  ensure() {
+    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {}); return true; }
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return false;
+      this.ctx = new AC();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = 0.2;
+      this.master.connect(this.ctx.destination);
+    } catch { return false; }
+    return true;
+  },
+  tone(freq, dur, type = 'triangle', vol = 1, to = 0, delay = 0) {
+    const c = this.ctx, t0 = c.currentTime + delay;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t0);
+    if (to) o.frequency.exponentialRampToValueAtTime(Math.max(30, to), t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.001, vol), t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(this.master);
+    o.start(t0); o.stop(t0 + dur + 0.04);
+  },
+  play(name) {
+    if (!this.on || !this.ctx || this.ctx.state === 'closed') return;
+    try {
+      if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+      if (name === 'whoosh') this.tone(520, 0.26, 'sawtooth', 0.5, 150);
+      else if (name === 'tick') this.tone(1180, 0.05, 'square', 0.4);
+      else if (name === 'flip') this.tone(320, 0.14, 'triangle', 0.6, 660);
+      else if (name === 'reveal') { this.tone(660, 0.16, 'triangle', 0.7); this.tone(990, 0.3, 'sine', 0.5, 0, 0.09); }
+      else if (name === 'win') [523, 659, 784, 1046].forEach((f, i) => this.tone(f, 0.3, 'triangle', 0.7, 0, i * 0.11));
+      else if (name === 'skip') this.tone(240, 0.22, 'sine', 0.55, 130);
+      else if (name === 'combo') [660, 880, 1174].forEach((f, i) => this.tone(f, 0.18, 'square', 0.38, 0, i * 0.07));
+      else if (name === 'react') this.tone(560 + Math.random() * 420, 0.12, 'sine', 0.38);
+    } catch {}
+  },
+  toggle() {
+    this.on = !this.on;
+    try { localStorage.setItem('tod:sfx', this.on ? 'on' : 'off'); } catch {}
+    if (this.on) { this.ensure(); this.play('reveal'); }
+    syncSfxBtns();
+    toast(this.on ? '🔊 音效已开' : '🔇 音效已关');
+  },
+};
+function syncSfxBtns() {
+  const label = SFX.on ? '🔊 音效' : '🔇 已静音';
+  document.querySelectorAll('.js-sfx-btn').forEach(b => {
+    b.textContent = label;
+    b.setAttribute('aria-pressed', SFX.on ? 'true' : 'false');
+  });
+  const g = $('btn-sfx-guide');
+  if (g) g.textContent = '音效：' + (SFX.on ? '开' : '关');
 }
-function resetCam() { $('cam').style.transform = 'translate(0,0) scale(1)'; }
+
+// 表情雨：房间内广播（非 retained），围观的也能起哄；同一条只播一次，跳设备回放的旧表情丢弃
+const REACT_SET = ['👏', '😂', '😱', '🔥', '😈', '❤️'];
+const REACT_SEEN = new Map();
+let reactLast = 0;
+function sendReact(e) {
+  if (!joined || !S || !link || !REACT_SET.includes(e)) return;
+  const now = Date.now();
+  if (now - reactLast < 320) return;   // 防刷屏：同一人 320ms 一颗
+  reactLast = now;
+  link.publishReact({ id: myId, e, mid: genId(), t: now });
+  spawnReact(e, myId + now);
+}
+function onReact(m) {
+  if (!m || !REACT_SET.includes(m.e)) return;
+  const now = Date.now();
+  if (now - (m.t || 0) > 5000) return;   // 本地模式 retained 回放的旧表情不补放
+  if (m.mid) {
+    if (REACT_SEEN.has(m.mid)) return;
+    REACT_SEEN.set(m.mid, now);
+    if (REACT_SEEN.size > 160) REACT_SEEN.delete(REACT_SEEN.keys().next().value);
+  }
+  spawnReact(m.e, String(m.id || '') + (m.mid || ''));
+}
+function spawnReact(e, seed) {
+  const wrap = $('burst-container');
+  if (!wrap) return;
+  const live = wrap.querySelectorAll('.react-rain');
+  const max = LOWPERF ? 5 : 14;
+  if (live.length >= max) live[0].remove();
+  let h = 0; const s = String(seed);
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  const n = document.createElement('div');
+  n.className = 'react-rain'; n.textContent = e;
+  n.style.left = (8 + (h % 84)) + '%';
+  n.style.bottom = (92 + ((h >> 8) % 90)) + 'px';
+  n.style.setProperty('--rdx', (((h >> 3) % 120) - 60) + 'px');
+  n.style.setProperty('--rrot', (((h >> 5) % 60) - 30) + 'deg');
+  if (LOWPERF || REDUCED) n.style.animationDuration = '1.2s';
+  wrap.appendChild(n);
+  setTimeout(() => n.remove(), LOWPERF || REDUCED ? 1400 : 2600);
+  SFX.play('react');
+}
+function updateReactBar() {
+  const bar = $('react-bar');
+  if (!bar) return;
+  bar.hidden = !(joined && S && !S.finished && (currentScreen() === 'lobby' || currentScreen() === 'game'));
+}
+
+// 命运转盘：主持人随机点名时，光点沿座次环跑动减速，镜头跟着扫一圈（只在本机演，状态由 designate 落地）
+async function spinPick() {
+  if (!isHost() || !S || S.turn.stage !== 'choosing') return;
+  const cands = S.players.filter(p => p.id !== myId && p.id !== S.turn.chooserId);
+  if (!cands.length) { toast('没别人可点啦～'); return; }
+  const target = pick(cands);
+  await spinHighlight(target.id);
+  await designate(target.id);
+}
+function spinHighlight(pid) {
+  return new Promise(res => {
+    const cards = [...$('game-players-grid').querySelectorAll('.player-card')];
+    const idx = cards.findIndex(c => c.dataset.pid === pid);
+    if (REDUCED || idx < 0 || cards.length < 2) return res();
+    let i = Math.floor(Math.random() * cards.length);
+    const taps = Math.min(18, cards.length * 2 + ((idx - i + cards.length * 2) % cards.length));
+    let step = 0, prev = null;
+    const tick = () => {
+      if (!S || S.turn.stage !== 'choosing') { cards.forEach(c => c.classList.remove('spot')); return res(); }
+      const c = cards[i % cards.length];
+      if (prev) prev.classList.remove('spot');
+      c.classList.add('spot'); prev = c;
+      if (step % 2 === 0 && !LOWPERF) Cam.nudge(c);
+      SFX.play('tick');
+      step++; i++;
+      if (step > taps) { setTimeout(() => { cards.forEach(x => x.classList.remove('spot')); res(); }, 700); return; }
+      setTimeout(tick, 60 + Math.pow(step / taps, 2.2) * 220);   // 越跑越慢 → 停表
+    };
+    tick();
+  });
+}
+
+// 加倍挑战：持麦人自己押注（完成 ×2 / 跳过 ×2），只影响这一轮；不动 seq，不会打断已开始的动画
+async function setStake() {
+  if (!S || S.turn.stage !== 'choosing' || S.turn.chooserId !== myId || S.scoring === false) return;
+  if (S.turn.stake === 2) return;
+  await mutate(n => {
+    if (n.turn.stage === 'choosing' && n.turn.chooserId === myId && n.scoring !== false) n.turn.stake = 2;
+  });
+  SFX.play('combo');
+  toast('🔥 加倍挑战：完成 +20 / 跳过 −10', 'success');
+  renderGameStatic();
+}
+
+// 限时挑战：按 turn.ts 统一时钟算倒计时（只展示，不自动跳过、不扣分）
+let timerInt = null;
+function stopTurnTimer() { clearInterval(timerInt); timerInt = null; }
+function startTurnTimer() {
+  stopTurnTimer();
+  const wrap = $('timer-wrap');
+  if (!S || !wrap) return;
+  const secs = S.timer || 0;
+  if (!(secs > 0) || S.turn.stage !== 'revealed') { wrap.classList.remove('on', 'urgent', 'up'); return; }
+  wrap.classList.add('on');
+  const deadline = (S.turn.ts || Date.now()) + secs * 1000;
+  let lastSec = -1;
+  const paint = () => {
+    const left = deadline - Date.now();
+    $('timer-fill').style.transform = 'scaleX(' + Math.max(0, Math.min(1, left / (secs * 1000))).toFixed(4) + ')';
+    wrap.classList.toggle('urgent', left <= 5000 && left > 0);
+    wrap.classList.toggle('up', left <= 0);
+    const s = Math.max(0, Math.ceil(left / 1000));
+    if (s !== lastSec) {
+      lastSec = s;
+      $('timer-text').textContent = left > 0 ? `⏱ 还剩 ${s} 秒` : '⏰ 超时啦（不扣分，大家看着呢）';
+      if (left > 0 && s <= 5) SFX.play('tick');
+    }
+    if (left <= 0) stopTurnTimer();
+  };
+  paint();
+  timerInt = setInterval(paint, 250);
+}
+
+// 🎲 观众押注面板：只有「已揭晓 + 我不是持麦人 + 计分开」才出现
+function renderBetBox(stage, chooserId, scoring) {
+  const box = $('bet-box');
+  if (!box) return;
+  const can = !!S && stage === 'revealed' && scoring && !!chooserId && chooserId !== myId && !S.finished;
+  box.hidden = !can;
+  if (!can) return;
+  const bets = S.turn.bets || {};
+  const mine = bets[myId];
+  $('bet-accept').classList.toggle('sel', mine === 'accept');
+  $('bet-skip').classList.toggle('sel', mine === 'skip');
+  const n = Object.keys(bets).length;
+  $('bet-count').textContent = n ? `已押 ${n} 人` : '还没人押';
+  $('bet-note').textContent = (mine ? '再点一次可取消押注 · ' : '') + `押对 +${SCORE_BET_WIN} / 押错 ${SCORE_BET_LOSS} · TA 交卡后自动结算`;
+}
+// 🎁 惊喜卡：从题目文本 + seq 确定性推导（同题同 seq，全场结论一致），金色卡面只是视觉
+function surpriseOf(turn) {
+  if (!S || S.surprise === false) return null;
+  const txt = (turn && turn.punishment) || '';
+  if (!txt) return null;
+  let h = ((turn.seq || 0) * 2654435761) >>> 0;
+  for (let i = 0; i < txt.length; i++) h = ((h ^ txt.charCodeAt(i)) * 16777619) >>> 0;
+  if (h % 5 !== 0) return null;   // 1/5 概率开出惊喜卡
+  return SURPRISE_DEFS[h % SURPRISE_DEFS.length];
+}
+function paintSurprise(stage) {   // 静态上色：中途加入/重连也能看到金卡
+  const front = $('card-front');
+  if (!front) return;
+  const sp = stage === 'revealed' ? surpriseOf(S.turn) : null;
+  front.classList.toggle('surprise', !!sp);
+  $('surprise-tag').hidden = !sp;
+  if (sp) $('surprise-tag').textContent = `${sp.icon} 惊喜卡 · ${sp.name}`;
+}
+let lastSurpriseSeq = -1;
+function playSurpriseFx() {   // 特效只在揭晓那一刻放一次
+  const sp = surpriseOf(S.turn);
+  if (!sp || lastSurpriseSeq === S.turn.seq) return;
+  lastSurpriseSeq = S.turn.seq;
+  paintSurprise('revealed');
+  toast(`🎁 惊喜卡：${sp.name}！${sp.note}`, 'success', 3200);
+  SFX.play('win');
+  if (!REDUCED) burst(window.innerWidth / 2, window.innerHeight / 2.4, LOWPERF ? 16 : 46);
+  if (sp.id === 'drum') Cam.shake(9, 380);
+  if (sp.id === 'rain') ['👏', '😂', '🔥', '❤️'].forEach((e, i) => setTimeout(() => spawnReact(e, 'sp' + S.turn.seq + i), i * 200));
+  if (sp.id === 'echo') toast('📢 全场目光已锁定这张牌！', '', 2600);
+}
+// 🎲 押注播报：所有人看到同一份结算（按 betLog.at 去重；首帧不补报旧日志）
+let lastBetLogAt = 0;
+function paintBetLog() {
+  const log = S && S.turn && S.turn.betLog;
+  if (!log || !log.at || log.at === lastBetLogAt) return;
+  lastBetLogAt = log.at;
+  if (firstApply || Date.now() - log.at > 10000) return;   // 中途加入不补报历史
+  const items = log.items || [];
+  if (!items.length) return;
+  const txt = items.map(x => `${x.won ? '✅' : '❌'} ${x.name} ${x.delta > 0 ? '+' + x.delta : x.delta}`).join(' · ');
+  const winners = items.filter(x => x.won).length;
+  toast(`🎲 押注结算：${txt}`, winners ? 'success' : '', 3800);
+  if (winners && !REDUCED) burst(window.innerWidth / 2, window.innerHeight / 2.6, Math.min(36, 12 + winners * 8));
+  SFX.play(winners ? 'combo' : 'skip');
+}
+async function placeBet(kind) {
+  if (!S || S.turn.stage !== 'revealed' || S.scoring === false || S.turn.chooserId === myId) return;
+  const cur = (S.turn.bets || {})[myId];
+  await mutate(n => {
+    if (n.turn.stage !== 'revealed' || n.scoring === false || n.turn.chooserId === myId) return;
+    n.turn.bets = n.turn.bets || {};
+    if (n.turn.bets[myId] === kind) delete n.turn.bets[myId];   // 再点一次取消
+    else n.turn.bets[myId] = kind;
+  });
+  SFX.play('tick');
+  renderGameStatic();
+}
+
+const SURPRISE_DEFS = [
+  { id: 'confetti', icon: '🎉', name: '彩带风暴', note: '全场爆彩，给张卡加点排面' },
+  { id: 'drum', icon: '🥁', name: '命运鼓点', note: '镜头为你颤了一下' },
+  { id: 'rain', icon: '🌧', name: '表情雨', note: '天上掉下一串表情' },
+  { id: 'gold', icon: '🏅', name: '金色卡面', note: '闪瞎全场的金卡' },
+  { id: 'echo', icon: '📢', name: '全场播报', note: '所有人的目光都在这张牌上' },
+];
+
+// 3D 座次：玩家沿椭圆围桌（越靠前越近越大），只写三个 CSS 变量，不逐帧重排
+function layoutRing(grid) {
+  const cards = [...grid.querySelectorAll('.player-card')];
+  const n = cards.length;
+  if (!n) return;
+  const narrow = window.innerWidth < 620;
+  const rx = narrow ? 41 : 46, ry = narrow ? 30 : 26;
+  const base = n > 10 ? 0.8 : n > 7 ? 0.88 : 1;
+  cards.forEach((c, i) => {
+    const a = Math.PI + (i / n) * Math.PI * 2;   // 1 号位在正前方（屏幕下方=离观众最近）
+    const front = -Math.cos(a);                  // 1=最前，-1=最后
+    c.style.setProperty('--rx', (50 + rx * Math.sin(a)).toFixed(2) + '%');
+    c.style.setProperty('--ry', (50 - ry * Math.cos(a)).toFixed(2) + '%');
+    c.style.setProperty('--rs', (base * (1 + 0.1 * front)).toFixed(3));
+    c.style.zIndex = String(20 + Math.round(front * 10));
+  });
+}
 
 // ───────────────────────────── 玩家动作 ─────────────────────────────
 // 抽题：档位过滤 → 排除近几题（洗牌轮抽防重复）→ 抽中回写 recent
@@ -2161,6 +2731,8 @@ async function choose(type) {
   } else if (S.turn.chooserId !== myId) { toast('还没轮到你哦', 'error'); return; }
   $('card-' + type).classList.add('picked');
   setChoiceEnabled(false);
+  SFX.play('whoosh');
+  $('bet-box').hidden = true;   // 进入抽卡：上一轮的押注面板收起来
   await mutate(n => {
     n.turn.stage = 'drawing';
     n.turn.chooserId = myId;
@@ -2176,15 +2748,41 @@ async function choose(type) {
   });
 }
 
+// 🎲 押注结算：只有押对/押错两种结果，每人只动自己的分（不动走/留的持牌人）；
+// 结果写进 turn.betLog，让所有客户端看到同一份「谁押中」播报
+function settleBets(n, outcome) {
+  const bets = (n.turn && n.turn.bets) || {};
+  const ids = Object.keys(bets);
+  if (!ids.length) { if (n.turn) n.turn.bets = {}; return; }
+  const items = [];
+  for (const pid of ids) {
+    const p = n.players.find(x => x.id === pid);
+    if (!p) continue;
+    const won = bets[pid] === outcome && n.scoring !== false;
+    const delta = n.scoring === false ? 0 : (won ? SCORE_BET_WIN : SCORE_BET_LOSS);
+    if (delta) p.score = (p.score || 0) + delta;
+    items.push({ pid, name: p.name, put: bets[pid], won, delta });
+  }
+  n.turn.bets = {};
+  n.turn.betLog = items.length ? { at: Date.now(), items } : null;
+}
+
 // 回合收尾公共逻辑：记跳过分/完成分 → 轮数上限判定 → 交接下一位（finishTurn / 代跳共用）
 function closeTurn(n, actorId, opts) {
   const p = n.players.find(x => x.id === actorId);
+  const k = n.turn && n.turn.stake === 2 && n.scoring !== false ? 2 : 1;   // 🔥 加倍挑战：只翻倍这一轮
   if (opts.skipped && p) {
     n.stats.skips = (n.stats.skips || 0) + 1;
     p.skips = (p.skips || 0) + 1;
-    if (n.scoring !== false) p.score = (p.score || 0) + SCORE_SKIP;
+    p.combo = 0;
+    if (n.scoring !== false) p.score = (p.score || 0) + SCORE_SKIP * k;
   }
-  if (opts.accepted && p && n.scoring !== false) p.score = (p.score || 0) + SCORE_ACCEPT;
+  if (opts.accepted && p) {
+    p.combo = Math.min(9, (p.combo || 0) + 1);   // 🔥 连击：连续完成（不计分，纯荣誉）
+    if (n.scoring !== false) p.score = (p.score || 0) + SCORE_ACCEPT * k;
+  }
+  settleBets(n, opts.skipped ? 'skip' : 'accept');   // 🎲 押注结算（无押注则零开销）
+  if (n.turn) n.turn.stake = 1;
   if (n.roundLimit > 0 && (n.stats.rounds || 0) >= n.roundLimit) {
     n.gameStarted = false;                       // 打满约定轮数 → 直接进结算颁奖
     n.finished = { at: Date.now(), by: actorId };
@@ -2192,7 +2790,7 @@ function closeTurn(n, actorId, opts) {
     return;
   }
   n.turn.stage = 'choosing';
-  n.turn.choice = null; n.turn.punishment = null;
+  n.turn.choice = null; n.turn.punishment = null;   // betLog 不清：让全体先把「谁押中」的播报看完，下一轮结算时自然覆盖
   if (n.mode === 'free') {
     // 自由对决：释放麦克风，谁都可以抢
     n.turnIndex = Math.max(n.players.findIndex(x => x.id === actorId), 0);
@@ -2212,7 +2810,18 @@ async function finishTurn(skipped) {
     closeTurn(n, myId, skipped ? { skipped: true } : { accepted: true });
     ended = before && !n.gameStarted;
   });
-  if (!skipped) { const r = $('btn-accept').getBoundingClientRect(); burst(r.left + r.width / 2, r.top + r.height / 2, 20); }
+  if (!skipped) {
+    const r = $('btn-accept').getBoundingClientRect(); burst(r.left + r.width / 2, r.top + r.height / 2, 20);
+    const combo = (me() && me().combo) || 0;
+    if (combo >= 2) {   // 连击庆祝：爆彩 + 镜头震动（HIGH 档），不参与计分
+      SFX.play('combo');
+      setTimeout(() => {
+        burst(window.innerWidth / 2, window.innerHeight / 3, LOWPERF ? 14 : 44);
+        toast(`🔥 连击 ×${combo}！手感火热`, 'success', 2600);
+        if (combo >= 3) Cam.shake(6, 260);
+      }, 240);
+    }
+  } else SFX.play('skip');
   if (ended) toast('🏁 轮数打满，进入结算！', 'success', 3200);
 }
 
@@ -2228,6 +2837,7 @@ async function usePass() {
     n.turn.punishment = drawPunishment(n, n.turn.choice);
     n.turn.seq += 1; n.turn.ts = Date.now(); n.turn.by = myId;
   });
+  SFX.play('flip');
   toast('🃏 免答牌已打出，悄悄换了一题', 'success');
 }
 
@@ -2254,8 +2864,9 @@ async function startGame() {
     n.turnIndex = Math.floor(Math.random() * n.players.length);
     n.stats = { truth: 0, dare: 0, skips: 0, rounds: 0 };
     n.recent = { truth: [], dare: [] };
-    for (const p of n.players) { p.skips = 0; p.draws = 0; p.truth = 0; p.dare = 0; p.score = 0; p.passes = PASSES_PER_GAME; }
+    for (const p of n.players) { p.skips = 0; p.draws = 0; p.truth = 0; p.dare = 0; p.score = 0; p.passes = PASSES_PER_GAME; p.combo = 0; }
     n.turn.stage = 'choosing';
+    n.turn.stake = 1;
     // 轮流制随机先手；自由对决开局即开放麦克风
     n.turn.chooserId = pickedMode === 'free' ? null : n.players[n.turnIndex].id;
     n.turn.choice = null; n.turn.punishment = null;
@@ -2464,6 +3075,7 @@ async function doJoin(name, avatar, roomInput, forceLocal) {
     link.subscribe(onState);
     link.subscribePool(onPool);
     link.subscribeMic(onMicMsg);
+    link.subscribeReact(onReact);
   } catch (e) {
     btn.disabled = false; btn.textContent = '加入游戏 🎮';
     hideLoading();
@@ -2634,8 +3246,14 @@ function startTimers() {
     deadIds.forEach(forgetHb);   // 水位线跟着人销号，不留脏数据
     toast(`👻 清理掉线玩家：${dead.map(p => p.name).join('、')}`, '', 3000);
   }, 15000);
+  // 掉线巡检：灰化（40s）与代跳条不能等下一次状态包（心跳 25s）——否则卡住回合可能要干等半分钟
+  watchTimer = setInterval(() => {
+    if (!joined || !S || !S.gameStarted || S.finished || currentScreen() !== 'game') return;
+    renderPlayers('game-players-grid', true);   // 离线灰化 + 徽章/可点态同步刷新
+    updateGhostBar(S.turn.stage);               // 代跳条：状态没变化也要按本机时钟重新判定
+  }, 2500);
 }
-function stopTimers() { clearInterval(hbTimer); clearInterval(pruneTimer); hbTimer = pruneTimer = null; }
+function stopTimers() { clearInterval(hbTimer); clearInterval(pruneTimer); clearInterval(watchTimer); hbTimer = pruneTimer = watchTimer = null; }
 
 // ═══════════════════════════════════════════════════════════
 // 连麦：WebRTC 网状语音 + 房间信令 topic（MQTT / 本地模式都复用同一条链路）
@@ -3554,7 +4172,7 @@ async function applyPack(k) {
 }
 function openSettingsModal() {
   if (!isHost()) { toast('只有主持人能改设置哦', 'error'); return; }
-  const lv = S.level, sc = S.scoring !== false, rl = S.roundLimit || 0, md = S.mode;
+  const lv = S.level, sc = S.scoring !== false, rl = S.roundLimit || 0, md = S.mode, tm = S.timer || 0, sv = S.surprise !== false;
   showModal('⚙️ 设置 · 题库', `
     <div class="set-group"><label>对决玩法${S.gameStarted ? '（中途切换，下一张牌生效）' : '（开局生效）'}</label>
       <div class="mini-row">
@@ -3567,6 +4185,12 @@ function openSettingsModal() {
       <div class="mini-row"><button type="button" class="mini-opt${sc ? ' sel' : ''}" id="st-scoring">🏆 计分竞技：${sc ? '开' : '关'}</button></div>
       <label style="margin-top:10px">轮数上限（打满自动结算颁奖）</label>
       <select class="mini-sel" id="st-rounds">${[0, 6, 10, 15, 20].map(v => `<option value="${v}"${rl === v ? ' selected' : ''}>${v === 0 ? '不限轮数' : v + ' 轮'}</option>`).join('')}</select>
+    </div>
+    <div class="set-group"><label>⏱ 限时挑战（气氛用：只显示倒计时，不自动跳过、不扣分）</label>
+      <div class="mini-row">${[0, 15, 30, 45].map(v => `<button type="button" class="mini-opt${tm === v ? ' sel' : ''}" data-tm="${v}">${v ? v + ' 秒' : '不限时'}</button>`).join('')}</div>
+    </div>
+    <div class="set-group"><label>🎁 惊喜卡（纯气氛：1/5 概率开出金色卡面 + 彩带/鼓点/表情雨，不影响分数）</label>
+      <div class="mini-row"><button type="button" class="mini-opt${sv ? ' sel' : ''}" id="st-surprise">惊喜卡：${sv ? '开' : '关'}</button></div>
     </div>
     <div class="set-group"><label>题库套装（整套替换房间题库）</label>
       <div class="mini-row">${Object.keys(PACKS).map(k => `<button type="button" class="mini-opt${(SPool ? SPool.pack : pickedPack) === k ? ' sel' : ''}" data-pk="${k}">${PACKS_META[k]}</button>`).join('')}</div></div>
@@ -3591,6 +4215,17 @@ function openSettingsModal() {
     const v = parseInt(e.target.value, 10) || 0;
     await mutate(n => { n.roundLimit = v; });
     toast(v ? `已约定打满 ${v} 轮自动结算` : '轮数已改为不限', 'success');
+  });
+  b.querySelectorAll('[data-tm]').forEach(x => x.addEventListener('click', async () => {
+    const v = parseInt(x.dataset.tm, 10) || 0;
+    await mutate(n => { n.timer = v; });
+    openSettingsModal();
+    toast(v ? `⏱ 已开启 ${v} 秒限时挑战（只展示不惩罚）` : '已关闭限时挑战', 'success');
+  }));
+  $('st-surprise').addEventListener('click', async () => {
+    await mutate(n => { n.surprise = n.surprise === false; });
+    openSettingsModal();
+    toast(S.surprise === false ? '🎁 已关闭惊喜卡' : '🎁 惊喜卡已开启（1/5 概率，纯气氛）', 'success');
   });
   b.querySelectorAll('[data-pk]').forEach(x => x.addEventListener('click', () => { applyPack(x.dataset.pk); openSettingsModal(); }));
   $('st-pool-reset').addEventListener('click', () => { applyPack((SPool && SPool.pack) || pickedPack); openSettingsModal(); });
@@ -3686,13 +4321,14 @@ $('btn-ghost-skip').addEventListener('click', ghostSkip);
 $('btn-stats').addEventListener('click', openStatsModal);
 $('btn-settings-lobby').addEventListener('click', openSettingsModal);
 $('btn-settings-game').addEventListener('click', openSettingsModal);
-$('btn-pick-next').addEventListener('click', () => {
-  if (!isHost()) return;
-  if (!S || S.turn.stage !== 'choosing') { toast('等这张牌了结再换人～', 'error'); return; }
-  const cands = S.players.filter(p => p.id !== myId && p.id !== S.turn.chooserId);   // 避开自己和当前持牌人，点了必换人
-  if (cands.length) designate(pick(cands).id);
-  else toast('没别人可点啦～');
-});
+$('btn-pick-next').addEventListener('click', spinPick);   // 🎡 命运转盘：光点跑一圈再定点名
+$('btn-stake').addEventListener('click', setStake);
+$('bet-accept').addEventListener('click', () => placeBet('accept'));
+$('bet-skip').addEventListener('click', () => placeBet('skip'));
+$('react-bar').querySelectorAll('button[data-react]').forEach(b => b.addEventListener('click', () => sendReact(b.dataset.react)));
+document.querySelectorAll('.js-sfx-btn').forEach(b => b.addEventListener('click', () => SFX.toggle()));
+$('btn-sfx-guide').addEventListener('click', () => SFX.toggle());
+window.addEventListener('resize', () => { if (S && S.gameStarted) layoutRing($('game-players-grid')); });
 $('btn-finish-game').addEventListener('click', function () { armedTap(this, finishGame, '再点一次：立即结算'); });
 $('btn-end-game').addEventListener('click', function () { armedTap(this, endGame, '再点一次：回大厅'); });
 $('btn-rematch').addEventListener('click', () => { if (isHost()) startGame(); });
@@ -3768,6 +4404,9 @@ if (LOWPERF) document.body.classList.add('loperf');   // 低端机自动降载�
   if (b) b.addEventListener('click', () => setLowPerf(k === 'on' || (k === 'auto' && autoLowPerf()), PERF_PREF_OF[k]));
 });
 syncPerfBtns();
+SFX.init();
+initCamParallax();
+Cam.init();   // 3D 镜头开机：从远处推进到加入页（一镜到底的第一段）
 setTimeout(() => perfWatch(), 2500);   // 字体/背景就绪后再测，不然首帧成本会误判
 buildBg();
 buildAvatarSelector();

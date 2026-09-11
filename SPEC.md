@@ -9,10 +9,18 @@
 ## 2. Visual & Rendering Specification
 
 ### Scene Setup
-- **View**: 2D card-game style interface
+- **View**: 3D 舞台（CSS 3D）——`#app { perspective: 1400px }` 提供透视，`#world3d`（`.world`）是唯一的「摄影机 rig」，四个屏（join/lobby/game/result）都在这一层里；屏自身不再挂静态 3D 变换，每屏的常态机位搬到了 JS `Cam.base`
 - **Background**: Animated gradient with floating particle confetti, continuous slow-motion drift (one-shot camera feel)
-- **Camera**: Fixed, no user control — cinematic pan/tilt via CSS transforms
-- **Lighting**: Soft glow on active elements, neon accents on cards
+- **Camera**: 无用户相机控制，全部由 `Cam` 调度为一条连续时间轴：`Cam.enter(name)`（每屏 spawn→base 的入场推/拉）、`Cam.home()`、`Cam.focus(el)`（推近到元素）、`Cam.nudge(el)`（滑向持麦人）、`Cam.shake()`（翻牌/暴击的震动）、`Cam.parallax(nx,ny)`（鼠标微视差）
+- **Lighting**: Soft glow on active elements, neon accents on cards；牌桌由 `.table3d`（rotateX 74° 的椭圆渐变台面 + `#cam` 自带 `perspective: 900px`）充当「桌面反射」
+
+#### 3D 实现的红线（踩过的坑，改动前必读）
+- **`.world` 绝不能开 `transform-style: preserve-3d`**：一旦开启，浏览器做 3D 命中测试时父平面（z=0）会盖过 `translateZ(-40px)` 的子屏，`document.elementFromPoint` 返回 `.world`，**全站按钮/输入框点不动**（`details/adv summary` 都打不开）。现在就义：世界层是「带透视的单平面」，屏内命中就是普通 2D；`.cam` 自己开 `perspective` 给牌桌子元素用。回归锁在 `.pw/test-3d.cjs`（`transformStyle === 'flat'` + `elementFromPoint` 命中自身）
+- **`#app` 的 `perspective` 会把它变成 fixed 后代的包含块**：`.toast` / `.burst-container` / `.react-bar` / `.modal-mask` 必须留在 `#app` 外，否则定位基准会变
+- **3D 座次只写 CSS 变量**（`--rx/--ry/--rs` + `zIndex`）：`layoutRing()` 只在名单结构变化/窗口 resize 时重排，不逐帧计算；前排（`--ry` 大）必须同时 `--rs` 大、`zIndex` 大（近大远小 + 前后遮挡）
+- **每屏入场动画只动 opacity**（`@keyframes screen-in`）：屏的 transform 归位到镜头层后，屏内不再有 `transform` 动画可抢，避免旧版 `fade-in` 的 translateY 与 3D 姿态互撞
+- **低端机 / 降噪**：`body.loperf` 把 `.table3d` 拍平，`Cam.to()` 在 LOWPERF 下自动砍掉旋转/缩放、位移减半；`prefers-reduced-motion` 下 `.world { transform: none !important }`，同时 `Cam.to()` 走瞬时跳转（`Cam.jump` 会作废在跑的补间）
+- **3D 命中不能影响正常点击**：`.flip-card` 只让可见的那一面接收点击（`:not(.flipped) .card-front` / `.flipped .card-back` 置 `pointer-events:none`）：部分浏览器会把背面也算进命中栈，翻牌后按钮点不动；E2E 里等待应用自己的动画锁 `revealAnim === false` 再点击，避免撞上翻牌过渡
 
 ### Color Palette
 - Background: Deep navy (#0a0a1a) with animated gradient orbs
@@ -33,6 +41,9 @@
 - Particles: CSS-based floating confetti dots
 
 ### Animation System (One-Shot Camera Feel)
+- **一镜到底（2026-09 统一为 Cam 调度）**：所有运镜都写 `#world3d` 的 transform 字符串（`translate3d` + `rotateX/Y/Z` + `scale`），`Cam.to(pose, ms, ease)` 用 rAF 补间；**新镜头接管 = `token++`**，旧镜头（含它的 done 回调）当场作废并从当前位置续接，所以永远不会跳帧
+- **换屏 = 运镜不切台**：`renderScreen()` 只在换屏时干活——旧屏加 `.leaving`（绝对定位 + 淡出缩小 0.42s）留在原地，同时 `Cam.enter(新屏)` 从 spawn 机位推到 base 机位；join→lobby→game→result 连起来读是一条连续镜头
+- **牌桌常态机位**：game = `{z:-24, rx:5, s:1}`（微微俯视）；抽卡时 `focusCam(deck)` → `{z:-44, s:1.05}`，落牌后推卡牌 `{s:1.05}`，翻前 `Cam.shake()` 轻震；交接回合 `Cam.home(420)` 回桌心 → 460ms 后 `Cam.nudge(新持麦人)` 滑过去
 - **启动加载动画**：3D 抽卡预加载 overlay（透视翻牌 + 三颗环绕光点 + 扫光进度条 + 分阶段文案），doJoin 全程复用同一层展示「创建房间 → 连接服务器 → 同步状态 → 载入题库 → 落座」；退场时淡出 + 放大 + 模糊（.hide 过渡后 remove）
 - **Background**: Continuous slow drift of gradient orbs + confetti particles, 60s loop
 - **Avatar entrance**: Slide-in from bottom with stagger, bounce easing
@@ -49,7 +60,17 @@
 - **防闪答案动画锁**：`applyState` 在 `renderScreen` 绘帧前上锁（`revealAnim`/`cardDealt`），`renderGameStatic` 的 drawing/revealed 分支在动画窗口内直接 return；`playReveal` 用 `transition:none` 瞬时归位牌背再翻，保证“答案不会先闪现再翻回去”；`clearStageTimers` 同时清打字机 timer，防止旧回合对隐藏元素补放彩带
 - **Punishment reveal**: Typewriter text effect with blinking caret, confetti burst
 - **Turn transition**: All avatars subtly pulse, winner glows
-- **Camera pan**: Subtle CSS `translate` drift following active player；抽卡链路 deck→card 两次 `focusCam` 缓推（0.9s transform 过渡），不再叠加 `scrollIntoView` 双通道抖动
+- **Camera pan**: 由 `Cam.focus/nudge` 承担（世界层位移 ≤46px + 轻微 scale，不叠 `scrollIntoView`）；抽卡链路 deck→card 两次缓推（0.95s transform 补间），REDUCED 下全部瞬时到位
+
+### Phase 2.75: 趣味互动（新增）
+- **😀 表情雨**：底栏 `#react-bar`（6 个表情：👏😂😱🔥😈❤️）在大厅/牌桌常驻；点击 → 本机立刻飘一颗 + 房间广播（独立 topic `tod/v1/<房间>/react`，**非 retained**、qos0，不进房间状态），其他人 ~0.1-3s 内看到同样的表情从底部升起。防刷屏 320ms/颗、白名单外表情直接丢、`REACT_SEEN` 去重 + 5s 时效（本地模式 retained 回放不补放）、粒子上限 14（LOWPERF 5）且 2.4-2.6s 自清理
+- **🔥 连击**：连续「完成啦」累计 `player.combo`（上限 9），跳过清零；combo≥2 头像挂 `🔥×N` 徽章，≥2 时爆彩 + 音效 + toast，≥3 追加镜头震动。**连击不改分**（完成仍 +10/跳过仍 −5），结算新增「🔥 连击王 ×N」奖章（要求 combo≥3）
+- **🔥 加倍挑战**：计分开启时，持麦人在 choosing 阶段可点 `#btn-stake` 押 `turn.stake=2`：完成 +20 / 跳过 −10；不动 seq（不打断动画），回合收尾后自动复位 1；揭晓页显示「🔥 加倍 ×2」角标并把按钮改写成 +20/−10。默认 1 → 既有计分回归（test-host 的 +10/−5）不受影响
+- **⏱ 限时挑战**：主持人设置里 `timer ∈ {0,15,30,45}` 秒（房间状态同步）。揭晓页 `#timer-wrap` 用 `turn.ts` 作为全场统一时钟倒计时（250ms 更新一次 `scaleX` + 文案，最后 5 秒变黄并滴答）；到点只显示「⏰ 超时啦（不扣分，大家看着呢）」——**不自动跳过、不扣分**，避免抢走玩家的选择权
+- **🎡 命运转盘**：主持人点「🎲 随机点名」时，光点沿 3D 座次环加速跑动再减速停在目标上（`.player-card.spot` 高亮 + 镜头跟着扫），随后才 `designate(pid)` 落地；只在本机演，REDUCED/LOWPERF 直接定点
+- **🔊 音效**：WebAudio 现场合成（whoosh/tick/flip/reveal/win/skip/combo/react），**零资源下载**；首次 `pointerdown` 才创建 AudioContext（避免自动播放告警），开关存 `localStorage['tod:sfx']`，入口在大厅/牌桌工具条与「怎么玩」弹层
+- **🎲 观众押注**：牌一揭晓，旁观者（持麦人不能押）面板 `#bet-box` 出现：「✅ 会完成 / ⏭ 会跳过」，再点一次取消，可随时改押；押注存在 `turn.bets`（小对象，随状态同步），揭晓时保持秘密。持麦人交卡时 `settleBets()` 结算：押对 **+5** / 押错 **−3**，**只动押注者自己的分**（不动持麦人的账）；结果写进 `turn.betLog={at,items}`，全场看到同一份「押注结算」播报（按 `at` 去重，10s 时效 + 首帧不补报历史），押中者额外爆彩。无押注时零开销；计分关闭时面板不出现。
+- **🎁 惊喜卡（纯气氛）**：揭晓时由 `surpriseOf(turn)` 从「题目文本 + turn.seq」确定性推导（同题同 seq 全场同结论，不占状态字段），**1/5 概率**开出；效果集：🎉 彩带风暴 / 🥁 命运鼓点（镜头震）/ 🌧 表情雨（本地自动撒）/ 🏅 金色卡面 / 📢 全场播报。金卡只是视觉（金边 + 扫光 + `.surprise-tag` 角标），**不改任何分数与账本**；主持可在 ⚙️ 设置里整体关闭（`S.surprise=false`，关闭后推导恒为空）。特效只在揭晓那一刻放一次（`lastSurpriseSeq` 去重），中途加入的客户端也能看到金卡静态上色。
 
 ## 3. Game Flow Specification
 
@@ -104,6 +125,7 @@
 - Large card showing the punishment（文案去术语：「抽到的题」「完成挑战或跳过」）
 - Player must "完成啦 ✅" or "跳过"（跳过不再污名化：中性样式、只在计分开时显示 ⏭ 角标）
 - **计分红线（scoring 开，默认）**：完成 +10、跳过 −5，实时反映到头像角标（负分粉色 `.score-tag.neg`）、🏆 领先 chip 与 📊 战况；计分关时隐藏一切分数元素，纯欢乐局零压力
+- **🎲 押注红线**：旁观者的押注只改押注者自己的分（±5/−3），**永不改变持麦人的得失分**；`test-host.cjs` 的 +10/−5 与 `passes=2` 回归不受影响（无押注时分支零开销）
 - **🃏 免答牌（每人每局 2 张）**：抽到不满意可打出——静默换一题，**不算跳过、不留任何记录**，牌数用尽即止；只有持牌回合本人可见
 - **🎲 换一题（主持人）**：局中任何时候给当前这张牌换题，同样不动任何人的账本（掉线救急/口味不对都能用）
 
@@ -112,6 +134,7 @@
 - Smooth transition: active glow moves to next avatar
 - Background subtly shifts perspective
 - **掉线保活**：`lastSeen` 超 40s 的玩家头像灰化 + 「离线」角标；若卡住的回合属于掉线者，主持人/最老客户端看到 ⏭「替 TA 跳过本轮」代跳条（抽卡动画窗口内不出现），代跳按该玩家跳过记账（−5）并解锁回合
+  - **巡检不靠状态包**（修「代跳条最长要等 25s 心跳」）：`startTimers()` 额外跑一个 2500ms 的轻量 `watchTimer`，只在本机处于牌桌且对局中时重刷灰化/徽章/代跳条（`renderPlayers` + `updateGhostBar`），不再依赖下一次整文档心跳；`stopTimers()` 一并清掉
 
 ### Phase 6.5: 结算与颁奖（🏁）
 - 触发：主持人点「🏁 结算」（二次确认），或约定轮数打满（`roundLimit>0 && stats.rounds>=roundLimit`，`closeTurn` 内判定）→ 写入 `S.finished={at,by}` 标记，全员切到结算屏（`currentScreen` 最高优先级）
@@ -158,9 +181,14 @@
   "mode": "turn|free", "gameStarted": "boolean",
   "hostId": "player id（建房者；消失自动移交最早加入者）",
   "level": "mild|normal|hot", "scoring": "boolean", "roundLimit": "number(0=不限)",
+  "timer": "number(0=不限；15/30/45 秒限时挑战，仅展示不惩罚)",
+  "surprise": "boolean(🎁 惊喜卡开关，默认 true；关闭后 surpriseOf 恒为空)",
   "finished": "null | {at, by}",
   "turn": { "stage": "choosing|drawing|revealed", "seq": "number", "chooserId": "id|null",
-             "choice": "truth|dare|null", "punishment": "string|null", "ts": "number", "by": "publisher id" },
+             "choice": "truth|dare|null", "punishment": "string|null", "ts": "number", "by": "publisher id",
+             "stake": "1|2（🔥 加倍挑战，只作用于本轮，收尾后复位）",
+             "bets": "{pid: 'accept'|'skip'}（🎲 旁观者押注，持麦人不参与；收尾结算后清空）",
+             "betLog": "null | {at, items:[{pid,name,put,won,delta}]}（押注结算播报，全员同一份）" },
   "recent": { "truth": ["题面"], "dare": ["题面"] },
   "stats": { "rounds": "n", "truth": "n", "dare": "n", "skips": "n" },
   "players": [ "<Player>", "..." ]
@@ -174,6 +202,7 @@
   "avatar": "\"av:P01\"…\"av:P24\" 预设短索引 | \"dcb:{s,d,b}\" 定制配方(~54B) | dataURL(上传照片/旧版头像)",
   "joinedAt": "number", "lastSeen": "number(心跳；写方时钟。各端另维护 HbMax/HbLocal 水位，发布不回退、在线判断用本端到达时刻)", "micOn": "boolean", "micListen": "boolean(在不在听别人广播；缺字段按 true 处理，防旧状态把新玩家当黑洞)",
   "passes": "number(剩余免答牌)", "skips": "number", "draws": "number",
+  "combo": "number(🔥 连续完成次数，跳过清零；不改分，只用于徽章/颁奖)",
   "truth": "number", "dare": "number", "score": "number(可负)"
 }
 ```
@@ -197,6 +226,7 @@ big bank never inflates per-turn sync traffic. 旧版纯字符串题库按 `{x: 
   - 房间状态 = topic `tod/v1/<房间号>/state`，retained 消息即房间最新状态，新玩家订阅即拿到全场快照
   - 房间题库 = topic `tod/v1/<房间号>/pool`（独立 retained 消息，只在导入时重发，空房间退出时擦除）
   - 连麦信令 = topic `tod/v1/<房间号>/mic`（非 retained 即发即忘，带 mid 去重 + 15s 时效护栏，防本地模式回放旧信令）
+  - 表情雨 = topic `tod/v1/<房间号>/react`（同样非 retained/qos0，带 mid 去重 + 5s 时效护栏 + 表情白名单；不走房间状态，不撑大每帧状态包）
   - 任何状态变更整体发布（last-write-wins + seq 回退保护 + 掉线自愈/幽灵清理：最老客户端每 15s 巡检，`lastSeen` 超 90s 按 id 剔除幽灵——修复过旧版「按引用比较导致 prune 永不生效」的死代码；40s 即灰化标记并可被代跳，见 Phase 6）
   - **心跳水位线**（修「明明上线了对方却显示掉线」）：整文档 LWW 会把本端快照里别人旧的心跳一起发回去，盖掉对方刚续的心跳；而 `lastSeen` 是写方时钟，读方直减就把跳设备的时钟偏差当成掉线。两个水位分别消除：`HbMax`（本端见过的每人最大 lastSeen，发布/回写只前进）+ `HbLocal`（本端**收到**心跳增长的时刻，在线判断只看自己时钟）；时钟回跳等极端情况由「旧水位超过 STALE_MS 允许被接管」兼容；入房那一轮清理仍用绝对时间（刚拿文档时还没有到达水位），额外给 `HB_SKEW_GRACE_MS` 3min 容忍，房间 `expiresAt` 判定同样留这个缓冲
   - **reveal 单发布者**：drawing→revealed 只由抽卡人客户端定时发布（1.8s；REDUCED 0.7s），最老客户端仅 9s 超时兜底，各处带 seq 守卫；`applyState` 对「同 ver 同 seq 但 punishment 不同」的并发揭晓做确定性仲裁（`turn.by` 字典序小者胜），全端收敛同一张牌——修复过「双写各端显示不同题」
@@ -235,3 +265,5 @@ big bank never inflates per-turn sync traffic. 旧版纯字符串题库按 `{x: 
 - [x] Layout polish: 单列宽度统一到 540px，触控目标 ≥ 40px，:focus-visible 描边，prefers-reduced-motion 降噪，窄屏头像/统计条收紧
 - [x] E2E verified via Playwright: both modes × (local + MQTT) transports, sync/guard/stats all pass；连麦专项（test-mic.cjs / test-mic-mqtt.cjs / test-mic-broadcast.cjs / test-mic-3way.cjs）全绿；主持闭环专项（test-host.cjs，15 步）全绿
 - [x] 连麦“没声音”专项：自动播放被拦时的兜底出声（test-mic-autoplay.cjs：复现 paused+有波形 → gain 路有输出 rms>0.005 → 手势后元素接管且兜底已撤）、晚到 ICE 候选补发 + 标签诚实性（test-mic-trickle.cjs）全绿；`check-syntax.cjs` 作为内联脚本语法门禁
+- [x] 3D 舞台与一镜到底（`.pw/test-3d.cjs`，31 条断言全绿）：`#app` 透视 1400px、`.world` 必须 `transform-style: flat`（防 3D 命中测试吃掉点击，`elementFromPoint` 锁）；join→lobby→game 每屏 spawn→base 推镜且 1.5s 内收敛到常态机位（game `rx≈5`）；`.table3d` + `#cam` 透视存在；3D 座次前排更大更靠下且 zIndex 分层、每张卡中心都能命中自己；抽卡期间 `Cam.cur.z` 脱离常态实现推近；REDUCED 下 `Cam.to` 同 tick 瞬时到位且 world 计算值 `none`；全程零报错
+- [x] 趣味互动（`.pw/test-fun.cjs`）：表情雨本机+对端互达、320ms 防刷屏、白名单拒绝非法表情、粒子自动清理；音效开关持久化且 `SFX.play` 不抛错；加倍挑战仅持麦人可见、对端同步 stake=2、完成 +20、收尾复位（未加倍仍 +10）；连击 ×2 徽章同步且不改分（20+10=30）、跳过清零 30−5=25；限时 15 秒倒计时在走、到点显示超时且不自动跳过；命运转盘停在新玩家且光点动画可观测；**押注**：面板只给旁观者、押注同步/可取消、押中 +5 押错 −3 且只动押注者分、结算播报全场可见、押注清空、计分关时不出面板；**惊喜卡**：同题同 seq 推导确定、触发率落在 1/5 区间（400 次命中 40-130）、金卡上色两端一致、主持关闭后 200 次全部为空
