@@ -72,6 +72,16 @@
 - **🎲 观众押注**：牌一揭晓，旁观者（持麦人不能押）面板 `#bet-box` 出现：「✅ 会完成 / ⏭ 会跳过」，再点一次取消，可随时改押；押注存在 `turn.bets`（小对象，随状态同步），揭晓时保持秘密。持麦人交卡时 `settleBets()` 结算：押对 **+5** / 押错 **−3**，**只动押注者自己的分**（不动持麦人的账）；结果写进 `turn.betLog={at,items}`，全场看到同一份「押注结算」播报（按 `at` 去重，10s 时效 + 首帧不补报历史），押中者额外爆彩。无押注时零开销；计分关闭时面板不出现。
 - **🎁 惊喜卡（纯气氛）**：揭晓时由 `surpriseOf(turn)` 从「题目文本 + turn.seq」确定性推导（同题同 seq 全场同结论，不占状态字段），**1/5 概率**开出；效果集：🎉 彩带风暴 / 🥁 命运鼓点（镜头震）/ 🌧 表情雨（本地自动撒）/ 🏅 金色卡面 / 📢 全场播报。金卡只是视觉（金边 + 扫光 + `.surprise-tag` 角标），**不改任何分数与账本**；主持可在 ⚙️ 设置里整体关闭（`S.surprise=false`，关闭后推导恒为空）。特效只在揭晓那一刻放一次（`lastSurpriseSeq` 去重），中途加入的客户端也能看到金卡静态上色。
 
+### 横屏支持（手机横持自适应 + 手动切换）
+- **一套布局、两条路径**：手机横过来（真·横屏矮视口 `innerHeight ≤ 620`）自动进横屏布局；竖着拿时点顶部右侧 `#btn-land` 也能横屏。两条路共用同一套 `body.landui` 规则，判定与开关都集中在 `applyLand()`
+- **原生优先、旋转兜底**：手动切换先试「全屏 + `screen.orientation.lock('landscape')`」（Android Chrome 可用），不支持/被拒（iOS 浏览器、微信 webview、桌面）就给 `body.landforce`——把整个 body 旋转 90°（`rotate(90deg) translateY(-100%)` + `transform-origin: 0 0`，宽高用 --lvw/--lvh 互换）铺满物理视口，用户横持手机即正常玩。选择记 `localStorage['tod:land']`，刷新保持；真·横屏下按钮自动隐藏（已满足，无需入口）
+- **逻辑尺寸一律用 `--lvw/--lvh`，不用 vw/vh**：旋转兜底时 vw/vh 仍是物理竖屏尺寸（844×390 的逻辑横屏会被当成 390 宽），所以横屏布局的尺寸都取 JS 实测并写在根元素上的 `--lvw/--lvh`；`body.landui` 把 body 锁成逻辑横屏视口（`height: var(--lvh)`、超出隐藏），滚动交给 `#app`
+- **旋转下的 fixed 坐标换算**：`getBoundingClientRect` 给的是物理坐标，而旋转坐标系里的 fixed 元素要的是本地坐标（`Lx = Py`、`Ly = 物理视口宽 − Px`）——`landPick()` 负责换算，`burst()` 与飞头像/飞牌三个调用点已接入；`react-rise` 的上升距离改成 `--rh`（默认仍 36vh）
+- **横屏机位分档**：`body.landui` 下 `Cam.base` 换成更平的矮屏机位（join z-30/1°、lobby z-22/1°、game z-26/2°、result z-34/3°；进出横屏时由 `swapCamBase` 整体切换并瞬时归位），避开 1400px 透视在 390px 高度里把屏底元素放大推出屏；`Cam.focus` 的平移钳位在横屏收到 ±16/±12（竖屏仍 ±46/±34）
+- **座次环自适应**：`layoutRing` 的 narrow 判据从 `window.innerWidth < 620` 改成 `grid.clientWidth < 620`（横屏里座次区只占半屏）；横屏且环高 < 320 时椭圆压扁（`ry=24%`），玩家卡不越出座次区
+- **每屏横屏排布**：join = 表单 + 头像墙 + 题库导入三栏（头像墙自身可滚）；lobby = 左侧邀请/玩法/开局、右侧玩家墙，工具条移到最底一行（宽度足以放下 6 颗按钮，不做横向滚动）；game = 左 3D 座次环、右回合文案/选卡/揭晓，工具栏压成一条横滑条（按钮缩到 0.66rem，内容不横向溢出）；result = 左颁奖台、右战绩榜；弹层整高 `calc(var(--lvh) - 16px)`、内容内部滚
+- **矮屏红线**：横屏下五个屏的主 CTA 必须在首屏内（join 加入按钮、lobby 开始、选卡双卡、完成/跳过、结算按钮）；牌面长题走 `.punishment-text` 自身滚动（`flex:1 1 0; min-height:0; align-items: safe center`，超长时不裁首行），动作按钮永远留在卡内
+
 ## 3. Game Flow Specification
 
 ### Phase 1: Lobby / Join
@@ -153,6 +163,7 @@
 
 ### Controls
 - Mouse/Touch: All interactions are click/tap based
+- 横屏开关：手机端顶部右侧 `↔️ 横屏/竖屏`（触屏 / 窄屏 / 矮横屏才显示，真·横屏下自动隐藏；选择持久化在 `localStorage['tod:land']`）
 - Keyboard: Enter to confirm, Tab to switch options；全部选择控件为原生 `button`（含头像格/套装/模式卡），Tab 可达 Enter/Space 可触发；房间号输入 `inputmode=text` + `enterkeyhint=go` + 自动转大写，名字框 Enter 直接加入
 
 ### Built-in Question Packs（三套装 × 三档尺度）
@@ -253,6 +264,7 @@ big bank never inflates per-turn sync traffic. 旧版纯字符串题库按 `{x: 
 - [x] Avatar entrance/exit animations
 - [x] Import punishments by paste (Markdown auto-classified into truth/dare + 档位识别 + 追加/覆盖)
 - [x] Mobile-responsive
+- [x] 横屏（`.pw/test-landscape.cjs`，46 条断言）：真·横屏 844×390 / 740×360（含 3 人局）自动套横屏布局，join/lobby/game/revealed/result 五个屏的主 CTA 全在首屏内且 trial click 可点、3 人局玩家卡不越出座次环也不顶到工具栏、`#card-truth` 中心命中自身（3D 命中不回归）、工具栏内容不横向溢出、设置弹层整体落在屏内、旁观者押注面板可见；390×844 竖屏点 `#btn-land` → `landforce+landui`、`--lvw/--lvh` 互换为 844/390、旋转后 body 铺满物理视口、旋转坐标系里输入框/加入按钮命中与点击均正常 → 再点一次类与变量完整还原；不切换时竖屏旧布局与 `--lvw/--lvh` 空缺零影响；全程零 JS 报错
 - [x] Works in multiple browser tabs simultaneously
 - [x] Two game modes: 轮流制对决 (rotating turns) and 自由对决 (grab-mic free-for-all), synced across clients; 局中可换玩法（下一张牌生效）
 - [x] 主持人闭环：门禁/点名/换题/代跳/轮数上限自动结算/颁奖屏/再来一局，非主持人越权调用全部被拒（test-host.cjs 断言）

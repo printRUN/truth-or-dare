@@ -488,7 +488,7 @@
     .react-bar button:active { transform: scale(0.92); }
     .react-bar button:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 2px; }
     .react-rain { position: fixed; z-index: 1290; pointer-events: none; font-size: 1.7rem; animation: react-rise 2.4s ease-out forwards; }
-    @keyframes react-rise { 0% { transform: translate3d(0, 0, 0) scale(0.6); opacity: 0; } 12% { opacity: 1; transform: translate3d(0, -16px, 0) scale(1.18); } 100% { transform: translate3d(var(--rdx, 0px), -36vh, 0) scale(0.85) rotate(var(--rrot, 0deg)); opacity: 0; } }
+    @keyframes react-rise { 0% { transform: translate3d(0, 0, 0) scale(0.6); opacity: 0; } 12% { opacity: 1; transform: translate3d(0, -16px, 0) scale(1.18); } 100% { transform: translate3d(var(--rdx, 0px), calc(var(--rh, 36vh) * -1), 0) scale(0.85) rotate(var(--rrot, 0deg)); opacity: 0; } }
 
     /* ── 🎲 观众押注 ── */
     .bet-box { width: 100%; max-width: 460px; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 11px 14px; border-radius: 16px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); }
@@ -526,6 +526,157 @@
     /* 低端机：3D 场景平面化（保留空间布局，砍掉斜切与大位移的每帧重光栅化） */
     body.loperf .table3d { transform: translate(-50%, -50%); opacity: 0.3; }
     body.loperf .players-grid.ring3d .player-card { transition: none; }
+
+    /* ══════════════════ 横屏模式（手机横持自适应 + 手动切换） ══════════════════
+       两种情况共用同一套横屏布局（body.landui）：
+         1) 真·横屏短视口（innerHeight ≤ 620px）：手机转过去就自动生效，不用点任何按钮；
+         2) 手动切换：竖屏里点 #btn-land → body.landforce 把整个 body 旋转 90° 铺满物理视口
+            （`screen.orientation.lock` + 全屏可用时优先走原生，失败/不支持才用旋转兜底）。
+       横屏布局的尺寸一律用 --lvw / --lvh（JS 实测的逻辑宽高）——强制旋转时 vw/vh 仍是竖屏的
+       物理尺寸，直接用进布局会全部错位；旋转下的 fixed 元素坐标也由 landPick() 换算。 */
+    #btn-land { position: fixed; top: 8px; right: 8px; z-index: 1260; display: none; align-items: center; gap: 4px; padding: 6px 9px; border-radius: 999px;
+      border: 1px solid rgba(34,211,238,0.45); background: rgba(12,10,28,0.82); color: var(--accent-cyan); font-family: inherit; font-size: 0.72rem; font-weight: 700;
+      cursor: pointer; backdrop-filter: blur(8px); box-shadow: 0 6px 18px rgba(0,0,0,0.4); line-height: 1; }
+    #btn-land .land-txt { display: none; }
+    #btn-land.on { background: linear-gradient(135deg, var(--primary), var(--accent-pink)); color: #fff; border-color: transparent; }
+    #btn-land:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 2px; }
+    @media (min-width: 560px) { #btn-land .land-txt { display: inline; } }
+    /* 触屏设备 / 窄屏 / 横屏矮窗口才给入口，桌面宽屏保持干净 */
+    @media (max-width: 900px), (max-height: 620px), (hover: none), (pointer: coarse) { #btn-land { display: inline-flex; } }
+
+    /* ── 横屏下的全局骨架：body 被锁成逻辑横屏视口，滚动交给 #app ── */
+    body.landui { min-height: 0; height: var(--lvh, 100vh); overflow: hidden; overscroll-behavior: none; }
+    body.landforce { position: fixed; left: 0; top: 0; width: var(--lvw, 100vh); height: var(--lvh, 100vw);
+      transform-origin: 0 0; transform: rotate(90deg) translateY(-100%); }
+    body.landui #app { display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto auto; align-items: center;
+      column-gap: 10px; padding: 6px 12px 8px; min-height: 0; height: 100%; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+    body.landui #app > h1 { grid-area: 1 / 1; justify-self: start; font-size: 1.2rem; margin: 2px 0; animation: none; }
+    body.landui #app > .net-chip { grid-area: 1 / 2; justify-self: center; margin: 0; padding: 3px 12px; font-size: 0.72rem; }
+    body.landui #app > .world { grid-area: 2 / 1 / 3 / 4; width: 100%; }
+    body.landui #btn-land { position: static; grid-area: 1 / 3; justify-self: end; }
+    body.landui #btn-land .land-txt { display: inline; }
+    body.landui .screen { max-width: none; }
+    body.landui .tool-row { width: 100%; max-width: 100%; margin-left: auto; margin-right: auto; flex-wrap: nowrap !important; justify-content: flex-start !important; overflow-x: auto; gap: 6px !important; margin-top: 6px !important; padding-bottom: 2px; scrollbar-width: none; }
+    body.landui .tool-row::-webkit-scrollbar { display: none; }
+    body.landui .tool-row .btn { font-size: 0.66rem !important; padding: 5px 6px !important; white-space: nowrap; flex: none; }
+
+    /* ── 加入页：左边表单 + 右边头像墙，导入题库当第三栏（收起时窄条，展开自宽） ── */
+    body.landui #screen-join.active { display: flex; flex-direction: row; align-items: flex-start; justify-content: center; gap: 10px; }
+    body.landui .join-box { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.86fr) minmax(0, 1.3fr); grid-template-rows: repeat(8, auto);
+      column-gap: 14px; row-gap: 6px; align-content: start; align-items: start; flex: 1 1 auto; max-width: 900px; padding: 10px 14px; gap: 6px 14px; }
+    body.landui .join-box > h2 { grid-area: 1 / 1 / 2 / 3; text-align: left; font-size: 1rem; margin: 0; }
+    body.landui #grp-name { grid-area: 2 / 1 / 3 / 3; }
+    body.landui #grp-avatar { grid-area: 1 / 3 / 9 / 4; max-height: calc(var(--lvh) - 92px); overflow-y: auto; padding-right: 2px; }
+    body.landui #grp-room { grid-area: 3 / 1 / 4 / 3; }
+    body.landui #grp-pack { grid-area: 4 / 1 / 5 / 3; }
+    body.landui .join-box > details.adv { grid-area: 5 / 1 / 6 / 3; }
+    body.landui .join-box > #btn-join { grid-area: 6 / 1 / 7 / 3; justify-self: stretch; padding: 8px 16px; }
+    body.landui .join-box > #btn-howto-join { grid-area: 7 / 1 / 8 / 2; justify-self: start; }
+    body.landui .join-box > #btn-donate { grid-area: 7 / 2 / 8 / 3; justify-self: start; margin-top: 0 !important; }
+    body.landui .join-box > .hint { grid-area: 8 / 1 / 9 / 3; margin: 0; font-size: 0.66rem; line-height: 1.4; }
+    body.landui #import-join-wrap { flex: 0 0 320px; margin-top: 0; max-height: 100%; overflow-y: auto; }
+    body.landui #import-join-wrap:not([open]) { flex-basis: 186px; }
+    body.landui #import-join-wrap .import-panel { padding: 12px 14px; }
+    body.landui #import-join-wrap .import-textarea { height: 92px; }
+    /* 横屏里的表单控件全部压矮，保证主要 CTA 落在首屏内 */
+    body.landui .join-box .input-group { gap: 2px; }
+    body.landui .join-box .input-group label { font-size: 0.7rem; }
+    body.landui .join-box input[type="text"] { padding: 6px 10px; font-size: 0.9rem; border-radius: 9px; }
+    body.landui .join-box .paste-btn { padding: 0 10px; font-size: 0.95rem; }
+    body.landui .join-box details.adv { padding: 4px 10px; }
+    body.landui .join-box details.adv summary { font-size: 0.72rem; }
+    body.landui .mini-opt { padding: 4px 7px; font-size: 0.72rem; min-height: 28px; }
+    body.landui .howto-link { font-size: 0.76rem; padding: 3px; }
+    body.landui #grp-avatar .avatar-option { width: 44px; height: 44px; }
+    body.landui #grp-avatar .avatar-selector { gap: 5px; }
+    body.landui .av-tabs { gap: 6px; margin-bottom: 0; }
+    body.landui .av-tab { padding: 5px 12px; font-size: 0.76rem; min-height: 30px; }
+    body.landui .cz-styles { max-height: calc(var(--lvh) - 210px); }
+    body.landui .avatar-option.cz-preview { width: 72px; height: 72px; }
+    body.landui .cz-credit { font-size: 0.62rem; }
+
+    /* ── 大厅：左边邀请/玩法/开局，右边玩家墙 ── */
+    body.landui #screen-lobby.active { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr); column-gap: 14px; row-gap: 6px; align-content: start; align-items: start; }
+    body.landui #screen-lobby .share-box { grid-area: 1 / 1; max-width: none; padding: 10px 14px; }
+    body.landui #screen-lobby .players-section { grid-area: 1 / 2 / 5 / 3; margin: 0; max-height: calc(var(--lvh) - 136px); overflow-y: auto; }
+    body.landui #screen-lobby .players-section h3 { margin-bottom: 8px; font-size: 1rem; }
+    body.landui #screen-lobby .players-grid { gap: 10px; }
+    body.landui #screen-lobby .mode-pick { grid-area: 2 / 1; max-width: none; margin: 0; }
+    body.landui #screen-lobby #mode-note { grid-area: 3 / 1; }
+    body.landui #screen-lobby .lobby-summary { grid-area: 4 / 1; margin: 0; }
+    body.landui #lobby-actions { grid-area: 5 / 1 / 6 / 3; flex-direction: row !important; align-items: center !important; justify-content: flex-start; gap: 8px; width: 100%; }
+    body.landui #lobby-actions #btn-start { flex: none; padding: 9px 18px; font-size: 0.9rem; }
+    body.landui #lobby-tools { flex: 1 1 auto; width: auto; }   /* 工具条与「开始」同一行：6 颗按钮全部看得见，不用横滑 */
+    body.landui .share-box { padding: 7px 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 3px 10px; }
+    body.landui .share-box p { grid-column: 1 / 3; font-size: 0.72rem; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    body.landui .share-room { grid-column: 1; font-size: 1.1rem; letter-spacing: 4px; }
+    body.landui .copy-link-btn { grid-column: 2; margin-top: 0; padding: 6px 12px; min-height: 32px; font-size: 0.76rem; }
+    body.landui .share-url { grid-column: 1 / 3; padding: 4px 7px; font-size: 0.64rem; margin-top: 0; line-height: 1.35; max-height: 46px; overflow-y: auto; }
+    body.landui .mode-pick { gap: 8px; }
+    body.landui .mode-opt { padding: 6px 8px; }
+    body.landui .mode-opt b { font-size: 0.86rem; }
+    body.landui .mode-opt span { font-size: 0.68rem; }
+    body.landui .lobby-summary { font-size: 0.72rem; margin: 0; }
+
+    /* ── 牌桌：左边 3D 座次环，右边回合/选卡/揭晓；工具栏横滑一条 ── */
+    body.landui #screen-game.active { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    body.landui #cam { display: grid; grid-template-columns: minmax(0, 1.02fr) minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto;
+      grid-template-areas: "stats stats" "ring turn" "ring act" "ring ghost"; gap: 4px 12px; width: 100%; align-items: center; justify-items: center; }
+    body.landui #cam > .table3d { top: 50%; width: min(calc(var(--lvw) * 0.96), 900px); height: min(calc(var(--lvh) * 0.62), 380px); }
+    body.landui #cam > .stats-row { grid-area: stats; gap: 6px; }
+    body.landui #cam > .stat-chip { padding: 3px 10px; font-size: 0.72rem; }
+    body.landui #cam > .players-grid.ring3d { grid-area: ring; width: 100%; height: calc(var(--lvh) - 152px); min-height: 168px; }
+    body.landui #cam > .turn-info { grid-area: turn; font-size: 1.02rem; min-height: 1.35em; }
+    body.landui #cam > #choice-section, body.landui #cam > #deck-section, body.landui #cam > #card-section { grid-area: act; }
+    body.landui #cam > #pick-tip, body.landui #cam > #ghost-bar { grid-area: ghost; }
+    body.landui #cam > #choice-section { gap: 8px !important; }
+    body.landui #cam > #ghost-bar { gap: 5px !important; flex-direction: row !important; flex-wrap: wrap; justify-content: center; }
+    body.landui .choice-area { gap: 12px; }
+    body.landui .choice-card { width: 118px; height: 146px; }
+    body.landui .choice-card .icon { font-size: 2.4rem; }
+    body.landui .choice-card .label { font-size: 1rem; }
+    body.landui .deck { width: 108px; height: 144px; }
+    body.landui .deck-card { font-size: 2rem; }
+    body.landui .card-stage { width: min(252px, calc(var(--lvh) * 0.46)); height: calc(min(252px, calc(var(--lvh) * 0.46)) * 4 / 3); }
+    body.landui .flip-card .card-face { padding: 10px; gap: 6px; }
+    body.landui .card-back .draw-icon { font-size: 3rem; }
+    body.landui .card-back .draw-text { font-size: 1.1rem; }
+    body.landui .card-front .type-badge { font-size: 0.86rem; padding: 2px 12px; }
+    body.landui .card-owner { font-size: 0.74rem; }
+    body.landui .punishment-text { font-size: 0.92rem; line-height: 1.45; flex: 1 1 0; min-height: 0; overflow-y: auto; align-items: safe center; }   /* 题面长时自己滚（safe：超长时退回顶部对齐，不让首行被裁），动作按钮永远留在牌面里 */
+    body.landui .card-actions { gap: 6px; }
+    body.landui .card-actions button, body.landui .btn-reroll { font-size: 0.84rem; padding: 7px 13px; }
+    body.landui .stake-btn { padding: 5px 12px; min-height: 32px; font-size: 0.76rem; }
+    body.landui .bet-box { flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: center; max-width: none; padding: 5px 12px; gap: 6px 10px; }
+    body.landui .bet-q { font-size: 0.78rem; }
+    body.landui .bet-btn { padding: 5px 12px; min-height: 32px; font-size: 0.76rem; }
+    body.landui .bet-note { display: none; }
+
+    /* ── 结算页：左颁奖台 + 右战绩榜 ── */
+    body.landui .result-box { max-width: none; width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+      grid-template-areas: "head head" "podium list" "awards list" "actions actions"; column-gap: 16px; row-gap: 6px; padding: 14px 18px; }
+    body.landui .result-box > h2 { grid-area: head; font-size: 1.15rem; }
+    body.landui .result-podium { grid-area: podium; }
+    body.landui .result-awards { grid-area: awards; }
+    body.landui .result-list { grid-area: list; max-height: calc(var(--lvh) - 132px); overflow-y: auto; }
+    body.landui .result-actions { grid-area: actions; }
+    body.landui .pod img { width: 50px; height: 50px; }
+    body.landui .result-box .pod.p1 img { width: 64px; height: 64px; }
+
+    /* ── 横屏下的公共件：弹层/表情雨/提示 ── */
+    body.landui .modal-mask { padding: 8px; }
+    body.landui .modal-box { max-height: calc(var(--lvh) - 16px); max-width: min(760px, 94vw); padding: 14px 18px; }
+    body.landui .modal-box h3 { margin-bottom: 10px; }
+    body.landui .guide-box ol { gap: 6px; margin-bottom: 10px; }
+    body.landui .react-bar { left: 4px; right: auto; top: 50%; bottom: auto; transform: translateY(-50%); flex-direction: column; gap: 3px; padding: 4px; }
+    body.landui .react-bar button { width: 32px; height: 32px; font-size: 0.95rem; }
+    body.landui .toast { top: 6px; bottom: auto; font-size: 0.8rem; padding: 7px 16px; max-width: 62%; }
+    body.landui .toast:not(.show) { transform: translateX(-50%) translateY(-160px); }   /* 顶部弹出：隐藏态向上走，不要从顶部下方冒出来 */
+    body.landui .pick-tip { font-size: 0.7rem; }
+    body.landui .wait-note { font-size: 0.78rem; }
+    /* 旋转兜底：帧时间线用逻辑高度算（vh 在旋转下仍是物理竖屏尺寸） */
+    body.landui .react-rain { --rh: calc(var(--lvh) * 0.5); }
+    body.landforce #app { padding-left: max(12px, env(safe-area-inset-top)); padding-right: max(12px, env(safe-area-inset-bottom)); }
   </style>
 </head>
 <body>
@@ -550,6 +701,8 @@
     <span id="net-text">未连接</span>
     <b id="room-chip" style="display:none"></b>
   </div>
+  <!-- 横屏开关（手机端）：点了先试原生全屏+锁横屏，不行就把界面旋转 90° 兜底 -->
+  <button id="btn-land" type="button" title="切换横屏显示" aria-pressed="false"><span class="land-ico">↔️</span><span class="land-txt">横屏</span></button>
 
   <!-- ═══ 3D 世界：所有屏住在同一台摄影机下（Cam 只动这一层） ═══ -->
   <div class="world" id="world3d">
@@ -558,11 +711,11 @@
   <div id="screen-join" class="screen active">
     <div class="join-box">
       <h2>加入游戏</h2>
-      <div class="input-group">
+      <div class="input-group" id="grp-name">
         <label>你的名字</label>
         <input type="text" id="input-name" placeholder="输入名字..." maxlength="12" autocomplete="off" />
       </div>
-      <div class="input-group">
+      <div class="input-group" id="grp-avatar">
         <label>选个头像（预设 / 🎨 全 31 风格定制 / 我的，下次访问还在）</label>
         <div class="av-tabs" role="tablist">
           <button class="av-tab sel" id="avtab-preset" type="button" role="tab" aria-selected="true">预设</button>
@@ -602,14 +755,14 @@
         <div class="avatar-name" id="avatar-name"></div>
         <input type="file" id="avatar-file" accept="image/*" hidden />
       </div>
-      <div class="input-group">
+      <div class="input-group" id="grp-room">
         <label>房间号（留空则创建新房间）</label>
         <div class="room-row">
           <input type="text" id="input-room" placeholder="输入房间号，或直接粘贴邀请链接/文字..." maxlength="60" autocomplete="off" enterkeyhint="go" autocapitalize="characters" spellcheck="false" />
           <button class="paste-btn" id="btn-paste-room" title="从剪贴板读取邀请">📋</button>
         </div>
       </div>
-      <div class="input-group">
+      <div class="input-group" id="grp-pack">
         <label>题库套装（决定题目风格，进房后主持人也能换）</label>
         <div class="mini-row" id="pack-row">
           <button class="mini-opt sel" type="button" data-pack="party">🎉 热闹派对</button>
@@ -665,9 +818,9 @@
     </div>
     <p class="hint" id="mode-note" style="text-align:center;margin:-2px 0 6px"></p>
     <div class="lobby-summary" id="lobby-summary"></div>
-    <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+    <div id="lobby-actions" style="display:flex;flex-direction:column;align-items:center;gap:8px">
       <button class="btn btn-primary" id="btn-start" disabled>等待玩家加入...</button>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+      <div class="tool-row" id="lobby-tools" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
         <button class="btn btn-secondary mic-btn js-mic-btn" id="btn-mic-lobby"><span class="mic-meter"><i></i><i></i><i></i></span>🎙️ <span class="mic-label">连麦</span></button>
         <button class="btn btn-secondary listen-btn js-listen-btn" id="btn-listen-lobby" title="不点连麦也能听到开麦的人；这里只关自己听到的声音">🔊 <span class="listen-label">收听</span></button>
         <button class="btn btn-secondary only-host" id="btn-settings-lobby">⚙️ 设置 · 题库</button>
@@ -759,7 +912,7 @@
       </div>
       <p class="bet-note" id="bet-note"></p>
     </div>
-    <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;justify-content:center">
+    <div class="tool-row" id="game-tools" style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;justify-content:center">
       <button class="btn btn-secondary mic-btn js-mic-btn" id="btn-mic-game" style="font-size:0.8rem;padding:6px 14px"><span class="mic-meter"><i></i><i></i><i></i></span>🎙️ <span class="mic-label">连麦</span></button>
       <button class="btn btn-secondary listen-btn js-listen-btn" id="btn-listen-game" style="font-size:0.8rem;padding:6px 14px" title="不点连麦也能听到开麦的人；这里只关自己听到的声音">🔊 <span class="listen-label">收听</span></button>
       <button class="btn btn-secondary" id="btn-stats" style="font-size:0.8rem;padding:6px 14px">📊 战况</button>
@@ -1112,7 +1265,8 @@ function burst(x, y, n = 35) {
   for (let i = 0; i < n; i++) {
     const p = document.createElement('div');
     p.className = 'burst-particle';
-    p.style.left = x + 'px'; p.style.top = y + 'px';
+    const q = landPick(x, y);
+    p.style.left = q.x + 'px'; p.style.top = q.y + 'px';
     p.style.background = cols[i % cols.length];
     const a = Math.random() * Math.PI * 2, d = 60 + Math.random() * 130;
     p.style.setProperty('--tx', Math.cos(a) * d + 'px');
@@ -2176,9 +2330,10 @@ const Cam = {
     const r = el.getBoundingClientRect();
     if (!r.width || !r.height) return;
     const b = this.baseOf(this.curScreen);
+    const mx = LAND.ui ? 16 : 46, my = LAND.ui ? 12 : 34;   // 横屏留白更紧，镜头平移幅度相应收小
     const nx = (r.left + r.width / 2 - window.innerWidth / 2) / window.innerWidth;
     const ny = (r.top + r.height / 2 - window.innerHeight / 2) / window.innerHeight;
-    this.to({ x: b.x + Math.max(-46, Math.min(46, -nx * 190)), y: b.y + Math.max(-34, Math.min(34, -ny * 150)), z: b.z - 20, s: b.s * push }, dur, ease);
+    this.to({ x: b.x + Math.max(-mx, Math.min(mx, -nx * 190)), y: b.y + Math.max(-my, Math.min(my, -ny * 150)), z: b.z - 20, s: b.s * push }, dur, ease);
   },
   nudge(el) { this.focus(el, { push: 1.035, dur: 820 }); },
   // 冲击震动（翻到大冒险 / 暴击）：独立 rAF 槽，不打扰正在跑的运镜
@@ -2271,12 +2426,14 @@ function flyAvatarToDeck(pid) {
   const r1 = ring.getBoundingClientRect(), r2 = $('deck').getBoundingClientRect();
   const clone = document.createElement('div');
   clone.className = 'fly-avatar';
-  clone.style.left = r1.left + 'px'; clone.style.top = r1.top + 'px';
+  const a = landPick(r1.left, r1.top);
+  clone.style.left = a.x + 'px'; clone.style.top = a.y + 'px';
   clone.style.width = r1.width + 'px'; clone.style.height = r1.height + 'px';   // 跟随实际头像尺寸（窄屏下更小）
   clone.innerHTML = `<img src="${esc(uri)}" alt="" />`;
   document.body.appendChild(clone);
-  const dx = (r2.left + r2.width / 2) - (r1.left + r1.width / 2);
-  const dy = (r2.top + r2.height / 2) - (r1.top + r1.height / 2);
+  const s = landPick(r1.left + r1.width / 2, r1.top + r1.height / 2);
+  const e2 = landPick(r2.left + r2.width / 2, r2.top + r2.height / 2);
+  const dx = e2.x - s.x, dy = e2.y - s.y;
   clone.animate([
     { transform: 'translate(0,0) scale(1)', opacity: 1 },
     { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - 60}px) scale(1.25) rotate(8deg)`, opacity: 1 },
@@ -2306,10 +2463,12 @@ function dealFlyingCard() {
   const fc = document.createElement('div');
   fc.className = 'flying-card';
   fc.textContent = '🎴';
-  fc.style.left = r1.left + 'px'; fc.style.top = r1.top + 'px';
+  const a = landPick(r1.left, r1.top);
+  fc.style.left = a.x + 'px'; fc.style.top = a.y + 'px';
   document.body.appendChild(fc);
-  const dx = (r2.left + r2.width / 2) - (r1.left + r1.width / 2);
-  const dy = (r2.top + r2.height / 2) - (r1.top + r1.height / 2);
+  const s = landPick(r1.left + r1.width / 2, r1.top + r1.height / 2);
+  const e2 = landPick(r2.left + r2.width / 2, r2.top + r2.height / 2);
+  const dx = e2.x - s.x, dy = e2.y - s.y;
   fc.animate([
     { transform: 'translate(0,0) scale(1) rotate(0deg)', opacity: 1 },
     { transform: `translate(${dx * 0.55}px, ${dy * 0.4 - 40}px) scale(1.35) rotate(10deg)`, opacity: 1 },
@@ -2683,13 +2842,84 @@ const SURPRISE_DEFS = [
   { id: 'echo', icon: '📢', name: '全场播报', note: '所有人的目光都在这张牌上' },
 ];
 
+// ───────────────────────────── 横屏支持（手机横持自适应 + 手动切换） ─────────────────────────────
+// 1) 真·横屏矮视口：自动套用横屏布局（body.landui），不用点任何按钮（媒体查询管不到 → 由 JS 判类）
+// 2) 手动切换：竖屏里点 #btn-land，先试「全屏 + screen.orientation.lock('landscape')」，
+//    不支持/被拒（iOS 浏览器、微信 webview、桌面）就退回 CSS 旋转 90°（body.landforce）
+const LAND_KEY = 'tod:land';
+const LAND = { want: false, force: false, ui: false, fs: false };
+try { LAND.want = localStorage.getItem(LAND_KEY) === '1'; } catch {}
+// 横屏矮视口专用机位：透视放大在 390px 高度里会把底部元素推出屏，所以压平倾斜度、轻微后退
+const LAND_CAM = {
+  join:   { x: 0, y: 0, z: -30, rx: 1, ry: -2, rz: 0, s: 1 },
+  lobby:  { x: 0, y: 0, z: -22, rx: 1, ry: 0, rz: 0, s: 1 },
+  game:   { x: 0, y: 0, z: -26, rx: 2, ry: 0, rz: 0, s: 1 },
+  result: { x: 0, y: 0, z: -34, rx: 3, ry: 0, rz: 0, s: 1 },
+};
+const CAM_BASE_SAVE = {};
+for (const k in LAND_CAM) CAM_BASE_SAVE[k] = { ...(Cam.base[k] || {}) };
+function swapCamBase(land) {   // 进/出横屏时切换机位表（竖屏原值在 CAM_BASE_SAVE 里）
+  for (const k in LAND_CAM) Object.assign(Cam.base[k], land ? LAND_CAM[k] : CAM_BASE_SAVE[k]);
+}
+
+function landPick(px, py) {   // 物理视口坐标 → 旋转坐标系里的 left/top（未旋转时原样返回）
+  if (!LAND.force) return { x: px, y: py };
+  return { x: py, y: window.innerWidth - px };
+}
+function applyLand() {
+  if (!document.body) return;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const realLand = vw > vh;
+  const force = LAND.want && !realLand;           // 竖着拿但要横屏 → 旋转兜底
+  const ui = force || (realLand && vh <= 620);    // 横屏布局：旋转中，或真·横屏矮视口
+  document.body.classList.toggle('landforce', force);
+  document.body.classList.toggle('landui', ui);
+  const root = document.documentElement.style;
+  if (ui) {   // 逻辑宽高：强制旋转时与物理尺寸互换（布局一律用 --lvw/--lvh，不用 vw/vh）
+    root.setProperty('--lvw', (force ? vh : vw) + 'px');
+    root.setProperty('--lvh', (force ? vw : vh) + 'px');
+  } else { root.removeProperty('--lvw'); root.removeProperty('--lvh'); }
+  const changed = ui !== LAND.ui;
+  LAND.force = force; LAND.ui = ui;
+  if (changed) { swapCamBase(ui); if (Cam.el) resetCam(true); }   // 机位切档：当场归位到新常态（不播补间）
+  const b = $('btn-land');
+  if (b) {
+    b.hidden = !LAND.want && realLand;   // 已经是横屏了，无需切换入口
+    b.classList.toggle('on', LAND.want);
+    b.setAttribute('aria-pressed', LAND.want ? 'true' : 'false');
+    b.querySelector('.land-txt').textContent = LAND.want ? '竖屏' : '横屏';
+    b.title = LAND.want ? '切回竖屏显示' : '切换横屏显示（横着拿更宽，适合围一圈看）';
+  }
+  if (S && S.gameStarted && $('game-players-grid')) layoutRing($('game-players-grid'));
+}
+async function toggleLand() {
+  LAND.want = !LAND.want;
+  try { localStorage.setItem(LAND_KEY, LAND.want ? '1' : '0'); } catch {}
+  SFX.play('tick');
+  if (LAND.want) {
+    try {   // 原生优先；任何一步失败都静默落到 CSS 旋转，不影响可用性
+      if (screen.orientation && typeof screen.orientation.lock === 'function' && document.documentElement.requestFullscreen) {
+        if (!document.fullscreenElement) { await document.documentElement.requestFullscreen(); LAND.fs = true; }
+        await screen.orientation.lock('landscape');
+      }
+    } catch {}
+  } else {
+    try { if (screen.orientation && typeof screen.orientation.unlock === 'function') screen.orientation.unlock(); } catch {}
+    if (LAND.fs) { try { await document.exitFullscreen(); } catch {} LAND.fs = false; }
+  }
+  applyLand();
+  if (LAND.force) setTimeout(() => toast('横屏已切换：把手机横过来更好玩 ↔️', 'success', 2600), 80);
+  else if (LAND.want) setTimeout(() => toast('已切到横屏 ✅', 'success', 1800), 240);
+}
+
 // 3D 座次：玩家沿椭圆围桌（越靠前越近越大），只写三个 CSS 变量，不逐帧重排
 function layoutRing(grid) {
   const cards = [...grid.querySelectorAll('.player-card')];
   const n = cards.length;
   if (!n) return;
-  const narrow = window.innerWidth < 620;
-  const rx = narrow ? 41 : 46, ry = narrow ? 30 : 26;
+  const narrow = grid.clientWidth < 620;   // 按实际座次区宽度判（横屏里座次区只占半屏）
+  const land = LAND.ui && grid.clientHeight < 320;   // 横屏矮视口：椭圆压扁一点，玩家卡不越界
+  const rx = narrow ? 41 : 46, ry = land ? 24 : (narrow ? 30 : 26);
   const base = n > 10 ? 0.8 : n > 7 ? 0.88 : 1;
   cards.forEach((c, i) => {
     const a = Math.PI + (i / n) * Math.PI * 2;   // 1 号位在正前方（屏幕下方=离观众最近）
@@ -4328,7 +4558,12 @@ $('bet-skip').addEventListener('click', () => placeBet('skip'));
 $('react-bar').querySelectorAll('button[data-react]').forEach(b => b.addEventListener('click', () => sendReact(b.dataset.react)));
 document.querySelectorAll('.js-sfx-btn').forEach(b => b.addEventListener('click', () => SFX.toggle()));
 $('btn-sfx-guide').addEventListener('click', () => SFX.toggle());
+$('btn-land').addEventListener('click', toggleLand);
 window.addEventListener('resize', () => { if (S && S.gameStarted) layoutRing($('game-players-grid')); });
+window.addEventListener('resize', applyLand);
+window.addEventListener('orientationchange', applyLand);
+if (window.screen && screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', applyLand);
+document.addEventListener('fullscreenchange', () => { LAND.fs = !!document.fullscreenElement; applyLand(); });
 $('btn-finish-game').addEventListener('click', function () { armedTap(this, finishGame, '再点一次：立即结算'); });
 $('btn-end-game').addEventListener('click', function () { armedTap(this, endGame, '再点一次：回大厅'); });
 $('btn-rematch').addEventListener('click', () => { if (isHost()) startGame(); });
@@ -4406,6 +4641,7 @@ if (LOWPERF) document.body.classList.add('loperf');   // 低端机自动降载�
 syncPerfBtns();
 SFX.init();
 initCamParallax();
+applyLand();   // 横屏：竖屏里恢复上次的手动选择，真·横屏矮视口自动套横屏布局
 Cam.init();   // 3D 镜头开机：从远处推进到加入页（一镜到底的第一段）
 setTimeout(() => perfWatch(), 2500);   // 字体/背景就绪后再测，不然首帧成本会误判
 buildBg();

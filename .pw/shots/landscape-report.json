@@ -1,0 +1,4229 @@
+[
+  {
+    "tag": "844x390",
+    "join": {
+      "env": {
+        "vw": 844,
+        "vh": 390,
+        "dpr": 1,
+        "docClientW": 844,
+        "docClientH": 390,
+        "seScrollH": 1203,
+        "seClientH": 390,
+        "seScrollW": 844,
+        "seClientW": 844,
+        "hOverflow": false,
+        "vOverflow": true,
+        "maxScrollY": 813,
+        "scrollY": 0,
+        "coarse": true,
+        "noHover": true,
+        "landscape": true,
+        "soType": "landscape-primary",
+        "soLock": true,
+        "reqFs": "function",
+        "vv": {
+          "w": 844,
+          "h": 390,
+          "scale": 1,
+          "offTop": 0,
+          "offLeft": 0
+        }
+      },
+      "app": {
+        "scrollH": 1203,
+        "clientH": 1203,
+        "rect": {
+          "l": 0,
+          "t": 0,
+          "r": 844,
+          "b": 1202.7,
+          "w": 844,
+          "h": 1202.7
+        }
+      },
+      "els": {
+        "joinBox": {
+          "sel": ".join-box",
+          "rect": {
+            "l": 158.5,
+            "t": 143.4,
+            "r": 690.8,
+            "b": 1100.6,
+            "w": 532.2,
+            "h": 957.2
+          },
+          "center": {
+            "x": 424.6,
+            "y": 622
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 710.6,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 967,
+          "clientH": 967,
+          "scrollW": 538,
+          "clientW": 538,
+          "text": "加入游戏 你的名字 选个头像（预设 / 🎨 全 31 风格"
+        },
+        "nameInput": {
+          "sel": "#input-name",
+          "rect": {
+            "l": 195.4,
+            "t": 242.1,
+            "r": 652.5,
+            "b": 293.9,
+            "w": 457.1,
+            "h": 51.7
+          },
+          "center": {
+            "x": 424,
+            "y": 268
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": true,
+          "centerInVp": true,
+          "out": {
+            "above": 0,
+            "below": 0,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": true,
+          "hitAtCenter": "#input-name",
+          "scrollH": 48,
+          "clientH": 48,
+          "scrollW": 472,
+          "clientW": 472,
+          "text": ""
+        },
+        "avatarSelector": {
+          "sel": "#avatar-selector",
+          "rect": {
+            "l": 193.5,
+            "t": 374.3,
+            "r": 601.1,
+            "b": 601.2,
+            "w": 407.6,
+            "h": 226.9
+          },
+          "center": {
+            "x": 397.3,
+            "y": 487.8
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 211.2,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 232,
+          "clientH": 232,
+          "scrollW": 420,
+          "clientW": 420,
+          "text": ""
+        },
+        "btnJoin": {
+          "sel": "#btn-join",
+          "rect": {
+            "l": 350.8,
+            "t": 870.4,
+            "r": 493.6,
+            "b": 920.3,
+            "w": 142.8,
+            "h": 49.9
+          },
+          "center": {
+            "x": 422.2,
+            "y": 895.3
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 530.3,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 48,
+          "clientH": 48,
+          "scrollW": 146,
+          "clientW": 146,
+          "text": "加入游戏 🎮"
+        },
+        "btnHowto": {
+          "sel": "#btn-howto-join",
+          "rect": {
+            "l": 352.6,
+            "t": 933.9,
+            "r": 491.7,
+            "b": 968.2,
+            "w": 139.1,
+            "h": 34.3
+          },
+          "center": {
+            "x": 422.2,
+            "y": 951
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 578.2,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 32,
+          "clientH": 32,
+          "scrollW": 142,
+          "clientW": 142,
+          "text": "❓ 怎么玩？3 秒看懂"
+        },
+        "btnDonate": {
+          "sel": "#btn-donate",
+          "rect": {
+            "l": 331.2,
+            "t": 975.2,
+            "r": 513.4,
+            "b": 1010.6,
+            "w": 182.3,
+            "h": 35.4
+          },
+          "center": {
+            "x": 422.3,
+            "y": 992.9
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 620.6,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 32,
+          "clientH": 32,
+          "scrollW": 185,
+          "clientW": 185,
+          "text": "☕ 喜欢的话，助力一下作者"
+        }
+      }
+    },
+    "lobby": {
+      "env": {
+        "vw": 844,
+        "vh": 390,
+        "dpr": 1,
+        "docClientW": 844,
+        "docClientH": 390,
+        "seScrollH": 847,
+        "seClientH": 390,
+        "seScrollW": 844,
+        "seClientW": 844,
+        "hOverflow": false,
+        "vOverflow": true,
+        "maxScrollY": 457,
+        "scrollY": 0,
+        "coarse": false,
+        "noHover": false,
+        "landscape": true,
+        "soType": "landscape-primary",
+        "soLock": true,
+        "reqFs": "function",
+        "vv": {
+          "w": 844,
+          "h": 390,
+          "scale": 1,
+          "offTop": 0,
+          "offLeft": 0
+        }
+      },
+      "app": {
+        "scrollH": 847,
+        "clientH": 847,
+        "rect": {
+          "l": 0,
+          "t": 0,
+          "r": 844,
+          "b": 847.2,
+          "w": 844,
+          "h": 847.2
+        }
+      },
+      "els": {
+        "shareBox": {
+          "sel": ".share-box",
+          "rect": {
+            "l": 152,
+            "t": 135,
+            "r": 692,
+            "b": 357,
+            "w": 540,
+            "h": 222
+          },
+          "center": {
+            "x": 422,
+            "y": 246
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": true,
+          "centerInVp": true,
+          "out": {
+            "above": 0,
+            "below": 0,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": true,
+          "hitAtCenter": "#share-url",
+          "scrollH": 220,
+          "clientH": 220,
+          "scrollW": 538,
+          "clientW": 538,
+          "text": "⚠️ 当前连不上公共同步服务器，已在本地模式下运行：只有同一"
+        },
+        "playersGrid": {
+          "sel": "#players-grid",
+          "rect": {
+            "l": 20,
+            "t": 409,
+            "r": 824,
+            "b": 504,
+            "w": 804,
+            "h": 95
+          },
+          "center": {
+            "x": 422,
+            "y": 456.5
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 114,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 95,
+          "clientH": 95,
+          "scrollW": 804,
+          "clientW": 804,
+          "text": "你 🎤 👑主持人 阿泽 🎤 小雨"
+        },
+        "modePick": {
+          "sel": "#mode-pick",
+          "rect": {
+            "l": 152,
+            "t": 522,
+            "r": 692,
+            "b": 585,
+            "w": 540,
+            "h": 63
+          },
+          "center": {
+            "x": 422,
+            "y": 553.5
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 195,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 63,
+          "clientH": 63,
+          "scrollW": 540,
+          "clientW": 540,
+          "text": "🔄 轮流玩一个人一个人来，按顺序抽 🎤 抢着玩麦克风开放"
+        },
+        "btnStart": {
+          "sel": "#btn-start",
+          "rect": {
+            "l": 349.3,
+            "t": 641.4,
+            "r": 494.7,
+            "b": 689.3,
+            "w": 145.5,
+            "h": 48
+          },
+          "center": {
+            "x": 422,
+            "y": 665.3
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "matrix(0.999059, 0, 0, 0.999059, 0, 0.0940678)",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 299.3,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 48,
+          "clientH": 48,
+          "scrollW": 146,
+          "clientW": 146,
+          "text": "开始游戏 🚀"
+        },
+        "btnLeave": {
+          "sel": "#btn-leave",
+          "rect": {
+            "l": 361,
+            "t": 757.2,
+            "r": 483,
+            "b": 807.2,
+            "w": 122,
+            "h": 50
+          },
+          "center": {
+            "x": 422,
+            "y": 782.2
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 417.2,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 48,
+          "clientH": 48,
+          "scrollW": 120,
+          "clientW": 120,
+          "text": "退出房间"
+        },
+        "lobbyRow2": {
+          "sel": "#btn-listen-lobby",
+          "rect": {
+            "l": 155,
+            "t": 697.2,
+            "r": 366.6,
+            "b": 747.2,
+            "w": 211.6,
+            "h": 50
+          },
+          "center": {
+            "x": 260.8,
+            "y": 722.2
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 357.2,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 48,
+          "clientH": 48,
+          "scrollW": 210,
+          "clientW": 210,
+          "text": "🔊 收听（没人开麦）"
+        },
+        "reactBar": {
+          "sel": "#react-bar",
+          "rect": {
+            "l": 279.5,
+            "t": 268,
+            "r": 564.5,
+            "b": 320,
+            "w": 285,
+            "h": 52
+          },
+          "center": {
+            "x": 422,
+            "y": 294
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "matrix(1, 0, 0, 1, -142.5, 0)",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": true,
+          "centerInVp": true,
+          "out": {
+            "above": 0,
+            "below": 0,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": true,
+          "hitAtCenter": "#react-bar",
+          "scrollH": 50,
+          "clientH": 50,
+          "scrollW": 283,
+          "clientW": 283,
+          "text": "👏 😂 😱 🔥 😈 ❤️"
+        }
+      }
+    },
+    "game": {
+      "env": {
+        "vw": 849,
+        "vh": 392,
+        "dpr": 1,
+        "docClientW": 844,
+        "docClientH": 390,
+        "seScrollH": 908,
+        "seClientH": 390,
+        "seScrollW": 851,
+        "seClientW": 844,
+        "hOverflow": true,
+        "vOverflow": true,
+        "maxScrollY": 516,
+        "scrollY": 0,
+        "coarse": false,
+        "noHover": false,
+        "landscape": true,
+        "soType": "landscape-primary",
+        "soLock": true,
+        "reqFs": "function",
+        "vv": {
+          "w": 844,
+          "h": 390,
+          "scale": 1,
+          "offTop": 0,
+          "offLeft": 0
+        }
+      },
+      "app": {
+        "scrollH": 908,
+        "clientH": 908,
+        "rect": {
+          "l": 0,
+          "t": 0,
+          "r": 844,
+          "b": 908.3,
+          "w": 844,
+          "h": 908.3
+        }
+      },
+      "els": {
+        "playersGrid": {
+          "sel": "#game-players-grid",
+          "rect": {
+            "l": 15.1,
+            "t": 254.9,
+            "r": 829,
+            "b": 464,
+            "w": 813.9,
+            "h": 209.2
+          },
+          "center": {
+            "x": 422,
+            "y": 359.5
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": true,
+          "out": {
+            "above": 0,
+            "below": 72,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": false,
+          "hitAtCenter": "#toast",
+          "scrollH": 226,
+          "clientH": 210,
+          "scrollW": 810,
+          "clientW": 810,
+          "text": "你 🎤 👑主持人 阿泽 当前 🎤 小雨"
+        },
+        "cardTruth": {
+          "sel": "#card-truth",
+          "rect": {
+            "l": 258.4,
+            "t": 555.4,
+            "r": 411.9,
+            "b": 746.5,
+            "w": 153.5,
+            "h": 191.1
+          },
+          "center": {
+            "x": 335.2,
+            "y": 650.9
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 354.5,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 181,
+          "clientH": 181,
+          "scrollW": 227,
+          "clientW": 146,
+          "text": "💬真心话"
+        },
+        "cardDare": {
+          "sel": "#card-dare",
+          "rect": {
+            "l": 432.1,
+            "t": 555.4,
+            "r": 585.6,
+            "b": 746.5,
+            "w": 153.5,
+            "h": 191.1
+          },
+          "center": {
+            "x": 508.8,
+            "y": 650.9
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 354.5,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 181,
+          "clientH": 181,
+          "scrollW": 227,
+          "clientW": 146,
+          "text": "🎯大冒险"
+        },
+        "gameTools": {
+          "sel": "#screen-game > div:last-child",
+          "rect": {
+            "l": 7.1,
+            "t": 822.1,
+            "r": 836.9,
+            "b": 902.7,
+            "w": 829.8,
+            "h": 80.6
+          },
+          "center": {
+            "x": 422,
+            "y": 862.4
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 510.7,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 76,
+          "clientH": 76,
+          "scrollW": 804,
+          "clientW": 804,
+          "text": "🎙️ 连麦 🔊 收听（没人开麦） 📊 战况 🔊 音效"
+        },
+        "choiceSection": {
+          "sel": "#choice-section",
+          "rect": {
+            "l": 257.9,
+            "t": 519.7,
+            "r": 586.1,
+            "b": 801,
+            "w": 328.2,
+            "h": 281.3
+          },
+          "center": {
+            "x": 422,
+            "y": 660.4
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 409,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 272,
+          "clientH": 272,
+          "scrollW": 320,
+          "clientW": 320,
+          "text": "选择一项： 💬真心话 🎯大冒险 🔥 加倍挑战（+20 "
+        },
+        "cam": {
+          "sel": "#cam",
+          "rect": {
+            "l": 9.7,
+            "t": 156.9,
+            "r": 834.3,
+            "b": 801,
+            "w": 824.6,
+            "h": 644.1
+          },
+          "center": {
+            "x": 422,
+            "y": 479
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 409,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 637,
+          "clientH": 637,
+          "scrollW": 817,
+          "clientW": 804,
+          "text": "第 1 轮 🔄 轮流 💬 0 🎯 0 ⏭ 跳过 0 \ud83c"
+        },
+        "reactBar": {
+          "sel": "#react-bar",
+          "rect": {
+            "l": 282,
+            "t": 270,
+            "r": 567,
+            "b": 322,
+            "w": 285,
+            "h": 52
+          },
+          "center": {
+            "x": 424.5,
+            "y": 296
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "matrix(1, 0, 0, 1, -142.5, 0)",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": true,
+          "centerInVp": true,
+          "out": {
+            "above": 0,
+            "below": 0,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": true,
+          "hitAtCenter": "#react-bar",
+          "scrollH": 50,
+          "clientH": 50,
+          "scrollW": 283,
+          "clientW": 283,
+          "text": "👏 😂 😱 🔥 😈 ❤️"
+        }
+      }
+    },
+    "revealed": {
+      "env": {
+        "vw": 857,
+        "vh": 397,
+        "dpr": 1,
+        "docClientW": 844,
+        "docClientH": 390,
+        "seScrollH": 812,
+        "seClientH": 390,
+        "seScrollW": 857,
+        "seClientW": 844,
+        "hOverflow": true,
+        "vOverflow": true,
+        "maxScrollY": 415,
+        "scrollY": 0,
+        "coarse": false,
+        "noHover": false,
+        "landscape": true,
+        "soType": "landscape-primary",
+        "soLock": true,
+        "reqFs": "function",
+        "vv": {
+          "w": 844,
+          "h": 390,
+          "scale": 1,
+          "offTop": 3,
+          "offLeft": 6
+        }
+      },
+      "app": {
+        "scrollH": 812,
+        "clientH": 812,
+        "rect": {
+          "l": 0,
+          "t": 0,
+          "r": 844,
+          "b": 812.5,
+          "w": 844,
+          "h": 812.5
+        }
+      },
+      "els": {
+        "cardStage": {
+          "sel": "#card-section",
+          "rect": {
+            "l": 340.4,
+            "t": 470.6,
+            "r": 506.1,
+            "b": 693.3,
+            "w": 165.8,
+            "h": 222.6
+          },
+          "center": {
+            "x": 423.2,
+            "y": 581.9
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 296.3,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 213,
+          "clientH": 213,
+          "scrollW": 160,
+          "clientW": 160,
+          "text": "🎰抽取中... 🔥 加倍 ×2 🎁 惊喜卡 🎯 大冒"
+        },
+        "flipCard": {
+          "sel": "#flip-card",
+          "rect": {
+            "l": 340.4,
+            "t": 470.6,
+            "r": 506.1,
+            "b": 693.3,
+            "w": 165.8,
+            "h": 222.6
+          },
+          "center": {
+            "x": 423.2,
+            "y": 581.9
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "matrix3d(-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1)",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 296.3,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 213,
+          "clientH": 213,
+          "scrollW": 160,
+          "clientW": 160,
+          "text": "🎰抽取中... 🔥 加倍 ×2 🎁 惊喜卡 🎯 大冒"
+        },
+        "cardFront": {
+          "sel": "#card-front",
+          "rect": {
+            "l": 340.4,
+            "t": 470.6,
+            "r": 506.1,
+            "b": 693.3,
+            "w": 165.8,
+            "h": 222.6
+          },
+          "center": {
+            "x": 423.2,
+            "y": 581.9
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "matrix3d(-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1)",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 296.3,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 344,
+          "clientH": 209,
+          "scrollW": 156,
+          "clientW": 156,
+          "text": "🔥 加倍 ×2 🎁 惊喜卡 🎯 大冒险 ——「阿泽」抽"
+        },
+        "punishment": {
+          "sel": "#punishment-text",
+          "rect": {
+            "l": 365.8,
+            "t": 452.2,
+            "r": 480.6,
+            "b": 524.4,
+            "w": 114.8,
+            "h": 72.3
+          },
+          "center": {
+            "x": 423.2,
+            "y": 488.3
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 127.4,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 70,
+          "clientH": 70,
+          "scrollW": 112,
+          "clientW": 112,
+          "text": "当场模仿一个emoji的表情"
+        },
+        "cardActions": {
+          "sel": "#card-actions",
+          "rect": {
+            "l": 365.1,
+            "t": 539,
+            "r": 481.4,
+            "b": 730.3,
+            "w": 116.3,
+            "h": 191.3
+          },
+          "center": {
+            "x": 423.2,
+            "y": 634.6
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 333.3,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 182,
+          "clientH": 182,
+          "scrollW": 112,
+          "clientW": 112,
+          "text": "完成啦 ✅ 🃏 免答牌 ×2 这题先跳过"
+        },
+        "btnAccept": {
+          "sel": "#btn-accept",
+          "rect": {
+            "l": 368.7,
+            "t": 539,
+            "r": 477.8,
+            "b": 580.6,
+            "w": 109.1,
+            "h": 41.7
+          },
+          "center": {
+            "x": 423.2,
+            "y": 559.8
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 183.6,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 40,
+          "clientH": 40,
+          "scrollW": 106,
+          "clientW": 106,
+          "text": "完成啦 ✅"
+        },
+        "btnSkip": {
+          "sel": "#btn-skip",
+          "rect": {
+            "l": 365.1,
+            "t": 662.5,
+            "r": 481.4,
+            "b": 730.3,
+            "w": 116.3,
+            "h": 67.8
+          },
+          "center": {
+            "x": 423.2,
+            "y": 696.4
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 333.3,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 62,
+          "clientH": 62,
+          "scrollW": 110,
+          "clientW": 110,
+          "text": "这题先跳过"
+        },
+        "gameTools": {
+          "sel": "#screen-game > div:last-child",
+          "rect": {
+            "l": 3.9,
+            "t": 714.5,
+            "r": 842.7,
+            "b": 795.5,
+            "w": 838.8,
+            "h": 81.1
+          },
+          "center": {
+            "x": 423.3,
+            "y": 755
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 398.5,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 76,
+          "clientH": 76,
+          "scrollW": 804,
+          "clientW": 804,
+          "text": "🎙️ 连麦 🔊 收听（没人开麦） 📊 战况 🔊 音效"
+        },
+        "reactBar": {
+          "sel": "#react-bar",
+          "rect": {
+            "l": 286,
+            "t": 275,
+            "r": 571,
+            "b": 327,
+            "w": 285,
+            "h": 52
+          },
+          "center": {
+            "x": 428.5,
+            "y": 301
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "matrix(1, 0, 0, 1, -142.5, 0)",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": true,
+          "centerInVp": true,
+          "out": {
+            "above": 0,
+            "below": 0,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": true,
+          "hitAtCenter": "#react-bar",
+          "scrollH": 50,
+          "clientH": 50,
+          "scrollW": 283,
+          "clientW": 283,
+          "text": "👏 😂 😱 🔥 😈 ❤️"
+        }
+      }
+    },
+    "clicks": {
+      "btnJoin": {
+        "sel": "#btn-join",
+        "ok": true,
+        "from": 0,
+        "to": 700
+      },
+      "hitJoin": {
+        "sel": "#btn-join",
+        "scrollY": 700,
+        "rect": {
+          "l": 350.8,
+          "t": 170.4,
+          "b": 220.3,
+          "w": 142.8,
+          "h": 49.9
+        },
+        "center": {
+          "x": 422.2,
+          "y": 195.3
+        },
+        "inVp": true,
+        "hitSelf": true,
+        "hitAt": "#btn-join",
+        "reactBarCoversCenter": false,
+        "reactBarCoversBottom": false
+      },
+      "btnStart": {
+        "sel": "#btn-start",
+        "ok": true,
+        "from": 0,
+        "to": 457
+      },
+      "hitStart": {
+        "sel": "#btn-start",
+        "scrollY": 457,
+        "rect": {
+          "l": 349.2,
+          "t": 184.3,
+          "b": 232.3,
+          "w": 145.6,
+          "h": 48
+        },
+        "center": {
+          "x": 422,
+          "y": 208.3
+        },
+        "inVp": true,
+        "hitSelf": true,
+        "hitAt": "#btn-start",
+        "reactBarCoversCenter": false,
+        "reactBarCoversBottom": false
+      },
+      "cardTruth": {
+        "sel": "#card-truth",
+        "ok": true,
+        "from": 0,
+        "to": 452
+      },
+      "hitTruth": {
+        "sel": "#card-truth",
+        "scrollY": 452,
+        "rect": {
+          "l": 258.4,
+          "t": 103.4,
+          "b": 294.6,
+          "w": 153.5,
+          "h": 191.2
+        },
+        "center": {
+          "x": 335.1,
+          "y": 199
+        },
+        "inVp": true,
+        "hitSelf": true,
+        "hitAt": ".icon",
+        "reactBarCoversCenter": false,
+        "reactBarCoversBottom": true
+      },
+      "hitDare": {
+        "sel": "#card-dare",
+        "scrollY": 452,
+        "rect": {
+          "l": 432.1,
+          "t": 103.4,
+          "b": 294.5,
+          "w": 153.4,
+          "h": 191.1
+        },
+        "center": {
+          "x": 508.8,
+          "y": 198.9
+        },
+        "inVp": true,
+        "hitSelf": true,
+        "hitAt": ".icon",
+        "reactBarCoversCenter": false,
+        "reactBarCoversBottom": true
+      },
+      "btnAccept": {
+        "sel": "#btn-accept",
+        "ok": true,
+        "from": 415,
+        "to": 415
+      },
+      "btnSkip": {
+        "sel": "#btn-skip",
+        "ok": true,
+        "from": 415,
+        "to": 415
+      },
+      "hitAccept": {
+        "sel": "#btn-accept",
+        "scrollY": 364,
+        "rect": {
+          "l": 368.6,
+          "t": 175,
+          "b": 216.7,
+          "w": 109.2,
+          "h": 41.7
+        },
+        "center": {
+          "x": 423.2,
+          "y": 195.9
+        },
+        "inVp": true,
+        "hitSelf": true,
+        "hitAt": "#btn-accept",
+        "reactBarCoversCenter": false,
+        "reactBarCoversBottom": false
+      },
+      "hitSkip": {
+        "sel": "#btn-skip",
+        "scrollY": 379,
+        "rect": {
+          "l": 365.5,
+          "t": 168.3,
+          "b": 235.2,
+          "w": 115.5,
+          "h": 66.9
+        },
+        "center": {
+          "x": 423.2,
+          "y": 201.8
+        },
+        "inVp": true,
+        "hitSelf": true,
+        "hitAt": "#btn-skip",
+        "reactBarCoversCenter": false,
+        "reactBarCoversBottom": false
+      }
+    },
+    "notes": [
+      "点 #card-dare 时 Playwright 把页面滚到了 Y=408"
+    ],
+    "chooser": "A",
+    "chooserByState": "A"
+  },
+  {
+    "tag": "740x360",
+    "join": {
+      "env": {
+        "vw": 740,
+        "vh": 360,
+        "dpr": 1,
+        "docClientW": 740,
+        "docClientH": 360,
+        "seScrollH": 1195,
+        "seClientH": 360,
+        "seScrollW": 740,
+        "seClientW": 740,
+        "hOverflow": false,
+        "vOverflow": true,
+        "maxScrollY": 835,
+        "scrollY": 0,
+        "coarse": true,
+        "noHover": true,
+        "landscape": true,
+        "soType": "landscape-primary",
+        "soLock": true,
+        "reqFs": "function",
+        "vv": {
+          "w": 740,
+          "h": 360,
+          "scale": 1,
+          "offTop": 0,
+          "offLeft": 0
+        }
+      },
+      "app": {
+        "scrollH": 1195,
+        "clientH": 1195,
+        "rect": {
+          "l": 0,
+          "t": 0,
+          "r": 740,
+          "b": 1194.7,
+          "w": 740,
+          "h": 1194.7
+        }
+      },
+      "els": {
+        "joinBox": {
+          "sel": ".join-box",
+          "rect": {
+            "l": 106.5,
+            "t": 135.5,
+            "r": 638.8,
+            "b": 1092.6,
+            "w": 532.2,
+            "h": 957.1
+          },
+          "center": {
+            "x": 372.6,
+            "y": 614.1
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 732.6,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 967,
+          "clientH": 967,
+          "scrollW": 538,
+          "clientW": 538,
+          "text": "加入游戏 你的名字 选个头像（预设 / 🎨 全 31 风格"
+        },
+        "nameInput": {
+          "sel": "#input-name",
+          "rect": {
+            "l": 143.4,
+            "t": 234.3,
+            "r": 600.5,
+            "b": 286.1,
+            "w": 457.1,
+            "h": 51.8
+          },
+          "center": {
+            "x": 372,
+            "y": 260.2
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": true,
+          "centerInVp": true,
+          "out": {
+            "above": 0,
+            "below": 0,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": true,
+          "hitAtCenter": "#input-name",
+          "scrollH": 48,
+          "clientH": 48,
+          "scrollW": 472,
+          "clientW": 472,
+          "text": ""
+        },
+        "avatarSelector": {
+          "sel": "#avatar-selector",
+          "rect": {
+            "l": 141.5,
+            "t": 366.4,
+            "r": 549.1,
+            "b": 593.3,
+            "w": 407.6,
+            "h": 226.9
+          },
+          "center": {
+            "x": 345.3,
+            "y": 479.9
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 233.3,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 232,
+          "clientH": 232,
+          "scrollW": 420,
+          "clientW": 420,
+          "text": ""
+        },
+        "btnJoin": {
+          "sel": "#btn-join",
+          "rect": {
+            "l": 298.8,
+            "t": 862.5,
+            "r": 441.6,
+            "b": 912.3,
+            "w": 142.8,
+            "h": 49.8
+          },
+          "center": {
+            "x": 370.2,
+            "y": 887.4
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 552.3,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 48,
+          "clientH": 48,
+          "scrollW": 146,
+          "clientW": 146,
+          "text": "加入游戏 🎮"
+        },
+        "btnHowto": {
+          "sel": "#btn-howto-join",
+          "rect": {
+            "l": 300.6,
+            "t": 926,
+            "r": 439.7,
+            "b": 960.2,
+            "w": 139.1,
+            "h": 34.3
+          },
+          "center": {
+            "x": 370.2,
+            "y": 943.1
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 600.2,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 32,
+          "clientH": 32,
+          "scrollW": 142,
+          "clientW": 142,
+          "text": "❓ 怎么玩？3 秒看懂"
+        },
+        "btnDonate": {
+          "sel": "#btn-donate",
+          "rect": {
+            "l": 279.2,
+            "t": 967.3,
+            "r": 461.4,
+            "b": 1002.7,
+            "w": 182.3,
+            "h": 35.4
+          },
+          "center": {
+            "x": 370.3,
+            "y": 985
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 642.7,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 32,
+          "clientH": 32,
+          "scrollW": 185,
+          "clientW": 185,
+          "text": "☕ 喜欢的话，助力一下作者"
+        }
+      }
+    },
+    "lobby": {
+      "env": {
+        "vw": 740,
+        "vh": 360,
+        "dpr": 1,
+        "docClientW": 740,
+        "docClientH": 360,
+        "seScrollH": 839,
+        "seClientH": 360,
+        "seScrollW": 740,
+        "seClientW": 740,
+        "hOverflow": false,
+        "vOverflow": true,
+        "maxScrollY": 479,
+        "scrollY": 0,
+        "coarse": false,
+        "noHover": false,
+        "landscape": true,
+        "soType": "landscape-primary",
+        "soLock": true,
+        "reqFs": "function",
+        "vv": {
+          "w": 740,
+          "h": 360,
+          "scale": 1,
+          "offTop": 0,
+          "offLeft": 0
+        }
+      },
+      "app": {
+        "scrollH": 839,
+        "clientH": 839,
+        "rect": {
+          "l": 0,
+          "t": 0,
+          "r": 740,
+          "b": 839.2,
+          "w": 740,
+          "h": 839.2
+        }
+      },
+      "els": {
+        "shareBox": {
+          "sel": ".share-box",
+          "rect": {
+            "l": 100,
+            "t": 127,
+            "r": 640,
+            "b": 349,
+            "w": 540,
+            "h": 222
+          },
+          "center": {
+            "x": 370,
+            "y": 238
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": true,
+          "centerInVp": true,
+          "out": {
+            "above": 0,
+            "below": 0,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": false,
+          "hitAtCenter": "#react-bar",
+          "scrollH": 220,
+          "clientH": 220,
+          "scrollW": 538,
+          "clientW": 538,
+          "text": "⚠️ 当前连不上公共同步服务器，已在本地模式下运行：只有同一"
+        },
+        "playersGrid": {
+          "sel": "#players-grid",
+          "rect": {
+            "l": 20,
+            "t": 401,
+            "r": 720,
+            "b": 496,
+            "w": 700,
+            "h": 95
+          },
+          "center": {
+            "x": 370,
+            "y": 448.5
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 136,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 95,
+          "clientH": 95,
+          "scrollW": 700,
+          "clientW": 700,
+          "text": "你 🎤 👑主持人 阿泽 🎤 小雨"
+        },
+        "modePick": {
+          "sel": "#mode-pick",
+          "rect": {
+            "l": 100,
+            "t": 514,
+            "r": 640,
+            "b": 577,
+            "w": 540,
+            "h": 63
+          },
+          "center": {
+            "x": 370,
+            "y": 545.5
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 217,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 63,
+          "clientH": 63,
+          "scrollW": 540,
+          "clientW": 540,
+          "text": "🔄 轮流玩一个人一个人来，按顺序抽 🎤 抢着玩麦克风开放"
+        },
+        "btnStart": {
+          "sel": "#btn-start",
+          "rect": {
+            "l": 297.3,
+            "t": 633.4,
+            "r": 442.7,
+            "b": 681.3,
+            "w": 145.5,
+            "h": 48
+          },
+          "center": {
+            "x": 370,
+            "y": 657.3
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "matrix(0.999059, 0, 0, 0.999059, 0, 0.0941172)",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 321.3,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 48,
+          "clientH": 48,
+          "scrollW": 146,
+          "clientW": 146,
+          "text": "开始游戏 🚀"
+        },
+        "btnLeave": {
+          "sel": "#btn-leave",
+          "rect": {
+            "l": 379.8,
+            "t": 749.2,
+            "r": 501.8,
+            "b": 799.2,
+            "w": 122,
+            "h": 50
+          },
+          "center": {
+            "x": 440.8,
+            "y": 774.2
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 439.2,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 48,
+          "clientH": 48,
+          "scrollW": 120,
+          "clientW": 120,
+          "text": "退出房间"
+        },
+        "lobbyRow2": {
+          "sel": "#btn-listen-lobby",
+          "rect": {
+            "l": 173.8,
+            "t": 689.2,
+            "r": 385.4,
+            "b": 739.2,
+            "w": 211.6,
+            "h": 50
+          },
+          "center": {
+            "x": 279.6,
+            "y": 714.2
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 379.2,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 48,
+          "clientH": 48,
+          "scrollW": 210,
+          "clientW": 210,
+          "text": "🔊 收听（没人开麦）"
+        },
+        "reactBar": {
+          "sel": "#react-bar",
+          "rect": {
+            "l": 227.5,
+            "t": 238,
+            "r": 512.5,
+            "b": 290,
+            "w": 285,
+            "h": 52
+          },
+          "center": {
+            "x": 370,
+            "y": 264
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "matrix(1, 0, 0, 1, -142.5, 0)",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": true,
+          "centerInVp": true,
+          "out": {
+            "above": 0,
+            "below": 0,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": true,
+          "hitAtCenter": "#react-bar",
+          "scrollH": 50,
+          "clientH": 50,
+          "scrollW": 283,
+          "clientW": 283,
+          "text": "👏 😂 😱 🔥 😈 ❤️"
+        }
+      }
+    },
+    "game": {
+      "env": {
+        "vw": 742,
+        "vh": 361,
+        "dpr": 1,
+        "docClientW": 740,
+        "docClientH": 360,
+        "seScrollH": 824,
+        "seClientH": 360,
+        "seScrollW": 745,
+        "seClientW": 740,
+        "hOverflow": true,
+        "vOverflow": true,
+        "maxScrollY": 463,
+        "scrollY": 0,
+        "coarse": true,
+        "noHover": true,
+        "landscape": true,
+        "soType": "landscape-primary",
+        "soLock": true,
+        "reqFs": "function",
+        "vv": {
+          "w": 740,
+          "h": 360,
+          "scale": 1,
+          "offTop": 0,
+          "offLeft": 0
+        }
+      },
+      "app": {
+        "scrollH": 824,
+        "clientH": 820,
+        "rect": {
+          "l": 0,
+          "t": 0,
+          "r": 740,
+          "b": 820.3,
+          "w": 740,
+          "h": 820.3
+        }
+      },
+      "els": {
+        "playersGrid": {
+          "sel": "#game-players-grid",
+          "rect": {
+            "l": 12.5,
+            "t": 257.8,
+            "r": 727.5,
+            "b": 467.9,
+            "w": 715,
+            "h": 210.1
+          },
+          "center": {
+            "x": 370,
+            "y": 362.8
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 106.9,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 212,
+          "clientH": 210,
+          "scrollW": 710,
+          "clientW": 710,
+          "text": "🎤 👑主持人 阿泽 你 🎤 小雨 当前"
+        },
+        "cardTruth": {
+          "sel": "#card-truth",
+          "rect": {
+            "l": 206.5,
+            "t": 521.8,
+            "r": 359.9,
+            "b": 712.8,
+            "w": 153.4,
+            "h": 191
+          },
+          "center": {
+            "x": 283.2,
+            "y": 617.3
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 351.8,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 181,
+          "clientH": 181,
+          "scrollW": 224,
+          "clientW": 146,
+          "text": "💬真心话"
+        },
+        "cardDare": {
+          "sel": "#card-dare",
+          "rect": {
+            "l": 380.1,
+            "t": 521.8,
+            "r": 533.5,
+            "b": 712.8,
+            "w": 153.4,
+            "h": 191
+          },
+          "center": {
+            "x": 456.8,
+            "y": 617.3
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 351.8,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 181,
+          "clientH": 181,
+          "scrollW": 224,
+          "clientW": 146,
+          "text": "🎯大冒险"
+        },
+        "gameTools": {
+          "sel": "#screen-game > div:last-child",
+          "rect": {
+            "l": 43.6,
+            "t": 788.3,
+            "r": 696.4,
+            "b": 823.2,
+            "w": 652.7,
+            "h": 34.9
+          },
+          "center": {
+            "x": 370,
+            "y": 805.7
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 462.2,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 33,
+          "clientH": 33,
+          "scrollW": 635,
+          "clientW": 635,
+          "text": "🎙️ 连麦 🔊 收听（没人开麦） 📊 战况 🔊 音效"
+        },
+        "choiceSection": {
+          "sel": "#choice-section",
+          "rect": {
+            "l": 206,
+            "t": 486.2,
+            "r": 534,
+            "b": 767.2,
+            "w": 328.1,
+            "h": 281.1
+          },
+          "center": {
+            "x": 370,
+            "y": 626.7
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 406.2,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 272,
+          "clientH": 272,
+          "scrollW": 320,
+          "clientW": 320,
+          "text": "选择一项： 💬真心话 🎯大冒险 🔥 加倍挑战（+20 "
+        },
+        "cam": {
+          "sel": "#cam",
+          "rect": {
+            "l": 11.2,
+            "t": 159.4,
+            "r": 728.8,
+            "b": 767.2,
+            "w": 717.6,
+            "h": 607.8
+          },
+          "center": {
+            "x": 370,
+            "y": 463.3
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 406.2,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 600,
+          "clientH": 600,
+          "scrollW": 714,
+          "clientW": 700,
+          "text": "第 2 轮 🔄 轮流 💬 0 🎯 0 ⏭ 跳过 0 \ud83c"
+        },
+        "reactBar": {
+          "sel": "#react-bar",
+          "rect": {
+            "l": 228.5,
+            "t": 239,
+            "r": 513.5,
+            "b": 291,
+            "w": 285,
+            "h": 52
+          },
+          "center": {
+            "x": 371,
+            "y": 265
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "matrix(1, 0, 0, 1, -142.5, 0)",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": true,
+          "centerInVp": true,
+          "out": {
+            "above": 0,
+            "below": 0,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": true,
+          "hitAtCenter": "#react-bar",
+          "scrollH": 50,
+          "clientH": 50,
+          "scrollW": 283,
+          "clientW": 283,
+          "text": "👏 😂 😱 🔥 😈 ❤️"
+        }
+      }
+    },
+    "revealed": {
+      "env": {
+        "vw": 750,
+        "vh": 365,
+        "dpr": 1,
+        "docClientW": 740,
+        "docClientH": 360,
+        "seScrollH": 745,
+        "seClientH": 360,
+        "seScrollW": 750,
+        "seClientW": 740,
+        "hOverflow": true,
+        "vOverflow": true,
+        "maxScrollY": 380,
+        "scrollY": 0,
+        "coarse": true,
+        "noHover": true,
+        "landscape": true,
+        "soType": "landscape-primary",
+        "soLock": true,
+        "reqFs": "function",
+        "vv": {
+          "w": 740,
+          "h": 360,
+          "scale": 1,
+          "offTop": 3,
+          "offLeft": 2
+        }
+      },
+      "app": {
+        "scrollH": 745,
+        "clientH": 745,
+        "rect": {
+          "l": 0,
+          "t": 0,
+          "r": 740,
+          "b": 745.1,
+          "w": 740,
+          "h": 745.1
+        }
+      },
+      "els": {
+        "cardStage": {
+          "sel": "#card-section",
+          "rect": {
+            "l": 294.5,
+            "t": 457.3,
+            "r": 447.6,
+            "b": 663,
+            "w": 153.1,
+            "h": 205.8
+          },
+          "center": {
+            "x": 371.1,
+            "y": 560.2
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 298,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 197,
+          "clientH": 197,
+          "scrollW": 148,
+          "clientW": 148,
+          "text": "🎰抽取中... 🔥 加倍 ×2 🎉 惊喜卡 · 彩带风"
+        },
+        "flipCard": {
+          "sel": "#flip-card",
+          "rect": {
+            "l": 294.5,
+            "t": 457.3,
+            "r": 447.6,
+            "b": 663,
+            "w": 153.1,
+            "h": 205.8
+          },
+          "center": {
+            "x": 371.1,
+            "y": 560.2
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "matrix3d(-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1)",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 298,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 197,
+          "clientH": 197,
+          "scrollW": 148,
+          "clientW": 148,
+          "text": "🎰抽取中... 🔥 加倍 ×2 🎉 惊喜卡 · 彩带风"
+        },
+        "cardFront": {
+          "sel": "#card-front",
+          "rect": {
+            "l": 294.5,
+            "t": 457.3,
+            "r": 447.6,
+            "b": 663,
+            "w": 153.1,
+            "h": 205.8
+          },
+          "center": {
+            "x": 371.1,
+            "y": 560.2
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "matrix3d(-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1)",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 298,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 318,
+          "clientH": 193,
+          "scrollW": 144,
+          "clientW": 144,
+          "text": "🔥 加倍 ×2 🎉 惊喜卡 · 彩带风暴 🎯 大冒险 "
+        },
+        "punishment": {
+          "sel": "#punishment-text",
+          "rect": {
+            "l": 319.8,
+            "t": 467.5,
+            "r": 422.4,
+            "b": 540.2,
+            "w": 102.5,
+            "h": 72.7
+          },
+          "center": {
+            "x": 371.1,
+            "y": 503.8
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 175.2,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 75,
+          "clientH": 70,
+          "scrollW": 100,
+          "clientW": 100,
+          "text": "当场模仿最近火的一个短视频"
+        },
+        "cardActions": {
+          "sel": "#card-actions",
+          "rect": {
+            "l": 319.1,
+            "t": 554.8,
+            "r": 423.1,
+            "b": 770.8,
+            "w": 104,
+            "h": 216
+          },
+          "center": {
+            "x": 371.1,
+            "y": 662.8
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 405.8,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 204,
+          "clientH": 204,
+          "scrollW": 100,
+          "clientW": 100,
+          "text": "完成啦 ✅ 🃏 免答牌 ×2 这题先跳过"
+        },
+        "btnAccept": {
+          "sel": "#btn-accept",
+          "rect": {
+            "l": 319.6,
+            "t": 554.8,
+            "r": 422.6,
+            "b": 619.9,
+            "w": 103,
+            "h": 65
+          },
+          "center": {
+            "x": 371.1,
+            "y": 587.3
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 254.9,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 62,
+          "clientH": 62,
+          "scrollW": 100,
+          "clientW": 100,
+          "text": "完成啦 ✅"
+        },
+        "btnSkip": {
+          "sel": "#btn-skip",
+          "rect": {
+            "l": 319.1,
+            "t": 702.4,
+            "r": 423.1,
+            "b": 770.8,
+            "w": 104,
+            "h": 68.4
+          },
+          "center": {
+            "x": 371.1,
+            "y": 736.6
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 405.8,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 62,
+          "clientH": 62,
+          "scrollW": 98,
+          "clientW": 98,
+          "text": "这题先跳过"
+        },
+        "gameTools": {
+          "sel": "#screen-game > div:last-child",
+          "rect": {
+            "l": 40.8,
+            "t": 684.2,
+            "r": 701.3,
+            "b": 719.3,
+            "w": 660.5,
+            "h": 35.1
+          },
+          "center": {
+            "x": 371.1,
+            "y": 701.8
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 354.3,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 33,
+          "clientH": 33,
+          "scrollW": 635,
+          "clientW": 635,
+          "text": "🎙️ 连麦 🔊 收听（没人开麦） 📊 战况 🔊 音效"
+        },
+        "reactBar": {
+          "sel": "#react-bar",
+          "rect": {
+            "l": 232.5,
+            "t": 243,
+            "r": 517.5,
+            "b": 295,
+            "w": 285,
+            "h": 52
+          },
+          "center": {
+            "x": 375,
+            "y": 269
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "matrix(1, 0, 0, 1, -142.5, 0)",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": true,
+          "centerInVp": true,
+          "out": {
+            "above": 0,
+            "below": 0,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": true,
+          "hitAtCenter": "#react-bar",
+          "scrollH": 50,
+          "clientH": 50,
+          "scrollW": 283,
+          "clientW": 283,
+          "text": "👏 😂 😱 🔥 😈 ❤️"
+        }
+      }
+    },
+    "clicks": {
+      "btnJoin": {
+        "sel": "#btn-join",
+        "ok": true,
+        "from": 0,
+        "to": 707
+      },
+      "hitJoin": {
+        "sel": "#btn-join",
+        "scrollY": 707,
+        "rect": {
+          "l": 298.8,
+          "t": 155.5,
+          "b": 205.3,
+          "w": 142.8,
+          "h": 49.8
+        },
+        "center": {
+          "x": 370.2,
+          "y": 180.4
+        },
+        "inVp": true,
+        "hitSelf": true,
+        "hitAt": "#btn-join",
+        "reactBarCoversCenter": false,
+        "reactBarCoversBottom": false
+      },
+      "btnStart": {
+        "sel": "#btn-start",
+        "ok": true,
+        "from": 0,
+        "to": 477
+      },
+      "hitStart": {
+        "sel": "#btn-start",
+        "scrollY": 477,
+        "rect": {
+          "l": 297.2,
+          "t": 156.2,
+          "b": 204.2,
+          "w": 145.6,
+          "h": 48
+        },
+        "center": {
+          "x": 370,
+          "y": 180.2
+        },
+        "inVp": true,
+        "hitSelf": true,
+        "hitAt": "#btn-start",
+        "reactBarCoversCenter": false,
+        "reactBarCoversBottom": false
+      },
+      "cardTruth": {
+        "sel": "#card-truth",
+        "ok": true,
+        "from": 0,
+        "to": 436
+      },
+      "hitTruth": {
+        "sel": "#card-truth",
+        "scrollY": 436,
+        "rect": {
+          "l": 206.4,
+          "t": 85.8,
+          "b": 276.9,
+          "w": 153.5,
+          "h": 191.1
+        },
+        "center": {
+          "x": 283.2,
+          "y": 181.4
+        },
+        "inVp": true,
+        "hitSelf": true,
+        "hitAt": ".icon",
+        "reactBarCoversCenter": false,
+        "reactBarCoversBottom": true
+      },
+      "hitDare": {
+        "sel": "#card-dare",
+        "scrollY": 436,
+        "rect": {
+          "l": 378.1,
+          "t": 85.8,
+          "b": 276.8,
+          "w": 153.3,
+          "h": 191
+        },
+        "center": {
+          "x": 454.8,
+          "y": 181.3
+        },
+        "inVp": true,
+        "hitSelf": true,
+        "hitAt": ".icon",
+        "reactBarCoversCenter": false,
+        "reactBarCoversBottom": true
+      },
+      "btnAccept": {
+        "sel": "#btn-accept",
+        "ok": true,
+        "from": 2,
+        "to": 380
+      },
+      "btnSkip": {
+        "sel": "#btn-skip",
+        "ok": true,
+        "from": 380,
+        "to": 380
+      },
+      "hitAccept": {
+        "sel": "#btn-accept",
+        "scrollY": 379,
+        "rect": {
+          "l": 319.6,
+          "t": 147.7,
+          "b": 212.5,
+          "w": 102.9,
+          "h": 64.9
+        },
+        "center": {
+          "x": 371.1,
+          "y": 180.1
+        },
+        "inVp": true,
+        "hitSelf": true,
+        "hitAt": "#btn-accept",
+        "reactBarCoversCenter": false,
+        "reactBarCoversBottom": false
+      },
+      "hitSkip": {
+        "sel": "#btn-skip",
+        "scrollY": 379,
+        "rect": {
+          "l": 319.5,
+          "t": 191.6,
+          "b": 258.9,
+          "w": 103.2,
+          "h": 67.3
+        },
+        "center": {
+          "x": 371.1,
+          "y": 225.2
+        },
+        "inVp": true,
+        "hitSelf": true,
+        "hitAt": "#btn-skip",
+        "reactBarCoversCenter": false,
+        "reactBarCoversBottom": true
+      }
+    },
+    "notes": [
+      "点 #card-dare 时 Playwright 把页面滚到了 Y=390"
+    ],
+    "chooser": "B",
+    "chooserByState": "B"
+  },
+  {
+    "tag": "667x375",
+    "join": {
+      "env": {
+        "vw": 667,
+        "vh": 375,
+        "dpr": 1,
+        "docClientW": 667,
+        "docClientH": 375,
+        "seScrollH": 1190,
+        "seClientH": 375,
+        "seScrollW": 667,
+        "seClientW": 667,
+        "hOverflow": false,
+        "vOverflow": true,
+        "maxScrollY": 815,
+        "scrollY": 0,
+        "coarse": true,
+        "noHover": true,
+        "landscape": true,
+        "soType": "landscape-primary",
+        "soLock": true,
+        "reqFs": "function",
+        "vv": {
+          "w": 667,
+          "h": 375,
+          "scale": 1,
+          "offTop": 0,
+          "offLeft": 0
+        }
+      },
+      "app": {
+        "scrollH": 1190,
+        "clientH": 1190,
+        "rect": {
+          "l": 0,
+          "t": 0,
+          "r": 667,
+          "b": 1189.7,
+          "w": 667,
+          "h": 1189.7
+        }
+      },
+      "els": {
+        "joinBox": {
+          "sel": ".join-box",
+          "rect": {
+            "l": 70,
+            "t": 130.6,
+            "r": 602.3,
+            "b": 1087.6,
+            "w": 532.2,
+            "h": 957
+          },
+          "center": {
+            "x": 336.1,
+            "y": 609.1
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 712.6,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 967,
+          "clientH": 967,
+          "scrollW": 538,
+          "clientW": 538,
+          "text": "加入游戏 你的名字 选个头像（预设 / 🎨 全 31 风格"
+        },
+        "nameInput": {
+          "sel": "#input-name",
+          "rect": {
+            "l": 106.9,
+            "t": 229.4,
+            "r": 564,
+            "b": 281.2,
+            "w": 457.1,
+            "h": 51.9
+          },
+          "center": {
+            "x": 335.5,
+            "y": 255.3
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": true,
+          "centerInVp": true,
+          "out": {
+            "above": 0,
+            "below": 0,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": true,
+          "hitAtCenter": "#input-name",
+          "scrollH": 48,
+          "clientH": 48,
+          "scrollW": 472,
+          "clientW": 472,
+          "text": ""
+        },
+        "avatarSelector": {
+          "sel": "#avatar-selector",
+          "rect": {
+            "l": 105,
+            "t": 361.5,
+            "r": 512.6,
+            "b": 588.4,
+            "w": 407.6,
+            "h": 226.8
+          },
+          "center": {
+            "x": 308.8,
+            "y": 474.9
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 213.4,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 232,
+          "clientH": 232,
+          "scrollW": 420,
+          "clientW": 420,
+          "text": ""
+        },
+        "btnJoin": {
+          "sel": "#btn-join",
+          "rect": {
+            "l": 262.3,
+            "t": 857.6,
+            "r": 405.1,
+            "b": 907.4,
+            "w": 142.8,
+            "h": 49.8
+          },
+          "center": {
+            "x": 333.7,
+            "y": 882.5
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 532.4,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 48,
+          "clientH": 48,
+          "scrollW": 146,
+          "clientW": 146,
+          "text": "加入游戏 🎮"
+        },
+        "btnHowto": {
+          "sel": "#btn-howto-join",
+          "rect": {
+            "l": 264.1,
+            "t": 921,
+            "r": 403.2,
+            "b": 955.3,
+            "w": 139.1,
+            "h": 34.2
+          },
+          "center": {
+            "x": 333.7,
+            "y": 938.2
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 580.3,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 32,
+          "clientH": 32,
+          "scrollW": 142,
+          "clientW": 142,
+          "text": "❓ 怎么玩？3 秒看懂"
+        },
+        "btnDonate": {
+          "sel": "#btn-donate",
+          "rect": {
+            "l": 242.7,
+            "t": 962.4,
+            "r": 424.9,
+            "b": 997.7,
+            "w": 182.3,
+            "h": 35.3
+          },
+          "center": {
+            "x": 333.8,
+            "y": 980.1
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 622.7,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 32,
+          "clientH": 32,
+          "scrollW": 185,
+          "clientW": 185,
+          "text": "☕ 喜欢的话，助力一下作者"
+        }
+      }
+    },
+    "lobby": {
+      "env": {
+        "vw": 667,
+        "vh": 375,
+        "dpr": 1,
+        "docClientW": 667,
+        "docClientH": 375,
+        "seScrollH": 834,
+        "seClientH": 375,
+        "seScrollW": 667,
+        "seClientW": 667,
+        "hOverflow": false,
+        "vOverflow": true,
+        "maxScrollY": 459,
+        "scrollY": 0,
+        "coarse": false,
+        "noHover": false,
+        "landscape": true,
+        "soType": "landscape-primary",
+        "soLock": true,
+        "reqFs": "function",
+        "vv": {
+          "w": 667,
+          "h": 375,
+          "scale": 1,
+          "offTop": 0,
+          "offLeft": 0
+        }
+      },
+      "app": {
+        "scrollH": 834,
+        "clientH": 834,
+        "rect": {
+          "l": 0,
+          "t": 0,
+          "r": 667,
+          "b": 834.2,
+          "w": 667,
+          "h": 834.2
+        }
+      },
+      "els": {
+        "shareBox": {
+          "sel": ".share-box",
+          "rect": {
+            "l": 63.5,
+            "t": 122,
+            "r": 603.5,
+            "b": 344,
+            "w": 540,
+            "h": 222
+          },
+          "center": {
+            "x": 333.5,
+            "y": 233
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": true,
+          "centerInVp": true,
+          "out": {
+            "above": 0,
+            "below": 0,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": true,
+          "hitAtCenter": "#share-url",
+          "scrollH": 220,
+          "clientH": 220,
+          "scrollW": 538,
+          "clientW": 538,
+          "text": "⚠️ 当前连不上公共同步服务器，已在本地模式下运行：只有同一"
+        },
+        "playersGrid": {
+          "sel": "#players-grid",
+          "rect": {
+            "l": 20,
+            "t": 396,
+            "r": 647,
+            "b": 491,
+            "w": 627,
+            "h": 95
+          },
+          "center": {
+            "x": 333.5,
+            "y": 443.5
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 116,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 95,
+          "clientH": 95,
+          "scrollW": 627,
+          "clientW": 627,
+          "text": "你 🎤 👑主持人 阿泽 🎤 小雨"
+        },
+        "modePick": {
+          "sel": "#mode-pick",
+          "rect": {
+            "l": 63.5,
+            "t": 509,
+            "r": 603.5,
+            "b": 572,
+            "w": 540,
+            "h": 63
+          },
+          "center": {
+            "x": 333.5,
+            "y": 540.5
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 197,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 63,
+          "clientH": 63,
+          "scrollW": 540,
+          "clientW": 540,
+          "text": "🔄 轮流玩一个人一个人来，按顺序抽 🎤 抢着玩麦克风开放"
+        },
+        "btnStart": {
+          "sel": "#btn-start",
+          "rect": {
+            "l": 260.8,
+            "t": 628.5,
+            "r": 406.2,
+            "b": 676.4,
+            "w": 145.3,
+            "h": 47.9
+          },
+          "center": {
+            "x": 333.5,
+            "y": 652.4
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "matrix(0.998194, 0, 0, 0.998194, 0, 0.180564)",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 301.4,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 48,
+          "clientH": 48,
+          "scrollW": 146,
+          "clientW": 146,
+          "text": "开始游戏 🚀"
+        },
+        "btnLeave": {
+          "sel": "#btn-leave",
+          "rect": {
+            "l": 406.1,
+            "t": 744.2,
+            "r": 528.1,
+            "b": 794.2,
+            "w": 122,
+            "h": 50
+          },
+          "center": {
+            "x": 467.1,
+            "y": 769.2
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 419.2,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 48,
+          "clientH": 48,
+          "scrollW": 120,
+          "clientW": 120,
+          "text": "退出房间"
+        },
+        "lobbyRow2": {
+          "sel": "#btn-listen-lobby",
+          "rect": {
+            "l": 200.1,
+            "t": 684.2,
+            "r": 411.7,
+            "b": 734.2,
+            "w": 211.6,
+            "h": 50
+          },
+          "center": {
+            "x": 305.9,
+            "y": 709.2
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 359.2,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 48,
+          "clientH": 48,
+          "scrollW": 210,
+          "clientW": 210,
+          "text": "🔊 收听（没人开麦）"
+        },
+        "reactBar": {
+          "sel": "#react-bar",
+          "rect": {
+            "l": 191,
+            "t": 253,
+            "r": 476,
+            "b": 305,
+            "w": 285,
+            "h": 52
+          },
+          "center": {
+            "x": 333.5,
+            "y": 279
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "matrix(1, 0, 0, 1, -142.5, 0)",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": true,
+          "centerInVp": true,
+          "out": {
+            "above": 0,
+            "below": 0,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": true,
+          "hitAtCenter": "#react-bar",
+          "scrollH": 50,
+          "clientH": 50,
+          "scrollW": 283,
+          "clientW": 283,
+          "text": "👏 😂 😱 🔥 😈 ❤️"
+        }
+      }
+    },
+    "game": {
+      "env": {
+        "vw": 669,
+        "vh": 377,
+        "dpr": 1,
+        "docClientW": 667,
+        "docClientH": 375,
+        "seScrollH": 863,
+        "seClientH": 375,
+        "seScrollW": 672,
+        "seClientW": 667,
+        "hOverflow": true,
+        "vOverflow": true,
+        "maxScrollY": 486,
+        "scrollY": 0,
+        "coarse": true,
+        "noHover": true,
+        "landscape": true,
+        "soType": "landscape-primary",
+        "soLock": true,
+        "reqFs": "function",
+        "vv": {
+          "w": 667,
+          "h": 375,
+          "scale": 1,
+          "offTop": 0,
+          "offLeft": 0
+        }
+      },
+      "app": {
+        "scrollH": 863,
+        "clientH": 858,
+        "rect": {
+          "l": 0,
+          "t": 0,
+          "r": 667,
+          "b": 858.3,
+          "w": 667,
+          "h": 858.3
+        }
+      },
+      "els": {
+        "playersGrid": {
+          "sel": "#game-players-grid",
+          "rect": {
+            "l": 11.6,
+            "t": 253.1,
+            "r": 655.4,
+            "b": 462.7,
+            "w": 643.8,
+            "h": 209.6
+          },
+          "center": {
+            "x": 333.5,
+            "y": 357.9
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": true,
+          "out": {
+            "above": 0,
+            "below": 85.7,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": true,
+          "hitAtCenter": ".host-tag",
+          "scrollH": 212,
+          "clientH": 210,
+          "scrollW": 640,
+          "clientW": 640,
+          "text": "🎤 👑主持人 阿泽 你 🎤 小雨 当前"
+        },
+        "cardTruth": {
+          "sel": "#card-truth",
+          "rect": {
+            "l": 170.2,
+            "t": 516.5,
+            "r": 323.4,
+            "b": 707,
+            "w": 153.2,
+            "h": 190.5
+          },
+          "center": {
+            "x": 246.8,
+            "y": 611.8
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 330,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 181,
+          "clientH": 181,
+          "scrollW": 224,
+          "clientW": 146,
+          "text": "💬真心话"
+        },
+        "cardDare": {
+          "sel": "#card-dare",
+          "rect": {
+            "l": 343.6,
+            "t": 516.5,
+            "r": 496.8,
+            "b": 707,
+            "w": 153.2,
+            "h": 190.5
+          },
+          "center": {
+            "x": 420.2,
+            "y": 611.8
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 330,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 181,
+          "clientH": 181,
+          "scrollW": 224,
+          "clientW": 146,
+          "text": "🎯大冒险"
+        },
+        "gameTools": {
+          "sel": "#screen-game > div:last-child",
+          "rect": {
+            "l": 10.5,
+            "t": 782.4,
+            "r": 656.5,
+            "b": 862.7,
+            "w": 646,
+            "h": 80.3
+          },
+          "center": {
+            "x": 333.5,
+            "y": 822.6
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 485.7,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 76,
+          "clientH": 76,
+          "scrollW": 627,
+          "clientW": 627,
+          "text": "🎙️ 连麦 🔊 收听（没人开麦） 📊 战况 🔊 音效"
+        },
+        "choiceSection": {
+          "sel": "#choice-section",
+          "rect": {
+            "l": 169.7,
+            "t": 480.9,
+            "r": 497.3,
+            "b": 761.4,
+            "w": 327.7,
+            "h": 280.5
+          },
+          "center": {
+            "x": 333.5,
+            "y": 621.2
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 384.4,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 272,
+          "clientH": 272,
+          "scrollW": 320,
+          "clientW": 320,
+          "text": "选择一项： 💬真心话 🎯大冒险 🔥 加倍挑战（+20 "
+        },
+        "cam": {
+          "sel": "#cam",
+          "rect": {
+            "l": 12.5,
+            "t": 154.9,
+            "r": 654.5,
+            "b": 761.4,
+            "w": 642.1,
+            "h": 606.5
+          },
+          "center": {
+            "x": 333.5,
+            "y": 458.2
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 384.4,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 600,
+          "clientH": 600,
+          "scrollW": 642,
+          "clientW": 627,
+          "text": "第 2 轮 🔄 轮流 💬 0 🎯 0 ⏭ 跳过 0 \ud83c"
+        },
+        "reactBar": {
+          "sel": "#react-bar",
+          "rect": {
+            "l": 192,
+            "t": 255,
+            "r": 477,
+            "b": 307,
+            "w": 285,
+            "h": 52
+          },
+          "center": {
+            "x": 334.5,
+            "y": 281
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "matrix(1, 0, 0, 1, -142.5, 0)",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": true,
+          "centerInVp": true,
+          "out": {
+            "above": 0,
+            "below": 0,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": true,
+          "hitAtCenter": "#react-bar",
+          "scrollH": 50,
+          "clientH": 50,
+          "scrollW": 283,
+          "clientW": 283,
+          "text": "👏 😂 😱 🔥 😈 ❤️"
+        }
+      }
+    },
+    "revealed": {
+      "env": {
+        "vw": 678,
+        "vh": 382,
+        "dpr": 1,
+        "docClientW": 667,
+        "docClientH": 375,
+        "seScrollH": 791,
+        "seClientH": 375,
+        "seScrollW": 678,
+        "seClientW": 667,
+        "hOverflow": true,
+        "vOverflow": true,
+        "maxScrollY": 409,
+        "scrollY": 0,
+        "coarse": true,
+        "noHover": true,
+        "landscape": true,
+        "soType": "landscape-primary",
+        "soLock": true,
+        "reqFs": "function",
+        "vv": {
+          "w": 667,
+          "h": 375,
+          "scale": 1,
+          "offTop": 2,
+          "offLeft": 2
+        }
+      },
+      "app": {
+        "scrollH": 791,
+        "clientH": 791,
+        "rect": {
+          "l": 0,
+          "t": 0,
+          "r": 667,
+          "b": 791.3,
+          "w": 667,
+          "h": 791.3
+        }
+      },
+      "els": {
+        "cardStage": {
+          "sel": "#card-section",
+          "rect": {
+            "l": 255,
+            "t": 461.2,
+            "r": 414.3,
+            "b": 675.2,
+            "w": 159.4,
+            "h": 214
+          },
+          "center": {
+            "x": 334.7,
+            "y": 568.2
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 293.2,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 205,
+          "clientH": 205,
+          "scrollW": 154,
+          "clientW": 154,
+          "text": "🎰抽取中... 🔥 加倍 ×2 🎁 惊喜卡 🎯 大冒"
+        },
+        "flipCard": {
+          "sel": "#flip-card",
+          "rect": {
+            "l": 255,
+            "t": 461.2,
+            "r": 414.3,
+            "b": 675.2,
+            "w": 159.4,
+            "h": 214
+          },
+          "center": {
+            "x": 334.7,
+            "y": 568.2
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "matrix3d(-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1)",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 293.2,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 205,
+          "clientH": 205,
+          "scrollW": 154,
+          "clientW": 154,
+          "text": "🎰抽取中... 🔥 加倍 ×2 🎁 惊喜卡 🎯 大冒"
+        },
+        "cardFront": {
+          "sel": "#card-front",
+          "rect": {
+            "l": 255,
+            "t": 461.2,
+            "r": 414.3,
+            "b": 675.2,
+            "w": 159.4,
+            "h": 214
+          },
+          "center": {
+            "x": 334.7,
+            "y": 568.2
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "matrix3d(-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1)",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 293.2,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 322,
+          "clientH": 201,
+          "scrollW": 150,
+          "clientW": 150,
+          "text": "🔥 加倍 ×2 🎁 惊喜卡 🎯 大冒险 ——「小雨」抽"
+        },
+        "punishment": {
+          "sel": "#punishment-text",
+          "rect": {
+            "l": 280.3,
+            "t": 475.7,
+            "r": 389,
+            "b": 548.2,
+            "w": 108.8,
+            "h": 72.6
+          },
+          "center": {
+            "x": 334.6,
+            "y": 512
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 166.2,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 75,
+          "clientH": 70,
+          "scrollW": 106,
+          "clientW": 106,
+          "text": "用一张纸巾做一个创意造型展示"
+        },
+        "cardActions": {
+          "sel": "#card-actions",
+          "rect": {
+            "l": 279.5,
+            "t": 562.8,
+            "r": 389.8,
+            "b": 778.5,
+            "w": 110.3,
+            "h": 215.7
+          },
+          "center": {
+            "x": 334.7,
+            "y": 670.7
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 396.5,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 204,
+          "clientH": 204,
+          "scrollW": 106,
+          "clientW": 106,
+          "text": "完成啦 ✅ 🃏 免答牌 ×2 这题先跳过"
+        },
+        "btnAccept": {
+          "sel": "#btn-accept",
+          "rect": {
+            "l": 280,
+            "t": 562.8,
+            "r": 389.3,
+            "b": 627.8,
+            "w": 109.3,
+            "h": 64.9
+          },
+          "center": {
+            "x": 334.7,
+            "y": 595.3
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 245.8,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 62,
+          "clientH": 62,
+          "scrollW": 106,
+          "clientW": 106,
+          "text": "完成啦 ✅"
+        },
+        "btnSkip": {
+          "sel": "#btn-skip",
+          "rect": {
+            "l": 279.5,
+            "t": 710.2,
+            "r": 389.8,
+            "b": 778.5,
+            "w": 110.3,
+            "h": 68.3
+          },
+          "center": {
+            "x": 334.7,
+            "y": 744.4
+          },
+          "display": "block",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 396.5,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 62,
+          "clientH": 62,
+          "scrollW": 104,
+          "clientW": 104,
+          "text": "这题先跳过"
+        },
+        "gameTools": {
+          "sel": "#screen-game > div:last-child",
+          "rect": {
+            "l": 7.7,
+            "t": 696.4,
+            "r": 661.6,
+            "b": 777.4,
+            "w": 653.9,
+            "h": 81
+          },
+          "center": {
+            "x": 334.7,
+            "y": 736.9
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "none",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": false,
+          "centerInVp": false,
+          "out": {
+            "above": 0,
+            "below": 395.4,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": null,
+          "hitAtCenter": null,
+          "scrollH": 76,
+          "clientH": 76,
+          "scrollW": 627,
+          "clientW": 627,
+          "text": "🎙️ 连麦 🔊 收听（没人开麦） 📊 战况 🔊 音效"
+        },
+        "reactBar": {
+          "sel": "#react-bar",
+          "rect": {
+            "l": 196.5,
+            "t": 260,
+            "r": 481.5,
+            "b": 312,
+            "w": 285,
+            "h": 52
+          },
+          "center": {
+            "x": 339,
+            "y": 286
+          },
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "pointerEvents": "auto",
+          "transform": "matrix(1, 0, 0, 1, -142.5, 0)",
+          "hiddenAttr": false,
+          "disabled": false,
+          "inVp": true,
+          "centerInVp": true,
+          "out": {
+            "above": 0,
+            "below": 0,
+            "leftOf": 0,
+            "rightOf": 0
+          },
+          "hitSelf": true,
+          "hitAtCenter": "#react-bar",
+          "scrollH": 50,
+          "clientH": 50,
+          "scrollW": 283,
+          "clientW": 283,
+          "text": "👏 😂 😱 🔥 😈 ❤️"
+        }
+      }
+    },
+    "clicks": {
+      "btnJoin": {
+        "sel": "#btn-join",
+        "ok": true,
+        "from": 0,
+        "to": 695
+      },
+      "hitJoin": {
+        "sel": "#btn-join",
+        "scrollY": 695,
+        "rect": {
+          "l": 262.3,
+          "t": 162.6,
+          "b": 212.4,
+          "w": 142.8,
+          "h": 49.8
+        },
+        "center": {
+          "x": 333.7,
+          "y": 187.5
+        },
+        "inVp": true,
+        "hitSelf": true,
+        "hitAt": "#btn-join",
+        "reactBarCoversCenter": false,
+        "reactBarCoversBottom": false
+      },
+      "btnStart": {
+        "sel": "#btn-start",
+        "ok": true,
+        "from": 0,
+        "to": 459
+      },
+      "hitStart": {
+        "sel": "#btn-start",
+        "scrollY": 459,
+        "rect": {
+          "l": 260.7,
+          "t": 169.3,
+          "b": 217.3,
+          "w": 145.6,
+          "h": 48
+        },
+        "center": {
+          "x": 333.5,
+          "y": 193.3
+        },
+        "inVp": true,
+        "hitSelf": true,
+        "hitAt": "#btn-start",
+        "reactBarCoversCenter": false,
+        "reactBarCoversBottom": false
+      },
+      "cardTruth": {
+        "sel": "#card-truth",
+        "ok": true,
+        "from": 0,
+        "to": 422
+      },
+      "hitTruth": {
+        "sel": "#card-truth",
+        "scrollY": 422,
+        "rect": {
+          "l": 170.1,
+          "t": 94.5,
+          "b": 285.2,
+          "w": 153.3,
+          "h": 190.7
+        },
+        "center": {
+          "x": 246.8,
+          "y": 189.8
+        },
+        "inVp": true,
+        "hitSelf": true,
+        "hitAt": ".icon",
+        "reactBarCoversCenter": false,
+        "reactBarCoversBottom": true
+      },
+      "hitDare": {
+        "sel": "#card-dare",
+        "scrollY": 422,
+        "rect": {
+          "l": 340.6,
+          "t": 94.5,
+          "b": 285,
+          "w": 153.1,
+          "h": 190.6
+        },
+        "center": {
+          "x": 417.2,
+          "y": 189.8
+        },
+        "inVp": true,
+        "hitSelf": true,
+        "hitAt": ".icon",
+        "reactBarCoversCenter": false,
+        "reactBarCoversBottom": true
+      },
+      "btnAccept": {
+        "sel": "#btn-accept",
+        "ok": true,
+        "from": 409,
+        "to": 409
+      },
+      "btnSkip": {
+        "sel": "#btn-skip",
+        "ok": true,
+        "from": 409,
+        "to": 409
+      },
+      "hitAccept": {
+        "sel": "#btn-accept",
+        "scrollY": 380,
+        "rect": {
+          "l": 280,
+          "t": 154.7,
+          "b": 219.5,
+          "w": 109.2,
+          "h": 64.8
+        },
+        "center": {
+          "x": 334.6,
+          "y": 187.1
+        },
+        "inVp": true,
+        "hitSelf": true,
+        "hitAt": "#btn-accept",
+        "reactBarCoversCenter": false,
+        "reactBarCoversBottom": false
+      },
+      "hitSkip": {
+        "sel": "#btn-skip",
+        "scrollY": 409,
+        "rect": {
+          "l": 279.9,
+          "t": 173.7,
+          "b": 240.9,
+          "w": 109.5,
+          "h": 67.2
+        },
+        "center": {
+          "x": 334.7,
+          "y": 207.3
+        },
+        "inVp": true,
+        "hitSelf": true,
+        "hitAt": "#btn-skip",
+        "reactBarCoversCenter": false,
+        "reactBarCoversBottom": false
+      }
+    },
+    "notes": [
+      "点 #card-dare 时 Playwright 把页面滚到了 Y=413"
+    ],
+    "chooser": "B",
+    "chooserByState": "B"
+  }
+]
