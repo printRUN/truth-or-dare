@@ -336,6 +336,15 @@
     .flip-glint { position: fixed; z-index: 940; pointer-events: none; border-radius: 24px; background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,0.55) 50%, transparent 65%); background-size: 260% 100%; animation: flip-glint 0.7s ease-out forwards; }
     @keyframes flip-glint { from { background-position: 130% 0; opacity: 0.9; } to { background-position: -60% 0; opacity: 0; } }
 
+    /* 背景音乐音量滑杆（「怎么玩」弹层里的本机设置） */
+    .bgm-vol { display: flex; align-items: center; gap: 10px; width: 100%; }
+    .bgm-vol > span { font-size: 0.76rem; color: rgba(255,255,255,0.6); white-space: nowrap; }
+    .bgm-vol .bgm-vol-val { min-width: 34px; text-align: right; color: rgba(255,255,255,0.78); }
+    .bgm-vol input[type="range"] { flex: 1; -webkit-appearance: none; appearance: none; height: 6px; border-radius: 999px; background: linear-gradient(90deg, var(--accent-cyan), var(--primary)); outline: none; cursor: pointer; }
+    .bgm-vol input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid var(--primary); box-shadow: 0 0 10px rgba(139,92,246,0.7); cursor: pointer; }
+    .bgm-vol input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 2px solid var(--primary); box-shadow: 0 0 10px rgba(139,92,246,0.7); cursor: pointer; }
+    .bgm-vol input[type="range"]:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 4px; }
+
     .btn:focus-visible, .mode-opt:focus-visible, .copy-link-btn:focus-visible, .import-tab:focus-visible, .paste-btn:focus-visible, .btn-accept:focus-visible, .btn-skip:focus-visible, .mic-btn:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 3px; }
 
     /* Toast */
@@ -1075,7 +1084,15 @@
     </div>
     <div class="set-group"><label>🎵 背景音乐（本机开关，WebAudio 合成、不下载资源）</label>
       <div class="mini-row">
-        <button type="button" class="mini-opt" id="btn-bgm-guide">背景音乐：关</button>
+        <button type="button" class="mini-opt" id="btn-bgm-guide">背景音乐：开</button>
+      </div>
+      <div class="bgm-vol" style="margin-top:10px">
+        <span>音量</span>
+        <input type="range" id="bgm-vol" min="0" max="100" step="1" value="90" aria-label="背景音乐音量">
+        <span class="bgm-vol-val" id="bgm-vol-val">90%</span>
+      </div>
+      <div class="mini-row" style="margin-top:10px">
+        <button type="button" class="mini-opt" id="btn-duck-guide" title="外放时音乐会从麦克风串出去：连麦时把背景音乐压低（动作音效保持原音量），减少串音与掩蔽">连麦时降低音乐：开</button>
       </div>
     </div>
     <button class="btn btn-primary" id="btn-guide-ok" style="align-self:center">明白啦 🎉</button>
@@ -2684,8 +2701,11 @@ function resetCam(instant) { if (instant) Cam.jump(Cam.baseOf(Cam.curScreen)); e
 
 // ───────────────────────────── 趣味互动：音效 / 表情雨 / 加倍 / 限时 / 命运转盘 ─────────────────────────────
 // 音效：WebAudio 现场合成，不下载任何资源（离线单文件）；首次手势后才建 AudioContext，避免自动播放告警
+// 两条独立总线：master=动作音效，music=背景音乐。连麦时只压 music（BGM），音效保持原提示音；
+// 远端人声两条都不走，所以压低音乐/音效绝不会影响对方声音的音量。
 const SFX = {
-  on: true, ctx: null, master: null,
+  on: true, ctx: null, master: null, music: null,
+  base: 0.2, musicDuck: 1,   // musicDuck < 1 = 连麦时压低背景音乐（不影响动作音效）
   init() {
     try { this.on = localStorage.getItem('tod:sfx') !== 'off'; } catch {}
     document.addEventListener('pointerdown', () => this.ensure(), { once: true, passive: true });
@@ -2697,11 +2717,24 @@ const SFX = {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return false;
       this.ctx = new AC();
-      this.master = this.ctx.createGain();
-      this.master.gain.value = 0.2;
+      this.master = this.ctx.createGain();          // 动作音效总线
+      this.master.gain.value = this.base;
       this.master.connect(this.ctx.destination);
+      this.music = this.ctx.createGain();           // 背景音乐总线（连麦只压这条）
+      this.music.gain.value = this.base * this.musicDuck;
+      this.music.connect(this.ctx.destination);
     } catch { return false; }
     return true;
+  },
+  duckMusic(f, ms = 300) {   // 压低/恢复背景音乐总线（ms=0 立即生效）；只改增益，不起停振荡器
+    this.musicDuck = f;
+    if (!this.ctx || !this.music) return;
+    const g = this.music.gain, t = this.ctx.currentTime, target = Math.max(0.0001, this.base * f);
+    try {
+      g.cancelScheduledValues(t);
+      if (ms > 0) { g.setValueAtTime(Math.max(0.0001, g.value), t); g.exponentialRampToValueAtTime(target, t + ms / 1000); }
+      else g.setValueAtTime(target, t);
+    } catch {}
   },
   tone(freq, dur, type = 'triangle', vol = 1, to = 0, delay = 0) {
     const c = this.ctx, t0 = c.currentTime + delay;
@@ -2752,7 +2785,7 @@ function syncSfxBtns() {
 // 背景音乐：同样是 WebAudio 现场合成（零资源下载），i–VI–III–VII 小调走向的慢和弦垫。
 // 独立于音效开关（localStorage['tod:bgm']），默认关；首次手势后才建 ctx，切后台自动停，省电不打扰。
 const BGM = {
-  on: false, KEY: 'tod:bgm', timer: null, step: 0, node: null, playing: false,
+  on: true, KEY: 'tod:bgm', VOL_KEY: 'tod:bgm:vol', vol: 0.9, timer: null, step: 0, node: null, playing: false,
   chords: [
     [220.00, 261.63, 329.63],   // Am
     [174.61, 220.00, 261.63],   // F
@@ -2760,20 +2793,22 @@ const BGM = {
     [196.00, 246.94, 293.66],   // G
   ],
   init() {
-    try { this.on = localStorage.getItem(this.KEY) === 'on'; } catch {}
+    try { this.on = localStorage.getItem(this.KEY) !== 'off'; } catch { this.on = true; }   // 默认开（首次手势后才出声，不违反自动播放策略）
+    try { const v = parseFloat(localStorage.getItem(this.VOL_KEY)); if (isFinite(v)) this.vol = Math.min(1, Math.max(0, v)); } catch {}
     document.addEventListener('pointerdown', () => { if (this.on) this.start(); }, { once: true, passive: true });
     document.addEventListener('visibilitychange', () => {   // 切后台冻结（与 CSS paused 同一思路）
       if (!this.on) return;
       if (document.hidden) this.stop(); else this.start();
     });
     syncBgmBtns();
+    syncBgmVol();
   },
-  ensure() {   // 复用音效的 AudioContext / 总线，再挂一条独立音乐增益
+  ensure() {   // 复用音效的 AudioContext，接到「背景音乐总线」（独立于动作音效）
     if (!SFX.ensure()) return null;
     if (!this.node) {
       this.node = SFX.ctx.createGain();
       this.node.gain.value = 0.0001;
-      this.node.connect(SFX.master);
+      this.node.connect(SFX.music || SFX.master);
     }
     return SFX.ctx;
   },
@@ -2805,7 +2840,7 @@ const BGM = {
     try {
       this.node.gain.cancelScheduledValues(t);
       this.node.gain.setValueAtTime(0.0001, t);
-      this.node.gain.exponentialRampToValueAtTime(0.9, t + 1.4);   // 缓入，别一开口就吓人
+      this.node.gain.exponentialRampToValueAtTime(Math.max(0.0001, this.vol), t + 1.4);   // 缓入到当前音量，别一开口就吓人
     } catch {}
     this.step = 0;
     this.tick();
@@ -2824,6 +2859,19 @@ const BGM = {
       } catch {}
     }
   },
+  setVol(v) {   // 独立音量：存 localStorage，播放中即时平滑过渡
+    this.vol = Math.min(1, Math.max(0, v));
+    try { localStorage.setItem(this.VOL_KEY, String(this.vol)); } catch {}
+    if (this.on && this.playing && this.node && SFX.ctx) {
+      const t = SFX.ctx.currentTime;
+      try {
+        this.node.gain.cancelScheduledValues(t);
+        this.node.gain.setValueAtTime(Math.max(0.0001, this.node.gain.value), t);
+        this.node.gain.exponentialRampToValueAtTime(Math.max(0.0001, this.vol), t + 0.15);
+      } catch {}
+    }
+    syncBgmVol();
+  },
   toggle() {
     this.on = !this.on;
     try { localStorage.setItem(this.KEY, this.on ? 'on' : 'off'); } catch {}
@@ -2840,6 +2888,11 @@ function syncBgmBtns() {
   });
   const g = $('btn-bgm-guide');
   if (g) g.textContent = '背景音乐：' + (BGM.on ? '开' : '关');
+}
+function syncBgmVol() {
+  const el = $('bgm-vol'), lab = $('bgm-vol-val');
+  if (el) el.value = String(Math.round(BGM.vol * 100));
+  if (lab) lab.textContent = Math.round(BGM.vol * 100) + '%';
 }
 
 // 点击反馈：抽卡（选卡/卡堆）与翻牌共用——按下回弹 + 一圈涟漪 + 轻点击音。
@@ -3778,6 +3831,29 @@ const LISTEN_KEY = 'tod:listen';  // 收听开关（默认开）：开麦=广播
 // 开麦只发给房间里其他人，没开麦的人只听不播 → 一个人开麦全房能听
 function micLive() { return MIC.on || MIC.listen; }
 
+// 连麦自动压低（ducking）：外放时本地音乐/音效会被麦克风收进去——
+// 浏览器的 echoCancellation 只对「远端播放信号」这个参考有效，本地 WebAudio 现场合成的声音不在参考里，消不掉；
+// 所以广播时把总线压到 14%；仅收听（有活跃语音链路）时压到 50%，降低串音与掩蔽。
+// 判据用「真实链路数 MIC.peers.size」而不是收听偏好（listen 默认开，没人说话时不能无端压低）。远端人声不走这条总线，不受影响。
+// 戴耳机仍是唯一能彻底消除音乐串音的办法（首次开麦给一次提示）。
+const DUCK_KEY = 'tod:duck';
+let duckPref = true;
+try { duckPref = localStorage.getItem(DUCK_KEY) !== '0'; } catch {}
+let duckHinted = false;
+function syncAudioDuck(animate = true) {
+  const f = !duckPref ? 1 : (MIC.on ? 0.14 : (MIC.peers.size ? 0.5 : 1));
+  SFX.duckMusic(f, animate ? 320 : 0);   // 只压背景音乐；动作音效（master 总线）保持原音量
+}
+function syncDuckBtn() {
+  const g = $('btn-duck-guide');
+  if (g) g.textContent = '连麦时降低音乐：' + (duckPref ? '开' : '关');
+}
+function micDuckHint() {   // 每次会话只提示一次，别刷屏
+  if (duckHinted) return;
+  duckHinted = true;
+  if (BGM.on && duckPref) toast('💡 已把音乐压低；想让对方完全听不到音乐，请戴耳机或关掉音乐', '', 4200);
+}
+
 const MIC = {
   on: false, stream: null, ctx: null, analyser: null, tmp: null,
   peers: new Map(),   // pid -> { pc, el, src, gain, analyser, tmp, ice[], remoteSet, sdpSent, dir, level, hold, ... }
@@ -3856,16 +3932,19 @@ async function toggleMic() {
     MIC.ctx.createMediaStreamSource(MIC.stream).connect(MIC.analyser);
   } catch { /* 分析器建不起来不阻断通话，仅头像不波动 */ }
   MIC.on = true; MIC.since = Date.now(); MIC.warnedLink = false;
+  syncAudioDuck();   // 开始广播 → 压低本机背景音乐，减少被麦克风收进去（音效不变）
   startMicRuntime();
   renderMicUI();
   await publishMicFlags();
   toast('🎙️ 麦克风已开，房里所有人都能听到你', 'success');
+  micDuckHint();
 }
 
 // 收听开关：只听不播，不需要麦克风权限；关掉后不再建任何语音链路
 async function toggleListen() {
   MIC.listen = !MIC.listen;
   try { localStorage.setItem(LISTEN_KEY, MIC.listen ? '1' : '0'); } catch {}
+  syncAudioDuck();   // 仅收听时也适度压低背景音乐，免得音乐盖住人声
   if (MIC.listen) startMicRuntime();
   else if (!MIC.on) stopMicRuntime();
   syncMicPeers();   // 按新的方向位该拆的拆、该重谈的重谈（我还在广播的那几路要留住，不能一概拆掉）
@@ -3877,6 +3956,7 @@ async function toggleListen() {
 function closeMic(silent) {
   const was = MIC.on;
   MIC.on = false;
+  syncAudioDuck();   // 关麦 → 背景音乐恢复原音量
   // 只拆“我作为广播方”参与的那些链路（方向变了就必须重谈）；“我在听他播”的那几路原样留着，
   // 否则我一关麦就会把别人讲话的声音一起干掉
   for (const [pid, pr] of [...MIC.peers]) {
@@ -3896,6 +3976,7 @@ function destroyPeer(pid) {
   const pr = MIC.peers.get(pid);
   if (!pr) return;
   MIC.peers.delete(pid);
+  syncAudioDuck();   // 链路少了：只有还在听（或仍在广播）才继续压
   pr.dead = true;
   try { pr.pc.close(); } catch {}
   if (pr.el) { pr.el.pause(); pr.el.srcObject = null; pr.el.remove(); }
@@ -3929,6 +4010,7 @@ function makePeer(pid) {
     renderMicUI();   // 接通/掉线即时反映到按钮标签
   };
   MIC.peers.set(pid, pr);
+  syncAudioDuck();   // 新建语音链路：只听也适度压低音乐
   return pr;
 }
 
@@ -4829,6 +4911,13 @@ document.querySelectorAll('.js-sfx-btn').forEach(b => b.addEventListener('click'
 $('btn-sfx-guide').addEventListener('click', () => SFX.toggle());
 document.querySelectorAll('.js-bgm-btn').forEach(b => b.addEventListener('click', () => BGM.toggle()));
 $('btn-bgm-guide').addEventListener('click', () => BGM.toggle());
+$('bgm-vol').addEventListener('input', e => BGM.setVol((parseInt(e.target.value, 10) || 0) / 100));
+$('btn-duck-guide').addEventListener('click', () => {
+  duckPref = !duckPref;
+  try { localStorage.setItem(DUCK_KEY, duckPref ? '1' : '0'); } catch {}
+  syncDuckBtn(); syncAudioDuck();
+  toast(duckPref ? '🎚️ 连麦时会自动压低背景音乐（动作音效不变）' : '🎚️ 连麦时不再压低音乐（外放可能串音）');
+});
 $('btn-land').addEventListener('click', toggleLand);
 window.addEventListener('resize', () => { if (S && S.gameStarted) layoutRing($('game-players-grid')); });
 window.addEventListener('resize', applyLand);
@@ -4912,6 +5001,8 @@ if (LOWPERF) document.body.classList.add('loperf');   // 低端机自动降载�
 syncPerfBtns();
 SFX.init();
 BGM.init();
+syncDuckBtn();
+syncAudioDuck(false);
 initCamParallax();
 applyLand();   // 横屏：竖屏里恢复上次的手动选择，真·横屏矮视口自动套横屏布局
 Cam.init();   // 3D 镜头开机：从远处推进到加入页（一镜到底的第一段）

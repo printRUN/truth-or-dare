@@ -64,25 +64,30 @@ async function boot(ctx, { name, idx, tag }) {
     await A.waitForTimeout(700);
     ok(true, `组0 双人入房 OK（房间 ${room}）`);
 
-    // ═══ 组 1：背景音乐默认关 + 开关持久化 ═══
-    const def = await A.evaluate(() => ({ on: BGM.on, ls: localStorage.getItem('tod:bgm'), label: document.getElementById('btn-bgm-lobby').textContent, guide: document.getElementById('btn-bgm-guide').textContent }));
-    ok(def.on === false && def.ls === null && /背景音乐/.test(def.label) && /关/.test(def.guide), `组1 BGM 默认关（${JSON.stringify(def)}）`);
-
-    await A.click('#btn-bgm-lobby');
-    await A.waitForTimeout(1700);
-    const on = await A.evaluate(() => ({
+    // ═══ 组 1：背景音乐默认开 + 音量滑杆 + 开关持久化 ═══
+    await A.waitForTimeout(1600);   // 首次手势已发生，等缓入完成
+    const def = await A.evaluate(() => ({
       on: BGM.on, ls: localStorage.getItem('tod:bgm'), playing: BGM.playing,
-      hasNode: !!BGM.node, gain: BGM.node ? +BGM.node.gain.value.toFixed(4) : -1,
-      ctx: SFX.ctx ? SFX.ctx.state : 'none',
+      ctx: SFX.ctx ? SFX.ctx.state : 'none', gain: BGM.node ? +BGM.node.gain.value.toFixed(4) : -1,
       label: document.getElementById('btn-bgm-lobby').textContent,
+      guide: document.getElementById('btn-bgm-guide').textContent,
+      vol: BGM.vol, slider: document.getElementById('bgm-vol').value,
     }));
-    ok(on.on === true && on.ls === 'on' && /🎵/.test(on.label), `组1 BGM 开启并持久化（${JSON.stringify({ ls: on.ls, label: on.label })}）`);
-    ok(on.playing && on.hasNode, '组1 BGM 已开始播放且挂上音乐增益节点');
-    ok(on.ctx === 'running' && on.gain > 0.05, `组1 音乐增益缓入生效（ctx=${on.ctx}, gain=${on.gain}）`);
+    ok(def.on === true && def.ls === null && /🎵/.test(def.label) && /开/.test(def.guide), `组1 BGM 默认开（${JSON.stringify({ ls: def.ls, label: def.label, guide: def.guide })}）`);
+    ok(def.playing && def.ctx === 'running' && def.gain > 0.5, `组1 首次手势后自动出声并缓入到默认音量（ctx=${def.ctx}, gain=${def.gain}）`);
+    ok(def.vol === 0.9 && def.slider === '90', `组1 默认音量 90%（vol=${def.vol}, slider=${def.slider}）`);
 
-    await A.click('#btn-bgm-lobby');   // 再点一次关闭
-    const off = await A.evaluate(() => ({ on: BGM.on, ls: localStorage.getItem('tod:bgm'), playing: BGM.playing }));
-    ok(off.on === false && off.ls === 'off' && !off.playing, `组1 再点关闭并停播（${JSON.stringify(off)}）`);
+    // 音量滑杆：拉到 30% → 播放中即时平滑过渡 + 持久化
+    await A.evaluate(() => { const el = document.getElementById('bgm-vol'); el.value = '30'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+    await A.waitForTimeout(420);
+    const vol = await A.evaluate(() => ({ vol: BGM.vol, ls: localStorage.getItem('tod:bgm:vol'), gain: BGM.node ? +BGM.node.gain.value.toFixed(4) : -1, label: document.getElementById('bgm-vol-val').textContent }));
+    ok(Math.abs(vol.vol - 0.3) < 1e-6 && vol.ls === '0.3' && vol.label === '30%', `组1 音量滑杆改到 30% 并持久化（${JSON.stringify({ vol: vol.vol, ls: vol.ls, label: vol.label })}）`);
+    ok(vol.gain > 0.2 && vol.gain < 0.45, `组1 播放中调音量即时生效（gain=${vol.gain}）`);
+
+    // 关闭 → 停播 + 持久化
+    await A.click('#btn-bgm-lobby');
+    const off = await A.evaluate(() => ({ on: BGM.on, ls: localStorage.getItem('tod:bgm'), playing: BGM.playing, label: document.getElementById('btn-bgm-lobby').textContent }));
+    ok(off.on === false && off.ls === 'off' && !off.playing && /🔇/.test(off.label), `组1 关闭后停播并持久化（${JSON.stringify(off)}）`);
 
     // 弹窗未展开时按钮在弹层里，直接调用 toggle 验证同一入口与标签同步
     const guideToggle = await A.evaluate(() => { BGM.toggle(); return { on: BGM.on, guide: document.getElementById('btn-bgm-guide').textContent }; });
@@ -92,6 +97,40 @@ async function boot(ctx, { name, idx, tag }) {
     // ═══ 组 2：新增音效名不抛错 ═══
     const sfxSafe = await A.evaluate(() => { try { SFX.ensure(); ['tap', 'draw', 'spark'].forEach(n => SFX.play(n)); return true; } catch (e) { return String(e); } });
     ok(sfxSafe === true, `组2 tap/draw/spark 音效不抛错（${sfxSafe}）`);
+
+    // ═══ 组 2b：连麦只压低背景音乐，动作音效总线不受影响（直接驱动状态，不真的开麦） ═══
+    const duck0 = await A.evaluate(() => ({ musicDuck: SFX.musicDuck, music: +SFX.music.gain.value.toFixed(4), sfx: +SFX.master.gain.value.toFixed(4), label: document.getElementById('btn-duck-guide').textContent }));
+    ok(duck0.musicDuck === 1 && duck0.music > 0.15 && duck0.sfx > 0.15 && /开$/.test(duck0.label), `组2b 空闲时两条总线都满音量（music=${duck0.music}, sfx=${duck0.sfx}）`);
+
+    await A.evaluate(() => { MIC.on = true; syncAudioDuck(); });   // 走 320ms 缓降
+    const d1duck = await A.evaluate(() => SFX.musicDuck);
+    await A.waitForTimeout(520);
+    const d1 = await A.evaluate(() => ({ music: +SFX.music.gain.value.toFixed(4), sfx: +SFX.master.gain.value.toFixed(4) }));
+    ok(Math.abs(d1duck - 0.14) < 1e-9 && d1.music > 0.02 && d1.music < 0.04 && d1.sfx > 0.15, `组2b 广播时只压音乐到 14%（music=${d1.music}, sfx=${d1.sfx}）`);
+
+    // 仅收听：有活跃语音链路才压到 50%
+    await A.evaluate(() => { MIC.on = false; MIC.peers.set('fake', { pc: { connectionState: 'new' } }); syncAudioDuck(); });
+    const d2duck = await A.evaluate(() => SFX.musicDuck);
+    await A.waitForTimeout(520);
+    const d2 = await A.evaluate(() => ({ music: +SFX.music.gain.value.toFixed(4), sfx: +SFX.master.gain.value.toFixed(4) }));
+    ok(Math.abs(d2duck - 0.5) < 1e-9 && d2.music > 0.08 && d2.music < 0.12 && d2.sfx > 0.15, `组2b 仅收听（有链路）时压到 50%（music=${d2.music}, sfx=${d2.sfx}）`);
+
+    await A.evaluate(() => { MIC.peers.delete('fake'); MIC.listen = true; syncAudioDuck(); });   // 收听偏好开着但无链路 → 不压
+    await A.waitForTimeout(520);
+    const d2b = await A.evaluate(() => ({ musicDuck: SFX.musicDuck, music: +SFX.music.gain.value.toFixed(4) }));
+    ok(d2b.musicDuck === 1 && d2b.music > 0.15, `组2b 无人说话时不无端压低（music=${d2b.music}）`);
+
+    // 关掉自动压低 → 广播也满音量
+    await A.evaluate(() => { document.getElementById('btn-duck-guide').click(); MIC.on = true; syncAudioDuck(); });
+    await A.waitForTimeout(520);
+    const d3 = await A.evaluate(() => ({ pref: duckPref, musicDuck: SFX.musicDuck, ls: localStorage.getItem('tod:duck'), label: document.getElementById('btn-duck-guide').textContent, music: +SFX.music.gain.value.toFixed(4) }));
+    ok(d3.pref === false && d3.musicDuck === 1 && d3.ls === '0' && /关$/.test(d3.label) && d3.music > 0.15, `组2b 关掉自动压低后广播也满音量（${JSON.stringify({ pref: d3.pref, ls: d3.ls, music: d3.music })}）`);
+
+    // 复原
+    await A.evaluate(() => { document.getElementById('btn-duck-guide').click(); MIC.on = false; MIC.listen = true; syncAudioDuck(); });
+    await A.waitForTimeout(520);
+    const restored = await A.evaluate(() => ({ pref: duckPref, ls: localStorage.getItem('tod:duck'), gain: +SFX.master.gain.value.toFixed(4) }));
+    ok(restored.pref === true && restored.ls === '1' && restored.gain > 0.15, `组2b 复原自动压低设置（${JSON.stringify(restored)}）`);
 
     // ═══ 组 3：开局 → 抽卡/翻牌点击反馈 ═══
     await A.click('#mode-pick .mode-opt[data-mode="turn"]');
