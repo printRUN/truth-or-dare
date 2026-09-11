@@ -137,6 +137,53 @@ async function measure(p, sels) {
 const fmt = m => Object.entries(m.els).map(([k, v]) => v.missing ? `      ${k}: MISSING`
   : `      ${k}: [${v.l},${v.t} → ${v.b}] ${v.w}x${v.h} fitsV=${v.fitsV} fitsH=${v.fitsH}${v.scrollH > v.clientH + 2 ? ` innerScroll=${v.scrollH}/${v.clientH}` : ''}`).join('\n');
 
+// 互动浮窗：默认收成右上角一颗浮标；点开后 6 颗图标必须全在屏内且不压任何可交互元素
+async function dockCheck(p, label) {
+  const res = await p.evaluate(() => {
+    const forced = document.body.classList.contains('landforce');
+    const W = window.innerWidth, H = window.innerHeight;
+    const box = el => {   // 强制旋转时换算回逻辑坐标
+      const r = el.getBoundingClientRect();
+      return forced ? { l: r.top, t: W - r.right, r: r.bottom, b: W - r.left } : { l: r.left, t: r.top, r: r.right, b: r.bottom };
+    };
+    const inter = [...document.querySelectorAll('button, input, select, textarea, .choice-card, .flip-card, .player-card, .copy-link-btn')]
+      .filter(el => !el.closest('#react-bar'))
+      .map(el => ({ el, r: box(el) }))
+      .filter(o => o.r.r - o.r.l > 1 && o.r.b - o.r.t > 1);
+    const hit = c => inter.filter(o => o.r.l < c.r && o.r.r > c.l && o.r.t < c.b && o.r.b > c.t)
+      .map(o => o.el.id ? '#' + o.el.id : '.' + String(o.el.className).split(' ')[0]).slice(0, 4);
+    const rv = el => { const b = box(el); return { l: Math.round(b.l), t: Math.round(b.t), r: Math.round(b.r), b: Math.round(b.b) }; };
+    const fab = document.getElementById('react-fab');
+    const btns = [...document.querySelectorAll('#react-pop button[data-react]')];
+    return {
+      open: document.getElementById('react-bar').classList.contains('open'),
+      vwL: forced ? H : W, vhL: forced ? W : H,
+      fab: rv(fab), fabHits: hit(box(fab)),
+      icons: btns.map(b => ({ r: rv(b), hits: hit(box(b)) })),
+    };
+  });
+  check(`${label}: 浮标不压任何可点的控件`, res.open && res.fabHits.length === 0, JSON.stringify(res.fab) + ' hits=' + JSON.stringify(res.fabHits));
+  check(`${label}: 展开的 6 颗图标全在屏内且不压控件`, res.icons.length === 6 && res.icons.every(i => i.r.t >= 0 && i.r.b <= res.vhL && i.r.l >= 0 && i.r.r <= res.vwL && i.hits.length === 0),
+    JSON.stringify(res.icons.map(i => Object.assign({}, i.r, { hits: i.hits }))));
+}
+
+// 表情包自检：按钮里就是那六个 emoji（文本即表情、字形渲染成非零盒子），浮标也有 emoji
+async function emojiCheck(p, label) {
+  const res = await p.evaluate(() => {
+    const btns = [...document.querySelectorAll('#react-pop button[data-react]')];
+    const glyph = el => { const r = el.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height) }; };
+    return {
+      items: btns.map(b => ({ t: b.textContent.trim(), e: b.dataset.react, box: glyph(b), color: getComputedStyle(b).borderColor })),
+      fabText: (document.querySelector('#react-fab') || {}).textContent ? document.querySelector('#react-fab').textContent.trim() : '',
+      fabBox: document.querySelector('#react-fab') ? glyph(document.querySelector('#react-fab')) : null,
+    };
+  });
+  const items = res.items;
+  check(`${label}: 六颗按钮就是六个 emoji（文本与 data-react 一致、渲染尺寸正常）`,
+    items.length === 6 && items.every(i => i.t === i.e && i.t.length > 0 && i.box.w >= 30 && i.box.h >= 30 && i.t !== ''), JSON.stringify(items));
+  check(`${label}: 浮标用 emoji 且可渲染`, res.fabText.length > 0 && res.fabBox && res.fabBox.w >= 34, JSON.stringify({ fab: res.fabText, box: res.fabBox }));
+}
+
 // ═══════════════════════════ 主流程 ═══════════════════════════
 (async () => {
   const server = await serve();
@@ -166,6 +213,13 @@ const fmt = m => Object.entries(m.els).map(([k, v]) => v.missing ? `      ${k}: 
     check('844 lobby: 玩家墙在首屏内', m.els.players.w > 0 && m.els.players.fitsV, JSON.stringify(m.els.players));
     const lobbyLast = await trial(A, '#btn-leave');
     check('844 lobby: 工具栏最后一颗按钮可点（退出房间）', lobbyLast.ok, lobbyLast.err);
+    await A.click('#react-fab');
+    await A.waitForTimeout(300);
+    await dockCheck(A, '844 lobby 互动浮窗');
+    await emojiCheck(A, '844 lobby 表情包');
+    await A.keyboard.press('Escape');
+    await A.waitForTimeout(150);
+    check('844 lobby: Esc 收起互动浮窗', !(await A.evaluate(() => document.getElementById('react-bar').classList.contains('open'))));
     await A.screenshot({ path: `${SHOTS}/land-lobby-844.png` });
 
     await startGame(A, B);
@@ -187,6 +241,11 @@ const fmt = m => Object.entries(m.els).map(([k, v]) => v.missing ? `      ${k}: 
     const hostBtn = await trial(A, '#btn-end-game');
     check('844 game: 主持人专属按钮可点（结算）', hostBtn.ok, hostBtn.err);
     check('844 game: 工具栏内容不横向溢出（scrollWidth ≤ clientWidth）', m.els.tools.scrollW <= m.els.tools.clientW + 2, JSON.stringify({ sw: m.els.tools.scrollW, cw: m.els.tools.clientW }));
+    await G.click('#react-fab');
+    await G.waitForTimeout(300);
+    await dockCheck(G, '844 game 互动浮窗');
+    await G.keyboard.press('Escape');
+    await G.waitForTimeout(150);
     await G.screenshot({ path: `${SHOTS}/land-game-844.png` });
 
     // 弹层：设置 / 怎么玩（矮视口里必须整体落在屏内，内容自己滚）
@@ -319,7 +378,51 @@ const fmt = m => Object.entries(m.els).map(([k, v]) => v.missing ? `      ${k}: 
     const off = await measure(D, { btnLand: '#btn-land' });
     check('切回竖屏: landforce/landui 都已摘除', !off.landui && !off.landforce, JSON.stringify({ ui: off.landui, f: off.landforce }));
     check('切回竖屏: 物理尺寸复原（--lvw/--lvh 已清）', !off.lvw && !off.lvh, `${off.lvw}|${off.lvh}`);
+
+    // 竖屏大厅：互动浮窗同样不能压到任何控件（单人也进大厅）
+    await D.fill('#input-name', '竖屏镜检');
+    await D.evaluate(() => { const c = document.getElementById('chk-local'); if (c) c.checked = true; });
+    await D.click('#btn-join');
+    await D.waitForSelector('#screen-lobby.active', { timeout: 20000 });
+    await D.click('#react-fab');
+    await D.waitForTimeout(300);
+    await dockCheck(D, '390 lobby 互动浮窗');
     await ctx3.close();
+
+    // ══ D) PC / 平板：文档不得被 3D 牌桌投影撑宽，互动浮窗同样不能压控件 ══
+    for (const [W, H, mobile, name] of [[1440, 900, false, 'PC 1440×900'], [1280, 800, false, 'PC 1280×800'], [1024, 768, true, '平板 1024×768']]) {
+      const ctxP = await browser.newContext({ viewport: { width: W, height: H }, hasTouch: mobile, isMobile: mobile, deviceScaleFactor: 1 });
+      await ctxP.addInitScript(() => { try { localStorage.setItem('tod:guide', '1'); localStorage.setItem('tod:perf', 'full'); } catch {} });
+      const P1 = await openPage(ctxP, name + '/A'), P2 = await openPage(ctxP, name + '/B');
+      await joinBoth(P1, P2, name);
+      let mp = await measure(P1, { btnStart: '#btn-start', dock: '#react-bar' });
+      check(`${name}: 大厅无横向溢出（文档宽 = 视口宽）`, !mp.hOverflow && mp.docScrollW === mp.docClientW, JSON.stringify({ sw: mp.docScrollW, cw: mp.docClientW }));
+      check(`${name}: 开始按钮在首屏内`, mp.els.btnStart.w > 0 && mp.els.btnStart.fitsV, JSON.stringify(mp.els.btnStart));
+      await P1.click('#react-fab');
+      await P1.waitForTimeout(250);
+      await dockCheck(P1, `${name} lobby 互动浮窗`);
+      await emojiCheck(P1, `${name} 表情包`);
+      await P1.keyboard.press('Escape');
+      await P1.waitForTimeout(120);
+      await startGame(P1, P2);
+      const GP = await chooserOf(P1, P2);
+      mp = await measure(GP, { ring: '#game-players-grid', truth: '#card-truth' });
+      check(`${name}: 牌桌无横向溢出`, !mp.hOverflow && mp.docScrollW === mp.docClientW, JSON.stringify({ sw: mp.docScrollW, cw: mp.docClientW }));
+      check(`${name}: 选卡可见`, mp.els.truth.fitsV, JSON.stringify(mp.els.truth));
+      await GP.click('#react-fab');
+      await GP.waitForTimeout(250);
+      await dockCheck(GP, `${name} game 互动浮窗`);
+      await GP.keyboard.press('Escape');
+      await GP.waitForTimeout(120);
+      await GP.click('#card-truth');
+      await GP.waitForSelector('#card-section:not([hidden])', { timeout: 20000 });
+      await GP.waitForTimeout(2800);
+      mp = await measure(GP, { card: '#card-section', accept: '#btn-accept', skip: '#btn-skip' });
+      check(`${name}: 揭晓页无横向溢出且完成/跳过可见`, !mp.hOverflow && mp.docScrollW === mp.docClientW && mp.els.accept.fitsV && mp.els.skip.fitsV,
+        JSON.stringify({ sw: mp.docScrollW, cw: mp.docClientW, a: mp.els.accept, s: mp.els.skip }));
+      await GP.screenshot({ path: `${SHOTS}/land-revealed-${W}.png` });
+      await ctxP.close();
+    }
 
     // ══ 收尾：零报错 ══
     check('全程零 JS 报错（pageerror / console.error）', errors.length === 0, errors.slice(0, 6).join(' || '));

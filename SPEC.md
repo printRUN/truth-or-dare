@@ -63,12 +63,14 @@
 - **Camera pan**: 由 `Cam.focus/nudge` 承担（世界层位移 ≤46px + 轻微 scale，不叠 `scrollIntoView`）；抽卡链路 deck→card 两次缓推（0.95s transform 补间），REDUCED 下全部瞬时到位
 
 ### Phase 2.75: 趣味互动（新增）
-- **😀 表情雨**：底栏 `#react-bar`（6 个表情：👏😂😱🔥😈❤️）在大厅/牌桌常驻；点击 → 本机立刻飘一颗 + 房间广播（独立 topic `tod/v1/<房间>/react`，**非 retained**、qos0，不进房间状态），其他人 ~0.1-3s 内看到同样的表情从底部升起。防刷屏 320ms/颗、白名单外表情直接丢、`REACT_SEEN` 去重 + 5s 时效（本地模式 retained 回放不补放）、粒子上限 14（LOWPERF 5）且 2.4-2.6s 自清理
+- **😀 表情雨**：右上角互动浮窗 `#react-bar`（默认收成一颗 44px 浮标 😀，点开才展开 6 颗 emoji 按钮 👏😂😱🔥😈❤️ —— 按钮上显示的就是实际会广播出去的那个表情）在大厅/牌桌可用；展开后发送 1.4s 自动收起，无操作 9s、点屏幕其他位置、Esc 也收起。**位置经过实测**（`.pw/probe-reactdock.cjs`）：浮标固定在右上角（横屏开关下方），展开为竖排 —— 竖屏与横屏、join/lobby/game/revealed 上都与任何 `button/input/.player-card/.choice-card` 零重叠（旧版底栏在 390×844 会压住选卡与工具栏、在横屏左中会压住玩法切换）。点击 → 本机立刻飘一颗 + 房间广播（独立 topic `tod/v1/<房间>/react`，**非 retained**、qos0，不进房间状态），其他人 ~0.1-3s 内看到同样的表情从底部升起。防刷屏 320ms/颗、白名单外表情直接丢、`REACT_SEEN` 去重 + 5s 时效（本地模式 retained 回放不补放）、粒子上限 14（LOWPERF 5）且 2.4-2.6s 自清理
 - **🔥 连击**：连续「完成啦」累计 `player.combo`（上限 9），跳过清零；combo≥2 头像挂 `🔥×N` 徽章，≥2 时爆彩 + 音效 + toast，≥3 追加镜头震动。**连击不改分**（完成仍 +10/跳过仍 −5），结算新增「🔥 连击王 ×N」奖章（要求 combo≥3）
 - **🔥 加倍挑战**：计分开启时，持麦人在 choosing 阶段可点 `#btn-stake` 押 `turn.stake=2`：完成 +20 / 跳过 −10；不动 seq（不打断动画），回合收尾后自动复位 1；揭晓页显示「🔥 加倍 ×2」角标并把按钮改写成 +20/−10。默认 1 → 既有计分回归（test-host 的 +10/−5）不受影响
 - **⏱ 限时挑战**：主持人设置里 `timer ∈ {0,15,30,45}` 秒（房间状态同步）。揭晓页 `#timer-wrap` 用 `turn.ts` 作为全场统一时钟倒计时（250ms 更新一次 `scaleX` + 文案，最后 5 秒变黄并滴答）；到点只显示「⏰ 超时啦（不扣分，大家看着呢）」——**不自动跳过、不扣分**，避免抢走玩家的选择权
 - **🎡 命运转盘**：主持人点「🎲 随机点名」时，光点沿 3D 座次环加速跑动再减速停在目标上（`.player-card.spot` 高亮 + 镜头跟着扫），随后才 `designate(pid)` 落地；只在本机演，REDUCED/LOWPERF 直接定点
-- **🔊 音效**：WebAudio 现场合成（whoosh/tick/flip/reveal/win/skip/combo/react），**零资源下载**；首次 `pointerdown` 才创建 AudioContext（避免自动播放告警），开关存 `localStorage['tod:sfx']`，入口在大厅/牌桌工具条与「怎么玩」弹层
+- **🔊 音效**：WebAudio 现场合成（whoosh/tick/flip/reveal/win/skip/combo/react/tap/draw/spark），**零资源下载**；首次 `pointerdown` 才创建 AudioContext（避免自动播放告警），开关存 `localStorage['tod:sfx']`，入口在大厅/牌桌工具条与「怎么玩」弹层
+- **🎵 背景音乐**：同样是 WebAudio 现场合成（**零资源下载**），i–VI–III–VII 小调走向的慢和弦垫（低音铺底 + 三音和弦 + 高八度点缀，1.5s 一步）；`BGM` 复用 `SFX` 的 AudioContext/总线再挂一条独立增益（0.0001→0.9 缓入 1.4s / 缓出 0.6s），**默认关**（`localStorage['tod:bgm']`），入口在大厅/牌桌工具条与「怎么玩」弹层，与音效开关互不干扰；首次手势后才建 ctx，切后台（`visibilitychange`）自动停、切回自动续，省电不打扰
+- **👆 抽卡/翻牌点击反馈**：选卡（`.choice-card`）、卡堆（`.deck`）、翻牌（`.flip-card`）在 `pointerdown` 时统一走 `tapFx()` —— 按下回弹（`tap-pop`；翻牌用独立 `translate` 属性的 `card-press`，**不覆盖 `.flipped` 的 rotateY**）+ 以点击点为圆心的涟漪 `.tap-ring`（`landPick` 换算旋转坐标，0.5s 自清理）+ 轻点击音 `tap`；落牌补 `draw` 发牌声、翻面补 `spark` 上扬音并闪一次牌面扫光 `.flip-glint`；牌面里的动作按钮（完成/跳过/免答）不抢反馈，REDUCED 下只保留音效与静态
 - **🎲 观众押注**：牌一揭晓，旁观者（持麦人不能押）面板 `#bet-box` 出现：「✅ 会完成 / ⏭ 会跳过」，再点一次取消，可随时改押；押注存在 `turn.bets`（小对象，随状态同步），揭晓时保持秘密。持麦人交卡时 `settleBets()` 结算：押对 **+5** / 押错 **−3**，**只动押注者自己的分**（不动持麦人的账）；结果写进 `turn.betLog={at,items}`，全场看到同一份「押注结算」播报（按 `at` 去重，10s 时效 + 首帧不补报历史），押中者额外爆彩。无押注时零开销；计分关闭时面板不出现。
 - **🎁 惊喜卡（纯气氛）**：揭晓时由 `surpriseOf(turn)` 从「题目文本 + turn.seq」确定性推导（同题同 seq 全场同结论，不占状态字段），**1/5 概率**开出；效果集：🎉 彩带风暴 / 🥁 命运鼓点（镜头震）/ 🌧 表情雨（本地自动撒）/ 🏅 金色卡面 / 📢 全场播报。金卡只是视觉（金边 + 扫光 + `.surprise-tag` 角标），**不改任何分数与账本**；主持可在 ⚙️ 设置里整体关闭（`S.surprise=false`，关闭后推导恒为空）。特效只在揭晓那一刻放一次（`lastSurpriseSeq` 去重），中途加入的客户端也能看到金卡静态上色。
 
@@ -81,6 +83,15 @@
 - **座次环自适应**：`layoutRing` 的 narrow 判据从 `window.innerWidth < 620` 改成 `grid.clientWidth < 620`（横屏里座次区只占半屏）；横屏且环高 < 320 时椭圆压扁（`ry=24%`），玩家卡不越出座次区
 - **每屏横屏排布**：join = 表单 + 头像墙 + 题库导入三栏（头像墙自身可滚）；lobby = 左侧邀请/玩法/开局、右侧玩家墙，工具条移到最底一行（宽度足以放下 6 颗按钮，不做横向滚动）；game = 左 3D 座次环、右回合文案/选卡/揭晓，工具栏压成一条横滑条（按钮缩到 0.66rem，内容不横向溢出）；result = 左颁奖台、右战绩榜；弹层整高 `calc(var(--lvh) - 16px)`、内容内部滚
 - **矮屏红线**：横屏下五个屏的主 CTA 必须在首屏内（join 加入按钮、lobby 开始、选卡双卡、完成/跳过、结算按钮）；牌面长题走 `.punishment-text` 自身滚动（`flex:1 1 0; min-height:0; align-items: safe center`，超长时不裁首行），动作按钮永远留在卡内
+
+### PC / 平板兼容（矮屏桌面与平板）
+- **文档永不被 3D 投影撑宽**：`.table3d` 经 `#cam` 的 900px 透视放大后包围盒比视口宽（1280 视口实测被撑到 1318px），`.world` 的 rotateX + 透视投影也会外溢 —— 这会把移动仿真/平板上的 layout viewport 顶宽，连带把 `position: fixed` 的横屏开关与互动浮窗推出可视区。现在 `#app { overflow-x: clip }` + `#cam { overflow-x: clip; overflow-clip-margin: 28px }`（clip 不影响纵向，body 仍是唯一的页面滚动容器；28px 出血留给座次环前后排卡片的轻微溢出）。取证：`.pw/probe-overflow.cjs`（1280×800 / 1024×768 / 768×1024 三视口 ×3 屏，实测 `scrollWidth === clientWidth`）
+- **矮屏桌面/平板（宽 >600 且高 ≤920，且非手机横屏）**：压档上限从 880 提到 920，因为 1440×900（笔电 / retina 缩放最常见档）下揭晓页「跳过」底 903.8 > 901 刚好掉出折线；座次环收到 `clamp(180px, 26.5vh, 268px)`、选卡 136×158、牌面 300×400、统计/回合文案降一档；**揭晓时用 `:has()` 收起座次环**（`body:not(.landui) #screen-game:has(#card-section:not([hidden])) .players-grid.ring3d { display:none }`），把首屏让给题面与「完成/跳过/免答牌」—— 修「1024×768 / 1280×800 下选卡与跳过掉到折线以下」。手机横屏 landui 是左右分栏，用 `body:not(.landui)` 排除
+- **⚠ 这段压档规则必须写在基础规则「之后」**：它和 `.players-grid.ring3d`（基础值 `clamp(210px, 44vh, 340px)`，在 3D 舞台那一段里）同特异度，写在前面就会被反向盖掉 —— 早先这段在文件前部，座次环高度一直是死代码（1024×768 选卡底越界 22px 就是这么露出来的）。现已整段挪到 `body.loperf` 之后、`body.landui` 之前（landui 靠更高特异度继续接管横屏）
+- **宽屏内容列居中**：`.screen` 是 `.world`（`width:100%`，1920 视口下 1880px）的普通块级子元素，光有 `max-width:920px` 会整块贴左边（3D 舞台落地后一直如此：`#app` 里的标题/状态条居中，屏内容偏左，右半边全空）—— 现在 `.screen { margin-left/right: auto }`；`body.landui .screen { max-width:none }` 与绝对定位的 `.screen.leaving`（auto margin 归 0、仍由 `translateX(-50%)` 居中）都不受影响
+- **宽屏加入页两栏**（`min-width:760px` 且非 landui）：`.join-box` 改 grid（左表单 + 右 264px 头像墙，`#grp-avatar` 用 `grid-row: 2/9` + `overflow-y:auto` 吃满行高不撑大文档），“加入游戏”从 y≈877 抬到 y≈566，720/768/900 高的笔记本首屏直接可点；窄屏与 landui 三栏版不变
+- **宽屏房间页两栏**（`min-width:1440px` 且非 landui）：`#screen-lobby.active` 改 grid（`minmax(0,1fr) minmax(0,1.08fr)`，内容列放宽到 1180px），左列邀请码/玩法/统计、右列座次环（`grid-area:1/2/5/3`）、底部操作条跨两列 —— 1920 下 920px 内容列右侧近半屏全空的问题就地消化。门槛定在 1440 而不是 1280：1280 时 1180px 内容列右缘（1230）会被展开的互动浮窗（x≈1228 起）压住。实测 1440×900 / 1920×1000 左列中心偏移 -313px、座次环 +290px（真两栏），1280×800 及以下仍是单列
+- **互动浮窗在 PC/平板上**：位置与手机一致（右上角），`.screen` 最宽 920px 居中，宽屏时浮标恰好落在内容列右侧留白里；桌面鼠标可用、Esc 收起；`.pw/probe-reactdock.cjs` 留了各视口的浮窗遮挡取证
 
 ## 3. Game Flow Specification
 
@@ -264,7 +275,7 @@ big bank never inflates per-turn sync traffic. 旧版纯字符串题库按 `{x: 
 - [x] Avatar entrance/exit animations
 - [x] Import punishments by paste (Markdown auto-classified into truth/dare + 档位识别 + 追加/覆盖)
 - [x] Mobile-responsive
-- [x] 横屏（`.pw/test-landscape.cjs`，46 条断言）：真·横屏 844×390 / 740×360（含 3 人局）自动套横屏布局，join/lobby/game/revealed/result 五个屏的主 CTA 全在首屏内且 trial click 可点、3 人局玩家卡不越出座次环也不顶到工具栏、`#card-truth` 中心命中自身（3D 命中不回归）、工具栏内容不横向溢出、设置弹层整体落在屏内、旁观者押注面板可见；390×844 竖屏点 `#btn-land` → `landforce+landui`、`--lvw/--lvh` 互换为 844/390、旋转后 body 铺满物理视口、旋转坐标系里输入框/加入按钮命中与点击均正常 → 再点一次类与变量完整还原；不切换时竖屏旧布局与 `--lvw/--lvh` 空缺零影响；全程零 JS 报错
+- [x] 横屏与 PC/平板压档（`.pw/test-landscape.cjs`，88 条断言）：真·横屏 844×390 / 740×360（含 3 人局）自动套横屏布局，join/lobby/game/revealed/result 五个屏的主 CTA 全在首屏内且 trial click 可点、3 人局玩家卡不越出座次环也不顶到工具栏、`#card-truth` 中心命中自身（3D 命中不回归）、工具栏内容不横向溢出、设置弹层整体落在屏内、旁观者押注面板可见；390×844 竖屏点 `#btn-land` → `landforce+landui`、`--lvw/--lvh` 互换为 844/390、旋转后 body 铺满物理视口、旋转坐标系里输入框/加入按钮命中与点击均正常 → 再点一次类与变量完整还原；不切换时竖屏旧布局与 `--lvw/--lvh` 空缺零影响；另有 PC/平板压档梯队 1440×900 / 1280×800 / 1024×768（进入 `#screen-spectator`，逐屏检查「加入房间」「选类别牌」「跳过」等主 CTA 在首屏内且可点，并断言 `docEl.scrollWidth === innerWidth`）；全程零 JS 报错
 - [x] Works in multiple browser tabs simultaneously
 - [x] Two game modes: 轮流制对决 (rotating turns) and 自由对决 (grab-mic free-for-all), synced across clients; 局中可换玩法（下一张牌生效）
 - [x] 主持人闭环：门禁/点名/换题/代跳/轮数上限自动结算/颁奖屏/再来一局，非主持人越权调用全部被拒（test-host.cjs 断言）
@@ -278,4 +289,8 @@ big bank never inflates per-turn sync traffic. 旧版纯字符串题库按 `{x: 
 - [x] E2E verified via Playwright: both modes × (local + MQTT) transports, sync/guard/stats all pass；连麦专项（test-mic.cjs / test-mic-mqtt.cjs / test-mic-broadcast.cjs / test-mic-3way.cjs）全绿；主持闭环专项（test-host.cjs，15 步）全绿
 - [x] 连麦“没声音”专项：自动播放被拦时的兜底出声（test-mic-autoplay.cjs：复现 paused+有波形 → gain 路有输出 rms>0.005 → 手势后元素接管且兜底已撤）、晚到 ICE 候选补发 + 标签诚实性（test-mic-trickle.cjs）全绿；`check-syntax.cjs` 作为内联脚本语法门禁
 - [x] 3D 舞台与一镜到底（`.pw/test-3d.cjs`，31 条断言全绿）：`#app` 透视 1400px、`.world` 必须 `transform-style: flat`（防 3D 命中测试吃掉点击，`elementFromPoint` 锁）；join→lobby→game 每屏 spawn→base 推镜且 1.5s 内收敛到常态机位（game `rx≈5`）；`.table3d` + `#cam` 透视存在；3D 座次前排更大更靠下且 zIndex 分层、每张卡中心都能命中自己；抽卡期间 `Cam.cur.z` 脱离常态实现推近；REDUCED 下 `Cam.to` 同 tick 瞬时到位且 world 计算值 `none`；全程零报错
-- [x] 趣味互动（`.pw/test-fun.cjs`）：表情雨本机+对端互达、320ms 防刷屏、白名单拒绝非法表情、粒子自动清理；音效开关持久化且 `SFX.play` 不抛错；加倍挑战仅持麦人可见、对端同步 stake=2、完成 +20、收尾复位（未加倍仍 +10）；连击 ×2 徽章同步且不改分（20+10=30）、跳过清零 30−5=25；限时 15 秒倒计时在走、到点显示超时且不自动跳过；命运转盘停在新玩家且光点动画可观测；**押注**：面板只给旁观者、押注同步/可取消、押中 +5 押错 −3 且只动押注者分、结算播报全场可见、押注清空、计分关时不出面板；**惊喜卡**：同题同 seq 推导确定、触发率落在 1/5 区间（400 次命中 40-130）、金卡上色两端一致、主持关闭后 200 次全部为空
+- [x] 趣味互动（`.pw/test-fun.cjs`）：表情雨本机+对端互达、浮窗点开才展开（6 颗 emoji，按钮文本 = 实际广播的表情）、320ms 防刷屏、白名单拒绝非法表情、粒子自动清理；音效开关持久化且 `SFX.play` 不抛错；加倍挑战仅持麦人可见、对端同步 stake=2、完成 +20、收尾复位（未加倍仍 +10）；连击 ×2 徽章同步且不改分（20+10=30）、跳过清零 30−5=25；限时 15 秒倒计时在走、到点显示超时且不自动跳过；命运转盘停在新玩家且光点动画可观测；**押注**：面板只给旁观者、押注同步/可取消、押中 +5 押错 −3 且只动押注者分、结算播报全场可见、押注清空、计分关时不出面板；**惊喜卡**：同题同 seq 推导确定、触发率落在 1/5 区间（400 次命中 40-130）、金卡上色两端一致、主持关闭后 200 次全部为空
+- [x] 背景音乐与点击反馈（`.pw/test-audio.cjs`）：BGM 默认关、开关持久化、开启后音频上下文 running 且音乐增益缓入到 0.9、再点停播、指南入口标签同步；新增 tap/draw/spark 音效不抛错；选卡/卡堆/翻牌按下回弹 + 涟漪生成并在 0.9s 内自动清理、翻牌扫光元素生成；全程零 JS 报错
+- [x] 互动浮窗不挡操作（`.pw/test-landscape.cjs`）：844×390 / 390×844 / 1280×800 / 1024×768 下浮标与展开的 6 颗 emoji 均落在屏内且与所有 `button/input/.player-card/.choice-card` 零重叠、浮标可真实点击（Playwright 点击，非 DOM 兜底）；Esc 可收起；旧版「底栏常驻」在 390×844 会压住选卡/工具栏、横屏左中会压住玩法切换的问题已消除
+- [x] PC / 平板兼容（`.pw/test-landscape.cjs` 的 1280×800 与 1024×768 分段）：大厅/牌桌/揭晓页文档宽 = 视口宽（3D 牌桌透视投影不再撑宽，移动仿真下 fixed 浮窗不再被推出屏）；矮屏桌面/平板的选卡与「完成/跳过」落在首屏内；互动浮窗不压控件；`.pw/probe-overflow.cjs` 留证
+- [x] PC / 平板版式（`.pw/probe-pcwidths.cjs`、`.pw/probe-pcfit.cjs`）：1920×1000 / 1440×900 / 1280×800 / 1024×768 / 900×900 / 820×1180 六档下 join/lobby 内容列水平居中（偏移 0~8px，8px 是经典滚动条的一半）、文档宽恒等于视口宽、浮标在屏内；加入按钮在 720~1080 各高度全部落在首屏内（旧版 ≤900 高全部需要滚动）；`.pw/probe-tabletshift.cjs` 留了「居中不改变纵向位置」的 A/B 取证

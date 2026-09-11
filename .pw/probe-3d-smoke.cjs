@@ -100,7 +100,8 @@ const server = http.createServer((req, res) => {
   await other.waitForTimeout(1600);
   await other.screenshot({ path: 'shots/3d-turn2.png' });
 
-  // 表情雨（本地双标签互推）
+  // 表情雨（本地双标签互推）—— 浮窗默认收起：先点右上角浮标
+  await p.click('#react-fab');
   await p.click('#react-bar button[data-react="🔥"]');
   await p.waitForTimeout(400);
   const rain = await q.evaluate(() => document.querySelectorAll('.react-rain').length);

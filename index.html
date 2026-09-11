@@ -28,7 +28,10 @@
     .confetti { position: absolute; width: 6px; height: 6px; border-radius: 2px; opacity: 0.7; animation: confetti-fall linear infinite; }
     @keyframes confetti-fall { 0% { transform: translateY(-10vh) rotate(0deg); opacity: 0; } 10% { opacity: 0.7; } 90% { opacity: 0.7; } 100% { transform: translateY(110vh) rotate(720deg); opacity: 0; } }
 
-    #app { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 16px 20px 40px; }
+    /* overflow-x: clip：.world 的透视投影/牌桌的面包围盒都会比视口宽，不裁的话文档会被撑宽 ——
+       在移动仿真/平板下会让 layout viewport 变宽，连带把 fixed 元素（横屏开关/互动浮窗）推出可视区。
+       clip 不影响纵向：body 仍是页面滚动容器（不像 hidden 会把 #app 变成滚动容器）。 */
+    #app { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 16px 20px 40px; overflow-x: clip; }
 
     h1 { font-family: 'ZCOOL KuaiLe', cursive; font-size: clamp(1.8rem, 5vw, 3rem); text-align: center; background: linear-gradient(135deg, var(--primary), var(--accent-pink), var(--accent-cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 12px 0 6px; animation: title-pulse 3s ease-in-out infinite alternate; }
     @keyframes title-pulse { 0% { filter: brightness(1); transform: scale(1); } 100% { filter: brightness(1.2); transform: scale(1.02); } }
@@ -41,7 +44,9 @@
     .conn-dot.syncing { background: #fbbf24; animation: pulse 0.5s infinite alternate; }
     @keyframes pulse { to { opacity: 0.3; } }
 
-    .screen { display: none; width: 100%; max-width: 920px; animation: screen-in 0.45s ease; }
+    /* margin auto：宽屏（>960px）下 .world 有 100% 宽，屏幕必须自己居中，否则整块内容贴左边
+       （landui 里 max-width:none + width:100%，auto margin 无副作用；.leaving 是绝对定位，auto 归 0） */
+    .screen { display: none; width: 100%; max-width: 920px; margin-left: auto; margin-right: auto; animation: screen-in 0.45s ease; }
     .screen.active { display: flex; flex-direction: column; align-items: center; }
     @keyframes fade-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
     /* 屏内淡入只动透明度：位置的「动」交给 3D 镜头，避免和 .screen 的静态 3D 姿态抢 transform */
@@ -318,6 +323,19 @@
 
     @keyframes card-glow { 0%,100% { filter: brightness(1); } 50% { filter: brightness(1.22); } }
 
+    /* 点击反馈：抽卡（选卡/卡堆）与翻牌共用「按下回弹 + 涟漪 + 轻点击音」 */
+    .choice-card, .deck, .flip-card { -webkit-tap-highlight-color: transparent; }
+    .choice-card.tapped, .deck.tapped { animation: tap-pop 0.42s cubic-bezier(0.34,1.56,0.64,1); }
+    /* 翻牌用独立 translate 属性，不覆盖 .flip-card/flipped 的 rotateY */
+    .flip-card.tapped { animation: card-press 0.42s ease-out; }
+    @keyframes tap-pop { 0% { transform: translateY(0) scale(1); } 32% { transform: translateY(3px) scale(0.94); } 100% { transform: translateY(0) scale(1); } }
+    @keyframes card-press { 0% { translate: 0 0; } 32% { translate: 0 7px; } 100% { translate: 0 0; } }
+    .tap-ring { position: fixed; z-index: 950; width: var(--tr, 120px); height: var(--tr, 120px); margin-left: calc(var(--tr, 120px) / -2); margin-top: calc(var(--tr, 120px) / -2); border-radius: 50%; border: 2px solid rgba(196,181,253,0.9); box-shadow: 0 0 18px rgba(139,92,246,0.65), inset 0 0 12px rgba(34,211,238,0.4); pointer-events: none; transform: scale(0.12); animation: tap-ring 0.5s ease-out forwards; }
+    @keyframes tap-ring { from { transform: scale(0.12); opacity: 0.95; } to { transform: scale(1); opacity: 0; } }
+    /* 翻牌揭晓一刻：牌面扫光一闪（贴在牌面之上，不吃点击） */
+    .flip-glint { position: fixed; z-index: 940; pointer-events: none; border-radius: 24px; background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,0.55) 50%, transparent 65%); background-size: 260% 100%; animation: flip-glint 0.7s ease-out forwards; }
+    @keyframes flip-glint { from { background-position: 130% 0; opacity: 0.9; } to { background-position: -60% 0; opacity: 0; } }
+
     .btn:focus-visible, .mode-opt:focus-visible, .copy-link-btn:focus-visible, .import-tab:focus-visible, .paste-btn:focus-visible, .btn-accept:focus-visible, .btn-skip:focus-visible, .mic-btn:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 3px; }
 
     /* Toast */
@@ -337,6 +355,25 @@
       .stat-chip { padding: 4px 10px; font-size: 0.75rem; }
       .cam { gap: 12px; }
     }
+    /* 宽屏（≥760px）的加入页：左边表单 + 右边头像墙。单栏版在笔记本（高 720~900）会把
+       「加入游戏」推到折线以下，还要滚动才能点；宽屏空着的右半边正好放下头像墙。
+       手机横屏另有 body.landui 的三栏版（优先级更高，故用 :not(.landui) 排除）。 */
+    @media (min-width: 760px) {
+      body:not(.landui) .join-box { display: grid; grid-template-columns: minmax(0, 1fr) 264px;
+        column-gap: 22px; row-gap: 13px; align-content: start; max-width: 800px; padding: 26px 28px; }
+      body:not(.landui) .join-box > h2 { grid-column: 1 / 3; margin: 0; }
+      body:not(.landui) .join-box > .hint { grid-column: 1 / 3; margin: 0; }
+      body:not(.landui) #grp-name, body:not(.landui) #grp-room, body:not(.landui) #grp-pack { grid-column: 1; }
+      body:not(.landui) .join-box > details.adv { grid-column: 1; }
+      body:not(.landui) #btn-join { grid-column: 1; justify-self: stretch; }
+      body:not(.landui) #btn-howto-join, body:not(.landui) #btn-donate { grid-column: 1; justify-self: start; }
+      body:not(.landui) #grp-avatar { grid-column: 2; grid-row: 2 / 9; align-self: stretch; min-height: 0;
+        overflow-y: auto; padding-right: 4px; scrollbar-width: thin; }
+      body:not(.landui) .join-box .input-group { gap: 4px; }
+      body:not(.landui) .join-box input[type="text"] { padding: 10px 14px; }
+      body:not(.landui) .join-box .avatar-option { width: 46px; height: 46px; }
+    }
+
     @media (prefers-reduced-motion: reduce) {
       .orb, .confetti, h1, .deck-card::before, .deck.shuffling, .deck.shuffling .deck-card, #choice-section.mine .choice-card, #choice-section.mine .choice-card::before,
       .loader-card, .loader-orbit, .player-card.speaking .wave, .punishment-text.typing,
@@ -344,6 +381,7 @@
       .player-card, .screen, .loader-progress i, .conn-dot.syncing { animation: none !important; }
       .cam, .flip-card { transition: none !important; }
       .card-front.surprise::after { animation: none !important; }
+      .choice-card.tapped, .deck.tapped, .flip-card.tapped, .tap-ring, .flip-glint { animation: none !important; }
       .world { transform: none !important; }
       .screen.leaving { display: none !important; }
       .players-grid.ring3d .player-card { transform: translate(-50%, -50%) !important; transition: none !important; }
@@ -446,8 +484,11 @@
     /* 旧屏退场：绝对定位 + 淡出缩小，让新屏的推镜读起来是「一镜」而不是切台 */
     .screen.leaving { display: flex !important; flex-direction: column; align-items: center; position: absolute; left: 50%; top: 24px; width: min(100%, 920px); transform: translateX(-50%) scale(0.93); opacity: 0; transition: opacity 0.42s ease, transform 0.42s ease; pointer-events: none; z-index: 0; }
 
-    /* 牌桌：躺在 3D 空间里的一块椭圆台面（纯 radial-gradient，不用 blur/滤镜） */
-    #cam { position: relative; perspective: 900px; }   /* 牌桌自带透视：台面 rotateX 躺下不会被拍成平图 */
+    /* 牌桌：躺在 3D 空间里的一块椭圆台面（纯 radial-gradient，不用 blur/滤镜）
+       #cam 横向裁剪：台面经透视放大后的包围盒比屏幕宽（1280 视口会被撑到 1318），
+       会把文档宽度顶大 —— 在移动仿真/平板上会让 layout viewport 变宽，连带把 fixed 元素推出可视区。
+       overflow-clip-margin 留 28px 出血，保证座位环前后排卡片的轻微溢出不被切。 */
+    #cam { position: relative; perspective: 900px; overflow-x: clip; overflow-clip-margin: 28px; }   /* 牌桌自带透视：台面 rotateX 躺下不会被拍成平图 */
     .table3d { position: absolute; left: 50%; top: 44%; width: min(98vw, 940px); height: min(64vh, 540px); transform: translate(-50%, -50%) rotateX(74deg) translateZ(-40px); border-radius: 50%; pointer-events: none; z-index: 0;
       background: radial-gradient(ellipse at 50% 46%, rgba(139,92,246,0.30) 0%, rgba(139,92,246,0.15) 40%, rgba(34,211,238,0.09) 60%, rgba(10,10,26,0) 78%);
       box-shadow: inset 0 0 90px rgba(139,92,246,0.22), 0 0 0 2px rgba(255,255,255,0.06); }
@@ -481,12 +522,26 @@
     .timer-wrap.urgent .timer-text { color: #fbbf24; font-weight: 700; }
     .timer-wrap.up .timer-text { color: #ef4444; font-weight: 700; }
 
-    /* 表情雨：围观也能起哄 */
-    .react-bar { position: fixed; left: 50%; bottom: 70px; transform: translateX(-50%); display: flex; gap: 5px; padding: 5px 9px; border-radius: 999px; background: rgba(12,10,28,0.86); border: 1px solid var(--glass-border); z-index: 1300; box-shadow: 0 10px 30px rgba(0,0,0,0.45); }
-    .react-bar button { width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); font-size: 1.1rem; line-height: 1; cursor: pointer; transition: transform 0.18s cubic-bezier(0.34,1.56,0.64,1), background 0.18s; padding: 0; }
-    .react-bar button:hover { transform: translateY(-3px) scale(1.12); background: rgba(255,255,255,0.16); }
-    .react-bar button:active { transform: scale(0.92); }
-    .react-bar button:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 2px; }
+    /* 表情互动：收起的浮窗（右上角小浮标，点开才展开，不挡任何控件；图标位见 probe-reactdock 探测） */
+    .react-dock { position: fixed; top: 46px; right: 8px; z-index: 1300; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .react-fab { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(139,92,246,0.55); color: #ddd6fe; cursor: pointer; padding: 0;
+      background: radial-gradient(circle at 32% 26%, rgba(139,92,246,0.5), rgba(12,10,28,0.94) 72%); display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.42), 0 0 14px rgba(139,92,246,0.32); transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.22s, color 0.22s, border-color 0.22s; }
+    .react-fab-emoji { font-size: 23px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5)); transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1); }
+    .react-fab:hover { transform: scale(1.08); color: #fff; box-shadow: 0 8px 26px rgba(0,0,0,0.5), 0 0 20px rgba(139,92,246,0.55); }
+    .react-fab:hover .react-fab-emoji { transform: rotate(-8deg) scale(1.06); }
+    .react-fab:active { transform: scale(0.93); }
+    .react-fab:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 2px; }
+    .react-dock.open .react-fab { color: #fff; border-color: rgba(34,211,238,0.65); box-shadow: 0 0 22px rgba(34,211,238,0.5), 0 6px 20px rgba(0,0,0,0.42); }
+    .react-pop { display: none; flex-direction: column; gap: 6px; }
+    .react-dock.open .react-pop { display: flex; animation: react-pop-in 0.22s cubic-bezier(0.34,1.56,0.64,1); }
+    @keyframes react-pop-in { from { opacity: 0; transform: translateY(-10px) scale(0.86); } }
+    .react-pop button { width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.14); background: rgba(12,10,28,0.88); font-size: 21px; line-height: 1;
+      display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; backdrop-filter: blur(6px); box-shadow: 0 4px 14px rgba(0,0,0,0.38);
+      transition: transform 0.18s cubic-bezier(0.34,1.56,0.64,1), background 0.18s, border-color 0.18s, box-shadow 0.18s; }
+    .react-pop button:hover { transform: translateX(-3px) scale(1.1); border-color: var(--rc); background: rgba(255,255,255,0.14); box-shadow: 0 0 16px -2px var(--rc); }
+    .react-pop button:active { transform: scale(0.92); }
+    .react-pop button:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 2px; }
     .react-rain { position: fixed; z-index: 1290; pointer-events: none; font-size: 1.7rem; animation: react-rise 2.4s ease-out forwards; }
     @keyframes react-rise { 0% { transform: translate3d(0, 0, 0) scale(0.6); opacity: 0; } 12% { opacity: 1; transform: translate3d(0, -16px, 0) scale(1.18); } 100% { transform: translate3d(var(--rdx, 0px), calc(var(--rh, 36vh) * -1), 0) scale(0.85) rotate(var(--rrot, 0deg)); opacity: 0; } }
 
@@ -526,6 +581,43 @@
     /* 低端机：3D 场景平面化（保留空间布局，砍掉斜切与大位移的每帧重光栅化） */
     body.loperf .table3d { transform: translate(-50%, -50%); opacity: 0.3; }
     body.loperf .players-grid.ring3d .player-card { transition: none; }
+
+    /* 矮屏的平板/笔记本（宽 > 600 且高 ≤ 880，且非手机横屏 landui）：整体压一档，
+       保证选卡与「完成/跳过」落在首屏内（旧版在 1024×768 / 1280×800 / 1440×900 会掉到折线以下，
+       最后这个是差 4px 的“看着刚好”，所以门檻收到 920）。
+       ⚠ 位置有讲究：必须写在 .players-grid.ring3d / .card-* 这些基础规则「之后」——
+       同特异度下后来的赢，写在前面时座次环那条高度一直是死代码（44vh 根本没被压过）。
+       landui（手机横屏）靠 body.landui 的更高特异度接管，不受这里影响。 */
+    @media (min-width: 601px) and (max-height: 920px) {
+      .cam { gap: 12px; }
+      .players-grid.ring3d { height: clamp(180px, 26.5vh, 268px); }
+      .choice-card { width: 136px; height: 158px; }
+      .choice-card .icon { font-size: 2.6rem; }
+      .card-stage { width: min(300px, 78vw, 46vh); height: calc(min(300px, 78vw, 46vh) * 4 / 3); }
+      .flip-card .card-face { padding: 18px; gap: 10px; }
+      .stat-chip { padding: 4px 12px; font-size: 0.78rem; }
+      .turn-info { font-size: 1.15rem; }
+      .card-front .type-badge { font-size: 0.9rem; }
+      .card-front .card-actions button { padding: 7px 12px; font-size: 0.82rem; }
+      /* 揭晓时收起座次环（纵向本来就不够）：优先保证题面与「完成/跳过/免答牌」都在首屏内。
+         手机横屏 landui 是左右分栏，不适用这条 —— 用 body:not(.landui) 排除。 */
+      body:not(.landui) #screen-game:has(#card-section:not([hidden])) .players-grid.ring3d { display: none; }
+    }
+
+    /* 超宽屏（≥1440，非手机横屏）大厅两栏：左边「邀请 + 玩法 + 开局」，右边「玩家墙」。
+       920px 单栏在 1440+ 上右半边全是空的；两栏把内容列撑到 1180px 正好用完。
+       1440 以下仍单栏：再窄，右栏会跟右上角互动浮窗的展开态挤在一起。
+       选择器一律带 #screen-lobby（特异度高于各基础规则）；landui 那套写在后面，同特异度时横屏赢。 */
+    @media (min-width: 1440px) {
+      body:not(.landui) #screen-lobby.active { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr);
+        column-gap: 26px; row-gap: 10px; align-items: start; align-content: start; max-width: 1180px; }
+      body:not(.landui) #screen-lobby .share-box { grid-area: 1 / 1; max-width: none; }
+      body:not(.landui) #screen-lobby .mode-pick { grid-area: 2 / 1; max-width: none; margin: 0; }
+      body:not(.landui) #screen-lobby #mode-note { grid-area: 3 / 1; }
+      body:not(.landui) #screen-lobby .lobby-summary { grid-area: 4 / 1; margin: 0; }
+      body:not(.landui) #screen-lobby #lobby-actions { grid-area: 5 / 1 / 6 / 3; width: 100%; }
+      body:not(.landui) #screen-lobby .players-section { grid-area: 1 / 2 / 5 / 3; width: 100%; margin: 0; }
+    }
 
     /* ══════════════════ 横屏模式（手机横持自适应 + 手动切换） ══════════════════
        两种情况共用同一套横屏布局（body.landui）：
@@ -668,8 +760,10 @@
     body.landui .modal-box { max-height: calc(var(--lvh) - 16px); max-width: min(760px, 94vw); padding: 14px 18px; }
     body.landui .modal-box h3 { margin-bottom: 10px; }
     body.landui .guide-box ol { gap: 6px; margin-bottom: 10px; }
-    body.landui .react-bar { left: 4px; right: auto; top: 50%; bottom: auto; transform: translateY(-50%); flex-direction: column; gap: 3px; padding: 4px; }
-    body.landui .react-bar button { width: 32px; height: 32px; font-size: 0.95rem; }
+    body.landui .react-dock { top: 44px; right: 6px; gap: 5px; }
+    body.landui .react-fab { width: 40px; height: 40px; }
+    body.landui .react-fab-emoji { font-size: 21px; }
+    body.landui .react-pop button { width: 36px; height: 36px; font-size: 19px; }
     body.landui .toast { top: 6px; bottom: auto; font-size: 0.8rem; padding: 7px 16px; max-width: 62%; }
     body.landui .toast:not(.show) { transform: translateX(-50%) translateY(-160px); }   /* 顶部弹出：隐藏态向上走，不要从顶部下方冒出来 */
     body.landui .pick-tip { font-size: 0.7rem; }
@@ -825,6 +919,7 @@
         <button class="btn btn-secondary listen-btn js-listen-btn" id="btn-listen-lobby" title="不点连麦也能听到开麦的人；这里只关自己听到的声音">🔊 <span class="listen-label">收听</span></button>
         <button class="btn btn-secondary only-host" id="btn-settings-lobby">⚙️ 设置 · 题库</button>
         <button class="btn btn-secondary js-sfx-btn" id="btn-sfx-lobby" title="本机音效开关（WebAudio 合成，不下载资源）">🔊 音效</button>
+        <button class="btn btn-secondary js-bgm-btn" id="btn-bgm-lobby" title="本机背景音乐开关（WebAudio 合成，不下载资源）">🎵 背景音乐</button>
         <button class="btn btn-secondary" id="btn-guide-lobby">❓ 怎么玩</button>
         <button class="btn btn-secondary" id="btn-leave">退出房间</button>
       </div>
@@ -917,6 +1012,7 @@
       <button class="btn btn-secondary listen-btn js-listen-btn" id="btn-listen-game" style="font-size:0.8rem;padding:6px 14px" title="不点连麦也能听到开麦的人；这里只关自己听到的声音">🔊 <span class="listen-label">收听</span></button>
       <button class="btn btn-secondary" id="btn-stats" style="font-size:0.8rem;padding:6px 14px">📊 战况</button>
       <button class="btn btn-secondary js-sfx-btn" id="btn-sfx-game" style="font-size:0.8rem;padding:6px 14px" title="本机音效开关">🔊 音效</button>
+      <button class="btn btn-secondary js-bgm-btn" id="btn-bgm-game" style="font-size:0.8rem;padding:6px 14px" title="本机背景音乐开关">🎵 背景音乐</button>
       <button class="btn btn-secondary only-host" id="btn-settings-game" style="font-size:0.8rem;padding:6px 14px">⚙️ 设置 · 题库</button>
       <button class="btn btn-secondary only-host" id="btn-pick-next" style="font-size:0.8rem;padding:6px 14px">🎲 随机点名</button>
       <button class="btn btn-secondary only-host" id="btn-finish-game" style="font-size:0.8rem;padding:6px 14px">🏁 结算</button>
@@ -977,19 +1073,27 @@
         <button type="button" class="mini-opt" id="btn-sfx-guide">音效：开</button>
       </div>
     </div>
+    <div class="set-group"><label>🎵 背景音乐（本机开关，WebAudio 合成、不下载资源）</label>
+      <div class="mini-row">
+        <button type="button" class="mini-opt" id="btn-bgm-guide">背景音乐：关</button>
+      </div>
+    </div>
     <button class="btn btn-primary" id="btn-guide-ok" style="align-self:center">明白啦 🎉</button>
   </div>
 </div>
 
 <div class="burst-container" id="burst-container"></div>
-<!-- 表情雨：围观也能起哄（房间内广播，不落库） -->
-<div class="react-bar" id="react-bar" hidden role="group" aria-label="表情互动">
-  <button type="button" data-react="👏" aria-label="鼓掌">👏</button>
-  <button type="button" data-react="😂" aria-label="大笑">😂</button>
-  <button type="button" data-react="😱" aria-label="震惊">😱</button>
-  <button type="button" data-react="🔥" aria-label="火爆">🔥</button>
-  <button type="button" data-react="😈" aria-label="使坏">😈</button>
-  <button type="button" data-react="❤️" aria-label="爱心">❤️</button>
+<!-- 表情互动：右上角收起的小浮标，点开才展开六颗 emoji（不挡界面；发送的就是房间里广播的那六个表情） -->
+<div class="react-dock" id="react-bar" hidden>
+  <button type="button" class="react-fab" id="react-fab" aria-expanded="false" aria-controls="react-pop" aria-label="互动表情：发个表情起哄" title="互动表情"><span class="react-fab-emoji" aria-hidden="true">😀</span></button>
+  <div class="react-pop" id="react-pop" role="group" aria-label="表情互动">
+    <button type="button" data-react="👏" aria-label="鼓掌" title="鼓掌" style="--rc:#fbbf24">👏</button>
+    <button type="button" data-react="😂" aria-label="大笑" title="大笑" style="--rc:#22d3ee">😂</button>
+    <button type="button" data-react="😱" aria-label="震惊" title="震惊" style="--rc:#a78bfa">😱</button>
+    <button type="button" data-react="🔥" aria-label="火爆" title="火爆" style="--rc:#fb923c">🔥</button>
+    <button type="button" data-react="😈" aria-label="使坏" title="使坏" style="--rc:#f472b6">😈</button>
+    <button type="button" data-react="❤️" aria-label="爱心" title="爱心" style="--rc:#fb7185">❤️</button>
+  </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -2475,6 +2579,7 @@ function dealFlyingCard() {
     { transform: `translate(${dx}px, ${dy}px) scale(${r2.width / r1.width}) rotate(0deg)`, opacity: 1 },
   ], { duration: 700, easing: 'cubic-bezier(0.3,1.1,0.4,1)' }).onfinish = () => {
     fc.remove();
+    SFX.play('draw');   // 落牌那一下的“发牌”声
     // 落牌即亮出牌背：镜头缓推到中央，“抽取中…”呼吸到翻牌一刻，中段不再空窗
     cardDealt = true;
     $('choice-section').hidden = true; $('deck-section').hidden = true; cs.hidden = false;
@@ -2557,6 +2662,8 @@ async function playReveal() {
   stageTimers.push(setTimeout(() => {
     flip.classList.add('flipped');
     SFX.play('flip');
+    SFX.play('spark');   // 翻面瞬间的上扬音
+    flipGlint();         // 牌面扫光一闪 + 中心涟漪
     if (t.choice === 'dare') Cam.shake(7, 300);   // 大冒险翻牌：镜头一颤，气氛拉满
     stageTimers.push(setTimeout(() => {
       SFX.play('reveal');
@@ -2618,6 +2725,9 @@ const SFX = {
       else if (name === 'win') [523, 659, 784, 1046].forEach((f, i) => this.tone(f, 0.3, 'triangle', 0.7, 0, i * 0.11));
       else if (name === 'skip') this.tone(240, 0.22, 'sine', 0.55, 130);
       else if (name === 'combo') [660, 880, 1174].forEach((f, i) => this.tone(f, 0.18, 'square', 0.38, 0, i * 0.07));
+      else if (name === 'tap') { this.tone(760, 0.05, 'sine', 0.4); this.tone(1200, 0.045, 'sine', 0.2, 0, 0.018); }
+      else if (name === 'draw') { this.tone(280, 0.3, 'triangle', 0.42, 880); this.tone(960, 0.18, 'sine', 0.28, 1520, 0.16); }
+      else if (name === 'spark') [880, 1174, 1568].forEach((f, i) => this.tone(f, 0.16, 'sine', 0.32, 0, i * 0.05));
       else if (name === 'react') this.tone(560 + Math.random() * 420, 0.12, 'sine', 0.38);
     } catch {}
   },
@@ -2637,6 +2747,143 @@ function syncSfxBtns() {
   });
   const g = $('btn-sfx-guide');
   if (g) g.textContent = '音效：' + (SFX.on ? '开' : '关');
+}
+
+// 背景音乐：同样是 WebAudio 现场合成（零资源下载），i–VI–III–VII 小调走向的慢和弦垫。
+// 独立于音效开关（localStorage['tod:bgm']），默认关；首次手势后才建 ctx，切后台自动停，省电不打扰。
+const BGM = {
+  on: false, KEY: 'tod:bgm', timer: null, step: 0, node: null, playing: false,
+  chords: [
+    [220.00, 261.63, 329.63],   // Am
+    [174.61, 220.00, 261.63],   // F
+    [130.81, 196.00, 261.63],   // C
+    [196.00, 246.94, 293.66],   // G
+  ],
+  init() {
+    try { this.on = localStorage.getItem(this.KEY) === 'on'; } catch {}
+    document.addEventListener('pointerdown', () => { if (this.on) this.start(); }, { once: true, passive: true });
+    document.addEventListener('visibilitychange', () => {   // 切后台冻结（与 CSS paused 同一思路）
+      if (!this.on) return;
+      if (document.hidden) this.stop(); else this.start();
+    });
+    syncBgmBtns();
+  },
+  ensure() {   // 复用音效的 AudioContext / 总线，再挂一条独立音乐增益
+    if (!SFX.ensure()) return null;
+    if (!this.node) {
+      this.node = SFX.ctx.createGain();
+      this.node.gain.value = 0.0001;
+      this.node.connect(SFX.master);
+    }
+    return SFX.ctx;
+  },
+  voice(freq, t0, dur, type, vol) {
+    const c = SFX.ctx, o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t0);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.001, vol), t0 + 0.28);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(this.node);
+    o.start(t0); o.stop(t0 + dur + 0.05);
+  },
+  tick() {
+    if (!this.on || !this.playing || !SFX.ctx) return;
+    const t = SFX.ctx.currentTime + 0.03;
+    const ch = this.chords[this.step % this.chords.length];
+    this.voice(ch[0] / 2, t, 2.5, 'sine', 0.5);                                      // 低音铺底
+    ch.forEach((f, i) => this.voice(f, t + i * 0.07, 2.0, 'triangle', 0.26));          // 和弦三音
+    this.voice(ch[(this.step + 1) % ch.length] * 2, t + 0.7, 1.0, 'sine', 0.14);      // 高八度点缀
+    this.step++;
+  },
+  start() {
+    if (!this.on || this.playing) return;
+    const c = this.ensure();
+    if (!c) return;
+    this.playing = true;
+    try { if (c.state === 'suspended') c.resume().catch(() => {}); } catch {}
+    const t = c.currentTime;
+    try {
+      this.node.gain.cancelScheduledValues(t);
+      this.node.gain.setValueAtTime(0.0001, t);
+      this.node.gain.exponentialRampToValueAtTime(0.9, t + 1.4);   // 缓入，别一开口就吓人
+    } catch {}
+    this.step = 0;
+    this.tick();
+    clearInterval(this.timer);
+    this.timer = setInterval(() => this.tick(), 1500);
+  },
+  stop() {
+    this.playing = false;
+    clearInterval(this.timer); this.timer = null;
+    if (this.node && SFX.ctx) {
+      const t = SFX.ctx.currentTime;
+      try {
+        this.node.gain.cancelScheduledValues(t);
+        this.node.gain.setValueAtTime(Math.max(0.0001, this.node.gain.value), t);
+        this.node.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);   // 缓出
+      } catch {}
+    }
+  },
+  toggle() {
+    this.on = !this.on;
+    try { localStorage.setItem(this.KEY, this.on ? 'on' : 'off'); } catch {}
+    if (this.on) { this.start(); toast('🎵 背景音乐已开'); }
+    else { this.stop(); toast('🔇 背景音乐已关'); }
+    syncBgmBtns();
+  },
+};
+function syncBgmBtns() {
+  const label = BGM.on ? '🎵 背景音乐' : '🔇 背景音乐';
+  document.querySelectorAll('.js-bgm-btn').forEach(b => {
+    b.textContent = label;
+    b.setAttribute('aria-pressed', BGM.on ? 'true' : 'false');
+  });
+  const g = $('btn-bgm-guide');
+  if (g) g.textContent = '背景音乐：' + (BGM.on ? '开' : '关');
+}
+
+// 点击反馈：抽卡（选卡/卡堆）与翻牌共用——按下回弹 + 一圈涟漪 + 轻点击音。
+// 牌面里的动作按钮（完成/跳过/免答）不抢反馈。
+function tapFx(el, ev, sound = 'tap') {
+  if (!el) return;
+  if (ev && ev.target && ev.target.closest && ev.target.closest('button:not(.choice-card):not(.deck)')) return;
+  SFX.play(sound);
+  el.classList.remove('tapped');
+  void el.offsetWidth;
+  el.classList.add('tapped');
+  setTimeout(() => el.classList.remove('tapped'), 440);
+  if (REDUCED || !ev || typeof ev.clientX !== 'number') return;
+  const r = el.getBoundingClientRect();
+  const size = Math.max(r.width, r.height) * 1.15;
+  const c = landPick(ev.clientX, ev.clientY);
+  const ring = document.createElement('span');
+  ring.className = 'tap-ring';
+  ring.style.left = c.x + 'px';
+  ring.style.top = c.y + 'px';
+  ring.style.setProperty('--tr', Math.round(size) + 'px');
+  document.body.appendChild(ring);
+  setTimeout(() => ring.remove(), 560);
+}
+
+// 翻牌揭晓一刻：牌面扫光一闪 + 中心涟漪（REDUCED 下静默）
+function flipGlint() {
+  const cs = $('card-section');
+  if (!cs || REDUCED) return;
+  const r = cs.getBoundingClientRect();
+  const a = landPick(r.left, r.top), b = landPick(r.left + r.width, r.top + r.height);
+  const g = document.createElement('div');
+  g.className = 'flip-glint';
+  g.style.left = a.x + 'px'; g.style.top = a.y + 'px';
+  g.style.width = (b.x - a.x) + 'px'; g.style.height = (b.y - a.y) + 'px';
+  document.body.appendChild(g);
+  setTimeout(() => g.remove(), 760);
+  const c = landPick(r.left + r.width / 2, r.top + r.height / 2);
+  const ring = document.createElement('span');
+  ring.className = 'tap-ring';
+  ring.style.left = c.x + 'px'; ring.style.top = c.y + 'px';
+  ring.style.setProperty('--tr', Math.round(Math.max(r.width, r.height) * 1.2) + 'px');
+  document.body.appendChild(ring);
+  setTimeout(() => ring.remove(), 560);
 }
 
 // 表情雨：房间内广播（非 retained），围观的也能起哄；同一条只播一次，跳设备回放的旧表情丢弃
@@ -2684,8 +2931,23 @@ function spawnReact(e, seed) {
 function updateReactBar() {
   const bar = $('react-bar');
   if (!bar) return;
-  bar.hidden = !(joined && S && !S.finished && (currentScreen() === 'lobby' || currentScreen() === 'game'));
+  const can = !!(joined && S && !S.finished && (currentScreen() === 'lobby' || currentScreen() === 'game'));
+  bar.hidden = !can;
+  if (!can && bar.classList.contains('open')) setReactDock(false);   // 换到不该出现的屏：收起来
 }
+// 互动浮窗开合：常驻只占右上角一颗小浮标，点开才展开六颗图标；发完 / 无操作 / 点外面都会自动收起
+const REACT_DOCK = { timer: 0 };
+function reactDockOpen() { const b = $('react-bar'); return !!b && b.classList.contains('open'); }
+function setReactDock(open) {
+  const bar = $('react-bar');
+  if (!bar) return;
+  bar.classList.toggle('open', !!open);
+  const fab = $('react-fab');
+  if (fab) fab.setAttribute('aria-expanded', open ? 'true' : 'false');
+  clearTimeout(REACT_DOCK.timer);
+  if (open) REACT_DOCK.timer = setTimeout(() => setReactDock(false), 9000);   // 没人动就自己收起来
+}
+function armReactDockClose(ms = 1500) { clearTimeout(REACT_DOCK.timer); REACT_DOCK.timer = setTimeout(() => setReactDock(false), ms); }
 
 // 命运转盘：主持人随机点名时，光点沿座次环跑动减速，镜头跟着扫一圈（只在本机演，状态由 designate 落地）
 async function spinPick() {
@@ -4541,6 +4803,10 @@ $('btn-leave').addEventListener('click', doLeave);
 $('btn-leave-game').addEventListener('click', doLeave);
 $('card-truth').addEventListener('click', () => choose('truth'));
 $('card-dare').addEventListener('click', () => choose('dare'));
+// 点击反馈：抽卡（选卡/卡堆）与翻牌共用按下回弹 + 涟漪 + 轻点击音
+['card-truth', 'card-dare'].forEach(id => { const el = $(id); el.addEventListener('pointerdown', ev => tapFx(el, ev)); });
+$('deck').addEventListener('pointerdown', ev => tapFx($('deck'), ev));
+$('flip-card').addEventListener('pointerdown', ev => tapFx($('flip-card'), ev));
 document.querySelectorAll('.js-mic-btn').forEach(b => b.addEventListener('click', toggleMic));
 document.querySelectorAll('.js-listen-btn').forEach(b => b.addEventListener('click', toggleListen));
 $('btn-accept').addEventListener('click', () => finishTurn(false));
@@ -4555,9 +4821,14 @@ $('btn-pick-next').addEventListener('click', spinPick);   // 🎡 命运转盘�
 $('btn-stake').addEventListener('click', setStake);
 $('bet-accept').addEventListener('click', () => placeBet('accept'));
 $('bet-skip').addEventListener('click', () => placeBet('skip'));
-$('react-bar').querySelectorAll('button[data-react]').forEach(b => b.addEventListener('click', () => sendReact(b.dataset.react)));
+$('react-fab').addEventListener('click', () => { setReactDock(!reactDockOpen()); SFX.play('tick'); });
+$('react-bar').querySelectorAll('button[data-react]').forEach(b => b.addEventListener('click', () => { sendReact(b.dataset.react); armReactDockClose(1400); }));
+document.addEventListener('pointerdown', e => { if (!e.target.closest('#react-bar')) setReactDock(false); }, true);   // 点屏幕任意处收起
+document.addEventListener('keydown', e => { if (e.key === 'Escape') setReactDock(false); });
 document.querySelectorAll('.js-sfx-btn').forEach(b => b.addEventListener('click', () => SFX.toggle()));
 $('btn-sfx-guide').addEventListener('click', () => SFX.toggle());
+document.querySelectorAll('.js-bgm-btn').forEach(b => b.addEventListener('click', () => BGM.toggle()));
+$('btn-bgm-guide').addEventListener('click', () => BGM.toggle());
 $('btn-land').addEventListener('click', toggleLand);
 window.addEventListener('resize', () => { if (S && S.gameStarted) layoutRing($('game-players-grid')); });
 window.addEventListener('resize', applyLand);
@@ -4640,6 +4911,7 @@ if (LOWPERF) document.body.classList.add('loperf');   // 低端机自动降载�
 });
 syncPerfBtns();
 SFX.init();
+BGM.init();
 initCamParallax();
 applyLand();   // 横屏：竖屏里恢复上次的手动选择，真·横屏矮视口自动套横屏布局
 Cam.init();   // 3D 镜头开机：从远处推进到加入页（一镜到底的第一段）

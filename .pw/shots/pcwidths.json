@@ -1,0 +1,731 @@
+[
+ {
+  "size": "1920x1000",
+  "join": {
+   "vw": 1920,
+   "vh": 1000,
+   "sx": 0,
+   "docW": 1920,
+   "land": "",
+   "screen": [
+    516,
+    145,
+    904,
+    716
+   ],
+   "screenCenterOff": 8,
+   "h1": 1,
+   "chip": 0,
+   "bar": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "barIn": true,
+   "landBtn": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "kids": [
+    {
+     "id": "join-box",
+     "off": 6,
+     "w": 785,
+     "right": 1358,
+     "bottom": 801
+    },
+    {
+     "id": "import-join-wrap",
+     "off": 3,
+     "w": 530,
+     "right": 1228,
+     "bottom": 858
+    }
+   ]
+  },
+  "lobby": {
+   "vw": 1920,
+   "vh": 1000,
+   "sx": 0,
+   "docW": 1920,
+   "land": "is-host",
+   "screen": [
+    369,
+    142,
+    1180,
+    472
+   ],
+   "screenCenterOff": -1,
+   "h1": 0,
+   "chip": 0,
+   "bar": [
+    1868,
+    46,
+    44,
+    44
+   ],
+   "barIn": true,
+   "landBtn": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "kids": [
+    {
+     "id": "share-box",
+     "off": -313,
+     "w": 555,
+     "right": 925,
+     "bottom": 364
+    },
+    {
+     "id": "players-section",
+     "off": 290,
+     "w": 599,
+     "right": 1549,
+     "bottom": 273
+    },
+    {
+     "id": "mode-pick",
+     "off": -313,
+     "w": 555,
+     "right": 925,
+     "bottom": 437
+    },
+    {
+     "id": "mode-note",
+     "off": -313,
+     "w": 555,
+     "right": 925,
+     "bottom": 463
+    },
+    {
+     "id": "lobby-summary",
+     "off": -313,
+     "w": 555,
+     "right": 925,
+     "bottom": 497
+    },
+    {
+     "id": "lobby-actions",
+     "off": -1,
+     "w": 1180,
+     "right": 1550,
+     "bottom": 614
+    }
+   ]
+  }
+ },
+ {
+  "size": "1440x900",
+  "join": {
+   "vw": 1440,
+   "vh": 900,
+   "sx": 0,
+   "docW": 1440,
+   "land": "",
+   "screen": [
+    276,
+    145,
+    904,
+    717
+   ],
+   "screenCenterOff": 8,
+   "h1": 0,
+   "chip": 0,
+   "bar": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "barIn": true,
+   "landBtn": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "kids": [
+    {
+     "id": "join-box",
+     "off": 6,
+     "w": 785,
+     "right": 1118,
+     "bottom": 801
+    },
+    {
+     "id": "import-join-wrap",
+     "off": 3,
+     "w": 530,
+     "right": 988,
+     "bottom": 858
+    }
+   ]
+  },
+  "lobby": {
+   "vw": 1440,
+   "vh": 900,
+   "sx": 0,
+   "docW": 1440,
+   "land": "is-host",
+   "screen": [
+    129,
+    142,
+    1181,
+    472
+   ],
+   "screenCenterOff": -1,
+   "h1": 1,
+   "chip": 0,
+   "bar": [
+    1388,
+    46,
+    44,
+    44
+   ],
+   "barIn": true,
+   "landBtn": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "kids": [
+    {
+     "id": "share-box",
+     "off": -313,
+     "w": 556,
+     "right": 685,
+     "bottom": 364
+    },
+    {
+     "id": "players-section",
+     "off": 290,
+     "w": 598,
+     "right": 1309,
+     "bottom": 273
+    },
+    {
+     "id": "mode-pick",
+     "off": -313,
+     "w": 556,
+     "right": 685,
+     "bottom": 437
+    },
+    {
+     "id": "mode-note",
+     "off": -313,
+     "w": 556,
+     "right": 685,
+     "bottom": 463
+    },
+    {
+     "id": "lobby-summary",
+     "off": -313,
+     "w": 556,
+     "right": 685,
+     "bottom": 498
+    },
+    {
+     "id": "lobby-actions",
+     "off": -1,
+     "w": 1181,
+     "right": 1310,
+     "bottom": 614
+    }
+   ]
+  }
+ },
+ {
+  "size": "1280x800",
+  "join": {
+   "vw": 1280,
+   "vh": 800,
+   "sx": 0,
+   "docW": 1280,
+   "land": "",
+   "screen": [
+    196,
+    145,
+    904,
+    717
+   ],
+   "screenCenterOff": 8,
+   "h1": 0,
+   "chip": 0,
+   "bar": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "barIn": true,
+   "landBtn": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "kids": [
+    {
+     "id": "join-box",
+     "off": 6,
+     "w": 785,
+     "right": 1038,
+     "bottom": 801
+    },
+    {
+     "id": "import-join-wrap",
+     "off": 3,
+     "w": 530,
+     "right": 908,
+     "bottom": 858
+    }
+   ]
+  },
+  "lobby": {
+   "vw": 1280,
+   "vh": 800,
+   "sx": 0,
+   "docW": 1280,
+   "land": "is-host",
+   "screen": [
+    179,
+    142,
+    921,
+    613
+   ],
+   "screenCenterOff": -1,
+   "h1": 0,
+   "chip": 1,
+   "bar": [
+    1228,
+    46,
+    44,
+    44
+   ],
+   "barIn": true,
+   "landBtn": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "kids": [
+    {
+     "id": "share-box",
+     "off": 0,
+     "w": 540,
+     "right": 910,
+     "bottom": 364
+    },
+    {
+     "id": "players-section",
+     "off": -1,
+     "w": 920,
+     "right": 1100,
+     "bottom": 511
+    },
+    {
+     "id": "mode-pick",
+     "off": 0,
+     "w": 540,
+     "right": 910,
+     "bottom": 592
+    },
+    {
+     "id": "mode-note",
+     "off": 0,
+     "w": 292,
+     "right": 786,
+     "bottom": 615
+    },
+    {
+     "id": "lobby-summary",
+     "off": 0,
+     "w": 496,
+     "right": 888,
+     "bottom": 641
+    },
+    {
+     "id": "lobby-actions",
+     "off": 0,
+     "w": 919,
+     "right": 1099,
+     "bottom": 755
+    }
+   ]
+  }
+ },
+ {
+  "size": "1024x768",
+  "join": {
+   "vw": 1024,
+   "vh": 768,
+   "sx": 0,
+   "docW": 1024,
+   "land": "",
+   "screen": [
+    68,
+    145,
+    904,
+    717
+   ],
+   "screenCenterOff": 8,
+   "h1": 1,
+   "chip": 0,
+   "bar": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "barIn": true,
+   "landBtn": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "kids": [
+    {
+     "id": "join-box",
+     "off": 6,
+     "w": 785,
+     "right": 910,
+     "bottom": 801
+    },
+    {
+     "id": "import-join-wrap",
+     "off": 3,
+     "w": 530,
+     "right": 780,
+     "bottom": 858
+    }
+   ]
+  },
+  "lobby": {
+   "vw": 1024,
+   "vh": 768,
+   "sx": 0,
+   "docW": 1024,
+   "land": "is-host",
+   "screen": [
+    51,
+    142,
+    921,
+    614
+   ],
+   "screenCenterOff": -1,
+   "h1": 0,
+   "chip": 0,
+   "bar": [
+    972,
+    46,
+    44,
+    44
+   ],
+   "barIn": true,
+   "landBtn": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "kids": [
+    {
+     "id": "share-box",
+     "off": 0,
+     "w": 540,
+     "right": 782,
+     "bottom": 364
+    },
+    {
+     "id": "players-section",
+     "off": -1,
+     "w": 920,
+     "right": 972,
+     "bottom": 511
+    },
+    {
+     "id": "mode-pick",
+     "off": 0,
+     "w": 540,
+     "right": 782,
+     "bottom": 593
+    },
+    {
+     "id": "mode-note",
+     "off": 0,
+     "w": 292,
+     "right": 658,
+     "bottom": 615
+    },
+    {
+     "id": "lobby-summary",
+     "off": 0,
+     "w": 496,
+     "right": 760,
+     "bottom": 641
+    },
+    {
+     "id": "lobby-actions",
+     "off": -1,
+     "w": 919,
+     "right": 971,
+     "bottom": 756
+    }
+   ]
+  }
+ },
+ {
+  "size": "900x900",
+  "join": {
+   "vw": 900,
+   "vh": 900,
+   "sx": 0,
+   "docW": 900,
+   "land": "",
+   "screen": [
+    34,
+    141,
+    845,
+    716
+   ],
+   "screenCenterOff": 7,
+   "h1": 1,
+   "chip": 0,
+   "bar": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "barIn": true,
+   "landBtn": [
+    829,
+    8,
+    63,
+    26
+   ],
+   "kids": [
+    {
+     "id": "join-box",
+     "off": 6,
+     "w": 785,
+     "right": 848,
+     "bottom": 797
+    },
+    {
+     "id": "import-join-wrap",
+     "off": 3,
+     "w": 530,
+     "right": 718,
+     "bottom": 854
+    }
+   ]
+  },
+  "lobby": {
+   "vw": 900,
+   "vh": 900,
+   "sx": 0,
+   "docW": 900,
+   "land": "is-host",
+   "screen": [
+    19,
+    138,
+    861,
+    674
+   ],
+   "screenCenterOff": -1,
+   "h1": 0,
+   "chip": 0,
+   "bar": [
+    848,
+    46,
+    44,
+    44
+   ],
+   "barIn": true,
+   "landBtn": [
+    829,
+    8,
+    63,
+    26
+   ],
+   "kids": [
+    {
+     "id": "share-box",
+     "off": 0,
+     "w": 540,
+     "right": 720,
+     "bottom": 360
+    },
+    {
+     "id": "players-section",
+     "off": -1,
+     "w": 860,
+     "right": 879,
+     "bottom": 507
+    },
+    {
+     "id": "mode-pick",
+     "off": 0,
+     "w": 540,
+     "right": 720,
+     "bottom": 588
+    },
+    {
+     "id": "mode-note",
+     "off": 0,
+     "w": 292,
+     "right": 596,
+     "bottom": 611
+    },
+    {
+     "id": "lobby-summary",
+     "off": 0,
+     "w": 496,
+     "right": 698,
+     "bottom": 637
+    },
+    {
+     "id": "lobby-actions",
+     "off": -1,
+     "w": 861,
+     "right": 880,
+     "bottom": 811
+    }
+   ]
+  }
+ },
+ {
+  "size": "820x1180",
+  "join": {
+   "vw": 820,
+   "vh": 1180,
+   "sx": 0,
+   "docW": 820,
+   "land": "",
+   "screen": [
+    32,
+    138,
+    766,
+    713
+   ],
+   "screenCenterOff": 5,
+   "h1": 1,
+   "chip": 0,
+   "bar": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "barIn": true,
+   "landBtn": [
+    749,
+    8,
+    63,
+    26
+   ],
+   "kids": [
+    {
+     "id": "join-box",
+     "off": 5,
+     "w": 765,
+     "right": 798,
+     "bottom": 791
+    },
+    {
+     "id": "import-join-wrap",
+     "off": 3,
+     "w": 530,
+     "right": 678,
+     "bottom": 849
+    }
+   ]
+  },
+  "lobby": {
+   "vw": 820,
+   "vh": 1180,
+   "sx": 0,
+   "docW": 820,
+   "land": "is-host",
+   "screen": [
+    19,
+    132,
+    780,
+    673
+   ],
+   "screenCenterOff": -1,
+   "h1": 0,
+   "chip": 1,
+   "bar": [
+    768,
+    46,
+    44,
+    44
+   ],
+   "barIn": true,
+   "landBtn": [
+    749,
+    8,
+    63,
+    26
+   ],
+   "kids": [
+    {
+     "id": "share-box",
+     "off": 0,
+     "w": 540,
+     "right": 680,
+     "bottom": 354
+    },
+    {
+     "id": "players-section",
+     "off": -1,
+     "w": 780,
+     "right": 799,
+     "bottom": 501
+    },
+    {
+     "id": "mode-pick",
+     "off": 0,
+     "w": 540,
+     "right": 680,
+     "bottom": 582
+    },
+    {
+     "id": "mode-note",
+     "off": 0,
+     "w": 292,
+     "right": 556,
+     "bottom": 604
+    },
+    {
+     "id": "lobby-summary",
+     "off": 0,
+     "w": 496,
+     "right": 658,
+     "bottom": 630
+    },
+    {
+     "id": "lobby-actions",
+     "off": -1,
+     "w": 780,
+     "right": 799,
+     "bottom": 805
+    }
+   ]
+  }
+ },
+ {
+  "done": true
+ }
+]

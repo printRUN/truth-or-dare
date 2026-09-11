@@ -75,9 +75,18 @@ const clickWhenHittable = async (p, sel) => { await p.click(sel, { timeout: 2000
     await A.waitForTimeout(900);
     ok(true, `组0 双人入房 OK（房间 ${room}）`);
 
-    // ═══ 组 1：表情雨 ═══
+    // ═══ 组 1：表情雨（浮窗默认收起：先点右上角浮标展开，再点 emoji） ═══
     const barVisible = await A.evaluate(() => !document.getElementById('react-bar').hidden);
-    ok(barVisible, '组1 大厅显示表情栏 #react-bar');
+    ok(barVisible, '组1 大厅显示表情浮标 #react-bar');
+    const openDock = async p => p.evaluate(() => {
+      const b = document.getElementById('react-bar');
+      if (!b.classList.contains('open')) document.getElementById('react-fab').click();
+    });
+    await A.click('#react-fab');
+    const dockOpen = await A.evaluate(() => document.getElementById('react-bar').classList.contains('open'));
+    ok(dockOpen, '组1 点浮标展开表情图标（6 颗）');
+    const emo = await A.evaluate(() => [...document.querySelectorAll('#react-pop button[data-react]')].map(b => ({ t: b.textContent.trim(), e: b.dataset.react, w: b.getBoundingClientRect().width })));
+    ok(emo.length === 6 && emo.every(x => x.t === x.e && x.w >= 30), `组1 表情按钮用 emoji 渲染（${emo.map(x => x.t).join('')}）`);
     await A.click('#react-bar button[data-react="🔥"]');
     const selfRain = await A.evaluate(() => document.querySelectorAll('.react-rain').length);
     const peerRain = await B.waitForFunction(() => document.querySelectorAll('.react-rain').length >= 1, null, { timeout: 4000 }).then(() => true).catch(() => false);
@@ -85,6 +94,7 @@ const clickWhenHittable = async (p, sel) => { await p.click(sel, { timeout: 2000
     ok(peerRain, '组1 另一标签页 ~3s 内收到表情（房间广播）');
     // 防刷屏：连点 3 次，320ms 窗口内只应新增 ≤2 颗
     const before = await B.evaluate(() => document.querySelectorAll('.react-rain').length);
+    await openDock(A);
     for (let i = 0; i < 3; i++) { await A.click('#react-bar button[data-react="😂"]'); await A.waitForTimeout(90); }
     await A.waitForTimeout(500);
     const after = await B.evaluate(() => document.querySelectorAll('.react-rain').length);
