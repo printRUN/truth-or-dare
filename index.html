@@ -160,14 +160,20 @@
     @keyframes player-enter { from { opacity: 0; transform: translateY(40px) scale(0.8); } to { opacity: 1; transform: translateY(0) scale(1); } }
     .avatar-ring { width: 70px; height: 70px; border-radius: 50%; padding: 3px; position: relative; }
     /* 只转环不转人：旋转的 conic 渐变放在 ::before，头像本体保持正向 */
-    .avatar-ring::before { content: ''; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(var(--primary), var(--accent-pink), var(--accent-cyan), var(--primary)); animation: ring-spin 4s linear infinite; }
+    /* z-index:0 显式声明：环是无限旋转的动画伪元素，合成器会单独给它开一层；不写死顺序时
+       iOS（尤其微信 WKWebView）可能按「层创建先后」而不是 DOM 顺序排，环就压到头像上。 */
+    .avatar-ring::before { content: ''; position: absolute; inset: 0; border-radius: 50%; z-index: 0; background: conic-gradient(var(--primary), var(--accent-pink), var(--accent-cyan), var(--primary)); animation: ring-spin 4s linear infinite; }
     .avatar-ring.active::before { background: conic-gradient(var(--accent-cyan), #fff, var(--accent-cyan)); animation: ring-spin 1.5s linear infinite; }
     .avatar-ring.active { animation: pulse-ring 0.8s ease-in-out infinite alternate; box-shadow: 0 0 20px rgba(34,211,238,0.6); }
     .avatar-ring.pass { animation: pass-pop 0.9s cubic-bezier(0.34,1.56,0.64,1); }
     @keyframes pass-pop { 0% { transform: scale(1); } 40% { transform: scale(1.25); } 100% { transform: scale(1); } }
     @keyframes ring-spin { to { transform: rotate(360deg); } }
     @keyframes pulse-ring { from { box-shadow: 0 0 10px rgba(34,211,238,0.4); } to { box-shadow: 0 0 30px rgba(34,211,238,0.8); } }
-    .avatar-inner { width: 100%; height: 100%; border-radius: 50%; overflow: hidden; background: var(--bg); position: relative; z-index: 1; transition: transform 0.09s linear; }
+    /* clip-path 是给 iOS 的兜底：游戏屏里 .player-card 带常驻 transform，头像整块被提升为合成层，
+       微信 WKWebView 在这种层里会丢掉 overflow:hidden + border-radius 的圆裁切 —— 头像会画成方块
+       糊住环（大厅没有常驻 transform，所以大厅正常）。clip-path 在合成阶段生效，层提升也不会丢。
+       border-radius 保留：它同时负责给不支持 clip-path 的老引擎兜底，两者取交叠，观感等价。 */
+    .avatar-inner { width: 100%; height: 100%; border-radius: 50%; clip-path: circle(50%); overflow: hidden; background: var(--bg); position: relative; z-index: 1; transition: transform 0.09s linear; }
     .avatar-inner img { width: 100%; height: 100%; object-fit: cover; }
     .avatar-wrap { position: relative; }
     .me-tag { position: absolute; top: -4px; right: -8px; background: var(--primary); color: #fff; font-size: 0.6rem; font-weight: 700; padding: 1px 5px; border-radius: 6px; z-index: 2; }
@@ -2459,6 +2465,7 @@ const CAM_EASE = {
 };
 const Cam = {
   el: null, cur: { ...CAM_ID }, par: { x: 0, y: 0 }, raf: 0, raf2: 0, token: 0, busy: false, curScreen: 'join', enteredAt: 0,
+  lastFocus: null, lastFocusPush: 1.05,   // 最近一次聚焦的元素（横竖屏切档时按新布局续接，见 realign）
   // 每屏常态机位：镜头停在这（这就是「牌桌微微俯视」的来源）
   base: {
     join: { x: 0, y: 0, z: -40, rx: 2.2, ry: -3, rz: 0, s: 1 },
@@ -2524,11 +2531,31 @@ const Cam = {
     if (!r.width || !r.height) return;
     const b = this.baseOf(this.curScreen);
     const mx = LAND.ui ? 16 : 46, my = LAND.ui ? 12 : 34;   // 横屏留白更紧，镜头平移幅度相应收小
-    const nx = (r.left + r.width / 2 - window.innerWidth / 2) / window.innerWidth;
-    const ny = (r.top + r.height / 2 - window.innerHeight / 2) / window.innerHeight;
+    // 偏移量必须在「镜头自己的坐标系」里算：landforce 旋转兜底时 body 整体转了 90°，
+    // 镜头的 translate3d 也跟着转，而 getBoundingClientRect 给的是屏幕坐标 ——
+    // 直接拿屏幕坐标当偏移会把 x/y 轴对调（镜头横着平移而不是推向目标，抽卡读起来就断了）。
+    const c = landPick(r.left + r.width / 2, r.top + r.height / 2);
+    const vw = LAND.force ? window.innerHeight : window.innerWidth;   // 旋转下逻辑宽高与物理互换
+    const vh = LAND.force ? window.innerWidth : window.innerHeight;
+    const nx = (c.x - vw / 2) / vw;
+    const ny = (c.y - vh / 2) / vh;
+    this.lastFocus = el; this.lastFocusPush = push;   // 供 realign() 换档后续接这一段运镜
     this.to({ x: b.x + Math.max(-mx, Math.min(mx, -nx * 190)), y: b.y + Math.max(-my, Math.min(my, -ny * 150)), z: b.z - 20, s: b.s * push }, dur, ease);
   },
   nudge(el) { this.focus(el, { push: 1.035, dur: 820 }); },
+  // 横竖屏切档（base 表换了）：不切镜——从当前机位补间到新档。刚才正聚焦在某个元素上就按新布局
+  // 重算一次落点，让跨方向的那一段一镜到底接着走；否则回新常态位。
+  // 旧写法是 resetCam(true) 瞬移：那一瞬会把在跑的运镜连同它的 done 回调一起作废，
+  // 抽卡中场转屏就会看到机位硬切一下、之后停在常态不再推镜。
+  realign(ms = 420) {
+    if (!this.el) return;
+    const el = this.lastFocus;
+    if (!REDUCED && el && el.isConnected) {
+      const r = el.getBoundingClientRect();
+      if (r.width && r.height) { this.focus(el, { push: this.lastFocusPush, dur: ms }); return; }
+    }
+    this.home(ms);
+  },
   // 冲击震动（翻到大冒险 / 暴击）：独立 rAF 槽，不打扰正在跑的运镜
   shake(mag = 7, ms = 300) {
     if (REDUCED || LOWPERF || !this.el) return;
@@ -3270,7 +3297,7 @@ function applyLand() {
   } else { root.removeProperty('--lvw'); root.removeProperty('--lvh'); }
   const changed = ui !== LAND.ui;
   LAND.force = force; LAND.ui = ui;
-  if (changed) { swapCamBase(ui); if (Cam.el) resetCam(true); }   // 机位切档：当场归位到新常态（不播补间）
+  if (changed) { swapCamBase(ui); if (Cam.el) Cam.realign(); }   // 机位切档：不瞬移，从当前机位补间到新档（聚焦中则按新布局续接）
   const b = $('btn-land');
   if (b) {
     b.hidden = !LAND.want && realLand;   // 已经是横屏了，无需切换入口
