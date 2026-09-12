@@ -71,9 +71,11 @@
     @keyframes scene-in-lite  { from { opacity: 0; } to { opacity: 1; } }
     @keyframes scene-out-lite { from { opacity: 1; } to { opacity: 0; } }
 
-    /* Loading — 3D 抽卡加载动画 */
-    .loading-overlay { position: fixed; inset: 0; background: rgba(10,10,26,0.95); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; transition: opacity 0.5s ease, transform 0.5s ease, filter 0.5s ease; }
-    .loading-overlay.hide { opacity: 0; transform: scale(1.08); filter: blur(8px); pointer-events: none; }
+    /* Loading — 3D 抽卡加载动画
+       揭幕 = 260ms 快速「幕布掀起」（opacity+scale），不再用 filter:blur —— blur 是 paint-bound 大层
+       （光球去 blur 的同款教训），而且揭幕要和转身读成同一拍，拖 0.5s 会把转身前半程盖住。 */
+    .loading-overlay { position: fixed; inset: 0; background: rgba(10,10,26,0.95); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; transition: opacity 0.26s ease, transform 0.26s ease; }
+    .loading-overlay.hide { opacity: 0; transform: scale(1.04); pointer-events: none; }
     .loader-stage { perspective: 800px; width: 120px; height: 148px; position: relative; display: flex; align-items: center; justify-content: center; }
     .loader-card { width: 80px; height: 106px; border-radius: 14px; background: linear-gradient(135deg, var(--primary), var(--accent-pink)); border: 2px solid rgba(255,255,255,0.35); box-shadow: 0 16px 44px rgba(139,92,246,0.5), inset 0 0 18px rgba(255,255,255,0.16); display: flex; align-items: center; justify-content: center; font-size: 2.4rem; position: relative; z-index: 2; animation: loader-flip 2.4s cubic-bezier(0.45,0.05,0.55,0.95) infinite; transform-style: preserve-3d; }
     .loader-card::after { content: ''; position: absolute; inset: 6px; border-radius: 9px; border: 1.5px dashed rgba(255,255,255,0.4); }
@@ -87,6 +89,14 @@
     .loader-progress { width: 190px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.12); overflow: hidden; }
     .loader-progress i { display: block; height: 100%; width: 40%; border-radius: 2px; background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent); animation: loader-sweep 1.15s ease-in-out infinite; }
     @keyframes loader-sweep { from { transform: translateX(-110%); } to { transform: translateX(360%); } }
+    /* 大屏（≥1280）加载卡放大一档（走查实锤：1440 桌面上 80px 卡片只有 ~90px 观感，电影感没铺开）：
+       一次性落位尺寸，不加任何循环漂浮 */
+    @media (min-width: 1280px) {
+      .loader-stage { width: 168px; height: 202px; }
+      .loader-card { width: 116px; height: 154px; font-size: 3.4rem; }
+      .loading-text { font-size: 1.35rem; }
+      .loader-progress { width: 260px; }
+    }
 
     /* Join Box */
     .join-box { background: var(--glass); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: 24px; padding: 32px; width: 100%; max-width: 540px; display: flex; flex-direction: column; gap: 16px; box-shadow: 0 12px 48px rgba(0,0,0,0.35); }
@@ -170,11 +180,16 @@
        iOS（尤其微信 WKWebView）可能按「层创建先后」而不是 DOM 顺序排，环就压到头像上。 */
     .avatar-ring::before { content: ''; position: absolute; inset: 0; border-radius: 50%; z-index: 0; background: conic-gradient(var(--primary), var(--accent-pink), var(--accent-cyan), var(--primary)); animation: ring-spin 4s linear infinite; }
     .avatar-ring.active::before { background: conic-gradient(var(--accent-cyan), #fff, var(--accent-cyan)); animation: ring-spin 1.5s linear infinite; }
-    .avatar-ring.active { animation: pulse-ring 0.8s ease-in-out infinite alternate; box-shadow: 0 0 20px rgba(34,211,238,0.6); }
+    /* 持麦座位聚光：径向光斑伪元素 opacity 脉动（合成器路径），替代旧的 box-shadow 脉动
+       （box-shadow 动画是 paint-bound，每帧重光栅化 —— 光球去 blur 的同款教训，不再新增）。
+       ::after 显式 z-index:0 与 ::before 同层（iOS 合成层排序坑，见上），光斑垫在头像后面。 */
+    .avatar-ring.active::after { content: ''; position: absolute; inset: -9px; border-radius: 50%; z-index: 0; pointer-events: none;
+      background: radial-gradient(circle, rgba(34,211,238,0.30) 0%, rgba(34,211,238,0) 70%); opacity: 0.6; animation: seat-glow 0.9s ease-in-out infinite alternate; }
+    .avatar-ring.active { box-shadow: 0 0 20px rgba(34,211,238,0.6); }
+    @keyframes seat-glow { from { opacity: 0.4; } to { opacity: 1; } }
     .avatar-ring.pass { animation: pass-pop 0.9s cubic-bezier(0.34,1.56,0.64,1); }
     @keyframes pass-pop { 0% { transform: scale(1); } 40% { transform: scale(1.25); } 100% { transform: scale(1); } }
     @keyframes ring-spin { to { transform: rotate(360deg); } }
-    @keyframes pulse-ring { from { box-shadow: 0 0 10px rgba(34,211,238,0.4); } to { box-shadow: 0 0 30px rgba(34,211,238,0.8); } }
     /* clip-path 是给 iOS 的兜底：游戏屏里 .player-card 带常驻 transform，头像整块被提升为合成层，
        微信 WKWebView 在这种层里会丢掉 overflow:hidden + border-radius 的圆裁切 —— 头像会画成方块
        糊住环（大厅没有常驻 transform，所以大厅正常）。clip-path 在合成阶段生效，层提升也不会丢。
@@ -205,6 +220,11 @@
     /* Room share */
     .share-box { background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.25); border-radius: 16px; padding: 16px 20px; width: 100%; max-width: 540px; text-align: center; }
     .share-box p { font-size: 0.82rem; color: rgba(255,255,255,0.6); margin-bottom: 8px; }
+    /* 本地模式长警告折叠：一行 chip 示意（▾），点击展开全文；在线态不折叠 */
+    .share-box.fold p { cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .share-box.fold p::after { content: ' ▾'; opacity: 0.6; }
+    .share-box.fold.open p { white-space: normal; overflow: visible; }
+    .share-box.fold.open p::after { content: ' ▴'; }
     .share-room { font-family: 'ZCOOL KuaiLe', cursive; font-size: 1.6rem; letter-spacing: 6px; color: var(--accent-pink); text-shadow: 0 0 14px rgba(244,114,182,0.5); }
     .share-url { font-family: 'Courier New', monospace; color: var(--accent-cyan); font-size: 0.75rem; word-break: break-all; background: rgba(0,0,0,0.4); padding: 10px; border-radius: 8px; margin-top: 6px; display: block; line-height: 1.5; user-select: all; -webkit-user-select: all; cursor: text; }
     .copy-link-btn { margin-top: 10px; background: rgba(34,211,238,0.15); border: 1px solid rgba(34,211,238,0.4); color: var(--accent-cyan); padding: 9px 18px; min-height: 40px; border-radius: 10px; font-size: 0.82rem; font-family: inherit; font-weight: 700; cursor: pointer; transition: all 0.2s; }
@@ -274,7 +294,12 @@
     .card-front { background: linear-gradient(135deg, rgba(10,10,26,0.96), rgba(30,20,60,0.96)); border: 2px solid var(--glass-border); backdrop-filter: blur(20px); transform: rotateY(180deg); box-shadow: 0 10px 40px rgba(0,0,0,0.5); overflow-y: auto; }
     .card-front.truth-type { border-color: rgba(59,130,246,0.6); box-shadow: 0 10px 40px rgba(59,130,246,0.25); }
     .card-front.dare-type { border-color: rgba(249,115,22,0.6); box-shadow: 0 10px 40px rgba(249,115,22,0.25); }
+    /* 徽章行：类型徽章与惊喜角标同一 flex 行排布（旧版角标 absolute 叠左上角，长徽章一压一），
+       惊喜角标在打字机完成后才入列（见 paintSurprise 的 tagHold），入场即 pop */
+    .card-badges { display: flex; gap: 6px; align-items: center; justify-content: center; flex-wrap: wrap; }
     .card-front .type-badge { font-family: 'ZCOOL KuaiLe', cursive; font-size: 1rem; padding: 3px 14px; border-radius: 20px; flex: none; }
+    .type-badge.pop, .card-owner.pop { animation: badge-pop 0.34s cubic-bezier(0.34,1.56,0.64,1); }
+    @keyframes badge-pop { from { transform: scale(0.4); opacity: 0; } }
     .card-front.truth-type .type-badge { background: var(--truth); color: #fff; }
     .card-front.dare-type .type-badge { background: var(--dare); color: #fff; }
     .card-owner { font-size: 0.8rem; color: rgba(255,255,255,0.75); flex: none; }
@@ -389,6 +414,17 @@
       .stat-chip { padding: 4px 10px; font-size: 0.75rem; }
       .cam { gap: 12px; }
     }
+    /* 窄屏入局（走查实锤：28 颗头像折行 7 行，把房间号+加入按钮顶出首屏两屏开外）：
+       <620px 头像墙改「两行横向滚动带」，名字/房间号/加入按钮全部收进首屏。
+       两行用 grid 逐列流式；两端 12px 渐隐 mask 示能「还能滑」。 */
+    @media (max-width: 619px) {
+      #avatar-selector { display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, auto);
+        grid-auto-columns: 52px; gap: 8px; justify-items: center; align-items: center;
+        overflow-x: auto; overflow-y: hidden; padding: 2px 12px 6px 2px;
+        -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 14px), transparent 100%);
+        mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 14px), transparent 100%); }
+      #avatar-selector .avatar-option { width: 48px; height: 48px; }
+    }
     /* 宽屏（≥760px）的加入页：左边表单 + 右边头像墙。单栏版在笔记本（高 720~900）会把
        「加入游戏」推到折线以下，还要滚动才能点；宽屏空着的右半边正好放下头像墙。
        手机横屏另有 body.landui 的三栏版（优先级更高，故用 :not(.landui) 排除）。 */
@@ -412,7 +448,11 @@
       .orb, .confetti, h1, .deck-card::before, .deck.shuffling, .deck.shuffling .deck-card, #choice-section.mine .choice-card, #choice-section.mine .choice-card::before,
       .loader-card, .loader-orbit, .player-card.speaking .wave, .punishment-text.typing,
       .avatar-ring::before, .avatar-ring.active::before, .avatar-ring.active, .avatar-ring.pass, .active-badge, .card-back .draw-icon,
-      .player-card, .screen, .loader-progress i, .conn-dot.syncing { animation: none !important; }
+      .player-card, .screen, .screen.entering::before, .screen.leaving::before, .table3d.lit .table-sheen,
+      .loader-progress i, .conn-dot.syncing, .result-podium.ceremony .pod,
+      .result-podium.ceremony .pscore, .result-podium.ceremony .crown-ring, .result-awards.ceremony .award-chip,
+      .avatar-ring.active::after, .card-badges .type-badge.pop, .card-owner.pop { animation: none !important; }
+      #result-veil { display: none !important; }
       .cam, .flip-card { transition: none !important; }
       .card-front.surprise::after { animation: none !important; }
       .choice-card.tapped, .deck.tapped, .flip-card.tapped, .tap-ring, .flip-glint { animation: none !important; }
@@ -481,13 +521,38 @@
     .result-box { background: var(--glass); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: 24px; padding: 26px 22px; width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 16px; box-shadow: 0 12px 48px rgba(0,0,0,0.35); text-align: center; }
     .result-box h2 { font-family: 'ZCOOL KuaiLe', cursive; color: #fbbf24; text-shadow: 0 0 18px rgba(251,191,36,0.4); }
     .result-podium { display: flex; justify-content: center; align-items: flex-end; gap: 14px; }
+    /* 颁奖台 2-1-3：DOM 顺序保持名次序（test-host 直接读 pods[0]=冠军），银牌用 flex order 摆到冠军左边 */
     .pod { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+    .pod.p2 { order: -1; }
+    .pod.p1 { margin-bottom: 12px; }   /* 冠军的台阶：升高一级（静态布局属性，不做动画） */
+    .pod-ava { position: relative; display: inline-block; border-radius: 50%; }
+    .crown-ring { position: absolute; inset: -5px; border-radius: 50%; border: 2px solid rgba(251,191,36,0.85); opacity: 0.9; pointer-events: none; }
     .pod .medal { font-size: 1.6rem; }
     .pod img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 3px solid var(--glass-border); }
     .pod.p1 img { width: 84px; height: 84px; border-color: #fbbf24; box-shadow: 0 0 22px rgba(251,191,36,0.5); }
     .pod.p2 img { border-color: #cbd5e1; } .pod.p3 img { border-color: #d97706; }
     .pod .pname { font-size: 0.8rem; font-weight: 700; max-width: 86px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pod .pscore { font-size: 0.78rem; color: #fbbf24; font-weight: 700; }
+    /* 颁奖礼编排（只在换屏进入 result 的首渲染挂 .ceremony；心跳重绘走无类终态，永不重放）：
+       第3名→第2名→第1名步进升起（各 160ms 错拍、240ms 升起），冠军落定金环呼吸 3 拍后定格亮环，
+       分数随冠军 pop（文本第一帧即终值），奖章 chips 自冠军落定（560ms）起 80ms 错拍弹入。 */
+    .result-podium.ceremony .pod { animation: pod-rise 0.24s cubic-bezier(0.22,0.61,0.36,1) both; }
+    .result-podium.ceremony .pod.p3 { animation-delay: 0ms; }
+    .result-podium.ceremony .pod.p2 { animation-delay: 160ms; }
+    .result-podium.ceremony .pod.p1 { animation-delay: 320ms; }
+    .result-podium.ceremony .pscore { animation: badge-pop 0.34s cubic-bezier(0.34,1.56,0.64,1) 0.32s both; }
+    .result-podium.ceremony .crown-ring { animation: crown-pulse 1.1s ease-in-out 3 alternate; }
+    .result-awards.ceremony .award-chip { animation: chip-pop 0.3s cubic-bezier(0.34,1.56,0.64,1) both; animation-delay: calc(560ms + var(--ci, 0) * 80ms); }
+    @keyframes pod-rise { from { opacity: 0; transform: translateY(26px) scale(0.92); } }
+    @keyframes chip-pop { from { transform: scale(0.5); opacity: 0; } }
+    @keyframes crown-pulse { from { opacity: 0.3; } to { opacity: 1; } }
+    /* 黑场聚焦：换场与颁奖之间的一次注意力押送（峰值落在转角中段，第3名在半暗里升起，冠军落定时散尽）。
+       挂 body 而非 #app——#app 的 perspective 是 fixed 后代的包含块（SPEC 红线）；纯 opacity 动画。 */
+    #result-veil { position: fixed; inset: 0; z-index: 600; pointer-events: none; opacity: 0;
+      background: radial-gradient(ellipse at 50% 42%, rgba(0,0,0,0) 0%, rgba(4,4,12,0.85) 78%); }
+    #result-veil.on { animation: result-veil 1s cubic-bezier(0.4,0,0.2,1) both; }
+    @keyframes result-veil { 0% { opacity: 0; } 45% { opacity: 1; } 75% { opacity: 0.6; } 100% { opacity: 0; } }
+    body.loperf #result-veil { display: none; }
     .result-awards { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
     .award-chip { background: rgba(255,255,255,0.08); border: 1px solid var(--glass-border); border-radius: 14px; padding: 6px 12px; font-size: 0.8rem; }
     .award-chip b { color: var(--accent-pink); }
@@ -522,15 +587,37 @@
       --tx-r: 460px; --tx-a: 90deg; }
     .world.tx-back { --tx-a: -90deg; }
     /* 换屏的两个半场：新屏入场 / 旧屏退场。两者是同一个刚体的两面，所以时长与缓动必须逐字相同
-       （一个 0.8s 一个 0.46s 会让立方体在转场中途散架）；都只在换屏那 0.8s 里动 transform，
+       （一个 0.64s 一个 0.46s 会让立方体在转场中途散架）；都只在换屏那 0.64s 里动 transform，
        动画结束即 class 移除、归位 none（常态下每屏都没有 3D 姿态，命中测试保持纯平面；
-       离开的旧屏绝对定位叠在上层、不接收点击） */
-    .screen.entering { will-change: transform, opacity; animation: scene-in 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+       离开的旧屏绝对定位叠在上层、不接收点击）。
+       fill-mode:backwards 只服务「揭幕间隙」：hideLoading 在 t=0 同步挂两面动画、再给 140ms delay，
+       延迟期两面分别停在 from 帧（旧墙=正视不透明、新墙=侧棱透明），幕布落下与起转之间不闪帧。 */
+    .screen.entering { will-change: transform, opacity; animation: scene-in 0.64s cubic-bezier(0.4, 0, 0.2, 1) backwards; }
     /* max-width 交给 JS 内联的 width（= 入屏面宽，见 armCube）：立方体两面必须同宽才有一致的公共棱，
        而宽屏下大厅是 1180px、其余三屏 920px，写死 920 会把拉宽的那一面夹回来、转角上留缝。
        width:100% 只是内联值缺失时的兜底；left/right 都给 0 且左右 margin auto，内联宽度仍然居中（与入屏同轴）。 */
     .screen.leaving { display: flex !important; flex-direction: column; align-items: center; position: absolute; left: 0; right: 0; top: 0; width: 100%; max-width: none; margin-left: auto; margin-right: auto;
-      opacity: 0; pointer-events: none; z-index: 6; will-change: transform, opacity; animation: scene-out 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+      opacity: 0; pointer-events: none; z-index: 6; will-change: transform, opacity; animation: scene-out 0.64s cubic-bezier(0.4, 0, 0.2, 1) backwards; }
+    /* 实体背板 + 「面向镜头=被照亮」的光照连续：转身时两面各背一块深色板，朝向镜头的面亮、
+       转离的面随转角变暗（纯 opacity 关键帧，方向无关，±90° 两个转身方向都成立）——
+       转角处永远不会透视到背景光球，「玻璃两面」才读得成一个实心刚体。
+       背板必须在自己的关键帧里落位前归零（80%→100%），不靠 900/1000ms 的类摘除定时器，
+       否则落位后多挂 300ms 再一帧消失，会看到一次「暗板闪变」。scope 在 :not(.loperf)：
+       省电档走纯淡入淡出，不该平白多出一块暗板。 */
+    body:not(.loperf) .screen.entering::before,
+    body:not(.loperf) .screen.leaving::before {
+      content: ''; position: absolute; inset: -14px; z-index: -1; pointer-events: none; border-radius: 22px;
+      opacity: 0;   /* 基态必须为 0：动画是 backwards 填充（非 forwards），结束瞬间会回落基态——
+                       基态 1 会在「动画已完、类还没摘」的窗口里凭空亮出一块暗板（probe-one-take 实测逮到） */
+      background: linear-gradient(165deg, #0d0d20 0%, #07070f 100%);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.07);
+      animation: plate-in 0.64s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+    }
+    body:not(.loperf) .screen.leaving::before  { animation-name: plate-out; }
+    /* 入屏：侧棱时全暗 → 转正时亮起（0.9 → 0.4 → 0）；出屏反之（0 → 0.34 → 0.9），与 scene-out 的
+       整体淡出相乘，转走的墙是「变暗着离开」的 */
+    @keyframes plate-in  { 0% { opacity: 0.9; } 55% { opacity: 0.4; } 82% { opacity: 0.16; } 100% { opacity: 0; } }
+    @keyframes plate-out { 0% { opacity: 0; } 45% { opacity: 0.34; } 100% { opacity: 0.9; } }
     /* 省电档：一镜到底降级成纯淡入淡出（不做景深/旋转，避免大图层逐帧重光栅） */
     body.loperf .screen.entering { animation-name: scene-in-lite; will-change: opacity; }
     body.loperf .screen.leaving  { animation-name: scene-out-lite; will-change: opacity; }
@@ -538,11 +625,24 @@
     /* 牌桌：躺在 3D 空间里的一块椭圆台面（纯 radial-gradient，不用 blur/滤镜）
        #cam 横向裁剪：台面经透视放大后的包围盒比屏幕宽（1280 视口会被撑到 1318），
        会把文档宽度顶大 —— 在移动仿真/平板上会让 layout viewport 变宽，连带把 fixed 元素推出可视区。
-       overflow-clip-margin 留 28px 出血，保证座位环前后排卡片的轻微溢出不被切。 */
+       overflow-clip-margin 留 28px 出血，保证座位环前后排卡片的轻微溢出不被切。
+       overflow:hidden 让台面子元素（扫光条/桌心徽记）裁在椭圆内；其子树是平的，不触 preserve-3d 红线。 */
     #cam { position: relative; perspective: 900px; overflow-x: clip; overflow-clip-margin: 28px; }   /* 牌桌自带透视：台面 rotateX 躺下不会被拍成平图 */
-    .table3d { position: absolute; left: 50%; top: 44%; width: min(98vw, 940px); height: min(64vh, 540px); transform: translate(-50%, -50%) rotateX(74deg) translateZ(-40px); border-radius: 50%; pointer-events: none; z-index: 0;
+    .table3d { position: absolute; left: 50%; top: 44%; width: min(98vw, 940px); height: min(64vh, 540px); transform: translate(-50%, -50%) rotateX(74deg) translateZ(-40px); border-radius: 50%; pointer-events: none; z-index: 0; overflow: hidden;
       background: radial-gradient(ellipse at 50% 46%, rgba(139,92,246,0.30) 0%, rgba(139,92,246,0.15) 40%, rgba(34,211,238,0.09) 60%, rgba(10,10,26,0) 78%);
       box-shadow: inset 0 0 90px rgba(139,92,246,0.22), 0 0 0 2px rgba(255,255,255,0.06); }
+    /* 进牌桌「点亮舞台」：亮度覆层（同一张渐变叠 0→1，随转身起点并行）+ 落位后一道台面反光扫过
+       （sheen 延迟 640ms = 转身落定才起，避免在旋转的墙上扫第二道运动源）。LOWPERF/REDUCED 不挂 lit。 */
+    .table3d::before { content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity 0.7s ease;
+      background: radial-gradient(ellipse at 50% 46%, rgba(139,92,246,0.30) 0%, rgba(139,92,246,0.15) 40%, rgba(34,211,238,0.09) 60%, rgba(10,10,26,0) 78%); }
+    .table3d.lit::before { opacity: 1; }
+    .table-sheen { position: absolute; top: -20%; bottom: -20%; left: 0; width: 34%; pointer-events: none; opacity: 0; transform: translateX(-150%) skewX(-14deg);
+      background: linear-gradient(105deg, transparent 0%, rgba(255,255,255,0.11) 50%, transparent 100%); }
+    .table3d.lit .table-sheen { animation: table-sheen 0.5s ease-out 0.64s both; }
+    @keyframes table-sheen { from { opacity: 1; transform: translateX(-150%) skewX(-14deg); } to { opacity: 1; transform: translateX(430%) skewX(-14deg); } }
+    /* 桌心徽记：填补牌桌中段的视觉空洞、强化「这是一张桌子」；台面平面上的静态装饰（0.12 透明度），
+       pointer-events:none —— 绝不能进 3D 命中栈让人误以为可点；被牌面（z=2）压住。 */
+    .table-emblem { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 5rem; opacity: 0.12; pointer-events: none; }
     #cam > :not(.table3d) { position: relative; z-index: 2; }
 
     /* 3D 座次：玩家沿椭圆围桌（静态 left/top/scale 三变量，不逐帧重排） */
@@ -611,7 +711,7 @@
     .card-front.surprise { border-color: #fbbf24 !important; box-shadow: 0 0 0 3px rgba(251,191,36,0.32), 0 10px 50px rgba(251,191,36,0.38) !important; }
     .card-front.surprise::after { content: ''; position: absolute; inset: 0; border-radius: 24px; pointer-events: none; background: linear-gradient(120deg, transparent 32%, rgba(255,255,255,0.32) 50%, transparent 68%); background-size: 260% 100%; animation: surprise-sheen 2.4s linear infinite; }
     @keyframes surprise-sheen { from { background-position: 220% 0; } to { background-position: -80% 0; } }
-    .surprise-tag { position: absolute; top: 10px; left: 12px; background: linear-gradient(135deg, #fbbf24, #f472b6); color: #2a1205; font-size: 0.7rem; font-weight: 800; padding: 2px 9px; border-radius: 10px; z-index: 1; }
+    .surprise-tag { background: linear-gradient(135deg, #fbbf24, #f472b6); color: #2a1205; font-size: 0.7rem; font-weight: 800; padding: 2px 9px; border-radius: 10px; z-index: 1; flex: none; }
 
     /* 无障碍与性能：系统降噪 / 低端设备自动降载 */
     /* 切到微信聊天窗口或后台：看不见的屏幕没必要继续烧电，冻结全部装饰动画 */
@@ -624,6 +724,7 @@
     body.loperf .join-box, body.loperf .import-panel, body.loperf .choice-card, body.loperf .card-front, body.loperf .btn-secondary, body.loperf .modal-mask, body.loperf .result-box, body.loperf .toast { backdrop-filter: none; }
     body.loperf .avatar-ring::before, body.loperf .avatar-ring.active::before { animation: none; background: linear-gradient(135deg, var(--primary), var(--accent-pink)); }
     body.loperf .avatar-ring.active { animation: none; }
+    body.loperf .avatar-ring.active::after { animation: none; opacity: 0.85; }   /* 座位聚光定格，不做脉动 */
     body.loperf .deck-card::before, body.loperf .choice-card::before, body.loperf .deck-card.gone { display: none; }
     body.loperf #choice-section.mine .choice-card, body.loperf #choice-section.mine .choice-card::before { animation: none; }
     body.loperf .active-badge { animation: none; }
@@ -804,6 +905,7 @@
     body.landui .result-list { grid-area: list; max-height: calc(var(--lvh) - 132px); overflow-y: auto; }
     body.landui .result-actions { grid-area: actions; }
     body.landui .pod img { width: 50px; height: 50px; }
+    body.landui .pod.p1 { margin-bottom: 6px; }   /* 矮横屏首屏红线：冠军台阶收缩，CTA 不许掉出折线 */
     body.landui .result-box .pod.p1 img { width: 64px; height: 64px; }
 
     /* ── 横屏下的公共件：弹层/表情雨/提示 ── */
@@ -980,9 +1082,9 @@
   <!-- GAME -->
   <div id="screen-game" class="screen">
     <div class="cam" id="cam">
-      <div class="table3d" aria-hidden="true"></div>
+      <div class="table3d" aria-hidden="true"><i class="table-sheen"></i><span class="table-emblem">🎭</span></div>
       <div class="stats-row">
-        <div class="stat-chip">第 <span id="stat-turn">1</span> 轮</div>
+        <div class="stat-chip" id="chip-turn"><span id="turn-label">第</span> <span id="stat-turn">1</span> <span id="turn-unit">轮</span></div>
         <div class="stat-chip" id="mode-chip">🔄 轮流</div>
         <div class="stat-chip">💬 <span id="stat-truth">0</span></div>
         <div class="stat-chip">🎯 <span id="stat-dare">0</span></div>
@@ -1031,8 +1133,10 @@
           </div>
           <div class="card-face card-front" id="card-front">
             <div class="stake-badge" id="stake-badge" hidden>🔥 加倍 ×2</div>
-            <div class="surprise-tag" id="surprise-tag" hidden>🎁 惊喜卡</div>
-            <div class="type-badge" id="type-badge"></div>
+            <div class="card-badges">
+              <div class="type-badge" id="type-badge"></div>
+              <div class="surprise-tag" id="surprise-tag" hidden>🎁 惊喜卡</div>
+            </div>
             <div class="card-owner" id="card-owner"></div>
             <div class="punishment-text" id="punishment-text"></div>
             <div class="timer-wrap" id="timer-wrap" role="timer">
@@ -1795,6 +1899,8 @@ let stageTimers = [];
 let hbTimer = null, pruneTimer = null, watchTimer = null;
 let pendingRevealTimer = null, drawingEnterTs = 0;
 let cardDealt = false, revealAnim = false;   // 动画锁：落牌后心跳重渲染不回退卡堆；翻牌/打字期间禁止提前绘制答案（防“闪出”）
+let surpriseTagHold = false;   // 揭晓仪式进行中按住🎁角标：内容先于镀铬——打字机完成后 120ms 才入列
+let drawingArrivalLocal = 0;   // drawing 阶段的「本端到达时刻」（perf.now()）：迟到补偿只用本端钟，与发布方时钟脱钩
 
 // 惩罚库：本地副本 + 房间共享副本（SPool 走独立 topic，不随抽卡重发）
 // 题目统一形状 { x: 文本, t: 'mild'|'normal'|'hot' }，字符串（旧版/导入未标注）按普通级入库
@@ -1975,10 +2081,13 @@ function showLoading(text) {
 function setLoadingText(text) { const o = $('loading-overlay'); if (o) o.querySelector('.loading-text').textContent = text; }
 function hideLoading() {
   const o = $('loading-overlay');
-  if (o) { o._hid = true; o.classList.add('hide'); clearTimeout(o._rm); o._rm = setTimeout(() => o.remove(), 520); }
-  // 加载层收起＝过场的一段：此时才放新屏的入场，两者叠在一起读成一次镜头推进
-  // （出屏的转出也在这一刻一起放，两面同步起转——见 queueSceneEnter 的注释）
-  if (pendingSceneEnter) { const p = pendingSceneEnter; pendingSceneEnter = null; if (p.prev) armCube(p.prev, p.name); playSceneEnter(p.name, p.back); }
+  // 260ms 快速揭幕（opacity+scale，无 blur）；armCube/playSceneEnter 仍在同一拍同步挂载——
+  // 旧墙此刻刚丢 .active，.leaving 是它唯一的显示来源，晚一帧都会「凭空消失」再弹回。
+  if (o) { o._hid = true; o.classList.add('hide'); clearTimeout(o._rm); o._rm = setTimeout(() => o.remove(), 300); }
+  // 加载层收起＝过场的一段：两面动画立即挂载，但起播延迟 140ms（fill-mode:backwards 让延迟期
+  // 各自停在 from 帧）——幕布先落一点，转身在揭幕落定前后起势，读成同一条时间轴的两拍，
+  // 而不是转身前半程被半透明加载层盖掉（旧版 0.5s 揭幕烧掉了转身的可见段）。
+  if (pendingSceneEnter) { const p = pendingSceneEnter; pendingSceneEnter = null; if (p.prev) armCube(p.prev, p.name, 140); playSceneEnter(p.name, p.back, 140); }
 }
 
 // 修改状态：先本地应用（保证发起端无回显的本地模式也同步生效），再发布
@@ -2113,16 +2222,17 @@ function sceneTurn(prev, next) {
   const d = ((SCENE_ORDER[next] ?? 0) - (SCENE_ORDER[prev] ?? 0) + 4) % 4;
   return d > 2 ? -1 : 1;
 }
-function playSceneEnter(name, back) {
+function playSceneEnter(name, back, delay = 0) {
   if (REDUCED || !Cam.el) return;
   Cam.el.classList.toggle('tx-back', !!back);   // 转身方向（scene-in/out 依赖的 --tx-a）
   const s = $('screen-' + name);
   if (!s) return;
   s.classList.remove('entering');
   void s.offsetWidth;                            // 强制回流，让入场动画能重放
+  s.style.animationDelay = delay ? delay + 'ms' : '';
   s.classList.add('entering');
   clearTimeout(s._txT);
-  s._txT = setTimeout(() => s.classList.remove('entering'), 1000);
+  s._txT = setTimeout(() => { s.classList.remove('entering'); s.style.animationDelay = ''; }, 1000);
 }
 function overlayUp() { const o = $('loading-overlay'); return !!(o && o.isConnected && !o._hid); }
 // 立方体布景：量入屏面宽 → 写半径 → 给出屏挂上转出动画（绝对定位叠在上层、不接点击），两面同时起转。
@@ -2133,7 +2243,7 @@ function overlayUp() { const o = $('loading-overlay'); return !!(o && o.isConnec
 //     两墙之间裂开 130px 缝（比重叠更露怯——缝里直接漏背景）
 //   · 半径取出屏，入屏是大厅时：入屏 1180 比 2R 宽 260px，转角中段两墙重叠 ~92px
 // 统一以入屏为准，并把出屏内联拉到 2R，两面必然同宽。出屏本来就转走、从不落位，改它宽度不影响任何落位结果。
-function armCube(prevName, name) {
+function armCube(prevName, name, delay = 0) {
   if (REDUCED || !Cam.el) return;
   const nw = $('screen-' + name), old = $('screen-' + prevName);
   if (!nw || !old) return;
@@ -2145,10 +2255,14 @@ function armCube(prevName, name) {
   Cam.el.style.setProperty('--tx-r', R.toFixed(1) + 'px');
   old.style.width = (R * 2).toFixed(1) + 'px';
   old.classList.remove('entering');
+  void old.offsetWidth;
+  old.style.animationDelay = delay ? delay + 'ms' : '';
   old.classList.add('leaving');
+  clearTimeout(old._txT);   // 陈旧 _txT 会在离场动画中途把 animationDelay 清成 ''（定时器卫生，代码检查官 P2-1）
   clearTimeout(old._txL);
-  // > scene-out 的 0.8s（别在动画跑完前把它摘掉）。宽度一并还回去，否则它下次当入屏时会被上一次的宽度缩着显示
-  old._txL = setTimeout(() => { old.classList.remove('leaving'); old.style.width = ''; }, 900);
+  // > 140ms 揭幕间隙 + scene-out 的 0.64s（别在动画跑完前把它摘掉）。宽度与 delay 一并还回去，
+  // 否则它下次当入屏时会被上一次的宽度缩着、被上一次的延迟拖着
+  old._txL = setTimeout(() => { old.classList.remove('leaving'); old.style.width = ''; old.style.animationDelay = ''; }, 900);
 }
 // 放新屏入场：必须在它已经 display（.active）之后再挂，否则 CSS 动画在 display:none 期间不会跑，
 // 一显形就已经是终态/或先满屏闪一帧。加载层还盖着时把出屏的转出也一起攒着——否则旧墙在层后面独自转完、
@@ -2178,6 +2292,9 @@ function renderScreen() {
     if (txPrev) SFX.play(name === 'result' ? 'win' : 'whoosh');
     Cam.enter(name, txBack ? -1 : 1);
     if (txPrev) queueSceneEnter(name, txBack, txPrev);
+    if (name === 'result') armResultCeremony();   // 黑场聚焦 + 步进揭晓的旗标（renderResult 稍后在本函数内消费）
+    if (name === 'game') armTableLit();           // 进牌桌「点亮舞台」；离开时熄灭（0.7s 缓退）
+    else { const t3 = $('table3d'); if (t3) t3.classList.remove('lit'); }
   }
   updateReactBar();
   if (name === 'lobby') renderLobby();
@@ -2306,9 +2423,14 @@ function renderLobby() {
       : '🎉 把下面的链接或房间号发给朋友，进入同一房间即可联机！')
     : `🎉 各自打开下载好的 index.html，输入房间号 ${S.room} 即可联机（经公共服务器同步）`;
   $('copy-link-btn').textContent = copyBtnLabel();
-  // 同步链路降级要说得明确：否则两人同房间号却互相看不见，只会当成「游戏坏了」
+  // 同步链路降级要说得明确：否则两人同房间号却互相看不见，只会当成「游戏坏了」。
+  // 长警告默认折叠成一行 chip（点击展开全文）——走查实锤它在手机上吃掉大厅首屏 ~40%，把「派对现场」挤成表单
+  const tipBox = $('share-tip').parentElement;
   if (link && link.kind === 'local' && !isLocalPage()) {
     $('share-tip').textContent = '⚠️ 当前连不上公共同步服务器，已在本地模式下运行：只有同一浏览器的多标签能互相看见。朋友请改用在线地址，或换个网络再点「🔄 修复同步」';
+    tipBox.classList.add('fold');
+  } else {
+    tipBox.classList.remove('fold', 'open');
   }
   // 首次进入大厅自动弹一次玩法说明（本机只弹一次，之后可用「❓ 怎么玩」随时再看）
   if (!guideShown) {
@@ -2365,7 +2487,19 @@ function renderGameStatic() {
   const isFree = S.mode === 'free';
   const scoring = S.scoring !== false;
   $('mode-chip').textContent = isFree ? '🎤 自由' : '🔄 轮流';
-  $('stat-turn').textContent = isFree ? (S.stats.rounds || 0) : (S.turnIndex % Math.max(S.players.length, 1)) + 1;
+  // 「第 N 轮」诚实化（走查实锤：旧文案渲染的是轮转位置 turnIndex%len+1，首回合随机起始就会显示「第 4 轮」）：
+  //   限轮局 → 真进度「轮次 X/Y」。stats.rounds 在 choose() 抽卡那一刻就 +1（2487 行的初版假设
+  //   「进行中=+1」只在 choosing 阶段成立）：choosing 显示 done+1（即将开始的手数），
+  //   drawing/revealed 显示 done 本身（本轮已在数内），业务检查官终审逮的 off-by-one，别改回去。
+  //   自由局 → 保持 span 纯数字 = stats.rounds（test.cjs 直接断言 #stat-turn === '2'，别加装饰）。
+  if (isFree) { $('turn-label').textContent = '第'; $('turn-unit').textContent = '抢'; $('stat-turn').textContent = String(S.stats.rounds || 0); }
+  else if (S.roundLimit > 0) {
+    const done = S.stats.rounds || 0;
+    const cur = S.turn.stage === 'choosing' ? done + 1 : Math.max(done, 1);
+    $('turn-label').textContent = '轮次'; $('turn-unit').textContent = '';
+    $('stat-turn').textContent = Math.min(cur, S.roundLimit) + '/' + S.roundLimit;
+  }
+  else { $('turn-label').textContent = '第'; $('turn-unit').textContent = '手'; $('stat-turn').textContent = String((S.turnIndex % Math.max(S.players.length, 1)) + 1); }
   $('stat-truth').textContent = S.stats.truth;
   $('stat-dare').textContent = S.stats.dare;
   $('stat-skip').textContent = S.stats.skips || 0;
@@ -2441,13 +2575,42 @@ function updateGhostBar(stage) {   // 掉线者卡住回合 → 主持人/最老
 
 // ───────────────────────── 结算颁奖屏 ─────────────────────────
 let lastResultBurst = 0;
+// ───────────────────────────── 结算颁奖礼（黑场聚焦 + 2-1-3 台阶 + 步进揭晓） ─────────────────────────────
+// 重放红线：renderResult 在每次心跳都整屏重建 innerHTML——ceremony 只许在「换屏进入 result」那一次播。
+// 载体：armResultCeremony 在 renderScreen 的 changed 分支置 pending（finished.at 去重），
+// 稍后的 renderResult 消费它挂 ceremony 类；其余所有渲染走无类终态，25s 心跳撞进来也不会重放。
+// E2E 两颗雷：pods 的 DOM 顺序保持名次序（pods[0]=冠军，2-1-3 是 flex order 的视觉摆位）；
+// .pscore 文本第一帧就是终值（不做计数跳动，只有 pop）——test-host 在 #screen-result.active 一出现就读值。
+let resultCeremonyAt = 0, resultCeremonyPending = false;
+function armResultCeremony() {
+  const at = (S && S.finished && S.finished.at) || 0;
+  resultCeremonyPending = !!at && at !== resultCeremonyAt;
+  if (!resultCeremonyPending || REDUCED || LOWPERF) return;
+  let v = $('result-veil');
+  if (!v) { v = document.createElement('div'); v.id = 'result-veil'; document.body.appendChild(v); }   // 必须挂 body：#app 的 perspective 是 fixed 后代的包含块（红线）
+  v.classList.remove('on'); void v.offsetWidth; v.classList.add('on');
+  setTimeout(() => { if (Cam.curScreen === 'result') Cam.shake(4, 260); }, 560);   // 冠军落定那一下（离开 result 屏就不震，代码检查官 P2-3）
+}
+// 进牌桌：桌面点亮（亮度覆层 0→1 并行于转身）+ 落位后一道台面反光（延迟 640ms = 转身落定才起，
+// 不在旋转的墙上扫第二道运动源）。降噪/省电直接跳过：REDUCED 无过渡意义，LOWPERF 台面已被拍平。
+function armTableLit() {
+  const t3 = $('table3d');
+  if (!t3 || REDUCED || LOWPERF) return;
+  t3.classList.remove('lit'); void t3.offsetWidth; t3.classList.add('lit');
+}
 function renderResult() {
   const scoring = S.scoring !== false;
   const sorted = [...S.players].sort((a, b) => (b.score || 0) - (a.score || 0) || (b.draws || 0) - (a.draws || 0));
   const medals = ['🥇', '🥈', '🥉'];
+  const at = (S.finished && S.finished.at) || 0;
+  const ceremony = resultCeremonyPending && at && at !== resultCeremonyAt && !REDUCED && !LOWPERF;
+  resultCeremonyPending = false;
+  if (at) resultCeremonyAt = at;   // 无论是否播过（降噪/省电直接终态），都记下：这套 finished.at 不再补播
+  $('result-podium').classList.toggle('ceremony', ceremony);
   $('result-podium').innerHTML = sorted.slice(0, 3).map((p, i) =>
     `<div class="pod p${i + 1}"><span class="medal">${medals[i]}</span>` +
-    `<img src="${esc(resolveAvatar(p.avatar))}" alt="" data-fallback /><span class="pname">${esc(p.name)}</span>` +
+    `<span class="pod-ava"><img src="${esc(resolveAvatar(p.avatar))}" alt="" data-fallback />${i === 0 ? '<i class="crown-ring"></i>' : ''}</span>` +
+    `<span class="pname">${esc(p.name)}</span>` +
     `<span class="pscore">${scoring ? (p.score || 0) + ' 分' : (p.draws || 0) + ' 次抽卡'}</span></div>`).join('');
   const chips = [];
   if (sorted[0] && (scoring ? (sorted[0].score || 0) > 0 : (sorted[0].draws || 0) > 0))
@@ -2460,7 +2623,8 @@ function renderResult() {
   if (calm && scoring) chips.push(['😌', '稳如泰山奖', calm.name]);
   const streak = S.players.filter(p => (p.combo || 0) >= 3).sort((a, b) => b.combo - a.combo)[0];
   if (streak) chips.push(['🔥', '连击王 ×' + streak.combo, streak.name]);
-  $('result-awards').innerHTML = chips.map(c => `<span class="award-chip">${c[0]} ${c[1]} · ${esc(c[2])}</span>`).join('');
+  $('result-awards').classList.toggle('ceremony', ceremony);
+  $('result-awards').innerHTML = chips.map((c, i) => `<span class="award-chip" style="--ci:${i}">${c[0]} ${c[1]} · ${esc(c[2])}</span>`).join('');
   $('result-list').innerHTML = sorted.map(p => `<div class="result-row">
       <img src="${esc(resolveAvatar(p.avatar))}" alt="" data-fallback />
       <span class="rr-name">${esc(p.name)}${p.id === myId ? ' <span style="opacity:.55;font-weight:400">(我)</span>' : ''}${p.id === S.hostId ? ' 👑' : ''}</span>
@@ -2470,7 +2634,6 @@ function renderResult() {
   const host = S.players.find(p => p.id === S.hostId);
   $('result-wait').style.display = isHost() ? 'none' : '';
   if (host) $('result-wait').textContent = `等待主持人「${host.name}」选：再来一局 or 回大厅…`;
-  const at = (S.finished && S.finished.at) || 0;
   if (at && at !== lastResultBurst) { lastResultBurst = at; if (!REDUCED) burst(window.innerWidth / 2, window.innerHeight / 3, LOWPERF ? 16 : 60); }
 }
 
@@ -2568,7 +2731,11 @@ const Cam = {
     const b = this.baseOf(name);
     if (REDUCED || !this.el) { this.jump(b); return; }
     const ahead = dir < 0 ? -1 : 1;
-    const push = { z: b.z - 24 * ahead, rx: b.rx + 1.2 * ahead, ry: b.ry || 0, s: b.s * (ahead > 0 ? 1.01 : 0.99) };
+    // 窄屏/横屏：转身本身信息量已经占满整个视口，镜头再平移会把屏内容推出边界（转场帧实测玩家卡被
+    // 裁出左缘），推进幅度归零、转身独占；桌面留一半呼吸量（原来的一半：24→12 / 1.2→0.6）。
+    const narrow = window.innerWidth < 760 || (typeof LAND !== 'undefined' && LAND.ui);
+    const push = narrow ? b
+      : { z: b.z - 12 * ahead, rx: b.rx + 0.6 * ahead, ry: b.ry || 0, s: b.s * (ahead > 0 ? 1.008 : 0.992) };
     this.to(push, 540, 'out', () => { if (this.curScreen === name) this.to(b, 660, 'dolly'); });
   },
   home(ms = 750, done) { this.to(this.baseOf(this.curScreen), ms, 'dolly', done); },
@@ -2620,9 +2787,10 @@ const Cam = {
     this.raf2 = requestAnimationFrame(step);
   },
   // 鼠标微视差：镜头随指针轻摆（低端机/降噪模式关闭；无人移动指针时零开销）
+  // 摆幅换算：par.x/y 直接进 rotateY/X 的度数，nx/ny ∈ [-0.5,0.5]，系数 3.2/2.4 → 实际摆幅 ±1.6°/±1.2°
   parallax(nx, ny) {
     if (REDUCED || LOWPERF) return;
-    this.par.x = -nx * 1.8; this.par.y = ny * 1.3;
+    this.par.x = -nx * 3.2; this.par.y = ny * 2.4;
     if (!this.busy && !this.raf2) this.apply();
   },
 };
@@ -2636,7 +2804,7 @@ function initCamParallax() {
 // ───────────────────────────── 一镜到底动画编排 ─────────────────────────────
 async function runStage(stage) {
   if (stage === 'choosing') {
-    cardDealt = false; revealAnim = false;
+    cardDealt = false; revealAnim = false; surpriseTagHold = false;
     document.querySelectorAll('.deck-card.gone').forEach(c => c.classList.remove('gone'));   // 上一局被抽走的牌归队
     renderGameStatic();
     $('deck').classList.remove('shuffling');
@@ -2658,6 +2826,7 @@ async function runStage(stage) {
     // 以状态发布时间为统一时间轴，多端动画节奏对齐（一镜到底不跳帧）
     const docTs = S.turn.ts || Date.now();
     drawingEnterTs = (docTs > Date.now() + 3000) ? Date.now() : docTs;
+    drawingArrivalLocal = performance.now();   // 本端到达时刻：revealed 迟到补偿的基准（只用本端钟）
     cardDealt = false; revealAnim = false;
     renderGameStatic();
     // reveal 由执行者在动画节奏点发布（非执行者轮不到，见 scheduleReveal 内分支）
@@ -2676,7 +2845,11 @@ async function runStage(stage) {
   }
   if (stage === 'revealed') {
     // 保证 drawing 动画至少播够时长，多端节奏一致（一镜到底不跳帧）
-    const wait = REDUCED ? 150 : Math.max(0, drawingEnterTs + ANIM_DRAWING_MIN_MS - Date.now());
+    let wait = REDUCED ? 150 : Math.max(0, drawingEnterTs + ANIM_DRAWING_MIN_MS - Date.now());
+    // 迟到补偿（只用本端到达钟）：revealed 文档比「drawing 到达 + 动画窗口 + 300ms 容忍」还晚到，
+    // 说明是网络迟到而非节奏未到——不再干等，立即翻牌（旧判据拿发布方 turn.ts 对本机 Date.now()，
+    // 发布方时钟落后时会把远端的动画整段吃掉，落后相反方向则白等，两头都是错）。
+    if (!REDUCED && drawingArrivalLocal && performance.now() - drawingArrivalLocal > ANIM_DRAWING_MIN_MS + 300) wait = 0;
     const seq0 = S.turn.seq;
     stageTimers.push(setTimeout(() => {
       if (!S || S.turn.seq !== seq0) return;   // 期间已换回合（换题/点名）：旧动画作废
@@ -2795,43 +2968,78 @@ async function playReveal() {
   const t = S.turn;
   const front = $('card-front');
   front.className = 'card-face card-front ' + (t.choice === 'truth' ? 'truth' : 'dare') + '-type';
-  $('type-badge').textContent = t.choice === 'truth' ? '💬 真心话' : '🎯 大冒险';
   const chooser = S.players.find(p => p.id === (t.chooserId || activePlayerId()));
-  $('card-owner').textContent = `——「${chooser?.name || '???'}」抽到的题`;
-  $('card-actions').style.display = t.chooserId === myId ? '' : 'none';
-  $('reveal-wait').style.display = t.chooserId === myId ? 'none' : '';
+  const mine = t.chooserId === myId;
+  // 内容先于镀铬：翻面时牌面只有牌，类型徽章/题主署名在打字机首字符落地那一刻 pop 进来，
+  // 动作按钮/押注面板在主翻落定（640ms）才淡入——旧版徽章先到、题面迟到 0.6-1.2s，最高潮一拍被自己拆台
+  $('type-badge').textContent = '';
+  $('type-badge').classList.remove('pop');
+  $('card-owner').textContent = '';
+  $('card-owner').classList.remove('pop');
+  $('card-actions').style.display = mine ? '' : 'none';
+  $('reveal-wait').style.display = mine ? 'none' : '';
   $('reveal-wait').textContent = `等待「${chooser?.name || '???'}」完成挑战或跳过`;
   $('punishment-text').textContent = '';
+  surpriseTagHold = true;   // 🎁 角标压到打字机完成 +120ms 才入列（badge 行内，不再压类型徽章）
+  paintSurprise('revealed');
+  const fadeChrome = el => {   // 主翻落定才浮现的镀铬层（动作按钮/等待提示/押注面板容器）
+    if (!el || el.style.display === 'none') return;
+    el.style.transition = 'none'; el.style.opacity = '0';
+    requestAnimationFrame(() => { el.style.transition = 'opacity 0.2s ease'; el.style.opacity = '1'; });
+  };
+  const chromeEls = [mine ? $('card-actions') : null, $('reveal-wait'), $('bet-box')].filter(Boolean);
+  chromeEls.forEach(el => { el.style.transition = 'none'; el.style.opacity = '0'; });
   if (REDUCED) {
     // 降噪：直接亮牌，不做翻面/打字机/彩带
     $('flip-card').classList.add('flipped');
+    $('type-badge').textContent = t.choice === 'truth' ? '💬 真心话' : '🎯 大冒险';
+    $('card-owner').textContent = `——「${chooser?.name || '???'}」抽到的题`;
     $('punishment-text').textContent = t.punishment || '（空）';
+    chromeEls.forEach(el => { el.style.opacity = ''; el.style.transition = ''; });
+    surpriseTagHold = false;
     revealAnim = false;
     renderGameStatic();
     playSurpriseFx();   // 降噪下也告知一声（不带粒子/震动）
     return;
   }
   const flip = $('flip-card');
-  // 无条件从牌背起步：瞬间归位不走 0.85s 过渡，避免“先闪答案再翻回去”
+  // 无条件从牌背起步：瞬间归位不走 0.85s 过渡，避免“先闪答案再翻回去”；
+  // transition 压制到落定才还回去——三段式全部由 WAAPI 驱动，.flipped 只负责终态语义
   flip.style.transition = 'none';
   flip.classList.remove('flipped');
   void flip.offsetWidth;
-  flip.style.transition = '';
   focusCam($('card-section'));   // 牌已在中央的场合这里补上推镜（直连 revealed / 错过落牌动画）
 
-  // 蓄势：牌被“捏起”微抬回弹，随即翻面 → 打字机揭晓
+  // 三段式揭晓（120 吸气 → 520 主翻 → 220 落定，终帧精确等于 .flipped 的 rotateY(180deg)，
+  // 动画结束瞬间与 class 终态无缝交接）：
+  //   ① 吸气：牌被“捏起”微抬，给翻面一个预备拍
   flip.animate([
-    { transform: 'scale(1) translateY(0) rotate(0deg)' },
-    { transform: 'scale(1.05) translateY(-10px) rotate(-2deg)' },
-    { transform: 'scale(1) translateY(0) rotate(0deg)' },
-  ], { duration: 240, easing: 'ease-out' });
+    { transform: 'scale(1)' },
+    { transform: 'scale(1.06)' },
+  ], { duration: 120, easing: 'ease-out' });
   stageTimers.push(setTimeout(() => {
-    flip.classList.add('flipped');
+    //   ② 主翻：rotateY 180° + 中途 translateZ 抬起 48px（指尖拨动的弧线）
+    flip.classList.add('flipped');   // 终态先行落位（transition 已压制），WAAPI 覆盖播放过程
+    const rot = flip.animate([
+      { transform: 'rotateY(0deg) translateZ(0px) scale(1.06)' },
+      { transform: 'rotateY(90deg) translateZ(48px) scale(1.06)', offset: 0.5 },
+      { transform: 'rotateY(180deg) translateZ(0px) scale(1)' },
+    ], { duration: 520, easing: 'cubic-bezier(0.45,0.05,0.35,1)' });
+    rot.finished.catch(() => {});   // 创建处挂上：动画被外力取消时 finished 会 reject，别让它冒泡
     SFX.play('flip');
-    SFX.play('spark');   // 翻面瞬间的上扬音
-    flipGlint();         // 牌面扫光一闪 + 中心涟漪
     if (t.choice === 'dare') Cam.shake(7, 300);   // 大冒险翻牌：镜头一颤，气氛拉满
     stageTimers.push(setTimeout(() => {
+      //   ③ 落定：扫光一闪 + 镀铬浮现 + 打字机开写（首字符即刻落地，徽章同拍 pop）
+      SFX.play('spark');
+      flipGlint();
+      flip.style.transition = '';
+      chromeEls.forEach(fadeChrome);
+      const badge = $('type-badge');
+      badge.textContent = t.choice === 'truth' ? '💬 真心话' : '🎯 大冒险';
+      badge.classList.add('pop');
+      const owner = $('card-owner');
+      owner.textContent = `——「${chooser?.name || '???'}」抽到的题`;
+      owner.classList.add('pop');
       SFX.play('reveal');
       typewriter($('punishment-text'), t.punishment || '（空）', 32, () => {
         revealAnim = false;   // 动画谢幕，后续心跳重渲染直接画终态即可
@@ -2839,9 +3047,13 @@ async function playReveal() {
         playSurpriseFx();     // 🎁 1/5 概率开出惊喜卡（确定性：同题同 seq 全场同结论）
         const r = $('card-section').getBoundingClientRect();
         burst(r.left + r.width / 2, r.top + r.height / 2);
+        stageTimers.push(setTimeout(() => {   // 🎁 角标最后入列：答案读完了，彩头才上桌
+          surpriseTagHold = false;
+          paintSurprise('revealed');
+        }, 120));
       });
-    }, 450));
-  }, 240));
+    }, 520));
+  }, 120));
 }
 
 // 相机聚焦（世界层缓推；3D 姿态由各屏的静态机位叠加）
@@ -3229,7 +3441,10 @@ function renderBetBox(stage, chooserId, scoring) {
   const box = $('bet-box');
   if (!box) return;
   const can = !!S && stage === 'revealed' && scoring && !!chooserId && chooserId !== myId && !S.finished;
-  box.hidden = !can;
+  // revealAnim 期间必须按住：renderGameStatic 在动画早退分支「之前」就跑到这里，否则 revealed 一到
+  // 面板就先放出来、翻牌动画起点又把它压回 opacity:0——观众每回合看到「闪现→瞬灭→640ms 后淡回」
+  // （代码检查官终审 P1）。按住到打字机完成帧的 renderGameStatic（revealAnim 已解锁）再放。
+  box.hidden = !can || revealAnim;
   if (!can) return;
   const bets = S.turn.bets || {};
   const mine = bets[myId];
@@ -3249,12 +3464,12 @@ function surpriseOf(turn) {
   if (h % 5 !== 0) return null;   // 1/5 概率开出惊喜卡
   return SURPRISE_DEFS[h % SURPRISE_DEFS.length];
 }
-function paintSurprise(stage) {   // 静态上色：中途加入/重连也能看到金卡
+function paintSurprise(stage) {   // 静态上色：中途加入/重连也能看到金卡；surpriseTagHold 见动画锁声明处
   const front = $('card-front');
   if (!front) return;
   const sp = stage === 'revealed' ? surpriseOf(S.turn) : null;
   front.classList.toggle('surprise', !!sp);
-  $('surprise-tag').hidden = !sp;
+  $('surprise-tag').hidden = !sp || surpriseTagHold;
   if (sp) $('surprise-tag').textContent = `${sp.icon} 惊喜卡 · ${sp.name}`;
 }
 let lastSurpriseSeq = -1;
@@ -5288,6 +5503,11 @@ if (useMediaOut()) document.addEventListener('pointerdown', () => ensureMicCtx()
 initCamParallax();
 applyLand();   // 横屏：竖屏里恢复上次的手动选择，真·横屏矮视口自动套横屏布局
 Cam.init();   // 3D 镜头开机：从远处推进到加入页（一镜到底的第一段）
+// 大厅本地模式警告横幅折叠（走查实锤：长警告吃掉大厅首屏 ~40%）：常态一行 chip，点开才展开全文
+$('share-tip').addEventListener('click', () => {
+  const box = $('share-tip').parentElement;
+  if (box.classList.contains('fold')) box.classList.toggle('open');
+});
 setTimeout(() => perfWatch(), 2500);   // 字体/背景就绪后再测，不然首帧成本会误判
 buildBg();
 buildAvatarSelector();

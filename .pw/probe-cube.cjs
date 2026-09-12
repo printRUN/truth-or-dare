@@ -168,6 +168,9 @@ function analyze(samples, tag) {
   await B.waitForSelector('#screen-lobby.active', { timeout: 25000 });
   await A.waitForSelector('#players-grid .player-card >> nth=1', { timeout: 25000 });
   await A.waitForTimeout(600);
+  // A 是在 B 之后开的页，处于后台——后台页的 rAF 被降频到几 fps，逐帧采样会稀疏到「两面同时在场的
+  // 帧数」在阈值 3 附近抖（同一个转场有时 8 帧、有时 2 帧）。把 A 提到前台，采样率才回到正常。
+  await A.bringToFront();
 
   await installSampler(A);
   // 起转可能被加载层延后（queueSceneEnter：出屏的转出和新屏的入场一起等揭幕），所以采样不能按固定延时收，
@@ -179,14 +182,46 @@ function analyze(samples, tag) {
     !document.querySelector('.screen.entering') && !document.querySelector('.screen.leaving')
     && window.__cs.some(s => s.inTh !== null && s.outTh !== null), null, { timeout }).catch(() => {});
 
+  // 中段取证帧：**不能**写成「等到角度对了再截图」——waitForFunction 返回后 Playwright 才去合成写盘，
+  // 那 200~400ms 里 800ms 的转场已经快走完了。实测过：门在 |θ_in|≈40° 那一帧如实返回了，
+  // 写盘时 |θ_in| 只剩 ~13°（截图里 game 屏内容相对落位只右移 ~110px、两面几乎重合），
+  // 拍出来的「转角中段」看着像通过、其实什么都没看——而 .catch(()=>{}) 还把这次错过完全咽掉了。
+  // 所以判断与冻结必须在**同一帧、在页面里**完成：getAnimations().pause() 把两面连同角度一起定住，
+  // 之后再截图就没有延迟可输。冻结的是全部动画（含出屏那条），截图后立刻 play() 放行。
+  // 取 38°~55°：首次命中在窗口上沿 ~54°，两面各 ~54°/~-36°，都还比较不透明（出屏的 opacity 收在 55% 之后），
+  // 且离出屏 900ms 的内联宽度归位还有 ~600ms 余量，冻住期间不会被超时清掉一面。
+  const freezeMid = async (page, tag) => {
+    const f = await page.evaluate(() => new Promise(res => {
+      const t0 = performance.now();
+      const tick = () => {
+        const s = window.__cs[window.__cs.length - 1];
+        if (s && s.inTh !== null && Math.abs(s.inTh) > 38 && Math.abs(s.inTh) < 55) {
+          document.getAnimations().forEach(a => { try { a.pause(); } catch {} });
+          res({ inTh: +s.inTh.toFixed(1), outTh: s.outTh === null ? null : +s.outTh.toFixed(1), ms: Math.round(performance.now() - t0) });
+        } else if (performance.now() - t0 > 6000) res(null);
+        else requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    })).catch(() => null);
+    log(f ? `[${tag}] 中段取证帧已冻住（起判后 ${f.ms}ms）：入屏 θ=${f.inTh}° 出屏 θ=${f.outTh}°`
+          : `[${tag}] ⚠ 6s 内没等到 38°~55° 的中段，cube-${tag}-2.png 不是转角中段`);
+    return f;
+  };
+  const unfreeze = page => page.evaluate(() => document.getAnimations().forEach(a => { try { a.play(); } catch {} }));
+
   // ── 前进 lobby → game ──
   log('\n―― 前进 lobby → game ――');
   await A.evaluate(() => window.__csStart());
+  // 「起转前」这一帧必须在**点击之前**拍：点击后 .active 立刻挂上，而截图本身要 ~300ms，
+  // 等它写完再去冻结，动画可能已经越过 38° 下沿（冻不到了）。挪到点击前拍的是同一面墙的 θ=0 态，
+  // 而且点击后第一件事就是 freezeMid，中间没有任何截图占时间。
+  await A.screenshot({ path: 'shots/cube-fwd-1.png' });   // 起转前（θ≈0：出屏还贴在原位，即将绕自己的中心竖棱转出）
   await A.click('#btn-start');
   await A.waitForSelector('#screen-game.active', { timeout: 20000 });
-  await A.screenshot({ path: 'shots/cube-fwd-1.png' });   // 转角起步
-  await A.waitForTimeout(260);
-  await A.screenshot({ path: 'shots/cube-fwd-2.png' });   // 转角中段（两面各 ~45°，应拼成一个墙角）
+  const fm = await freezeMid(A, 'fwd');
+  await A.screenshot({ path: 'shots/cube-fwd-2.png' });   // 转角中段（两面各 ~50°，应拼成一个朝镜头的墙角）
+  await unfreeze(A);
+  check(!!fm, `fwd: 抓到转角中段的冻帧（${fm ? `入屏 ${fm.inTh}° / 出屏 ${fm.outTh}°` : '6s 内没等到'}）`);
   await waitSettled(A);
   const fwd = await A.evaluate(() => window.__csStop());
   await A.screenshot({ path: 'shots/cube-fwd-3.png' });   // 落位
@@ -195,7 +230,17 @@ function analyze(samples, tag) {
   // 落位后：不留 class、每屏 transform 回到 none、且几何稳定不再变
   // （注意不能拿投影框比 offsetWidth：.world 常态机位本身不是单位阵——game 是 z:-24/rx:5，
   //   投影本来就会放大，那是镜头不是转场残留。落位是否干净由「transform 回到 none」+「连续两次采样几何不变」定义。）
-  await A.waitForTimeout(500);
+  //
+  // 采样前必须等镜头自己停稳：转场之后机位还会补间一段（Cam.enter 的 540ms 推进 + 660ms 缓收，
+  // 以及 UI 换档触发的 realign），不定稳就采样，量到的会是镜头位移而不是残留姿态——
+  // 实测过一次 camZ -38.66 → -44 被记成「几何漂移 4.9px」，而同一帧 anyTransform 已经是 false、
+  // 两个 class 都已摘掉（也就是说 θ=0 的复合式确实是单位阵，落位是干净的）。
+  await A.waitForFunction(() => {
+    const st = window.__zs || (window.__zs = { z: Cam.cur.z, t: performance.now(), still: 0 });
+    if (Math.abs(Cam.cur.z - st.z) > 0.02) { st.z = Cam.cur.z; st.t = performance.now(); st.still = 0; }
+    else st.still = performance.now() - st.t;
+    return st.still > 400;
+  }, null, { timeout: 8000 }).catch(() => {});
   const grab = () => A.evaluate(() => {
     const g = document.getElementById('screen-game');
     const r = g.getBoundingClientRect();
@@ -230,13 +275,17 @@ function analyze(samples, tag) {
   // ── 回退 game → lobby ──
   log('\n―― 回退 game → lobby ――');
   await A.evaluate(() => window.__csStart());
+  await A.screenshot({ path: 'shots/cube-back-1.png' });   // 起转前（θ≈0，同 fwd：必须在点击前拍，否则截图耗时会把角度带过可冻结的窗口）
   await A.click('#btn-end-game');
   await A.click('#btn-end-game');   // 破坏性操作二次确认
   await A.waitForSelector('#screen-lobby.active', { timeout: 20000 });
-  await A.screenshot({ path: 'shots/cube-back-1.png' });
+  const bm = await freezeMid(A, 'back');
+  await A.screenshot({ path: 'shots/cube-back-2.png' });   // 转角中段（回退方向）
+  await unfreeze(A);
+  check(!!bm, `back: 抓到转角中段的冻帧（${bm ? `入屏 ${bm.inTh}° / 出屏 ${bm.outTh}°` : '6s 内没等到'}）`);
   await waitSettled(A);
   const back = await A.evaluate(() => window.__csStop());
-  await A.screenshot({ path: 'shots/cube-back-2.png' });
+  await A.screenshot({ path: 'shots/cube-back-3.png' });   // 落位
   analyze(back, 'back');
 
   // ── 半径 --tx-r 在三档宽度下是否等于入屏面宽的一半（量错就是两张纸错位/裂缝） ──

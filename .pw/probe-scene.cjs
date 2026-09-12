@@ -127,7 +127,7 @@ function installSampler(p) {
   let maxGap = 0, gapAt = '';
   for (let i = 1; i < fwd.length; i++) { const d = fwd[i].t - fwd[i - 1].t; if (d > maxGap) { maxGap = d; gapAt = `${fwd[i - 1].z.toFixed(1)}→${fwd[i].z.toFixed(1)}`; } }
   console.log('[scene] fwd 最大帧间隔 =', maxGap.toFixed(0) + 'ms', '@z', gapAt);
-  console.log('[scene] fwd 期间新屏有 3D 入场 =', sawEntering, '/ 旧屏在飞掠 =', sawLeaving, '/ tx-back =', fwd.some(s => s.back));
+  console.log('[scene] fwd 期间新屏有 3D 入场 =', sawEntering, '/ 旧屏同时在转身 =', sawLeaving, '/ tx-back =', fwd.some(s => s.back));
 
   // 稳态：动画结束后不留常驻 transform、不留 entering/leaving
   await A.waitForTimeout(400);

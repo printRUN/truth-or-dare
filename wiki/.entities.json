@@ -1,0 +1,22 @@
+{
+  "entities": [
+    { "id": "cam", "type": "System", "name": "Cam 摄影机 rig", "confidence": 0.95,
+      "attributes": { "载体": "#world3d transform 补间", "换屏": "540+660ms 续接", "窄屏": "零过冲", "视差": "±1.6°/±1.2°" },
+      "relationships": [ { "to": "cube-turn", "type": "coordinatesWith", "confidence": 0.9 } ] },
+    { "id": "cube-turn", "type": "Pattern", "name": "立方体转身换屏", "confidence": 0.95,
+      "attributes": { "时长": "640ms", "刚体判据": "θ差恒±90°(偏差0.00°)", "背板": "plate-in/out 基态opacity0", "揭幕": "260ms + 140ms delay/backwards" },
+      "relationships": [ { "to": "perf-guard", "type": "degradesTo", "confidence": 0.9 } ] },
+    { "id": "reveal-ceremony", "type": "Pattern", "name": "揭晓仪式", "confidence": 0.9,
+      "attributes": { "三段": "120/520/220ms WAAPI", "原则": "内容先于镀铬", "时钟": "本端到达钟迟到补偿", "悬念": "打字机32ms/字不封顶" },
+      "relationships": [ { "to": "anim-lock", "type": "preserves", "confidence": 0.95 } ] },
+    { "id": "podium-ceremony", "type": "Pattern", "name": "颁奖礼", "confidence": 0.9,
+      "attributes": { "黑场": "veil 挂 body 1s", "台阶": "2-1-3 flex order（DOM=名次序）", "重放": "finished.at 首到 ceremony/终态双 markup", "E2E": "pscore 首帧即终值" } },
+    { "id": "perf-guard", "type": "System", "name": "三档性能护栏", "confidence": 0.95,
+      "attributes": { "档位": "auto/low/full", "LOPERF": "lite 淡切+扫光不挂+聚光定格", "REDUCED": "全部 animation:none", "注意": "test-perf 帧率断言对机器负载敏感" } },
+    { "id": "turn-chip", "type": "Feature", "name": "轮次诚实 chip", "confidence": 0.9,
+      "attributes": { "限轮": "轮次 X/Y（draw 时 rounds 已+1）", "不限轮轮流": "第 N 手", "自由": "纯数字（test.cjs 断言）" } },
+    { "id": "anim-lock", "type": "Mechanism", "name": "动画锁 revealAnim/cardDealt", "confidence": 0.95,
+      "attributes": { "语义": "零改动承诺已验收", "押注面板": "renderBetBox 吃 revealAnim 门控" } }
+  ],
+  "lastUpdated": "2026-09-13"
+}
