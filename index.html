@@ -49,18 +49,24 @@
     .screen { display: none; width: 100%; max-width: 920px; margin-left: auto; margin-right: auto; transform-origin: 50% 42%; backface-visibility: hidden; }
     .screen.active { display: flex; flex-direction: column; align-items: center; }
     @keyframes fade-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-    /* 一镜到底：屏在「走廊」里沿景深前后穿行——新屏从深处推近（scene-in），旧屏掠过镜头飞向观者（scene-out）。
-       透视直接写进 transform 的 perspective()，不去动 .world 的渲染上下文（红线：绝不开 preserve-3d，命中测试保持平面）。
-       方向由 .world.tx-back 上的 --tx-* 变量整体反转（回退时反过来），见下方 3D 舞台段。 */
+    /* 换屏 = 立方面转身：四面屏是立方体的四面墙，换屏时绕立方体中心竖轴刚性旋转 90°。
+       每面的变换写成 perspective(P) translateZ(-R) rotateY(θ) translateZ(R)：
+         · θ=0 时三段互为恒等（translateZ(-R)·I·translateZ(R) = 单位阵），与 transform:none 逐像素相同
+           —— 这是「常态不留 3D 姿态、命中测试保持平面」这条红线不用破的原因；
+         · θ=±90° 时面心落在 (∓R, 0, -R)，正是「前墙在 z=0、立方体中心在 z=-R」的左/右墙。
+       θ 必须绕中心竖轴转（不是各转各的）：出屏 0→-90°、入屏 +90°→0 用同一个 R 与同一个 θ 增量时，
+       两面公共竖棱全程焊死（ψ=0 时都在 (W/2,0,0)，ψ=-45° 时都在 (0,0,0.207W)），读起来才是一个刚体。
+       透视写在 transform 的 perspective() 里，不去动 .world 的渲染上下文（红线：绝不开 preserve-3d）。
+       方向由 .world.tx-back 上的 --tx-a 整体反号（回退时反向转身），见下方 3D 舞台段。 */
     @keyframes scene-in {
-      from { opacity: 0; transform: perspective(1200px) translate3d(0, 0, var(--tx-zin, -520px)) rotateY(calc(-1 * var(--tx-ry, 6deg))) rotateX(var(--tx-tilt, 1.4deg)) scale(1); }
+      from { opacity: 0; transform: perspective(1200px) translate3d(0, 0, calc(-1 * var(--tx-r, 460px))) rotateY(var(--tx-a, 90deg)) translate3d(0, 0, var(--tx-r, 460px)); }
       22%  { opacity: 1; }   /* 尽早坐实：加载层还在淡出时它已经是不透明的，幕一揭开就是画面，不会先露一段黑底 */
-      to   { opacity: 1; transform: perspective(1200px) translate3d(0, 0, 0) rotateY(0deg) rotateX(0deg) scale(1); }
+      to   { opacity: 1; transform: perspective(1200px) translate3d(0, 0, calc(-1 * var(--tx-r, 460px))) rotateY(0deg) translate3d(0, 0, var(--tx-r, 460px)); }
     }
     @keyframes scene-out {
-      from { opacity: 1; transform: perspective(1200px) translate3d(0, 0, 0) rotateY(0deg) rotateX(0deg) scale(1); }
-      50%  { opacity: 0.45; }
-      to   { opacity: 0; transform: perspective(1200px) translate3d(0, 0, var(--tx-zout, 240px)) rotateY(var(--tx-ry, 6deg)) rotateX(calc(-1 * var(--tx-tilt, 1.4deg))) scale(1.02); }
+      from { opacity: 1; transform: perspective(1200px) translate3d(0, 0, calc(-1 * var(--tx-r, 460px))) rotateY(0deg) translate3d(0, 0, var(--tx-r, 460px)); }
+      55%  { opacity: 0.92; }   /* 前半程保持不透明：45° 时这面墙还有 ~70% 宽，要能看清它正在转出去 */
+      to   { opacity: 0; transform: perspective(1200px) translate3d(0, 0, calc(-1 * var(--tx-r, 460px))) rotateY(calc(-1 * var(--tx-a, 90deg))) translate3d(0, 0, var(--tx-r, 460px)); }
     }
     @keyframes scene-in-lite  { from { opacity: 0; } to { opacity: 1; } }
     @keyframes scene-out-lite { from { opacity: 1; } to { opacity: 0; } }
@@ -508,16 +514,23 @@
        按钮/输入框全部点不动；现在世界层是一个带透视的平面，屏内命中就是普通 2D，稳。
        全部用 CSS 3D，不引 WebGL：file:// 离线可用，软件光栅（--disable-gpu）下也能钉住 60fps。 */
     #app { perspective: 1400px; perspective-origin: 50% 36%; }
-    /* .world 上的 --tx-* 是「走廊」的景深参数：前进时新屏从 -520px 深处推近、旧屏飞到 +240px 掠过镜头；
-       tx-back（回退）整体反向。参数只喂给 scene-in/out 两个关键帧，落位后 .screen 上不留任何 transform。 */
+    /* .world 上的 --tx-* 是「立方体」的参数：--tx-r 是面宽的一半（立方体半径，由 JS 实测写入，
+       值必须精确等于当前屏宽/2，否则两面公共棱对不上、看起来是两张纸错位而不是转身）；
+       --tx-a 是转身角度（前进 +90°、tx-back 反号 -90°），只喂给 scene-in/out 两个关键帧。
+       落位后 .screen 上不留任何 transform（θ=0 的复合式就是单位阵）。 */
     .world { width: 100%; transform-origin: 50% 40%; will-change: transform;
-      --tx-zin: -520px; --tx-zout: 240px; --tx-ry: 6deg; --tx-tilt: 1.4deg; }
-    .world.tx-back { --tx-zin: 240px; --tx-zout: -520px; --tx-ry: -6deg; --tx-tilt: -1.4deg; }
-    /* 换屏的两个半场：新屏入场 / 旧屏退场。都只在换屏那 ~0.9s 里动 transform，动画结束即 class 移除、归位 none
-       （所以常态下每屏都没有 3D 姿态，命中测试保持纯平面；离开的旧屏绝对定位叠在上层、不接收点击） */
-    .screen.entering { will-change: transform, opacity; animation: scene-in 0.8s cubic-bezier(0.16, 0.84, 0.28, 1); }
-    .screen.leaving { display: flex !important; flex-direction: column; align-items: center; position: absolute; left: 0; right: 0; top: 0; width: 100%; max-width: 920px; margin-left: auto; margin-right: auto;
-      opacity: 0; pointer-events: none; z-index: 6; will-change: transform, opacity; animation: scene-out 0.46s cubic-bezier(0.5, 0, 0.75, 0.25); }
+      --tx-r: 460px; --tx-a: 90deg; }
+    .world.tx-back { --tx-a: -90deg; }
+    /* 换屏的两个半场：新屏入场 / 旧屏退场。两者是同一个刚体的两面，所以时长与缓动必须逐字相同
+       （一个 0.8s 一个 0.46s 会让立方体在转场中途散架）；都只在换屏那 0.8s 里动 transform，
+       动画结束即 class 移除、归位 none（常态下每屏都没有 3D 姿态，命中测试保持纯平面；
+       离开的旧屏绝对定位叠在上层、不接收点击） */
+    .screen.entering { will-change: transform, opacity; animation: scene-in 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+    /* max-width 交给 JS 内联的 width（= 入屏面宽，见 armCube）：立方体两面必须同宽才有一致的公共棱，
+       而宽屏下大厅是 1180px、其余三屏 920px，写死 920 会把拉宽的那一面夹回来、转角上留缝。
+       width:100% 只是内联值缺失时的兜底；left/right 都给 0 且左右 margin auto，内联宽度仍然居中（与入屏同轴）。 */
+    .screen.leaving { display: flex !important; flex-direction: column; align-items: center; position: absolute; left: 0; right: 0; top: 0; width: 100%; max-width: none; margin-left: auto; margin-right: auto;
+      opacity: 0; pointer-events: none; z-index: 6; will-change: transform, opacity; animation: scene-out 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
     /* 省电档：一镜到底降级成纯淡入淡出（不做景深/旋转，避免大图层逐帧重光栅） */
     body.loperf .screen.entering { animation-name: scene-in-lite; will-change: opacity; }
     body.loperf .screen.leaving  { animation-name: scene-out-lite; will-change: opacity; }
@@ -1964,7 +1977,8 @@ function hideLoading() {
   const o = $('loading-overlay');
   if (o) { o._hid = true; o.classList.add('hide'); clearTimeout(o._rm); o._rm = setTimeout(() => o.remove(), 520); }
   // 加载层收起＝过场的一段：此时才放新屏的入场，两者叠在一起读成一次镜头推进
-  if (pendingSceneEnter) { const p = pendingSceneEnter; pendingSceneEnter = null; playSceneEnter(p.name, p.back); }
+  // （出屏的转出也在这一刻一起放，两面同步起转——见 queueSceneEnter 的注释）
+  if (pendingSceneEnter) { const p = pendingSceneEnter; pendingSceneEnter = null; if (p.prev) armCube(p.prev, p.name); playSceneEnter(p.name, p.back); }
 }
 
 // 修改状态：先本地应用（保证发起端无回显的本地模式也同步生效），再发布
@@ -2085,12 +2099,23 @@ function currentScreen() {
   if (S && S.finished) return 'result';
   return S && S.gameStarted ? 'game' : 'lobby';
 }
-let lastScreenName = null;   // 一镜到底：只在换屏那一刻开机位
+// 换屏基线的初值 = 开机时屏上已经是的那一面（加入页）。**必须是初值而不是 null**：
+// 开机没有任何地方调 renderScreen()，若留 null，第一次换屏（每局必经的 join→lobby）就会走到
+// `txPrev === null` 那条分支——旧墙不挂 .leaving（瞬间消失）、`--tx-r` 也不写（新墙没有转身半径），
+// 结果是一面墙单边甩进来而不是两面铰接转动。
+let lastScreenName = currentScreen();   // 一镜到底：只在换屏那一刻开机位
 let pendingSceneEnter = null;   // 加载层还盖着时先攒着：等它收起那一刻再放新屏入场（加载层淡出本身就是过场的一段）
-const SCENE_ORDER = { join: 0, lobby: 1, game: 2, result: 3 };   // 屏序：前进=镜头推进，回退=反向
+const SCENE_ORDER = { join: 0, lobby: 1, game: 2, result: 3 };   // 屏序（四面墙首尾相接成环）
+// 换屏 = 绕立方体转一个棱，所以取模 4 的最短路：result(3)→join(0) 是 -1 步（转回身），不是 +3 步。
+// 正对面那两对（join↔game、lobby↔result）步数是 2，按「转一个棱」处理成前进——DOM 里换屏时只有两面存在，
+// 真转 180° 会转出一瞬所有面都侧棱对镜头的空屏，而转一面墙的视觉语言下没人能分辨这面墙标的是什么。
+function sceneTurn(prev, next) {
+  const d = ((SCENE_ORDER[next] ?? 0) - (SCENE_ORDER[prev] ?? 0) + 4) % 4;
+  return d > 2 ? -1 : 1;
+}
 function playSceneEnter(name, back) {
   if (REDUCED || !Cam.el) return;
-  Cam.el.classList.toggle('tx-back', !!back);   // 走廊方向（scene-in/out 依赖的 --tx-* 变量）
+  Cam.el.classList.toggle('tx-back', !!back);   // 转身方向（scene-in/out 依赖的 --tx-a）
   const s = $('screen-' + name);
   if (!s) return;
   s.classList.remove('entering');
@@ -2100,11 +2125,38 @@ function playSceneEnter(name, back) {
   s._txT = setTimeout(() => s.classList.remove('entering'), 1000);
 }
 function overlayUp() { const o = $('loading-overlay'); return !!(o && o.isConnected && !o._hid); }
+// 立方体布景：量入屏面宽 → 写半径 → 给出屏挂上转出动画（绝对定位叠在上层、不接点击），两面同时起转。
+//
+// 半径取「**入屏**面宽的 1/2」，不是出屏的。两面要当同一个立方体的墙，就必须同宽同中心、公共棱才焊得住；
+// 而宽屏（≥1440，非手机横屏）下大厅是 1180px、其余三屏是 920px（见上方 #screen-lobby 两栏规则），两面天然不同宽：
+//   · 半径取出屏，出屏是大厅时：它一转出就被 .leaving 夹回 920（半宽 460 < 半径 590），自己的棱够不到铰链，
+//     两墙之间裂开 130px 缝（比重叠更露怯——缝里直接漏背景）
+//   · 半径取出屏，入屏是大厅时：入屏 1180 比 2R 宽 260px，转角中段两墙重叠 ~92px
+// 统一以入屏为准，并把出屏内联拉到 2R，两面必然同宽。出屏本来就转走、从不落位，改它宽度不影响任何落位结果。
+function armCube(prevName, name) {
+  if (REDUCED || !Cam.el) return;
+  const nw = $('screen-' + name), old = $('screen-' + prevName);
+  if (!nw || !old) return;
+  // offsetWidth 是布局宽，不受 .world 常驻机位投影影响（getBoundingClientRect 会带上镜头缩放，别用）；
+  // R 必须在挂动画之前就位——两个关键帧实时读它。量不到（新屏还没进布局）就这一次不转身：
+  // 宁可少一次转场，也不要写一个错的半径把两面转散。
+  const R = nw.offsetWidth / 2;
+  if (!R) return;
+  Cam.el.style.setProperty('--tx-r', R.toFixed(1) + 'px');
+  old.style.width = (R * 2).toFixed(1) + 'px';
+  old.classList.remove('entering');
+  old.classList.add('leaving');
+  clearTimeout(old._txL);
+  // > scene-out 的 0.8s（别在动画跑完前把它摘掉）。宽度一并还回去，否则它下次当入屏时会被上一次的宽度缩着显示
+  old._txL = setTimeout(() => { old.classList.remove('leaving'); old.style.width = ''; }, 900);
+}
 // 放新屏入场：必须在它已经 display（.active）之后再挂，否则 CSS 动画在 display:none 期间不会跑，
-// 一显形就已经是终态/或先满屏闪一帧。加载层还盖着时先攒着，等 hideLoading 那一刻再放。
-function queueSceneEnter(name, back) {
-  if (overlayUp()) pendingSceneEnter = { name, back };
-  else playSceneEnter(name, back);
+// 一显形就已经是终态/或先满屏闪一帧。加载层还盖着时把出屏的转出也一起攒着——否则旧墙在层后面独自转完、
+// 揭幕时只剩新墙单边从侧面甩进来，读不出墙角；而且新屏在 22% 就坐实不透明（那个关键帧是为了「揭幕不先露一段空底」），
+// 高转角下提前坐实只会让「空场」更显眼。两面一起等揭幕，才是一次完整的转身。
+function queueSceneEnter(name, back, prev) {
+  if (overlayUp()) pendingSceneEnter = { name, back, prev };
+  else { if (prev) armCube(prev, name); playSceneEnter(name, back); }
 }
 function renderScreen() {
   const name = currentScreen();
@@ -2112,27 +2164,21 @@ function renderScreen() {
   let changed = false, txPrev = null, txBack = false;
   if (name !== lastScreenName) {
     changed = true; txPrev = lastScreenName; lastScreenName = name;
-    txBack = txPrev ? (SCENE_ORDER[name] ?? 0) < (SCENE_ORDER[txPrev] ?? 0) : false;
-    if (txPrev) {
-      const old = $('screen-' + txPrev);
-      // 旧屏先退场（绝对定位掠过镜头），新屏同时从景深里推近——读起来是一次连续运镜，不是硬切
-      if (old && !REDUCED) {
-        old.classList.remove('entering');
-        old.classList.add('leaving');
-        clearTimeout(old._txL);
-        old._txL = setTimeout(() => old.classList.remove('leaving'), 520);
-      }
-      SFX.play(name === 'result' ? 'win' : 'whoosh');
-    }
-    Cam.enter(name, txBack ? -1 : 1);
+    txBack = txPrev ? sceneTurn(txPrev, name) < 0 : false;
   }
-  // 先切 active（新屏显形），再挂入场动画
+  // 先切 active：新屏进布局，面宽才量得到（armCube 量的是新屏）。出屏此刻丢掉 .active 也不影响转出——
+  // .leaving 自带 display:flex !important，照样显示，只是换成非 active 的那套通用布局。
   document.querySelectorAll('.screen').forEach(s => {
     const on = s.id === 'screen-' + name;
-    if (on) { s.classList.remove('leaving'); clearTimeout(s._txL); }   // 快速连跳时别让上一轮的退场类把它藏起来
+    // 快速连跳时别让上一轮的退场类把它藏起来、也别让上一轮拉的宽度把它缩着
+    if (on) { s.classList.remove('leaving'); clearTimeout(s._txL); s.style.width = ''; }
     s.classList.toggle('active', on);
   });
-  if (changed && !(txPrev === null && name === 'join')) queueSceneEnter(name, txBack);   // 开机的加入页不播转场
+  if (changed) {
+    if (txPrev) SFX.play(name === 'result' ? 'win' : 'whoosh');
+    Cam.enter(name, txBack ? -1 : 1);
+    if (txPrev) queueSceneEnter(name, txBack, txPrev);
+  }
   updateReactBar();
   if (name === 'lobby') renderLobby();
   if (name === 'game') renderGameStatic();
@@ -2514,13 +2560,15 @@ const Cam = {
   },
   // 换屏：不瞬移机位，从当前位置继续推进（一镜到底的接续段）。dir<0 = 回退，镜头反向（先拉后收）。
   // 两段接力：540ms 过冲推进 → 660ms 缓收回常态，读起来是一次连着呼吸的推镜，而不是“跳到 spawn 再 dolly”。
+  // 立方体转场落地后镜头让位：转身本身信息量已经很大，推进幅度收到原来的一半左右，只留一点呼吸——
+  // 而且这里**不再动 ry**（镜头偏航会和立方体的 rotateY 叠在一起，把转角读浑），偏航交给立方体独占。
   enter(name, dir = 1) {
     this.curScreen = name;
     this.enteredAt = performance.now();
     const b = this.baseOf(name);
     if (REDUCED || !this.el) { this.jump(b); return; }
     const ahead = dir < 0 ? -1 : 1;
-    const push = { z: b.z - 46 * ahead, rx: b.rx + 2.2 * ahead, ry: (b.ry || 0) + 1.5 * ahead, s: b.s * (ahead > 0 ? 1.02 : 0.98) };
+    const push = { z: b.z - 24 * ahead, rx: b.rx + 1.2 * ahead, ry: b.ry || 0, s: b.s * (ahead > 0 ? 1.01 : 0.99) };
     this.to(push, 540, 'out', () => { if (this.curScreen === name) this.to(b, 660, 'dolly'); });
   },
   home(ms = 750, done) { this.to(this.baseOf(this.curScreen), ms, 'dolly', done); },
