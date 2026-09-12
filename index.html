@@ -1117,6 +1117,9 @@
       <div class="mini-row" style="margin-top:10px">
         <button type="button" class="mini-opt" id="btn-duck-guide" title="外放时音乐会从麦克风串出去：连麦时把背景音乐压低（动作音效保持原音量），减少串音与掩蔽">连麦时降低音乐：开</button>
       </div>
+      <div class="mini-row" style="margin-top:10px">
+        <button type="button" class="mini-opt" id="btn-speaker-guide" hidden title="手机/平板上连麦默认走外放（免提），不再从听筒出声；个别机型外放没声音时，可关掉退回系统通话播放（可能又变听筒，建议戴耳机）">📢 连麦语音外放：开</button>
+      </div>
     </div>
     <button class="btn btn-primary" id="btn-guide-ok" style="align-self:center">明白啦 🎉</button>
   </div>
@@ -3912,25 +3915,56 @@ function micLive() { return MIC.on || MIC.listen; }
 
 // 连麦自动压低（ducking）：外放时本地音乐/音效会被麦克风收进去——
 // 浏览器的 echoCancellation 只对「远端播放信号」这个参考有效，本地 WebAudio 现场合成的声音不在参考里，消不掉；
-// 所以广播时把总线压到 14%；仅收听（有活跃语音链路）时压到 50%，降低串音与掩蔽。
+// 所以广播时把总线压到 14%（手机走媒体外放时压到 6%，见下）；仅收听（有活跃语音链路）时压到 50%，降低串音与掩蔽。
 // 判据用「真实链路数 MIC.peers.size」而不是收听偏好（listen 默认开，没人说话时不能无端压低）。远端人声不走这条总线，不受影响。
 // 戴耳机仍是唯一能彻底消除音乐串音的办法（首次开麦给一次提示）。
 const DUCK_KEY = 'tod:duck';
 let duckPref = true;
 try { duckPref = localStorage.getItem(DUCK_KEY) !== '0'; } catch {}
 let duckHinted = false;
+
+// 手机端连麦默认外放（扬声器）：浏览器只要把远端 WebRTC 音频喂给 <audio> 元素播放，就认定这是「通话」，
+// 系统会把输出切进 communication 模式 → 听筒（Chromium 甚至回滚过「WebRTC 默认扬声器」的改动），
+// 而网页没有 setSpeakerphoneOn / 切输出设备这类接口（移动端 setSinkId 多数机型枚举不到输出设备）。
+// 唯一的绕法是换一条路径：远端人声走 AudioContext.destination（媒体输出）——媒体输出在各端恒定走扬声器，不会进听筒。
+// 桌面不受影响（没有听筒问题，且元素播放的硬件回声消除在桌面真实有效），所以只在触屏设备上启用。
+// 判据用媒体查询而不是 UA：iPadOS 会伪装成桌面 Safari 的 UA，UA 嗅探恰好会在目标机型上误判。
+const COARSE_TOUCH = (() => {
+  try {
+    return matchMedia('(hover: none) and (pointer: coarse)').matches
+      || (matchMedia('(hover: none)').matches && navigator.maxTouchPoints > 0);
+  } catch { return false; }
+})();
+const SPEAKER_KEY = 'tod:speaker';   // '0' = 退回 <audio> 元素播放（个别机型 AudioContext 没声音时的逃生门）
+let speakerPref = true;
+try { speakerPref = localStorage.getItem(SPEAKER_KEY) !== '0'; } catch {}
+let speakerHinted = false;
+function useMediaOut() { return COARSE_TOUCH && speakerPref; }
+
 function syncAudioDuck(animate = true) {
-  const f = !duckPref ? 1 : (MIC.on ? 0.14 : (MIC.peers.size ? 0.5 : 1));
+  // 媒体外放这一路的回声消除参考不再是被渲染出的声音，串音更难消 → 广播时压得更狠（只影响手机外放；桌面/听筒仍 14%）
+  const f = !duckPref ? 1 : (MIC.on ? (useMediaOut() ? 0.06 : 0.14) : (MIC.peers.size ? 0.5 : 1));
   SFX.duckMusic(f, animate ? 320 : 0);   // 只压背景音乐；动作音效（master 总线）保持原音量
 }
 function syncDuckBtn() {
   const g = $('btn-duck-guide');
   if (g) g.textContent = '连麦时降低音乐：' + (duckPref ? '开' : '关');
 }
+function syncSpeakerBtn() {
+  const g = $('btn-speaker-guide');
+  if (!g) return;
+  g.hidden = !COARSE_TOUCH;   // 桌面没有听筒问题，按钮不出现（也不占位）
+  if (COARSE_TOUCH) g.textContent = '📢 连麦语音外放：' + (speakerPref ? '开' : '关');
+}
 function micDuckHint() {   // 每次会话只提示一次，别刷屏
   if (duckHinted) return;
   duckHinted = true;
   if (BGM.on && duckPref) toast('💡 已把音乐压低；想让对方完全听不到音乐，请戴耳机或关掉音乐', '', 4200);
+}
+function speakerHint() {   // 走媒体外放：EC 变弱，提示一次（同样会话级，别刷屏）
+  if (speakerHinted) return;
+  speakerHinted = true;
+  toast('📢 对方声音已走外放（免提）；外放开麦时回声抑制较弱，戴耳机效果最好', '', 4600);
 }
 
 const MIC = {
@@ -4065,7 +4099,7 @@ function destroyPeer(pid) {
 function makePeer(pid) {
   if (MIC.peers.has(pid)) return MIC.peers.get(pid);
   const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-  const pr = { pid, pc, at: Date.now(), dir: peerDir(pid), el: null, src: null, gain: null, gainOn: false, analyser: null, tmp: null, ice: [], remoteSet: false, sdpSent: false, dead: false, relay: false, bytes: 0, gotAt: 0, trackAt: 0, nextTry: 0, warnedPlay: false, warnedMute: false, level: 0, hold: 0 };
+  const pr = { pid, pc, at: Date.now(), dir: peerDir(pid), el: null, src: null, gain: null, gainOn: false, analyser: null, tmp: null, ice: [], remoteSet: false, sdpSent: false, dead: false, relay: false, bytes: 0, gotAt: 0, trackAt: 0, nextTry: 0, warnedPlay: false, warnedMute: false, level: 0, hold: 0, attached: false, mediaOut: false, stream: null };
   if (MIC.on && MIC.stream) {
     // 我开麦：挂上音轨（sendrecv）。只听的一方会回 recvonly，协商结果就是单向广播
     MIC.stream.getAudioTracks().forEach(t => pc.addTrack(t, MIC.stream));
@@ -4125,42 +4159,105 @@ async function createPeerTo(pid) {
   return pr;
 }
 
-function attachRemote(pid, pr, stream) {
-  if (!stream || pr.el) return;
+// 出声路径只有两条，二选一、互斥（同一个流同时走两路就是叠音）：
+//   A. 元素直出（桌面）：<audio srcObject> 播。音质与回声消除按通话调校，但移动端会被系统切进听筒模式。
+//   B. 媒体外放（触屏设备）：src → gain → ctx.destination。绕开通话模式，恒定走扬声器（见 useMediaOut 处注释）。
+// 两条都搭在 pr.src（MediaStreamSource）之上：analyser 由它供数据，所以头像波形与走哪条路径无关。
+//
+// 实测（probe-micspeaker2.cjs，触屏模拟 + 假麦克风）：远端 WebRTC 音轨必须先被一个 media 元素「消费」，
+// WebAudio 图才收得到数据——没有元素时 analyser 与 gain 输出恒为 0（真机上就是「链路已通却一点声音都没有」），
+// 把同一个流挂到一个**不播放**的元素上，gain 输出立刻有信号；把元素移除，又回到静音。
+// 所以媒体外放要留一个元素挂在流上当消费者，但绝不播它：paused 元素不出声，也不会被系统当成通话渲染。
+function armGainOut(pr) {   // 建/恢复「媒体外放」链路（幂等：重复 connect 同一节点是 no-op）
+  if (!pr.src || !MIC.ctx) return false;
+  try {
+    if (MIC.ctx.state === 'suspended') MIC.ctx.resume().catch(() => {});
+    pr.gain = pr.gain || MIC.ctx.createGain();
+    pr.src.connect(pr.gain);
+    if (!pr.gainOn) { pr.gain.connect(MIC.ctx.destination); pr.gainOn = true; }
+    return true;
+  } catch { return false; }
+}
+// 远端元素只建一次、监听器一次挂全——它有两个身份：
+//   · 元素直出时是「播放器」：出声 + 真出声后撤兜底防叠音
+//   · 媒体外放时是「消费者」：只挂在流上不出声（没有它 WebAudio 收不到数据），万一被谁播起来立刻按回去
+// 两个身份靠 pr.mediaOut 区分，所以监听器必须都挂着：切换身份时不能缺任何一条。
+function makeRemoteEl(pid, pr, stream) {
+  if (pr.el) return pr.el;
   const el = document.createElement('audio');
   pr.el = el;
-  el.autoplay = true; el.playsInline = true; el.style.display = 'none';
+  el.playsInline = true; el.style.display = 'none';
   el.srcObject = stream;
+  el.addEventListener('canplay', () => { if (!pr.mediaOut && el.paused) playRemote(pid, pr); });
+  el.addEventListener('playing', () => {
+    if (pr.mediaOut) el.pause();   // 消费者不该出声：播了会叠音，还会把输出拽回听筒
+    else unlockOff(pr);            // 元素真出声了 → 撤掉 gain 兜底，避免两路叠音
+  });
+  el.addEventListener('pause', () => { pr.nextTry = 0; });
   document.body.appendChild(el);
+  return el;
+}
+// 媒体外放的「消费者」：挂着但从不播放（autoplay=false，也不调 play），出声全交给 gain
+function attachRemoteSink(pr, stream) {
+  const el = makeRemoteEl(pr.pid, pr, stream);
+  el.autoplay = false;
+}
+// 元素直出那一条（桌面默认；也是媒体外放在 AudioContext 建不起来时的退路）
+function attachRemoteEl(pid, pr, stream) {
+  makeRemoteEl(pid, pr, stream).autoplay = true;
+  playRemote(pid, pr);
+}
+
+function attachRemote(pid, pr, stream) {
+  if (!stream || pr.attached) return;
+  pr.attached = true;
+  pr.stream = stream;   // 存一份：通话中切「外放/直出」要靠它重建另一条路径
   try {
     pr.src = MIC.ctx.createMediaStreamSource(stream);
     pr.analyser = MIC.ctx.createAnalyser(); pr.analyser.fftSize = 512;
     pr.tmp = new Uint8Array(pr.analyser.fftSize);
-    pr.src.connect(pr.analyser);   // 只接分析器不外放，声音由 audio 元素播
+    pr.src.connect(pr.analyser);   // 只接分析器，不出声：出声交给下面二选一的那条路径
   } catch {}
-  el.addEventListener('canplay', () => { if (el.paused) playRemote(pid, pr); });
-  el.addEventListener('playing', () => unlockOff(pr));   // 元素真的出声了 → 撤掉兜底，避免两路叠音
-  el.addEventListener('pause', () => { pr.nextTry = 0; });
   pr.trackAt = Date.now();
-  playRemote(pid, pr);
+  // 触屏设备：走媒体外放。先挂「消费者」元素（没有它 WebAudio 收不到数据），再把它接到 gain 上
+  if (useMediaOut() && pr.src) {
+    attachRemoteSink(pr, stream);
+    if (armGainOut(pr)) { pr.mediaOut = true; speakerHint(); return; }
+  }
+  attachRemoteEl(pid, pr, stream);   // 桌面，或 AudioContext 不可用 → 退回元素直出
+}
+
+// 通话中实时切换出声路径（设置面板的「连麦语音外放」开关）：先把旧路径拆干净再建新的，
+// 任何事件时序下都不会出现两路同时出声
+function applySpeakerMode() {
+  for (const [, pr] of MIC.peers) {
+    if (!pr.stream || pr.dead) continue;
+    if (useMediaOut()) {
+      if (pr.mediaOut) continue;
+      if (pr.el) { pr.el.autoplay = false; pr.el.pause(); }   // 元素降级成不出声的「消费者」（仍挂在流上）
+      else attachRemoteSink(pr, pr.stream);
+      if (pr.src && armGainOut(pr)) pr.mediaOut = true;
+      else if (pr.el) {                                // ctx 不可用：宁可退回元素直出，也别把声音切没
+        pr.el.autoplay = true; playRemote(pr.pid, pr);
+      }
+    } else if (pr.mediaOut || !pr.el) {
+      pr.mediaOut = false;
+      unlockOff(pr);                                   // 撤掉媒体外放那一路
+      attachRemoteEl(pr.pid, pr, pr.stream);           // 元素转回真正的播放元素（同一个元素复用，消费者身份也保住）
+    }
+  }
+  syncAudioDuck();   // 外放开关影响压低力度（6% vs 14%）
 }
 
 // audio 元素被自动播放策略拦住时，AnalyserNode 照样有波形（头像照常波动），但扬声器一点声音都
 // 没有——这正是“对方头像在动却没声音”的形态。三级兜底：重试 → 改走 AudioContext 直接出声 → 下次触摸再试。
 function playRemote(pid, pr) {
+  if (pr.mediaOut) return;   // 媒体外放：元素只是「消费者」不许播，出声走 gain，不进这套元素播放/兜底阶梯
   const el = pr.el;
   if (!el || pr.dead || !document.body.contains(el)) return;
   el.play().then(() => unlockOff(pr)).catch(() => {
-    if (!pr.gainOn && pr.src && MIC.ctx) {
-      // 重复 connect 同一个节点是 no-op，所以这里不需要“只试一次”的守卫
-      try {
-        if (MIC.ctx.state === 'suspended') MIC.ctx.resume().catch(() => {});
-        pr.gain = pr.gain || MIC.ctx.createGain();
-        pr.src.connect(pr.gain);
-        pr.gain.connect(MIC.ctx.destination);
-        pr.gainOn = true;
-      } catch { /* AudioContext 也不可用：只能靠下一次触摸解锁 */ }
-    }
+    // 元素被拦住 → 改走 AudioContext 直接出声（这条兜底恰好就是手机端要的外放路径）
+    if (armGainOut(pr)) { /* 重复 connect 同一节点是 no-op，所以不需要“只试一次”的守卫 */ }
     if (!pr.warnedPlay) { pr.warnedPlay = true; toast('🔇 浏览器拦住了语音自动播放，再点一下页面任意处就出声', 'error', 4200); }
   });
 }
@@ -4168,12 +4265,22 @@ function playRemote(pid, pr) {
 // 这时元素停在 paused、AudioContext 兜底又被 playing 撤走 → 又是“波形在动但没声音”。
 // 所以每帧确认“至少有一条出声路径”，没有就限流重试。
 function ensureAudible(pr, now) {
+  if (pr.mediaOut) {
+    // 媒体外放：元素的 paused/canplay 判据全不适用。gain 断了就补；ctx 被系统挂起（切后台、被抢占）就限流唤醒
+    if (!pr.gainOn) armGainOut(pr);
+    else if (MIC.ctx && MIC.ctx.state !== 'running' && pr.nextTry <= now) {
+      pr.nextTry = now + 1200;
+      MIC.ctx.resume().catch(() => {});
+    }
+    return;
+  }
   if (!pr.el || pr.gainOn || !pr.el.paused) return;
   if (pr.nextTry > now) return;
   pr.nextTry = now + 1200;
   playRemote(pr.pid, pr);
 }
 function unlockOff(pr) {
+  if (pr.mediaOut) return;   // 媒体外放：gain 就是唯一的出声路径，不能撤
   if (!pr.gainOn) return;
   pr.gainOn = false;
   try { pr.gain && pr.gain.disconnect(); } catch {}
@@ -4181,7 +4288,13 @@ function unlockOff(pr) {
 // 自动播放只在“有一次真实手势”后才放行；开麦期间每一次触摸都顺手把还没出声的链路推一把
 function startMicUnlock() {
   if (MIC.unlock) return;
-  MIC.unlock = () => { for (const [pid, pr] of MIC.peers) if (pr.el && pr.el.paused) playRemote(pid, pr); };
+  MIC.unlock = () => {
+    if (MIC.ctx && MIC.ctx.state === 'suspended') MIC.ctx.resume().catch(() => {});   // 媒体外放靠 ctx，被挂起就唤不醒
+    for (const [pid, pr] of MIC.peers) {
+      if (pr.mediaOut) { if (!pr.gainOn) armGainOut(pr); }
+      else if (pr.el && pr.el.paused) playRemote(pid, pr);
+    }
+  };
   document.addEventListener('pointerdown', MIC.unlock, { passive: true });
 }
 function stopMicUnlock() { if (MIC.unlock) { document.removeEventListener('pointerdown', MIC.unlock); MIC.unlock = null; } }
@@ -4344,9 +4457,11 @@ function renderMicUI() {
     else if (cs === 'failed' || cs === 'disconnected' || cs === 'closed') dead++;
     else pending++;
   }
+  // 触屏设备上把「走的是外放还是直出」也写进 title：真机上这就是「到底有没有外放」的自查依据
+  const route = COARSE_TOUCH ? ` · 输出：${speakerPref ? '外放' : '直出'}` : '';
   const detail = MIC.on
-    ? `语音链路：已接通 ${live} 路 · 协商未完 ${pending} · 已断开 ${dead}${relay ? ` · ${relay} 路走中继` : ''}`
-    : '语音通话（WebRTC）';
+    ? `语音链路：已接通 ${live} 路 · 协商未完 ${pending} · 已断开 ${dead}${relay ? ` · ${relay} 路走中继` : ''}${route}`
+    : `语音通话（WebRTC）${route}`;
   document.querySelectorAll('.js-mic-btn').forEach(b => {
     b.classList.toggle('live', MIC.on);
     b.title = MIC.on ? detail : '开麦即广播：房里其他人不用开麦就能听到你';
@@ -4997,6 +5112,15 @@ $('btn-duck-guide').addEventListener('click', () => {
   syncDuckBtn(); syncAudioDuck();
   toast(duckPref ? '🎚️ 连麦时会自动压低背景音乐（动作音效不变）' : '🎚️ 连麦时不再压低音乐（外放可能串音）');
 });
+$('btn-speaker-guide').addEventListener('click', () => {
+  speakerPref = !speakerPref;
+  try { localStorage.setItem(SPEAKER_KEY, speakerPref ? '1' : '0'); } catch {}
+  syncSpeakerBtn();
+  applySpeakerMode();   // 通话中切换即时生效：拆旧路径再建新路径
+  toast(speakerPref
+    ? '📢 连麦语音走外放（免提）：手机不再用听筒出声'
+    : '📞 已退回系统通话播放：手机可能会用听筒，戴耳机听得最清楚', '', 3600);
+});
 $('btn-land').addEventListener('click', toggleLand);
 window.addEventListener('resize', () => { if (S && S.gameStarted) layoutRing($('game-players-grid')); });
 window.addEventListener('resize', applyLand);
@@ -5081,7 +5205,11 @@ syncPerfBtns();
 SFX.init();
 BGM.init();
 syncDuckBtn();
+syncSpeakerBtn();
 syncAudioDuck(false);
+// 纯收听的人可能从不点「连麦」，而媒体外放要有一次真实手势才让 AudioContext 跑起来：
+// 第一次触摸就预热 ctx（与 SFX/BGM 的 once-gesture 同一套路），免得对方开口时是沉默的
+if (useMediaOut()) document.addEventListener('pointerdown', () => ensureMicCtx(), { once: true, passive: true });
 initCamParallax();
 applyLand();   // 横屏：竖屏里恢复上次的手动选择，真·横屏矮视口自动套横屏布局
 Cam.init();   // 3D 镜头开机：从远处推进到加入页（一镜到底的第一段）
