@@ -3,9 +3,9 @@
     { "id": "cam", "type": "System", "name": "Cam 摄影机 rig", "confidence": 0.95,
       "attributes": { "载体": "#world3d transform 补间", "换屏": "540+660ms 续接", "窄屏": "零过冲", "视差": "±1.6°/±1.2°" },
       "relationships": [ { "to": "cube-turn", "type": "coordinatesWith", "confidence": 0.9 } ] },
-    { "id": "cube-turn", "type": "Pattern", "name": "立方体转身换屏", "confidence": 0.95,
-      "attributes": { "时长": "640ms", "刚体判据": "θ差恒±90°(偏差0.00°)", "背板": "plate-in/out 基态opacity0", "揭幕": "260ms + 140ms delay/backwards" },
-      "relationships": [ { "to": "perf-guard", "type": "degradesTo", "confidence": 0.9 } ] },
+    { "id": "vr-pan", "type": "Pattern", "name": "VR 扫视换场", "confidence": 0.9,
+      "attributes": { "滑动": "640ms 恒速三段，S=--lvw+280px", "门控": "B from 帧在 +S 视口外，delay 280ms > 揭幕 260ms", "偏头一瞥": "Cam.glance 双 dolly ±7°/5° + 10px 侧倾", "墙": "恒亮房间墙 0.92 + 缝侧边缘光" },
+      "relationships": [ { "to": "perf-guard", "type": "degradesTo", "confidence": 0.9 } ]},
     { "id": "reveal-ceremony", "type": "Pattern", "name": "揭晓仪式", "confidence": 0.9,
       "attributes": { "三段": "120/520/220ms WAAPI", "原则": "内容先于镀铬", "时钟": "本端到达钟迟到补偿", "悬念": "打字机32ms/字不封顶" },
       "relationships": [ { "to": "anim-lock", "type": "preserves", "confidence": 0.95 } ] },
@@ -18,5 +18,5 @@
     { "id": "anim-lock", "type": "Mechanism", "name": "动画锁 revealAnim/cardDealt", "confidence": 0.95,
       "attributes": { "语义": "零改动承诺已验收", "押注面板": "renderBetBox 吃 revealAnim 门控" } }
   ],
-  "lastUpdated": "2026-09-13"
+  "lastUpdated": "2026-09-13 (v3: 立方体转身 → VR 扫视)"
 }

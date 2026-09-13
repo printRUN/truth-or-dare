@@ -79,52 +79,30 @@ async function join(p, name, room = '') {
       return !!o && o.classList.contains('hide');
     }, null, { timeout: 20000 });
     const t0 = Date.now();
-    // t≈80ms：delay 期内——旧墙必须在场（backwards 停在 from 帧 opacity 1），新墙停在 from 帧 opacity 0
+    // t≈80ms：揭幕 delay 期内——旧屏必须在场（pan-out from 帧 opacity 1），新屏必须整个在视口外
+    // （门控纯几何：pan-in 的 from 在 +S，不靠透明度——加载层是 0.95 半透，透明度门控会露底）
     await sleep(80);
     const early = await A.evaluate(() => {
       const lv = document.querySelector('.screen.leaving');
       const en = document.querySelector('.screen.entering');
       if (!lv || !en) return null;
+      const r = en.getBoundingClientRect();
       return {
         lvOp: +getComputedStyle(lv).opacity,
         lvDelay: lv.style.animationDelay,
-        enOp: +getComputedStyle(en).opacity,
         enDelay: en.style.animationDelay,
+        enLeft: +r.left.toFixed(1),
+        vw: window.innerWidth,
         overlayOp: +getComputedStyle(document.getElementById('loading-overlay')).opacity,
       };
     });
     log('[揭幕] t≈80ms:', JSON.stringify(early));
     check(!!early, '揭幕间隙：两面动画已挂载（entering/leaving 同时在场）');
     if (early) {
-      check(early.lvOp > 0.9, `旧墙在 140ms 揭幕间隙里仍以 from 帧在场（opacity ${early.lvOp} > 0.9，fill-mode:backwards 生效）`);
-      check(early.enOp < 0.15, `新墙揭幕间隙停在 from 帧（opacity ${early.enOp} < 0.15，不会先静态正视再跳侧棱）`);
-      check(early.lvDelay === '140ms' && early.enDelay === '140ms', `两面共用 140ms animationDelay（${early.lvDelay}/${early.enDelay}）`);
+      check(early.lvOp > 0.9, `旧屏在 280ms 揭幕间隙里仍以 from 帧在场（opacity ${early.lvOp} > 0.9，fill-mode:backwards 生效）`);
+      check(early.enLeft >= early.vw - 1, `新屏揭幕间隙整个在视口外（left ${early.enLeft} ≥ vw ${early.vw}，加载未完成绝不入画）`);
+      check(early.lvDelay === '280ms' && early.enDelay === '280ms', `两面共用 280ms animationDelay（${early.lvDelay}/${early.enDelay}，> 260ms 揭幕）`);
     }
-    // t≈350ms：转身中段——背板应在场（不透背景）；t≈760ms：落位前——背板必须已在自己的关键帧里归零
-    await sleep(270);
-    const mid = await A.evaluate(() => {
-      const en = document.querySelector('.screen.entering');
-      const st = en ? getComputedStyle(en, '::before') : null;
-      return { has: !!en, plateOp: st ? +st.opacity : null };
-    });
-    // 落位判定要踩在「动画 ≥85% 或已结束」的点上（evaluate 往返有抖动，单点采样会踩到 70% 的合法中途）
-    let late = null;
-    for (let i = 0; i < 6 && !late; i++) {
-      await sleep(120);
-      late = await A.evaluate(() => {
-        const en = document.querySelector('.screen.entering');
-        if (!en) return { has: false, plateOp: 0, prog: 1, anims: '' };
-        const anims = en.getAnimations().map(a => `${a.animationName}@${(a.currentTime || 0).toFixed(0)}:${a.playState}`).join(',');
-        const a = en.getAnimations().find(a => a.animationName === 'scene-in');
-        const prog = a && a.effect.getTiming().progress != null ? a.effect.getTiming().progress : (a ? 0 : 1);   // 找不到动画=已结束被回收
-        if (a && prog < 0.85) return null;   // 还没到落位段，继续等
-        return { has: true, plateOp: +getComputedStyle(en, '::before').opacity, prog, anims };
-      }).catch(() => null);
-    }
-    late = late || { has: false, plateOp: NaN, prog: NaN, anims: '' };
-    log('[背板] t≈350ms:', JSON.stringify(mid), ' 落位点:', JSON.stringify(late));
-    check(mid.has && mid.plateOp > 0.2, `转身中段实体背板在场（::before opacity ${mid.plateOp} > 0.2，转角不透背景）`);
-    check(!late.has || late.plateOp < 0.12, `落位前背板归零（scene-in@${late.prog} opacity ${late.plateOp} < 0.12；anim=[${late.anims}]）`);
     // 等动画类摘干净 + 加载层移除
     await A.waitForFunction(() => !document.querySelector('.screen.entering') && !document.querySelector('.screen.leaving') &&
       !document.getElementById('loading-overlay'), null, { timeout: 5000 }).catch(() => {});
@@ -139,16 +117,16 @@ async function join(p, name, room = '') {
     const A = await open(ctx, 'N', { width: 390, height: 844 });
     await join(A, '阿窄');
     await A.waitForSelector('#screen-lobby.active', { timeout: 20000 });
-    await A.waitForTimeout(900);   // 等揭幕+转身完全落定
+    await A.waitForTimeout(1400);   // 等揭幕(280)+扫视(640)+回正(320) 完全落定
     // lobby→game：单人房不走 btn-start（要 2 人），直接写状态位触发真实 renderScreen 换屏链路
     await A.evaluate(() => mutate(n => { n.gameStarted = true; }));
     await A.waitForSelector('#screen-game.active', { timeout: 20000 });
-    // 换屏已由 renderScreen 同步完成；Cam.enter 的推进段在窄屏必须是 no-op（push=b）。
-    // Cam.enter 同步发起：此刻读 Cam.cur 应该已经在 base（540ms 补间目标=b，起点也=b → 全程不动）。
+    // VR 扫视：换屏瞬间镜头不动（glance 第一段只转 ry/x，第二段才回位到新屏常态）——
+    // z 从上一屏位收敛到牌桌常态 -24，判据是「单调收敛、绝无过冲」（旧版会冲到 -36 的过冲推进）。
     const zSamples = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 10; i++) {
       zSamples.push(await A.evaluate(() => +Cam.cur.z.toFixed(2)));
-      await sleep(90);
+      await sleep(100);
     }
     // 窄屏判据：z 从大厅 0 出发收敛到牌桌常态 -24（这段是「走向新房间」的合法位移），
     // 但绝不允许越过 -24 再回来——旧版会先冲到 -36~-48 的过冲推进，把屏内容推出边界。
