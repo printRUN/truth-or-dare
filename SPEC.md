@@ -29,6 +29,14 @@
 - **低端机 / 降噪**：`body.loperf` 把 `.table3d` 拍平，`Cam.to()` 在 LOWPERF 下自动砍掉旋转/缩放、位移减半；`prefers-reduced-motion` 下 `.world { transform: none !important }`，同时 `Cam.to()` 走瞬时跳转（`Cam.jump` 会作废在跑的补间）
 - **3D 命中不能影响正常点击**：`.flip-card` 只让可见的那一面接收点击（`:not(.flipped) .card-front` / `.flipped .card-back` 置 `pointer-events:none`）：部分浏览器会把背面也算进命中栈，翻牌后按钮点不动；E2E 里等待应用自己的动画锁 `revealAnim === false` 再点击，避免撞上翻牌过渡
 
+### 虚拟世界：围桌的每个人都是一个虚拟角色（2026-09 新增）
+- **角色化渲染**：大厅与牌桌的每张玩家卡 = 头像（头）+ `.chr-body` 身体（肩胄剪影，46×17px 渐变）+ 名牌，读作「一个人围桌而坐」；衣服色由 `chrHue(id)` 按 id 哈希出两档 HSL（`--chr1/--chr2`，JS 侧拼好完整 `hsl(h,s%,l%)` 字符串再写变量，不走现代空间语法以兼容老 webview），同一玩家全端同色；`.chr-body::before` 一枚座席位软阴影；呼吸动画 `chr-idle`（scaleY 1→1.07，3.2s，transform-only 合成器路径）。牌桌内名牌升级为胶囊 `.player-name`（ring3d 专属背景/描边）
+- **入座（有人加入）**：牌桌上「名单里新增的那一张卡」才挂 `chr-in`，`chr-walk-in` 从桌心（translate(-50%,-128%) scale 0.42）滑到座位（终帧 = 基态 `translate(-50%,-50%) scale(var(--rs))`，无缝交接）；老玩家离场不重播（名单结构变化重绘时按 `keepIds` 判新增，只有新到者有入场动画，其余人靠 left/top 过渡换座）；大厅新卡沿用既有 `player-enter`
+- **触发谁谁去抽卡**：`drawing/revealed` 阶段触发者卡片挂 `.away`——身体变暗停呼吸、头像环去饱和（「人离座了」），头顶 `.chr-status` 气泡「🎴 去抽卡…/🎬 看牌中…」浮动；状态在 `renderPlayers` 的逐帧徽章刷新循环里同步（`gridId === 'game-players-grid'` 限定），选卡阶段自动归座；回合文案同步改为「起身去卡堆抽卡了…」
+- **角色起身抽卡**：`flyAvatarToDeck` 飞的是完整角色（圆头 `fa-head`（跟随实际头像尺寸）+ 名牌 `fa-tag`），克隆锚点定在头像中心、所有关键帧自带 `translate(-50%,-50%)` 保证起终点与真实中心重合；四帧走路摆动（左肩 -6°/右肩 +6° 各带抬升）替代旧的整圈自旋，总时长 850ms 不变（不打乱抽卡一镜到底时钟：洗牌 1400ms / 发牌 1500ms / 揭晓 2.6s）
+- **视角切到抽到的卡**：`choosing` 镜头滑向触发者（`Cam.nudge`）→ `drawing` 推向卡堆（角色走到哪镜头跟到哪）→ 落牌/翻牌推到中央卡面（`focusCam`），三段接力即「视角切到该用户抽到的卡」；揭晓卡署名 `card-owner` 改 `ownerHtml()` 渲染——带上抽卡者头像 `owner-ava` + 名字，卡面归属一眼可辨
+- **降级**：REDUCED 下 `chr-idle/chr-float/chr-walk-in` 全部 `animation:none`；LOWPERF 同样停呼吸/气泡并取消入座动画（保留静态角色造型与离座变暗）；飞角色在 REDUCED 下本就不跑（`flyAvatarToDeck` 早退）
+
 ### Color Palette
 - Background: Deep navy (#0a0a1a) with animated gradient orbs
 - Primary: Electric purple (#8b5cf6)
@@ -136,7 +144,8 @@
 - Host picks a game mode before starting: 🔄 轮流制对决 / 🎤 自由对决
 
 ### Phase 2: Avatar Display
-- Grid of circular avatars with name labels below
+- 每个玩家是一个**虚拟角色**：头像（头）+ 角色身体 `.chr-body`（按 id 确定色的衣服）+ 名字名牌，大厅与牌桌一致
+- 牌桌上沿椭圆围桌而坐（3D 座次环）；有人加入时新角色从桌心「入座」滑到自己座位，全员可见
 - Active player's avatar pulses with glow ring
 - 连麦中（micOn）的玩家头像左下角显示 🎤 徽章；正在说话时叠加绿色声波环
 - Avatars arranged in a semi-circle / grid layout
