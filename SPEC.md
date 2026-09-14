@@ -13,6 +13,14 @@
 - **Background**: Animated gradient with floating particle confetti, continuous slow-motion drift (one-shot camera feel)
 - **Camera**: 无用户相机控制，全部由 `Cam` 调度为一条连续时间轴：`Cam.enter(name, dir)`（换屏时从**当前机位**续接的一段推进——先过冲再缓收常态，不再瞬移到 spawn；`dir<0` 为回退，镜头反向）、`Cam.home()`、`Cam.focus(el)`（推近到元素）、`Cam.nudge(el)`（滑向持麦人）、`Cam.shake()`（翻牌/暴击的震动）、`Cam.parallax(nx,ny)`（鼠标微视差）
 - **Lighting**: Soft glow on active elements, neon accents on cards；牌桌由 `.table3d`（rotateX 74° 的椭圆渐变台面 + `#cam` 自带 `perspective: 900px`）充当「桌面反射」
+- **第一人称牌桌（2026-09 v5，用户点名「不要 2D，要 3D 第一人称」）**：进 game = 你坐在桌前的视角 ——
+  ① **毡面长在座次环上**：`.players-grid.ring3d::before`（`z-index:-1`，只在本环坐标系内）画椭圆毡面（暗色台体 + 紫氍反光 + 桌沿内圈线 + 投影），座位与桌面**永不脱节**（旧版桌面是 `#cam` 里另一只绝对定位盒子，与流内座次环各过各的，视口一变就「人浮在桌外」——用户原话「背景桌面很变扭」）；`.table3d` 保留为桌下光池；
+  ② **自己固定坐正前方**：`layoutRing` 以 `myId` 所在卡为 0 号位（`meIdx` 偏转整圈），自己永远在屏幕下方最近处（`--rs` 最大，再 +0.05 半档），其余人顺时针摊到两侧与对面；`me` 卡名牌/座位发 cyan 氛灯；纵深对比从 ±0.1 拉到 ±0.16（近大远小更明显）；
+  ③ **牌堆常驻桌心**：`#deck` 从流内 `#deck-section` 搬进 `#cam > .table-deck`（`top:44%` 桌心，`rotateX(16°)+scale(0.72)` 读作躺在桌上的一叠牌，洗牌/发牌动画照常），选卡/牌背/揭晓任何阶段桌上都有牌；`#cam > :not(.table3d)` 的 z2 规则用 `:not(.table-deck)` 排除它（牌堆 z1，流内浮层补 `position:relative; z-index:2` 压在其上）；`#deck` id 不变 → `flyAvatarToDeck`/`focusCam`/发牌锚点全部自动跟随桌心；
+  ④ **入座从桌心出发**：`layoutRing` 按座位相对桌心的方向写 `--wdx/--wdy`（按卡片自身尺寸换算的 translate %），`chr-walk-in` from 帧改用向量（远座从上方入、自己从下方入）；
+  ⑤ **机位**：game 常态 rx 5→8（桌前俯角；landui 维持 rx 2，横屏空间优先）
+  降级：loperf 把 `.table-deck` 拍平（`translate(-50%,-50%)` 直立）；REDUCED 既有 `!important` 座位归位不受影响；毡面是伪元素静态渐变，无滤镜无子元素，不进命中栈。
+  锚定实现（⚠ 实雷两个）：牌堆与 `.table3d` 光池由 `layoutRing` 顺手锚到环心，**只能用 `offsetLeft/offsetTop`（纯布局值）** —— ① rect 是投影后坐标，状态包在扫视/运镜中到达时会被动画扭曲（实测横向偏 47px）；② `.table3d` 的 rect 还是 rotateX 74° 的透视包围盒（近大远小 → 中心偏下 ~60-120px），拿它当桌心会把牌堆压到自己座位上。环 `display:none` 时跳过不写，保留上次可见值。另：`#table3d` 的 id 是这次补上的 —— `armTableLit`/`renderScreen` 一直用 `$('table3d')` 取元素，此前只有 class 没有 id，「点亮舞台/台面扫光」整段静默失效（真 bug，顺手修复）
 
 #### 3D 实现的红线（踩过的坑，改动前必读）
 - **`.world` 绝不能开 `transform-style: preserve-3d`**：一旦开启，浏览器做 3D 命中测试时父平面（z=0）会盖过 `translateZ(-40px)` 的子屏，`document.elementFromPoint` 返回 `.world`，**全站按钮/输入框点不动**（`details/adv summary` 都打不开）。现在就义：世界层是「带透视的单平面」，屏内命中就是普通 2D；`.cam` 自己开 `perspective` 给牌桌子元素用。回归锁在 `.pw/test-3d.cjs`（`transformStyle === 'flat'` + `elementFromPoint` 命中自身）
@@ -31,7 +39,7 @@
 
 ### 虚拟世界：围桌的每个人都是一个虚拟角色（2026-09 新增）
 - **角色化渲染**：大厅与牌桌的每张玩家卡 = 头像（头）+ `.chr-body` 身体（肩胄剪影，46×17px 渐变）+ 名牌，读作「一个人围桌而坐」；衣服色由 `chrHue(id)` 按 id 哈希出两档 HSL（`--chr1/--chr2`，JS 侧拼好完整 `hsl(h,s%,l%)` 字符串再写变量，不走现代空间语法以兼容老 webview），同一玩家全端同色；`.chr-body::before` 一枚座席位软阴影；呼吸动画 `chr-idle`（scaleY 1→1.07，3.2s，transform-only 合成器路径）。牌桌内名牌升级为胶囊 `.player-name`（ring3d 专属背景/描边）
-- **入座（有人加入）**：牌桌上「名单里新增的那一张卡」才挂 `chr-in`，`chr-walk-in` 从桌心（translate(-50%,-128%) scale 0.42）滑到座位（终帧 = 基态 `translate(-50%,-50%) scale(var(--rs))`，无缝交接）；老玩家离场不重播（名单结构变化重绘时按 `keepIds` 判新增，只有新到者有入场动画，其余人靠 left/top 过渡换座）；大厅新卡沿用既有 `player-enter`
+- **入座（有人加入）**：牌桌上「名单里新增的那一张卡」才挂 `chr-in`，`chr-walk-in` 从桌心（`translate(calc(-50% + var(--wdx)), calc(-50% + var(--wdy))) scale 0.42`，向量由 layoutRing 按座位写入）走到座位（终帧 = 基态 `translate(-50%,-50%) scale(var(--rs))`，无缝交接）；老玩家离场不重播（名单结构变化重绘时按 `keepIds` 判新增，只有新到者有入场动画，其余人靠 left/top 过渡换座）；大厅新卡沿用既有 `player-enter`
 - **触发谁谁去抽卡**：`drawing/revealed` 阶段触发者卡片挂 `.away`——身体变暗停呼吸、头像环去饱和（「人离座了」），头顶 `.chr-status` 气泡「🎴 去抽卡…/🎬 看牌中…」浮动；状态在 `renderPlayers` 的逐帧徽章刷新循环里同步（`gridId === 'game-players-grid'` 限定），选卡阶段自动归座；回合文案同步改为「起身去卡堆抽卡了…」
 - **角色起身抽卡**：`flyAvatarToDeck` 飞的是完整角色（圆头 `fa-head`（跟随实际头像尺寸）+ 名牌 `fa-tag`），克隆锚点定在头像中心、所有关键帧自带 `translate(-50%,-50%)` 保证起终点与真实中心重合；四帧走路摆动（左肩 -6°/右肩 +6° 各带抬升）替代旧的整圈自旋，总时长 850ms 不变（不打乱抽卡一镜到底时钟：洗牌 1400ms / 发牌 1500ms / 揭晓 2.6s）
 - **视角切到抽到的卡**：`choosing` 镜头滑向触发者（`Cam.nudge`）→ `drawing` 推向卡堆（角色走到哪镜头跟到哪）→ 落牌/翻牌推到中央卡面（`focusCam`），三段接力即「视角切到该用户抽到的卡」；揭晓卡署名 `card-owner` 改 `ownerHtml()` 渲染——带上抽卡者头像 `owner-ava` + 名字，卡面归属一眼可辨
