@@ -47,6 +47,11 @@
     /* margin auto：宽屏（>960px）下 .world 有 100% 宽，屏幕必须自己居中，否则整块内容贴左边
        （landui 里 max-width:none + width:100%，auto margin 无副作用；.leaving 是绝对定位，auto 归 0） */
     .screen { display: none; width: 100%; max-width: 920px; margin-left: auto; margin-right: auto; transform-origin: 50% 42%; backface-visibility: hidden; }
+    /* 竖屏揭晓押注面板（absolute 底部悬浮）的包含块。⚠ 两个特异度坑（都实测过）：
+       ① 裸 #screen-game (1,0,0) 会压过 .screen.leaving 的 absolute；
+       ② .stage-revealed (1,1,0) 也会——结束游戏发生在揭晓态，退场的旧屏带 .stage-revealed，
+          同样留在文档流里把 result 屏顶出折叠线。必须 :not(.leaving) 显式排除退场态。 */
+    #screen-game.stage-revealed:not(.leaving) { position: relative; }
     .screen.active { display: flex; flex-direction: column; align-items: center; }
     @keyframes fade-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
     /* 换屏 = VR 扫视换场（2026-09 v2，替代立方体转面）：镜头（视线）朝行进方向连续扫过去，
@@ -751,7 +756,7 @@
     /* 牌桌毡面：直接垫在座次环下（z:-1，只在本环的坐标系里），座位与桌面永不脱节 ——
        第三人称 rx19° 俯角下向下扩（h210%/top56%）：下沿探到我的座位脚下，近坡大远坡小读作桌面。
        缘光四元组（视觉评审 c）：紫-300 全缘 0.22 让椭圆读作「桌界」+ 贴近沿一道内反光。 */
-    .players-grid.ring3d::before { content: ''; position: absolute; left: 50%; top: 56%; width: 122%; height: 210%; transform: translate(-50%, -50%);
+    .players-grid.ring3d::before { content: ''; position: absolute; left: 50%; top: 54%; width: 122%; height: 180%; transform: translate(-50%, -50%);
       border-radius: 50%; pointer-events: none; z-index: -1;
       background:
         radial-gradient(ellipse at 50% 38%, rgba(139,92,246,0.30) 0%, rgba(109,58,220,0.22) 42%, rgba(76,29,149,0.16) 66%, rgba(30,12,64,0.05) 86%, rgba(0,0,0,0) 100%),
@@ -863,6 +868,7 @@
        ⚠ 下沉量只给宽屏：竖屏/横屏的背影已锚在屏缘（bottom 负偏移），任何正 translateY 都会把整个
        元素推出视口下缘并撑出滚动区（终审 P0-1 实测竖屏 revealed 出画 245px）。 */
     #screen-game.stage-revealed #tp-back { transform: translateX(-50%) scale(0.94); }   /* 竖屏/横屏：只收不放，底缘贴屏不动 */
+    body.landui #screen-game.stage-revealed .card-stage { transform: translateY(-6px) rotateX(12deg) scale(0.9); transform-origin: 50% 40%; }
     @media (min-width: 601px) {
       body:not(.landui) #screen-game.stage-revealed #tp-back { transform: translateX(-50%) translateY(110px) scale(0.85); }
     }
@@ -878,26 +884,28 @@
     /* 手机横屏：高度 ≤30% 屏高（117px@390），不侵右栏 */
     body.landui #cam > #tp-back { left: 25%; width: min(28vw, 236px); height: min(112px, 29vh); bottom: -16px; }   /* 偏左栏桌沿不侵右栏；下沉让开侧座名牌 */
 
-    /* ══════════ 揭晓态：牌桌常驻（缩小让位 + 压暗，不许消失） ══════════
+    /* ══════════ 揭晓态：牌桌常驻（压暗聚焦，桌子完整不压缩） ══════════
        由 JS 在 revealed/choosing 分支挂/摘 #screen-game.stage-revealed（锁检查之后）——
        ⚠ 绝不能改回 :has(#card-section:not([hidden]))：旧内核（微信 WebView）静默不生效，
-       且 dealFlyingCard 在 drawing 期就取消 card-section 的 hidden，会把压缩插进推镜中途。
+       且 dealFlyingCard 在 drawing 期就取消 card-section 的 hidden，会把状态插进推镜中途。
+       环高任何阶段都保持原生值（2026-09-14 用户反馈：桌子不许被压缩/不完整）；
        压暗 = 静态罩层 + 卡透明度（禁 filter:saturate——挂在有常驻动画的子树上是每帧重光栅化）。 */
-    #screen-game.stage-revealed .players-grid.ring3d { height: 210px; }   /* height 不加 transition：layoutRing 同 tick 重锚要用新 offset 值 */
     #screen-game.stage-revealed .players-grid.ring3d::after { content: ''; position: absolute; inset: 0;
       background: rgba(10,10,26,0.45); z-index: 5; pointer-events: none; border-radius: 18px; }
     #screen-game.stage-revealed .players-grid.ring3d .player-card { opacity: 0.85; }
     #screen-game.stage-revealed .players-grid.ring3d .player-card.active { opacity: 1; }   /* 持麦人不暗：揭晓页的语义锚 */
-    /* 短窗桌面（平板/1440×900）：题面卡负 margin 叠进压暗的环（环露 ~110px 下沿）——
-       竖排让位在 768 高装不下，叠加式保住「桌子+人+题同框」且首屏不溢出 */
-    @media (min-width: 601px) and (max-height: 920px) {
-      body:not(.landui) #screen-game.stage-revealed .card-stage { margin-top: -100px; }
-      body:not(.landui) #screen-game.stage-revealed .flip-card { box-shadow: 0 24px 56px rgba(0,0,0,0.5); }
-    }
+    /* ── 修复2：抽出的牌躺在台面上（大家看得到），不再是竖在屏幕中央的大卡 ——
+       transform 只做视觉（rotateX 躺角 + 缩放 + 上移到毡面中下部），不动布局 → 零滚动变化；
+       只盖住中下部的空毡面，对面每个玩家（脸+名牌）都在卡外可见。落位动画走 transition。 */
+    #screen-game.stage-revealed .card-stage { transition: transform 0.55s cubic-bezier(0.22,0.61,0.36,1); }
+    body:not(.landui) #screen-game.stage-revealed .card-stage { transform: translateY(-105px) rotateX(14deg) scale(0.72); transform-origin: 50% 40%; }
+    body:not(.landui) #screen-game.stage-revealed .flip-card { box-shadow: 0 24px 56px rgba(0,0,0,0.5); }
     /* 竖屏揭晓：题面卡收一档 + 工具行收成单行横滚（不藏文字），四阶段不滚动可达 */
     @media (max-width: 600px) {
-      #screen-game.stage-revealed .card-stage { width: min(260px, 68vw); }
+      #screen-game.stage-revealed .card-stage { width: min(260px, 68vw); transform: translateY(-38px) rotateX(12deg) scale(0.88); transform-origin: 50% 40%; }
       #screen-game.stage-revealed .bet-box .bet-q { display: none; }   /* 押注按钮自释义，问题行在竖屏让位（押对+5/押错-5 语义不变） */
+      /* 押注面板改底部悬浮：抽离文档流，卡面/工具行不再被推到折叠线下（押注面板是功能内容，悬浮 = 全部可点不滚动） */
+      #screen-game.stage-revealed .bet-box { position: absolute; left: 10px; right: 10px; bottom: 56px; z-index: 40; }
       #screen-game.stage-revealed .tool-row { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
     }
     /* 竖屏基础档：座次环 340→240（choosing 阶段的 79px 超屏由这里让位，不是只在揭晓）；
@@ -2828,6 +2836,17 @@ async function ghostSkip() {
 //   卡片 left/top 是 %，高度瞬变后靠既有 0.55s 过渡自然滑到新座位。
 // ⚠ 触发时机只在 revealed/choosing 分支的锁检查之后——dealFlyingCard 会在 drawing 期提前取消
 //   card-section 的 hidden，按「卡面可见」挂类会把压缩插进推镜中途（旧 :has 方案的两宗罪之一）。
+// 背影锚定：#cam 的流高随阶段变（揭晓卡面/押注面板进出），静态 bottom 偏移会让背影跟着漂。
+// 以视口底缘为准动态写 bottom（负值 = 探出屏缘，「坐在镜头前」的裁切构图）。
+// ⚠ 只在镜头静止时量 rect（SPEC：运镜中的投影坐标会被扭曲）；运镜中跳过，保留上次值。
+function anchorTpBack() {
+  const tp = $('tp-back'), cam = $('cam');
+  if (!tp || !cam || !joined) return;
+  if (typeof Cam !== 'undefined' && (Cam.busy || Cam.raf)) return;
+  const b = cam.getBoundingClientRect().bottom;
+  if (b > 0) tp.style.bottom = (b - window.innerHeight).toFixed(0) + 'px';
+}
+
 function syncStageRevealed(on) {
   const sc = document.getElementById('screen-game');
   if (!sc) return;
@@ -3273,37 +3292,23 @@ function dealFlyingCard() {
   const deck = $('deck');
   const cards = [...deck.querySelectorAll('.deck-card')];
   const idx = Math.floor(Math.random() * cards.length);
-  cards.forEach((c, i) => { if (i !== idx) c.classList.add('gone'); });
-  const src = cards[idx];
-  const r1 = src.getBoundingClientRect();
+  cards.forEach((c, i) => { if (i !== idx) c.classList.add('gone'); });   // 被抽走的那张留在桌上，其余归队
   const cs = $('card-section'), ds = $('deck-section');
-  // 旧 bug：card-section 还 hidden 时量 rect 全是 0 → 飞牌飞向左上角缩没。
-  // 现在先在目标布局（卡堆退、中央卡牌进）下量落点再恢复，同一帧内完成不会闪烁
   const prevDeck = ds.hidden;
   ds.hidden = true; cs.hidden = false; $('flip-card').classList.remove('flipped');
-  const r2 = cs.getBoundingClientRect();
   ds.hidden = prevDeck; cs.hidden = true;
-  const fc = document.createElement('div');
-  fc.className = 'flying-card';
-  fc.textContent = '🎴';
-  const a = landPick(r1.left, r1.top);
-  fc.style.left = a.x + 'px'; fc.style.top = a.y + 'px';
-  document.body.appendChild(fc);
-  const s = landPick(r1.left + r1.width / 2, r1.top + r1.height / 2);
-  const e2 = landPick(r2.left + r2.width / 2, r2.top + r2.height / 2);
-  const dx = e2.x - s.x, dy = e2.y - s.y;
+  // 2026-09-14 用户反馈：不要「向下飘」的飞牌动画——抽中的牌直接落在台面上：
+  // 牌背原地落定（微落+回弹，transform-only 合成器路径），翻牌后以躺角呈现在毡面上给全桌看。
+  const fc = $('flip-card');
   fc.animate([
-    { transform: 'translate(0,0) scale(1) rotate(0deg)', opacity: 1 },
-    { transform: `translate(${dx * 0.55}px, ${dy * 0.4 - 40}px) scale(1.35) rotate(10deg)`, opacity: 1 },
-    { transform: `translate(${dx}px, ${dy}px) scale(${r2.width / r1.width}) rotate(0deg)`, opacity: 1 },
-  ], { duration: 700, easing: 'cubic-bezier(0.3,1.1,0.4,1)' }).onfinish = () => {
-    fc.remove();
-    SFX.play('draw');   // 落牌那一下的“发牌”声
-    // 落牌即亮出牌背：镜头缓推到中央，“抽取中…”呼吸到翻牌一刻，中段不再空窗
-    cardDealt = true;
-    $('choice-section').hidden = true; $('deck-section').hidden = true; cs.hidden = false;
-    focusCam(cs);
-  };
+    { transform: 'translateY(-26px) scale(1.06)', opacity: 0 },
+    { transform: 'translateY(0px) scale(1)', opacity: 1 },
+  ], { duration: 420, easing: 'cubic-bezier(0.22,0.61,0.36,1)' });
+  SFX.play('draw');   // 落牌那一下的“发牌”声
+  // 落牌即亮出牌背：镜头缓推到中央，“抽取中…”呼吸到翻牌一刻，中段不再空窗
+  cardDealt = true;
+  $('choice-section').hidden = true; $('deck-section').hidden = true; cs.hidden = false;
+  focusCam(cs);
 }
 
 // 旧版双写 bug 修复：抽卡者到点发布；他不是抽卡者时最老客户端只做「超时兜底」，
@@ -3410,6 +3415,9 @@ async function playReveal() {
     if (t.choice === 'dare') Cam.shake(7, 300);   // 大冒险翻牌：镜头一颤，气氛拉满
     stageTimers.push(setTimeout(() => {
       //   ③ 落定：扫光一闪 + 镀铬浮现 + 打字机开写（首字符即刻落地，徽章同拍 pop）
+      // 同拍挂揭晓态：牌翻完立刻「躺到台面上」（压暗/让位与 chrome 淡入同一拍），
+      // 不等打字机完成——晚 2~4.5s 的迟到挂类是终审逻辑 P1-1 实测的玩家可感降质。
+      syncStageRevealed(true);
       SFX.play('spark');
       flipGlint();
       flip.style.transition = '';
@@ -4035,6 +4043,8 @@ function layoutRing(grid) {
     const cx = grid.offsetLeft + grid.offsetWidth / 2, cy = grid.offsetTop + grid.offsetHeight / 2 + grid.offsetHeight * 0.08;
     const deckBox = document.querySelector('.table-deck');
     if (deckBox) { deckBox.style.left = cx + 'px'; deckBox.style.top = cy + 'px'; }
+    anchorTpBack();
+    setTimeout(anchorTpBack, 750); setTimeout(anchorTpBack, 1600);   // 运镜落定后补测（当时若在运镜中会被上面的守卫跳过）
     const t3 = $('table3d');
     if (t3) { t3.style.left = cx + 'px'; t3.style.top = cy + 'px'; }
   }

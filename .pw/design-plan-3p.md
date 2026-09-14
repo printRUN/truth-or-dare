@@ -65,3 +65,8 @@
 | 揭晓下沉 | 桌面 110px 单值 | 宽屏 110 / 矮窗桌面 56 / 竖屏横屏 0（只 scale 0.94） | 终审 P0-1：竖屏/横屏背影已锚屏缘，正下沉会整体出画+撑滚动 |
 | 挂类时机 | revealed 分支锁检查后 | 同左 + playReveal ③落定帧补挂 | 终审逻辑 P1-1：打字机完成帧挂类晚 2-4.5s，提前到主翻落定与 chrome 淡入同拍 |
 | 背影不拦触摸/头像指定 | pointer-events:none | 同左 | hostPickPlayer 绑整卡，穿透语义保留 |
+
+## 6. 用户验收修复轮（2026-09-14 第二轮，三点反馈）
+1. **桌子完整 + 最底层**：废弃揭晓时环高压到 210 的做法（用户：桌子不许压缩/不完整）；毡面收进视口（h 180%/top 54%）；短窗桌面的负 margin 叠卡改为纯 transform 躺角（零布局变化）；桌子 z 序保持最底层，任何按钮不被挡（probe 断言：bet/answer/tool 按钮在揭晓态逐颗 elementFromPoint 验命中）。
+2. **抽卡不飘**：删除向下飞牌克隆（dealFlyingCard 重写）——牌背在台面原地落定（420ms 微落回弹），翻完以 rotateX(12-14°) 躺角 + 缩小呈现在毡面中下部，全桌可见。
+3. **适配**：五档视口（1440×900/1280×800/1024×768/390×844/844×390）全量矩阵 + test-landscape 回归。修复过程中新踩的特异度坑：`#screen-game.stage-revealed { position:relative }` 会以 (1,1,0) 压过 `.screen.leaving` 的 absolute（结束游戏发生在揭晓态→退场旧屏留在流里把 result 屏顶出折叠线），必须 `:not(.leaving)`；背影锚定改 JS 动态（`anchorTpBack`：镜头静止时以视口底缘写 bottom，防 #cam 流高随阶段变化导致背影漂移出画）。

@@ -81,6 +81,7 @@ async function runViewport(tag, vw, vh, opts = {}) {
       return {
         tp: tp ? { ...rectOf(tp), pe: getComputedStyle(tp).pointerEvents, chr1: tp.style.getPropertyValue('--chr1'), tf: getComputedStyle(tp).transform, cls: tp.className } : null,
         ring: { w: grid.offsetWidth, h: grid.offsetHeight, rect: rectOf(grid) },
+        cardTf: (() => { const cs = document.getElementById('card-section'); return cs && !cs.hidden ? getComputedStyle(document.querySelector('.card-stage')).transform : null; })(),
         cards,
         btns, toolbar: tb ? rectOf(tb) : null,
         scrollH: document.documentElement.scrollHeight,
@@ -127,7 +128,8 @@ async function runViewport(tag, vw, vh, opts = {}) {
   if (vw <= 600) {
     check(`[${tag}] 竖屏背影 ≤40vw 宽且 ≤24vh 高（婷婷上限）`, s.tp.w <= vw * 0.4 + 2 && s.tp.h <= vh * 0.24 + 2, `w=${Math.round(s.tp.w)} h=${Math.round(s.tp.h)}`);
     check(`[${tag}] 竖屏背影头顶 y≥640 当量（0.75×vh）`, s.tp.y >= vh * 0.75 - 2, `tp.y=${Math.round(s.tp.y)}`);
-    check(`[${tag}] 竖屏全程不滚动（scrollHeight ≤ vh+2）`, s.scrollH <= vh + 2, `scrollH=${s.scrollH}`);
+    // 口径：交互元素全部落在首屏；scrollHeight 的 +40 容差 = #app padding-bottom（非交互空白不算滚动）
+    check(`[${tag}] 竖屏选卡不滚动（最后按钮底 ≤ vh 且 scrollHeight ≤ vh+40）`, s.lastBtnB <= vh + 1 && s.scrollH <= vh + 40, `lastBtn=${s.lastBtnB} scrollH=${s.scrollH}`);
     const rowScrollable = await pages[0].evaluate(() => { const r = document.getElementById('game-tools'); return !!r && r.scrollWidth > r.clientWidth + 2; });
     check(`[${tag}] 竖屏工具栏按钮在屏内且（命中或行内横滚可达）`, s.btns.length > 0 && s.btns.every(b => b.rect.b <= vh + 1) && (rowScrollable || s.btns.every(b => b.hit)),
       JSON.stringify({ rowScrollable, b: s.btns.map(b => ({ t: b.t, b: Math.round(b.rect.b), hit: b.hit })) }));
@@ -136,6 +138,7 @@ async function runViewport(tag, vw, vh, opts = {}) {
   }
   await pages[0].screenshot({ path: path.join(SHOTS, `3p-verify-${tag}-choosing.png`) });
 
+  const ringHChoosing = s.ring.h;   // 桌子完整基线：揭晓时环高必须与选卡档一致（不许压缩）
   // ── 抽卡 → 揭晓 ──
   let drawer = null;
   for (const p of pages) {
@@ -152,6 +155,8 @@ async function runViewport(tag, vw, vh, opts = {}) {
     await sleep(900);   // 挂类 + 压暗/下沉 transition（0.45s）落定
     s = await snapshot();
     check(`[${tag}] 揭晓牌桌常驻（stage-revealed + 环可见 + 背影在画）`, s.stageCls && s.ring.w > 50 && !!s.tp, `cls=${s.stageCls} ringW=${s.ring.w}`);
+    check(`[${tag}] 揭晓桌子完整（环高与选卡档一致，不再压缩）`, Math.abs(s.ring.h - ringHChoosing) <= 2, `revealed=${s.ring.h} choosing=${ringHChoosing}`);
+    check(`[${tag}] 题面卡躺在台面上（rotateX 躺角生效）`, !!s.cardTf && s.cardTf !== 'none' && s.cardTf.split(',').length >= 14, String(s.cardTf).slice(0, 60));
     if (vw <= 600) {
       const visH = Math.min(s.tp.b, s.innerH) - Math.max(s.tp.y, 0);
       check(`[${tag}] 揭晓背影可见高度 ≥40px（竖屏不随下沉出画）`, visH >= 40, `visH=${Math.round(visH)} tp=${JSON.stringify({ y: Math.round(s.tp.y), b: Math.round(s.tp.b) })}`);
