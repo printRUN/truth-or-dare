@@ -624,6 +624,69 @@
     body.loperf .screen.entering { animation-name: scene-in-lite; will-change: opacity; }
     body.loperf .screen.leaving  { animation-name: scene-out-lite; will-change: opacity; }
 
+    /* ── 深度参照层（VR 扫视的「参照物」）──
+       为什么需要：扫视只有两块面板在动，背景（光球 25s 自漂）与镜头毫无关系——没有深度梯度可读，
+       大脑读成「两张卡片平移」而不是「镜头在空间里转头」。这层在两房之间的空隙里摆上五档深度的
+       参照物：远星(0.14S) → 中星(0.32S) → 光柱(0.5S) → 透视地板(0.67S) → 近景尘埃(0.8S)，
+       与面板同一条 640ms 时间轴、同一套恒速三段缓动（层间视差比恒定，脱拍即穿帮）。
+       三条铁律：
+       ① 零残差靠「整数周期」：每层滑动距离 --tx-d 必须是自己背景平铺周期的整数倍——摘掉 tx-run
+          瞬间 transform 回 none，图案瞬移整数个周期 = 肉眼不可见（不需要 JS 做 background-position 补偿）。
+       ② 常态所有层 transform:none、无子元素、无 blur/滤镜（大层滤镜是手机发热的旧教训）；
+          层向行进侧外扩一个 --tx-d（translate 满行程时边缘不露底；静止侧归零省合成面积）。
+       ③ 动画挂 body.tx-run（armDepth 与两面同拍武装、含 280ms 揭幕延迟）；REDUCED/LOWPERF 不挂。
+       ④ 填充必须是 SVG data-URI 平铺纹理（栅格化一次、之后重绘 = 位图 blit），不许活渐变——
+          软件光栅下 damage rect 重绘会逐像素跑渐变数学，16 人牌桌波纹持续破矩形时实测 p95
+          33.3ms（阈值 25）逼出降级；换 SVG 纹理后回到基线。tile 周期关系（①）不受绘制内容影响。 */
+    #depth-stage { position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+      --pan-s: calc(var(--lvw, 100vw) + 280px); --tx-dir: 1; --tx-delay: 0ms; }
+    body.tx-back #depth-stage { --tx-dir: -1; }
+    /* 方向感知外扩：只需行进侧 overscan（min() 把静止侧归零）——合成面积近乎减半，
+       软件光栅下少栅格一倍以上的透明像素（低端机实测掉帧逼出 perfWatch 降级的教训） */
+    .ref-layer { position: absolute; top: 0; bottom: 0;
+      left: min(0px, calc(var(--tx-dir) * var(--tx-d))); right: min(0px, calc(var(--tx-dir) * var(--tx-d) * -1)); }
+    /* longhand 而非 shorthand：delay 走 var()，老 WebKit 对含 var 的 animation 简写解析有边界 */
+    body.tx-run .ref-layer { animation-name: depth-pan; animation-duration: 0.64s;
+      animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); animation-delay: var(--tx-delay, 0ms); animation-fill-mode: backwards; }
+    /* 与 pan-in/out 逐拍相同的三段结构（斜率 0→1→1→0），世界与面板才不会「各滑各的」 */
+    @keyframes depth-pan {
+      from { transform: translateX(0); animation-timing-function: cubic-bezier(0.3, 0, 0.667, 0.889); }
+      22%  { transform: translateX(calc(var(--tx-dir) * var(--tx-d) * -0.22)); animation-timing-function: linear; }
+      78%  { transform: translateX(calc(var(--tx-dir) * var(--tx-d) * -0.78)); animation-timing-function: cubic-bezier(0.333, 0.111, 0.7, 1); }
+      to   { transform: translateX(calc(var(--tx-dir) * var(--tx-d) * -1)); }
+    }
+    /* 远星：1 tile = 1 次行程；小点低亮度，慢到近乎凝视——「很远」的锚 */
+    .stars-far { --tx-d: calc(var(--pan-s) * 0.14); opacity: 0.85;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='12' cy='24' r='.3' fill='%23fff' opacity='.95'/%3E%3Ccircle cx='64' cy='9' r='.3' fill='%23fff' opacity='.5'/%3E%3Ccircle cx='38' cy='61' r='.42' fill='%23aac8ff' opacity='.85'/%3E%3Ccircle cx='83' cy='44' r='.3' fill='%23fff' opacity='.38'/%3E%3Ccircle cx='26' cy='84' r='.3' fill='%23fff' opacity='.45'/%3E%3Ccircle cx='91' cy='76' r='.36' fill='%23c8e1ff' opacity='.6'/%3E%3C/svg%3E");
+      background-size: var(--tx-d) var(--tx-d); }
+    /* 中星：tile 0.16S、行程 2 tile（0.32S）；稍大稍亮，带一点冷色 */
+    .stars-mid { --tile: calc(var(--pan-s) * 0.16); --tx-d: calc(var(--tile) * 2); opacity: 0.9;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='22' cy='34' r='.32' fill='%23fff' opacity='.9'/%3E%3Ccircle cx='71' cy='66' r='.36' fill='%2396c8ff' opacity='.8'/%3E%3Ccircle cx='48' cy='14' r='.28' fill='%23fff' opacity='.55'/%3E%3Ccircle cx='87' cy='22' r='.4' fill='%23f472b6' opacity='.55'/%3E%3Ccircle cx='9' cy='78' r='.3' fill='%2322d3ee' opacity='.6'/%3E%3C/svg%3E");
+      background-size: var(--tile) var(--tile); }
+    /* 光柱：两房之间的「远处竖碑」。tile 0.5S、行程 1 tile；三组纹样在 tile 内错相位排布避免等间距感
+       （原三层背景的 0/0.5/0.25 相位已烘焙进同一张 SVG：光晕 x=50、竖带 x=0/100 环接、小晕 x=75） */
+    .pillars { --tile: calc(var(--pan-s) * 0.5); --tx-d: var(--tile); opacity: 0.85;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cdefs%3E%3CradialGradient id='p'%3E%3Cstop offset='0' stop-color='%2322d3ee' stop-opacity='.16'/%3E%3Cstop offset='.7' stop-color='%2322d3ee' stop-opacity='0'/%3E%3C/radialGradient%3E%3CradialGradient id='q'%3E%3Cstop offset='0' stop-color='%23f472b6' stop-opacity='.11'/%3E%3Cstop offset='.7' stop-color='%23f472b6' stop-opacity='0'/%3E%3C/radialGradient%3E%3ClinearGradient id='r' x1='0' y1='0' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%238b5cf6' stop-opacity='0'/%3E%3Cstop offset='.067' stop-color='%238b5cf6' stop-opacity='.09'/%3E%3Cstop offset='.5' stop-color='%238b5cf6' stop-opacity='.16'/%3E%3Cstop offset='.933' stop-color='%238b5cf6' stop-opacity='.09'/%3E%3Cstop offset='1' stop-color='%238b5cf6' stop-opacity='0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='50' cy='24' r='5.9' fill='url(%23p)'/%3E%3Crect x='96.15' width='7.7' height='100' fill='url(%23r)'/%3E%3Crect x='-3.85' width='7.7' height='100' fill='url(%23r)'/%3E%3Ccircle cx='75' cy='60' r='3.85' fill='url(%23q)'/%3E%3C/svg%3E");
+      background-size: var(--tile) 100%; }
+    /* 透视地板：最强的「这是空间」参照——rotateX 放在静态包装层上，动画层只做纯 translateX
+       （共用 depth-pan 关键帧）。几何：63°/55vh/perspective 640px 才能投影出约 20vh 的进深带
+       （75° 会把平面压成 ~55px 细带，读不出地面）；tile = S/9、行程 6 tile（0.67S，深度阶梯在光柱之上）；远端用地平线渐隐盖住平面边缘 */
+    .ref-floor { position: absolute; left: 0; right: 0; bottom: -2vh; height: 55vh; perspective: 640px; pointer-events: none; }
+    .floor-tilt { position: absolute; inset: 0; transform-origin: 50% 100%; transform: rotateX(63deg); }
+    .floor-grid { --tile: calc(var(--pan-s) / 9); --tx-d: calc(var(--tile) * 6); opacity: 0.75;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='1' height='100' fill='%238b5cf6' opacity='.22'/%3E%3Crect width='100' height='1' fill='%238b5cf6' opacity='.17'/%3E%3C/svg%3E");
+      background-size: var(--tile) var(--tile); }
+    .floor-fade { position: absolute; left: 0; right: 0; top: 0; height: 58%; pointer-events: none;
+      background: linear-gradient(to bottom, var(--bg) 10%, rgba(10,10,26,0.78) 46%, transparent 100%); }
+    /* 近景尘埃：大颗虚焦光斑（纯 radial-gradient，不用 blur），tile 0.4S、行程 2 tile（0.8S）——
+       只比面板慢一档，读作「贴着镜头飘过的东西」，是视差梯度的最外档 */
+    .dust-near { --tile: calc(var(--pan-s) * 0.4); --tx-d: calc(var(--tile) * 2); opacity: 0.9;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cdefs%3E%3CradialGradient id='a'%3E%3Cstop offset='0' stop-color='%238b5cf6' stop-opacity='.15'/%3E%3Cstop offset='.7' stop-color='%238b5cf6' stop-opacity='0'/%3E%3C/radialGradient%3E%3CradialGradient id='b'%3E%3Cstop offset='0' stop-color='%2322d3ee' stop-opacity='.13'/%3E%3Cstop offset='.7' stop-color='%2322d3ee' stop-opacity='0'/%3E%3C/radialGradient%3E%3CradialGradient id='c'%3E%3Cstop offset='0' stop-color='%23f472b6' stop-opacity='.09'/%3E%3Cstop offset='.7' stop-color='%23f472b6' stop-opacity='0'/%3E%3C/radialGradient%3E%3CradialGradient id='d'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.12'/%3E%3Cstop offset='.7' stop-color='%23fff' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Cellipse cx='18' cy='72' rx='3.5' ry='2.75' fill='url(%23a)'/%3E%3Cellipse cx='74' cy='34' rx='1.9' ry='1.5' fill='url(%23b)'/%3E%3Cellipse cx='46' cy='86' rx='4.8' ry='3.75' fill='url(%23c)'/%3E%3Cellipse cx='60' cy='16' rx='1.45' ry='1.1' fill='url(%23d)'/%3E%3C/svg%3E");
+      background-size: var(--tile) 100%; }
+    /* 降级：REDUCED（系统降噪）参照层只静止不参与；LOWPERF 与面板一起退纯淡切 */
+    @media (prefers-reduced-motion: reduce) { .ref-layer { animation: none !important; } }
+    body.loperf .ref-layer { animation: none !important; }
+
     /* 牌桌：躺在 3D 空间里的一块椭圆台面（纯 radial-gradient，不用 blur/滤镜）
        #cam 横向裁剪：台面经透视放大后的包围盒比屏幕宽（1280 视口会被撑到 1318），
        会把文档宽度顶大 —— 在移动仿真/平板上会让 layout viewport 变宽，连带把 fixed 元素推出可视区。
@@ -931,6 +994,13 @@
 <body>
 
 <div id="bg-canvas">
+  <div id="depth-stage" aria-hidden="true">
+    <div class="ref-layer stars-far"></div>
+    <div class="ref-layer stars-mid"></div>
+    <div class="ref-layer pillars"></div>
+    <div class="ref-floor"><div class="floor-tilt"><div class="ref-layer floor-grid"></div></div><i class="floor-fade"></i></div>
+    <div class="ref-layer dust-near"></div>
+  </div>
   <div class="orb orb-1"></div><div class="orb orb-2"></div><div class="orb orb-3"></div>
 </div>
 
@@ -2088,7 +2158,7 @@ function hideLoading() {
   if (o) { o._hid = true; o.classList.add('hide'); clearTimeout(o._rm); o._rm = setTimeout(() => o.remove(), 300); }
   // 加载层收起＝过场的一段：揭幕 260ms 里旧屏在画面中央独处（pan-out from 帧），新屏在 +S 视口外
   // 一像素不入画；280ms（> 揭幕）后两面动画与镜头偏头一瞥才一起起扫——「一定要等加载完成之后再扫过去」。
-  if (pendingSceneEnter) { const p = pendingSceneEnter; pendingSceneEnter = null; if (p.prev) { armPan(p.prev, p.name, 280); SFX.play(p.name === 'result' ? 'win' : 'whoosh'); } playSceneEnter(p.name, p.back, 280); }
+  if (pendingSceneEnter) { const p = pendingSceneEnter; pendingSceneEnter = null; if (p.prev) { armPan(p.prev, p.name, 280); SFX.play(p.name === 'result' ? 'win' : 'whoosh'); } armDepth(p.back, 280); playSceneEnter(p.name, p.back, 280); }
 }
 
 // 修改状态：先本地应用（保证发起端无回显的本地模式也同步生效），再发布
@@ -2253,13 +2323,26 @@ function armPan(prevName, name, delay = 0) {
   // 否则它下次当入屏时会被上一次的延迟拖着
   old._txL = setTimeout(() => { old.classList.remove('leaving'); old.style.animationDelay = ''; }, 1000);
 }
+// 深度参照层武装：与两面动画同拍同延迟（含加载路径的 280ms 揭幕间隙），扫完 + 摘类窗口后整体摘除。
+// 摘除时各层 transform 回 none——滑动距离是自身平铺周期的整数倍（CSS 铁律①），图案瞬移不可见。
+// 连跳时强制重播：remove→reflow→add，让参照层与重播的面板回到同一起跑线（中途摘类会有
+// 非整周期瞬移，但那一刻面板也在重播重置，整场一起回起点，读作同一拍）。
+function armDepth(back, delay = 0) {
+  if (REDUCED || LOWPERF || !Cam.el) return;
+  const b = document.body;
+  b.classList.toggle('tx-back', !!back);
+  b.style.setProperty('--tx-delay', (delay | 0) + 'ms');
+  b.classList.remove('tx-run'); void b.offsetWidth; b.classList.add('tx-run');
+  clearTimeout(b._txD);
+  b._txD = setTimeout(() => b.classList.remove('tx-run'), (delay | 0) + 1150);
+}
 // 放新屏入场：必须在它已经 display（.active）之后再挂，否则 CSS 动画在 display:none 期间不会跑，
 // 一显形就已经是终态/或先满屏闪一帧。加载层还盖着时把出屏的滑出也一起攒着——揭幕时旧屏在画面中央
 // 独处（from 帧），新屏在 +S 视口外一像素都不入画；幕完全落下（280ms delay）后才起扫，这是用户点名的
 // 「一定要等加载完成之后再扫过去」。
 function queueSceneEnter(name, back, prev) {
   if (overlayUp()) pendingSceneEnter = { name, back, prev };
-  else { if (prev) { armPan(prev, name); SFX.play(name === 'result' ? 'win' : 'whoosh'); } playSceneEnter(name, back); }
+  else { if (prev) { armPan(prev, name); SFX.play(name === 'result' ? 'win' : 'whoosh'); } armDepth(back); playSceneEnter(name, back); }
 }
 function renderScreen() {
   const name = currentScreen();
@@ -2732,7 +2815,8 @@ const Cam = {
     if (LOWPERF) this.to(b, 540, 'dolly');   // 省电档纯淡切配一次回位；绝不能 to({ry})——LOWPERF 分支
                                              // 会把未指定的 z 乘 0.4，产生 ~10px 的垃圾 z 呼吸（工程审查实雷）
   },
-  // 偏头一瞥（VR 扫视的「人脸扫过去」）：镜头朝行进方向偏 7°（窄屏 5°）+ 10px 侧倾弧，再回正常态。
+  // 偏头一瞥（VR 扫视的「人脸扫过去」）：镜头朝行进方向偏 7°（窄屏 5°）+ 10px 侧倾弧 + 1.15° 压肩侧滚
+  // + 24px 前倾，再回正常态——侧滚/前倾是「带头部的转身」与「云台平移」的区别所在。
   // 两段都用 dolly（首尾零速、接点零速）才是真钟形；用 out 会在起扫瞬间满速抽搐。
   // delay 与面板动画的 animationDelay 同值同拍——加载路径下这段也在揭幕完成后才起跑。
   glance(name, back, delay = 0) {
@@ -2741,7 +2825,7 @@ const Cam = {
     const ahead = back ? -1 : 1;
     const narrow = window.innerWidth < 760 || (typeof LAND !== 'undefined' && LAND.ui);
     const g = narrow ? 5 : 7;
-    this.to({ ry: (b.ry || 0) - g * ahead, x: -10 * ahead }, 320, 'dolly', () => {
+    this.to({ ry: (b.ry || 0) - g * ahead, x: -10 * ahead, rz: -1.15 * ahead, z: (b.z || 0) - 24 }, 320, 'dolly', () => {
       if (this.curScreen === name) this.to(b, 320, 'dolly');   // 快速连跳时别反向拉扯
     }, delay);
   },

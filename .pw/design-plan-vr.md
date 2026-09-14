@@ -76,3 +76,31 @@
 8. **SFX**：whoosh 挪到起扫拍点（armPan 同点，加载路径即 280ms 处）。
 9. **探针**：probe-pan 六判据按修订阈值（ry 相对基线、Δ 相对 S、缝恒定 35%/65% 采样、窄屏同框判据、摘类后采终态）；probe-one-take 判据1 改 280+投影矩形、判据2 删；test-3d:138 worldT 断言改 waitForFunction；probe-scene z 叙事改写。
 10. **landforce**：扫视读作纵滑（对称性不丢），SPEC 写明；S 走 --lvw 已兜住。
+
+---
+
+## v4.2 深度参照层（2026-09-14，回应用户「3D 切换不够真实 + 增加参照物」）
+
+- **诊断**：v4.1 的扫视只有两块面板在动，背景光球 25s 自漂与镜头无关——没有深度梯度可读，
+  大脑读成「两张卡片平移」而非「镜头在空间里转头」。真实感缺口在参照物，不在渲染管线
+  （CSS 3D 是透视正确的 GPU 合成，file:// 离线 + 软件光栅红线不破，不引 WebGL）。
+- **方案**：`#bg-canvas > #depth-stage`，五档深度参照物——远星(0.14S)/中星(0.32S)/光柱(0.5S)/
+  透视地板(0.67S)/近景尘埃(0.8S)，全部 background 平铺、无子元素、无滤镜；`depth-pan` 关键帧
+  逐拍复刻 pan-in/out 的恒速三段结构，`armDepth()` 与 armPan/playSceneEnter 同拍同延迟武装
+  （`body.tx-run` + `--tx-delay`，含加载路径 280ms）。
+- **填充必须是单操作 SVG data-URI 纹理**（2026-09-14 补，绘制成本实雷）：首版用活渐变
+  （radial/linear-gradient），软件光栅下 damage rect 重绘逐像素跑渐变数学，16 人大厅 p95
+  16.8→33.3ms；换成单张 background-image 的 SVG 平铺（光柱三层错相位烘焙进同一张 SVG，
+  竖带环接处双 rect 防接缝）后 16.8 持平 HEAD。成本模型是「绘制操作数/效果节点」而非渐变 vs
+  纯色：纯色 FillRect + 层透明度同样 33.3，单图像操作才能把层透明度折叠进去免离屏缓冲。
+  tile 周期关系（零残差）不受绘制内容影响。
+- **零残差新解法**：每层滑动距离 = 自身平铺周期的整数倍 → 摘类瞬间 transform 回 none，
+  图案瞬移整数周期肉眼不可见（不需要 JS background-position 补偿）。
+- **镜头升级**：glance 在 7° 偏头 + 10px 侧倾弧之外，加 1.15° 压肩侧滚（rz）+ 24px 前倾（z −24）
+  ——「带头部的转身」与「云台平移」的分野；两段仍全 dolly，probe-pan 判据 4 不受影响。
+- **判据**（probe-depth.cjs，双端）：静止态五层 transform none；tx-run 窗口 ≥4 层非零位移；
+  峰值位移严格递增（桌面实测 218/498/779/1038/1246px ≈ 设计比值 × S=1560）；摘类后全部回 none。
+  像素取证 analyze-depth.cjs：idle 参照物可见（天区 23.9 万亮像素），扫视中 64~93% 像素变化
+  （SVG 纹理版复测；渐变首版为 71~95%）。
+- **探针注意事项**：headless 冷启动会被 perfWatch 实测降级 loperf（LOWPERF 按设计跳过深度层，
+  probe-pan 的 yaw/pan 判据同样会被拍平）——探针必须 `localStorage['tod:perf']='full'` 强制全特效。
