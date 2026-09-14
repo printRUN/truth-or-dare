@@ -242,11 +242,11 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
         rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
         pe: getComputedStyle(el).pointerEvents,
         meAvaHidden: !!meAva && getComputedStyle(meAva).visibility === 'hidden',
-        inView: r.bottom <= innerHeight + 1 && r.left >= -1 && r.right <= innerWidth + 1,
+        inView: r.top <= innerHeight && r.left >= -1 && r.right <= innerWidth + 1 && r.bottom <= innerHeight + 40,   // 顶边入画；底缘按设计裁出屏（投影容差 40px）
         chr1: el.style.getPropertyValue('--chr1'),
       };
     });
-    check('第三人称背影 #tp-back 存在、底缘锚定、在视口内、pointer-events:none',
+    check('第三人称背影 #tp-back 存在、头顶入画、左右不越界、pointer-events:none（底缘按设计裁出屏）',
       !!tp && tp.inView && tp.pe === 'none', JSON.stringify(tp));
     check('背影带本机身份色（--chr1 由 chrHue 写入）且 me 卡正面已隐藏',
       !!tp && /^hsl\(/.test(tp.chr1 || '') && tp.meAvaHidden, JSON.stringify(tp));

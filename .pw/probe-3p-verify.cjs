@@ -63,6 +63,7 @@ async function runViewport(tag, vw, vh, opts = {}) {
   const NAMES = ['choosing', 'drawing', 'revealed', 'next'];
   async function snapshot(stage) {
     await pages[0].evaluate(() => { try { Cam.jump(Cam.baseOf('game')); } catch (e) {} });   // 顶层 const 不挂 window，必须裸引用
+    await pages[0].evaluate(() => { try { anchorTpBack(); } catch (e) { window.__anchorErr = e.message; } });
     // 等镜头真收敛：jump 之后 runStage 的 nudge 定时器可能再拉起运镜，SPEC 明告 rect 只能在静止态量
     const restRx = pages[0].landui ? 2 : 19;
     await pages[0].waitForFunction(rx => Math.abs(Cam.cur.rx - rx) < 0.15, null, { timeout: 3000 }).catch(() => {});
@@ -89,6 +90,10 @@ async function runViewport(tag, vw, vh, opts = {}) {
         innerW: window.innerWidth, innerH: window.innerHeight,
         stageCls: document.getElementById('screen-game').classList.contains('stage-revealed'),
         fwd: tp ? tp.classList.contains('tp-forward') : false,
+        contentB: (() => { let m = 0; for (const id of ['choice-section', 'deck-section', 'card-section', 'ghost-bar']) { const el = document.getElementById(id); if (el && !el.hidden && el.offsetParent) { const r = el.getBoundingClientRect(); if (r.bottom > m) m = r.bottom; } } const bet = document.querySelector('#screen-game > .bet-box'); if (bet && bet.offsetParent) { const r = bet.getBoundingClientRect(); if (r.top < innerHeight && r.top > m) m = r.top; } return Math.round(m); })(),
+        tpBottomInline: tp ? tp.style.bottom : null,
+        anchorErr: window.__anchorErr || null,
+        tpDbg: window.__tpDbg || null,
         world: document.getElementById('world3d').style.transform,
       };
     });
@@ -100,6 +105,7 @@ async function runViewport(tag, vw, vh, opts = {}) {
   check(`[${tag}] 背影带身份色`, !!s.tp && /^hsl\(/.test(s.tp.chr1 || ''), s.tp && s.tp.chr1);
   check(`[${tag}] 背影在视口内（头顶入画、左右不越界；底缘按设计可裁出屏）`, !!s.tp && s.tp.y <= s.innerH && s.tp.x >= -1 && s.tp.r <= s.innerW + 1, JSON.stringify(s.tp));
   check(`[${tag}] 背影投影 ≤ 视口上限（前倾 1.05 后：竖屏 ≤40vw/≤24vh）`, !s.tp || (vw > 600 || (s.tp.w <= vw * 0.4 + 2 && s.tp.h <= vh * 0.24 + 2)), JSON.stringify({ w: Math.round(s.tp ? s.tp.w : 0), h: Math.round(s.tp ? s.tp.h : 0) }));
+  check(`[${tag}] 背影不盖内容区（顶边 ≥ 选卡/题面/押注下缘）`, !s.tp || s.tp.y >= s.contentB - 2 || s.contentB === 0, `tp.y=${Math.round(s.tp ? s.tp.y : 0)} contentB=${s.contentB} inline=${s.tpBottomInline} dbg=${JSON.stringify(s.tpDbg)}`);
   const others = s.cards.filter(c => !c.me);
   check(`[${tag}] 对手无一遮挡（脸=圆，圆心距 ≥ 半径和×0.92；包围盒角碰不算压脸）`, (() => {
     for (let i = 0; i < others.length; i++) for (let j = i + 1; j < others.length; j++) {

@@ -756,7 +756,7 @@
     /* 牌桌毡面：直接垫在座次环下（z:-1，只在本环的坐标系里），座位与桌面永不脱节 ——
        第三人称 rx19° 俯角下向下扩（h210%/top56%）：下沿探到我的座位脚下，近坡大远坡小读作桌面。
        缘光四元组（视觉评审 c）：紫-300 全缘 0.22 让椭圆读作「桌界」+ 贴近沿一道内反光。 */
-    .players-grid.ring3d::before { content: ''; position: absolute; left: 50%; top: 54%; width: 122%; height: 180%; transform: translate(-50%, -50%);
+    .players-grid.ring3d::before { content: ''; position: absolute; left: 50%; top: 92%; width: 122%; height: 130%; transform: translate(-50%, -50%);
       border-radius: 50%; pointer-events: none; z-index: -1;
       background:
         radial-gradient(ellipse at 50% 38%, rgba(139,92,246,0.30) 0%, rgba(109,58,220,0.22) 42%, rgba(76,29,149,0.16) 66%, rgba(30,12,64,0.05) 86%, rgba(0,0,0,0) 100%),
@@ -2837,14 +2837,43 @@ async function ghostSkip() {
 // ⚠ 触发时机只在 revealed/choosing 分支的锁检查之后——dealFlyingCard 会在 drawing 期提前取消
 //   card-section 的 hidden，按「卡面可见」挂类会把压缩插进推镜中途（旧 :has 方案的两宗罪之一）。
 // 背影锚定：#cam 的流高随阶段变（揭晓卡面/押注面板进出），静态 bottom 偏移会让背影跟着漂。
-// 以视口底缘为准动态写 bottom（负值 = 探出屏缘，「坐在镜头前」的裁切构图）。
+// 两条规则（2026-09-14 用户反馈：背影不许挡按钮）：
+//   ① 底缘默认贴视口下缘（负值 = 探出屏缘的裁切构图）；
+//   ② 顶边不得高于「最低的可见内容区」（选卡/题面/代跳条/押注面板）下缘 +6px——撞上就把背影下压。
 // ⚠ 只在镜头静止时量 rect（SPEC：运镜中的投影坐标会被扭曲）；运镜中跳过，保留上次值。
+let tpAnchorTimers = [];
 function anchorTpBack() {
   const tp = $('tp-back'), cam = $('cam');
   if (!tp || !cam || !joined) return;
   if (typeof Cam !== 'undefined' && (Cam.busy || Cam.raf)) return;
   const b = cam.getBoundingClientRect().bottom;
-  if (b > 0) tp.style.bottom = (b - window.innerHeight).toFixed(0) + 'px';
+  if (b <= 0) return;
+  let limit = 0;
+  for (const id of ['choice-section', 'deck-section', 'card-section', 'ghost-bar']) {
+    const el = $(id);
+    if (el && !el.hidden && el.offsetParent) { const r = el.getBoundingClientRect(); if (r.bottom > limit) limit = r.bottom; }
+  }
+  const bet = document.querySelector('#screen-game > .bet-box');
+  if (bet && bet.offsetParent) { const r = bet.getBoundingClientRect(); if (r.top < innerHeight && r.top > limit) limit = r.top; }
+  // 锚定基准必须「量测驱动」：#cam 在倾斜的世界里，它的 rect.bottom（投影值）和 absolute 子元素的
+  // 本地锚定坐标不是同一个坐标系——任何「用公式猜 bottom」都会差几十像素（v1-v4 全踩过）。
+  // 做法：先落位（底缘贴视口底），再读实际 top 与目标线的差值，闭环修 2-3 轮。
+  const requiredTop = limit > 0 ? limit + 6 : window.innerHeight;   // 无内容区时只要求贴屏底
+  if (limit > 0) tp.style.height = Math.max(80, window.innerHeight - limit - 12).toFixed(0) + 'px';   // 限高：盒子不探出视口
+  else tp.style.height = '';
+  tp.style.bottom = (b - window.innerHeight).toFixed(0) + 'px';
+  for (let i = 0; i < 3; i++) {
+    const delta = tp.getBoundingClientRect().top - requiredTop;   // >0 太低 → 上移；<0 太高 → 下移
+    if (Math.abs(delta) < 2) break;
+    tp.style.bottom = ((parseFloat(tp.style.bottom) || 0) + delta).toFixed(0) + 'px';
+  }
+}
+function anchorTpBackSoon() {
+  anchorTpBack();
+  tpAnchorTimers.forEach(clearTimeout);
+  // 补测节拍铺到 3s：进桌运镜 = 入场 glance(~640ms) + fresh nudge(1240ms 延迟 + 820ms 补间)
+  // 会在 ~2.1s 前一直处于 busy，节拍不够密就全被守卫跳过、锚定永不落地（实测教训）。
+  tpAnchorTimers = [500, 1000, 1600, 2300, 3000].map(ms => setTimeout(anchorTpBack, ms));
 }
 
 function syncStageRevealed(on) {
@@ -2891,6 +2920,7 @@ function renderGameStatic() {
   paintSurprise(stage);
   paintBetLog();
   $('btn-reroll').hidden = true;
+  anchorTpBackSoon();
   if (stage === 'choosing') {
     syncStageRevealed(false);
     $('choice-section').hidden = false; $('deck-section').hidden = true; $('card-section').hidden = true;
@@ -3256,36 +3286,10 @@ async function runStage(stage) {
   }
 }
 
-function flyAvatarToDeck(pid) {
-  if (REDUCED) return;
-  if (pid === myId) return;   // 第三人称：我的离座由 #tp-back 的 tp-away 姿态承担，不再飞头像克隆（避免「双我」）
-  const p = S.players.find(x => x.id === pid);
-  const ring = document.querySelector(`#game-players-grid .player-card[data-pid="${CSS.escape(pid || '')}"] .avatar-ring`);
-  const uri = resolveAvatar(p && p.avatar);
-  if (!p || !ring || !uri) return;
-  const r1 = ring.getBoundingClientRect(), r2 = $('deck').getBoundingClientRect();
-  const clone = document.createElement('div');
-  clone.className = 'fly-avatar';
-  // 锚点定在头像中心，所有关键帧自带 translate(-50%,-50%)，起点终点都与真实中心重合
-  const a = landPick(r1.left + r1.width / 2, r1.top + r1.height / 2);
-  clone.style.left = a.x + 'px'; clone.style.top = a.y + 'px';
-  clone.innerHTML = `<span class="fa-head" style="width:${r1.width}px;height:${r1.width}px"><img src="${esc(uri)}" alt="" /></span>` +
-    `<span class="fa-tag">${esc(p.name)}</span>`;
-  document.body.appendChild(clone);
-  const e2 = landPick(r2.left + r2.width / 2, r2.top + r2.height / 2);
-  const dx = e2.x - a.x, dy = e2.y - a.y;
-  const at = (k, lift, rot, sc) => `translate(-50%, -50%) translate(${dx * k}px, ${dy * k - lift}px) scale(${sc}) rotate(${rot}deg)`;
-  clone.animate([
-    { transform: at(0, 0, 0, 1), opacity: 1 },                       // 从座位起身
-    { transform: at(0.35, 46, -6, 1.12), opacity: 1, offset: 0.35 }, // 走路摆动（左肩）
-    { transform: at(0.7, 30, 6, 1.18), opacity: 1, offset: 0.7 },    // 走路摆动（右肩）
-    { transform: at(1, 0, 0, 0.9), opacity: 0.95 },                  // 走到卡堆前
-  ], { duration: 850, easing: 'cubic-bezier(0.34,1.2,0.4,1)' }).onfinish = () => {
-    // 角色"钻进"卡堆：缩没
-    clone.animate([{ opacity: 0.95, transform: at(1, 0, 0, 0.9) },
-      { opacity: 0, transform: at(1, 0, 0, 0.1) }], { duration: 250, fill: 'forwards' })
-      .onfinish = () => clone.remove();
-  };
+function flyAvatarToDeck() {
+  // 2026-09-14 用户反馈：抽卡不要任何「飘动」——头像克隆飞行整体下线。
+  // 抽卡者的离座由 .away（变暗+头顶气泡）表达；抽出的牌直接躺在台面上给全桌看。
+  // 我的离座另有 #tp-back 的 tp-away 姿态。函数保留空壳以防外部调用。
 }
 
 function dealFlyingCard() {
@@ -4043,8 +4047,7 @@ function layoutRing(grid) {
     const cx = grid.offsetLeft + grid.offsetWidth / 2, cy = grid.offsetTop + grid.offsetHeight / 2 + grid.offsetHeight * 0.08;
     const deckBox = document.querySelector('.table-deck');
     if (deckBox) { deckBox.style.left = cx + 'px'; deckBox.style.top = cy + 'px'; }
-    anchorTpBack();
-    setTimeout(anchorTpBack, 750); setTimeout(anchorTpBack, 1600);   // 运镜落定后补测（当时若在运镜中会被上面的守卫跳过）
+    anchorTpBackSoon();
     const t3 = $('table3d');
     if (t3) { t3.style.left = cx + 'px'; t3.style.top = cy + 'px'; }
   }

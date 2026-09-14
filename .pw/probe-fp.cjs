@@ -101,14 +101,13 @@ const check = (name, ok, info) => { console.log(`${ok ? '✅' : '❌'} ${name}${
     const tpAway = await chooserPage.p.evaluate(() => !!document.getElementById('tp-back').classList.contains('tp-away'));
     check('我抽卡：背影挂 tp-away（第三人称离座姿态，不飞头像克隆）', tpAway);
   } else {
-    const fly = await A.p.evaluate(() => {
-      const f = document.querySelector('.fly-avatar');
-      if (!f) return null;
-      const deck = document.getElementById('deck').getBoundingClientRect();
-      const fr = f.getBoundingClientRect();
-      return { exists: true, deckCx: deck.left + deck.width / 2, deckCy: deck.top + deck.height / 2 };
-    });
-    check('他人抽卡：飞行角色存在（锚点=桌心牌堆）', !!fly);
+    // 2026-09-14 用户反馈：抽卡不要任何飘动——头像克隆整体下线，离座用 .away 表达
+    await A.p.waitForTimeout(400);
+    const noFly = await A.p.evaluate(() => ({
+      noClone: !document.querySelector('.fly-avatar'),
+      away: !!document.querySelector('#game-players-grid .player-card.away'),
+    }));
+    check('他人抽卡：无飞行动画且抽卡者挂 .away（离座可读）', noFly.noClone && noFly.away, JSON.stringify(noFly));
   }
   await A.p.waitForTimeout(4300);
   const revealed = await A.p.evaluate(() => ({ revealed: !document.getElementById('card-section').hidden, deckStill: document.getElementById('deck').getBoundingClientRect().width > 0 }));
