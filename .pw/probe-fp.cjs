@@ -1,4 +1,4 @@
-// 第一人称牌桌几何冒烟：自己固定正前（两端各自）、座位在毡面上、牌堆常驻桌心、机位 rx≈8
+// 第三人称牌桌几何冒烟：自己固定正前（两端各自）、座位在毡面上、牌堆常驻桌心、机位 rx≈19
 const PW = 'C:/Users/Admin/AppData/Local/npm-cache/_npx/705bc6b22212b352/node_modules/playwright';
 const { chromium } = require(PW);
 const http = require('http');
@@ -69,7 +69,7 @@ const check = (name, ok, info) => { console.log(`${ok ? '✅' : '❌'} ${name}${
       return { felt, ringC: { x: rr.left + rr.width / 2, y: rr.top + rr.height / 2 },
         cards, deck: { cx: dr.left + dr.width / 2, cy: dr.top + dr.height / 2, w: dr.width, visible: dr.width > 0 },
         anchor: { cx: gEl.offsetLeft + gEl.offsetWidth / 2, cy: gEl.offsetTop + gEl.offsetHeight / 2,
-          t3L: parseFloat(t3.style.left), t3T: parseFloat(t3.style.top) }, rx: Cam.cur.rx, ringH: rr.height };
+          t3L: parseFloat(t3.style.left), t3T: parseFloat(t3.style.top), h: gEl.offsetHeight }, rx: Cam.cur.rx, ringH: rr.height };
     });
   }
 
@@ -81,26 +81,35 @@ const check = (name, ok, info) => { console.log(`${ok ? '✅' : '❌'} ${name}${
     check(`[${tag}] 自己的卡 zIndex 全场最大`, me && other && me.z > other.z, `me.z=${me && me.z} other.z=${other && other.z}`);
     check(`[${tag}] 两张卡中心都落在毡面范围内`, g.cards.every(c => c.cx > g.felt.left && c.cx < g.felt.right && c.cy > g.felt.top && c.cy < g.felt.bottom),
       JSON.stringify(g.cards.map(c => ({ pid: c.pid.slice(-4), cx: Math.round(c.cx), cy: Math.round(c.cy) }))) + ` felt=[${Math.round(g.felt.left)},${Math.round(g.felt.top)},${Math.round(g.felt.right)},${Math.round(g.felt.bottom)}]`);
-    check(`[${tag}] 牌堆锚在毡面中心（环心 = 远近座位正中间）且可见`, g.deck.visible && Math.abs(g.deck.cx - g.ringC.x) < 14 && Math.abs(g.deck.cy - g.ringC.y) < 14,
-      `deck=(${Math.round(g.deck.cx)},${Math.round(g.deck.cy)}) ringC=(${Math.round(g.ringC.x)},${Math.round(g.ringC.y)})`);
-    check(`[${tag}] 桌下光池锚点 = 环心（布局坐标，transform 前锚点即视觉中心）`, Math.abs(g.anchor.t3L - g.anchor.cx) < 2 && Math.abs(g.anchor.t3T - g.anchor.cy) < 2,
-      `t3(«${g.anchor.t3L}»,«${g.anchor.t3T}») ringCenter=(${Math.round(g.anchor.cx)},${Math.round(g.anchor.cy)})`);
-    check(`[${tag}] 机位收敛 rx≈8`, Math.abs(g.rx - 8) < 0.6, `rx=${g.rx.toFixed(2)}`);
+    // 第三人称：桌心向近侧（我的座位方向）偏 8% 环高——牌堆不被正对面玩家的卡压住
+    const nearBias = g.anchor.h * 0.08;
+    check(`[${tag}] 牌堆锚在桌心（环心偏近侧 8% 环高）且可见`, g.deck.visible && Math.abs(g.deck.cx - g.ringC.x) < 14 && Math.abs(g.deck.cy - (g.ringC.y + nearBias)) < 14,
+      `deck=(${Math.round(g.deck.cx)},${Math.round(g.deck.cy)}) ringC+bias=(${Math.round(g.ringC.x)},${Math.round(g.ringC.y + nearBias)})`);
+    check(`[${tag}] 桌下光池锚点 = 桌心（布局坐标，transform 前锚点即视觉中心）`, Math.abs(g.anchor.t3L - g.anchor.cx) < 2 && Math.abs(g.anchor.t3T - (g.anchor.cy + nearBias)) < 2,
+      `t3(«${g.anchor.t3L}»,«${g.anchor.t3T}») ringCenter+bias=(${Math.round(g.anchor.cx)},${Math.round(g.anchor.cy + nearBias)})`);
+    check(`[${tag}] 机位收敛 rx≈19`, Math.abs(g.rx - 19) < 0.6, `rx=${g.rx.toFixed(2)}`);
   }
 
-  // 抽卡一镜到底：角色飞向桌心牌堆（锚点=桌心）→ 洗牌 → 发牌
+  // 抽卡一镜到底：他人抽卡=头像克隆飞向桌心牌堆；我抽卡=背影 tp-away 起身（不再有克隆，避免「双我」）
   const chooserName = await A.p.evaluate(() => (S.players.find(p => p.id === (S.turn.chooserId || activePlayerId())) || {}).name);
   const chooserPage = chooserName === '小A' ? A : B;
+  const chooserIsMe = await chooserPage.p.evaluate(() => (S.turn.chooserId || activePlayerId()) === myId);
   await chooserPage.p.evaluate((t) => { try { choose(t); } catch (e) {} }, 'truth');
   await A.p.waitForTimeout(350);
-  const fly = await A.p.evaluate(() => {
-    const f = document.querySelector('.fly-avatar');
-    if (!f) return null;
-    const deck = document.getElementById('deck').getBoundingClientRect();
-    const fr = f.getBoundingClientRect();
-    return { exists: true, deckCx: deck.left + deck.width / 2, deckCy: deck.top + deck.height / 2 };
-  });
-  check('抽卡时飞行角色存在（锚点已改桌心牌堆）', !!fly);
+  if (chooserIsMe) {
+    await chooserPage.p.waitForTimeout(400);   // 等状态回包触发 renderPlayers 挂类
+    const tpAway = await chooserPage.p.evaluate(() => !!document.getElementById('tp-back').classList.contains('tp-away'));
+    check('我抽卡：背影挂 tp-away（第三人称离座姿态，不飞头像克隆）', tpAway);
+  } else {
+    const fly = await A.p.evaluate(() => {
+      const f = document.querySelector('.fly-avatar');
+      if (!f) return null;
+      const deck = document.getElementById('deck').getBoundingClientRect();
+      const fr = f.getBoundingClientRect();
+      return { exists: true, deckCx: deck.left + deck.width / 2, deckCy: deck.top + deck.height / 2 };
+    });
+    check('他人抽卡：飞行角色存在（锚点=桌心牌堆）', !!fly);
+  }
   await A.p.waitForTimeout(4300);
   const revealed = await A.p.evaluate(() => ({ revealed: !document.getElementById('card-section').hidden, deckStill: document.getElementById('deck').getBoundingClientRect().width > 0 }));
   check('揭晓正常且桌上牌堆仍在（被抽走的两张归位前，牌堆仍可见）', revealed.revealed && revealed.deckStill, JSON.stringify(revealed));
@@ -112,5 +121,5 @@ const check = (name, ok, info) => { console.log(`${ok ? '✅' : '❌'} ${name}${
 
   await b.close(); server.close();
   if (fails.length) { console.error('FAILED:', fails.join(' | ')); process.exit(1); }
-  console.log('ALL FIRST-PERSON GEOMETRY PASSED ✅');
+  console.log('ALL THIRD-PERSON GEOMETRY PASSED ✅');
 })().catch(e => { console.error('FATAL', e); process.exit(1); });

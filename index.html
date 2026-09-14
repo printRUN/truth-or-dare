@@ -243,9 +243,16 @@
 
     /* Game area */
     .cam { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 18px; transition: transform 0.9s cubic-bezier(0.25,0.1,0.25,1); will-change: transform; }
-    .turn-info { font-family: 'ZCOOL KuaiLe', cursive; font-size: 1.3rem; color: var(--accent-pink); text-align: center; min-height: 1.6em; }
+    /* 「轮到谁了」是躺着 40cm 看屏幕的信息生命线（婷婷）：暖金高亮 + 硬阴影，替代原暗紫红压暗紫底 */
+    .turn-info { font-family: 'ZCOOL KuaiLe', cursive; font-size: 1.3rem; color: #ffd76a; text-shadow: 0 1px 8px rgba(0,0,0,0.85); text-align: center; min-height: 1.6em; }
     .stats-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
     .stat-chip { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 20px; padding: 5px 14px; font-size: 0.82rem; }
+    @media (max-width: 430px) {
+      .turn-info { font-size: 1.5rem; }
+      /* 390 宽下状态条两端被裁（走查实测）：chip 收紧到全部 ⊆ [0,390] */
+      .stat-chip { padding: 3px 9px; font-size: 0.74rem; }
+      .stats-row { gap: 6px; }
+    }
     .stat-chip span { color: var(--accent-cyan); font-weight: 700; }
     .wait-note { font-size: 0.85rem; color: rgba(255,255,255,0.68); text-align: center; }
 
@@ -410,7 +417,9 @@
     .btn:focus-visible, .mode-opt:focus-visible, .copy-link-btn:focus-visible, .import-tab:focus-visible, .paste-btn:focus-visible, .btn-accept:focus-visible, .btn-skip:focus-visible, .mic-btn:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 3px; }
 
     /* Toast */
-    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(100px); background: rgba(139,92,246,0.95); backdrop-filter: blur(10px); color: #fff; padding: 10px 22px; border-radius: 12px; font-size: 0.9rem; font-weight: 700; z-index: 2000; transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1); border: 1px solid rgba(255,255,255,0.2); text-align: center; max-width: 90%; }
+    /* toast 挂顶部安全区下：底部是工具栏/选卡操作带，弹窗不能长在要按的地方（走查必须项）。
+       隐藏态 translateY(-140px) 向上出屏——挂顶后翻号，漏翻会半截常驻在屏内。 */
+    .toast { position: fixed; top: 12px; top: max(12px, env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%) translateY(-140px); background: rgba(139,92,246,0.95); backdrop-filter: blur(10px); color: #fff; padding: 10px 22px; border-radius: 12px; font-size: 0.9rem; font-weight: 700; z-index: 2000; transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1); border: 1px solid rgba(255,255,255,0.2); text-align: center; max-width: min(90%, calc(100vw - 96px)); }
     .toast.show { transform: translateX(-50%) translateY(0); }
     .toast.success { background: rgba(34,197,94,0.95); }
     .toast.error { background: rgba(239,68,68,0.95); }
@@ -695,7 +704,7 @@
        overflow-clip-margin 留 28px 出血，保证座位环前后排卡片的轻微溢出不被切。
        overflow:hidden 让台面子元素（扫光条/桌心徽记）裁在椭圆内；其子树是平的，不触 preserve-3d 红线。 */
     #cam { position: relative; perspective: 900px; overflow-x: clip; overflow-clip-margin: 28px; }   /* 牌桌自带透视：台面 rotateX 躺下不会被拍成平图 */
-    .table3d { position: absolute; left: 50%; top: 44%; width: min(98vw, 940px); height: min(64vh, 540px); transform: translate(-50%, -50%) rotateX(74deg) translateZ(-40px); border-radius: 50%; pointer-events: none; z-index: 0; overflow: hidden;
+    .table3d { position: absolute; left: 50%; top: 44%; width: min(98vw, 940px); height: min(64vh, 540px); transform: translate(-50%, -50%) rotateX(62deg) translateZ(-40px); border-radius: 50%; pointer-events: none; z-index: 0; overflow: hidden;
       background: radial-gradient(ellipse at 50% 46%, rgba(139,92,246,0.30) 0%, rgba(139,92,246,0.15) 40%, rgba(34,211,238,0.09) 60%, rgba(10,10,26,0) 78%);
       box-shadow: inset 0 0 90px rgba(139,92,246,0.22), 0 0 0 2px rgba(255,255,255,0.06); }
     /* 进牌桌「点亮舞台」：亮度覆层（同一张渐变叠 0→1，随转身起点并行）+ 落位后一道台面反光扫过
@@ -710,34 +719,45 @@
     /* 桌心徽记：填补牌桌中段的视觉空洞、强化「这是一张桌子」；台面平面上的静态装饰（0.12 透明度），
        pointer-events:none —— 绝不能进 3D 命中栈让人误以为可点；被牌面（z=2）压住。 */
     .table-emblem { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 5rem; opacity: 0.12; pointer-events: none; }
+    /* 流内内容压在牌堆(z1)/光池(z0)之上。⚠ 不要往 :not 链里加 :not(#tp-back)——那会把本规则
+       特异度抬到 (2,2,1)，压过浮层 z40 规则导致选卡/题面被背影盖住（实施时踩过，勿回退）。 */
     #cam > :not(.table3d):not(.table-deck) { position: relative; z-index: 2; }
+    /* 背影与浮层的定位/层序：都用 (2,0,0) 压过上面的通配。浮层 z40 > 背影 z35——
+       选卡/题面叠在背影上时必须是卡片接到点击且画在上层。 */
+    #cam > #tp-back { position: absolute; left: 50%; bottom: 0; z-index: 35; }
+    #cam > #choice-section, #cam > #deck-section, #cam > #card-section, #cam > #ghost-bar, #cam > .pick-tip { position: relative; z-index: 40; }
+    /* 工具行与押注面板住在 #cam 外面（#screen-game 直接子级）：#cam 有 perspective 自成堆叠上下文、
+       整体画在静态兄弟之后，必须单独抬进 z40 浮层层，否则背影(z35)会画在按钮之上（终审 P1-1） */
+    #screen-game > .tool-row, #screen-game > .bet-box { position: relative; z-index: 40; }
 
-    /* 牌堆常驻桌心：桌上始终放着一叠牌（第一人称）。轻微俯角 + 缩小，读作「躺在桌面上」；
-       它是 #cam 直接子级，但不是流内内容 —— 上面那条 z2 规则用 :not(.table-deck) 排除它，免得盖住毡面。 */
-    .table-deck { position: absolute; left: 50%; top: 44%; z-index: 1; transform: translate(-50%, -50%) rotateX(16deg) scale(0.72); }
+    /* 牌堆常驻桌心：桌上始终放着一叠牌（第三人称下读作「躺在台面上的牌堆」）。
+       scale 0.72→0.8 + 静态 opacity：镜头拉远后的增重补偿，牌子不再读作幽灵卡（静态值，无动画）。 */
+    .table-deck { position: absolute; left: 50%; top: 44%; z-index: 1; opacity: 0.95; transform: translate(-50%, -50%) rotateX(16deg) scale(0.8); }
     body.landui .table-deck { top: 50%; }
-    body.loperf .table-deck { transform: translate(-50%, -50%); }   /* 低端机拍平：牌堆直立回位 */
+    body.loperf .table-deck { transform: translate(-50%, -50%); opacity: 0.95; }   /* 低端机拍平：牌堆直立回位 */
     .table-deck .deck { width: 130px; height: 172px; }
     .table-deck .deck-card { border-radius: 12px; box-shadow: 0 2px 0 rgba(255,255,255,0.14), 0 5px 0 rgba(0,0,0,0.28), 0 12px 24px rgba(0,0,0,0.45); }
     .table-deck .deck-card:nth-child(1) { transform: rotate(-6deg) translate(-7px, 3px); }
     .table-deck .deck-card:nth-child(2) { transform: rotate(1deg) translateY(1px); }
     .table-deck .deck-card:nth-child(3) { transform: rotate(8deg) translate(8px, -2px); }
 
-    /* 揭晓/选卡的浮层永远在牌堆之上（牌堆 z1，流内内容默认非定位会被盖） */
-    #choice-section, #deck-section, #card-section, #ghost-bar, .pick-tip { position: relative; z-index: 2; }
+    /* 揭晓/选卡的浮层永远在牌堆与座次环之上：z40 > 座次卡 z20-30 与背影 z35——
+       按钮压在桌沿/背影上时必须是按钮接到点击且画在上层（定位/特异度收编进 #cam > 通配段） */
 
-    /* 3D 座次：玩家沿椭圆围桌（静态 left/top/scale 三变量，不逐帧重排） */
+    /* 3D 座次：玩家沿椭圆围桌（静态 left/top/scale 三变量，不逐帧重排）。环径 75px：世界 rx19°
+       的透视会在远座吃掉 ~4% 投影宽，75×0.92×0.96 ≈ 66px 保证远座可读下限（婷婷 ≥64px@桌面） */
     .players-grid.ring3d { position: relative; display: block; width: min(96vw, 900px); height: clamp(210px, 44vh, 340px); }
+    .players-grid.ring3d .avatar-ring { width: 75px; height: 75px; }
     /* 牌桌毡面：直接垫在座次环下（z:-1，只在本环的坐标系里），座位与桌面永不脱节 ——
-       旧版桌面是 #cam 里另一只绝对定位盒子，跟流内的座次环各过各的，视口一变就「人浮在桌外」。
-       毡面比环大出一圈（桌沿伸到座位身后），radial 两层 = 暗色台体 + 紫氍反光，配合 world 俯角读作桌面。 */
-    .players-grid.ring3d::before { content: ''; position: absolute; left: 50%; top: 50%; width: 122%; height: 175%; transform: translate(-50%, -50%);
+       第三人称 rx19° 俯角下向下扩（h210%/top56%）：下沿探到我的座位脚下，近坡大远坡小读作桌面。
+       缘光四元组（视觉评审 c）：紫-300 全缘 0.22 让椭圆读作「桌界」+ 贴近沿一道内反光。 */
+    .players-grid.ring3d::before { content: ''; position: absolute; left: 50%; top: 56%; width: 122%; height: 210%; transform: translate(-50%, -50%);
       border-radius: 50%; pointer-events: none; z-index: -1;
       background:
         radial-gradient(ellipse at 50% 38%, rgba(139,92,246,0.30) 0%, rgba(109,58,220,0.22) 42%, rgba(76,29,149,0.16) 66%, rgba(30,12,64,0.05) 86%, rgba(0,0,0,0) 100%),
         radial-gradient(ellipse at 50% 50%, rgba(23,12,48,0.92) 0%, rgba(17,9,38,0.88) 58%, rgba(12,7,28,0.7) 76%, rgba(0,0,0,0) 94%);
-      box-shadow: inset 0 0 0 3px rgba(167,139,250,0.16), inset 0 0 60px rgba(0,0,0,0.5), 0 18px 44px rgba(0,0,0,0.45); }
-    .players-grid.ring3d .player-card { position: absolute; left: var(--rx, 50%); top: var(--ry, 50%); transform: translate(-50%, -50%) scale(var(--rs, 1)); transition: left 0.55s cubic-bezier(0.22,0.61,0.36,1), top 0.55s cubic-bezier(0.22,0.61,0.36,1), transform 0.45s cubic-bezier(0.22,0.61,0.36,1); animation: none; }
+      box-shadow: inset 0 0 0 3px rgba(196,181,253,0.22), inset 0 -16px 32px rgba(139,92,246,0.12), inset 0 0 60px rgba(0,0,0,0.5), 0 18px 44px rgba(0,0,0,0.45); }
+    .players-grid.ring3d .player-card { position: absolute; left: var(--rx, 50%); top: var(--ry, 50%); transform: translate(-50%, -50%) scale(var(--rs, 1)); transition: left 0.55s cubic-bezier(0.22,0.61,0.36,1), top 0.55s cubic-bezier(0.22,0.61,0.36,1), transform 0.45s cubic-bezier(0.22,0.61,0.36,1), opacity 0.45s; animation: none; }
     .players-grid.ring3d .player-card .player-name { max-width: 92px; }
     /* 命运转盘：光点扫过谁，谁亮起 */
     .player-card.spot .avatar-ring { box-shadow: 0 0 0 4px rgba(251,191,36,0.9), 0 0 28px rgba(251,191,36,0.85); }
@@ -757,9 +777,19 @@
        --wdx/--wdy 由 layoutRing 按座位相对桌心的方向写入，远座从上方入、近座（自己）从下方入，人人都是从桌心出发 */
     .players-grid.ring3d .player-card.chr-in { animation: chr-walk-in 0.7s cubic-bezier(0.34,1.56,0.64,1) backwards; }
     @keyframes chr-walk-in { from { opacity: 0; transform: translate(calc(-50% + var(--wdx, 0%)), calc(-50% + var(--wdy, -78%))) scale(0.42); } 60% { opacity: 1; } to { opacity: 1; transform: translate(-50%, -50%) scale(var(--rs, 1)); } }
-    /* 第一人称：自己的座位 —— 名牌点亮 + 座位圈氛灯（me-tag「你」已在头像上） */
+    /* 第一人称→第三人称：me 卡只保留名牌/徽章（avatar+身体交给 #tp-back 背影），座位圈氛灯语言不变 */
     .players-grid.ring3d .player-card.me .player-name { border-color: rgba(34,211,238,0.65); color: #cffafe; box-shadow: 0 0 12px rgba(34,211,238,0.25); }
     .players-grid.ring3d .player-card.me .chr-body { box-shadow: inset 0 -4px 8px rgba(0,0,0,0.28), 0 0 16px rgba(34,211,238,0.4); }
+    /* .tp 作用域恒带 ring3d 网格限定（只影响牌桌；大厅 me 卡保持正面）。
+       visibility 而非 display：flyAvatarToDeck 用 rect 测量头像环，visibility 保布局。 */
+    .players-grid.ring3d .player-card.tp .avatar-ring, .players-grid.ring3d .player-card.tp .chr-body { visibility: hidden; }
+    .players-grid.ring3d .player-card.tp .mic-badge { display: none; }   /* 悬空的 🎤 浮在隐形环上是破损观感；麦克风态看名牌绿光 */
+    .players-grid.ring3d .player-card.tp .wave { display: none; }        /* 声波环由背影 halo 承担 */
+    /* .tp 卡的头像隐了，挂在头像环上的徽章会悬空漂在毡面上：你=背影头侧的 tp-you 承担，
+       主持人/分数贴到名牌两侧（身份信息不丢，位置跟着看得见的名牌走） */
+    .players-grid.ring3d .player-card.tp .me-tag { display: none; }
+    .players-grid.ring3d .player-card.tp .host-tag { top: auto; bottom: -4px; left: 50%; transform: translateX(-130%); white-space: nowrap; }
+    .players-grid.ring3d .player-card.tp .score-tag { top: auto; bottom: -4px; left: 50%; transform: translateX(30%); white-space: nowrap; }
     /* 触发谁：角色离座去抽卡——座位上的身体变暗 + 头顶气泡「去抽卡…」 */
     .chr-status { position: absolute; top: -13px; left: 50%; white-space: nowrap; font-size: 0.62rem; font-weight: 800; color: #fde68a;
       background: rgba(15,15,30,0.9); border: 1px solid rgba(251,191,36,0.5); border-radius: 999px; padding: 1px 7px; z-index: 4; pointer-events: none; display: none;
@@ -768,12 +798,130 @@
     @keyframes chr-float { from { transform: translate(-50%, 0); } to { transform: translate(-50%, -4px); } }
     .player-card.away .chr-body { opacity: 0.5; animation: none; }
     .player-card.away .avatar-ring { filter: saturate(0.55) brightness(0.72); }
+    /* 离座可读性：人走了，名牌跟人走（压暗留在座位的名字），治「头像飞了名字还在原地」的分家感 */
+    .player-card.away .player-name { opacity: 0.25; }
+    .players-grid.ring3d .player-card.tp.away .chr-status { display: none; }   /* 我的离座由背影承担，座位气泡在隐形座位上悬空 */
+    .players-grid.ring3d .player-name { transition: opacity 0.45s; }
+
+    /* ══════════ 第三人称背影（骗子酒馆式过肩镜头） ══════════
+       #cam 底缘中央、视口锚定（非座位锚定）；「逆光剪影」造型：身份色压暗做体、细亮缘做形、氛灯做魂
+       （深色星空底上纯剪影不可见、原亮度 chr1 又会亮过中景——明度层级：UI 玻璃 > 对面脸 > 缘光/氛灯 >
+         背影体色 > 毡面 > 压暗罩）。z35：座次卡(20-30)之上、UI 浮层(40)之下；pointer-events:none。
+       ⚠ 前倾/离座是状态 class 的 transition、拍桌是一次性 keyframes——REDUCED/loperf 退路见文末降级块。 */
+    .tp-back { position: absolute; left: 50%; bottom: 0; z-index: 35; pointer-events: none;
+      width: clamp(180px, 22vw, 300px); height: min(300px, 34vh);
+      transform: translateX(-50%); transform-origin: 50% 100%;
+      transition: transform 0.45s cubic-bezier(0.22,0.61,0.36,1), opacity 0.85s; }
+    /* 接地影：防「人形贴片浮空」（::after 留给氛灯 halo） */
+    .tp-back::before { content: ''; position: absolute; left: 50%; bottom: -10px; width: 130%; height: 22px;
+      transform: translateX(-50%); border-radius: 50%;
+      background: radial-gradient(ellipse, rgba(0,0,0,0.6), transparent 68%); }
+    /* 氛灯 halo：复用 me 的青色语言；说话覆写绿 + opacity 随 --voice（paintVoice 写本元素） */
+    .tp-back::after { content: ''; position: absolute; left: 50%; top: 6%; width: 70%; height: 46%; transform: translateX(-50%);
+      border-radius: 50%; pointer-events: none;
+      background: radial-gradient(ellipse, rgba(34,211,238,0.30), rgba(34,211,238,0) 70%);
+      opacity: 0.22; transition: opacity 0.3s; }
+    .tp-back.speaking::after { background: radial-gradient(ellipse, rgba(74,222,128,0.35), rgba(74,222,128,0) 70%); opacity: calc(0.3 + var(--voice, 0) * 0.5); }
+    /* 呼吸/拍桌都动 .tp-inner（不碰 #tp-back 的状态 transform 串） */
+    .tp-inner { position: absolute; inset: 0; transform-origin: 50% 100%; animation: chr-idle 3.2s ease-in-out infinite alternate; }
+    #tp-back.tp-slam .tp-inner { animation: chr-idle 3.2s ease-in-out infinite alternate, tp-slam 0.4s cubic-bezier(0.22,0.61,0.36,1); }
+    @keyframes tp-slam { 0% { transform: none; } 35% { transform: translateY(3px) scale(1.05, 1.12); } 100% { transform: none; } }
+    /* 椅背：比肩宽 +8% 两侧探出、顶缘高于肩线——不探出就读成斗篷；紫-900 族禁纯黑 */
+    .tp-chair { position: absolute; left: 50%; bottom: 6%; width: 116%; height: 64%; transform: translateX(-50%);
+      border-radius: 18px 18px 0 0 / 28px 28px 0 0;
+      background: linear-gradient(180deg, rgba(76,29,149,0.50), rgba(30,12,64,0.88) 62%);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 0 0 1px rgba(167,139,250,0.22); }
+    /* 肩背：chrHue 身份色叠 --bg 压暗 40-66%（禁 filter）；肩线 1px 主轮廓光是「黑影 vs 人」的分界 */
+    .tp-shoulder { position: absolute; left: 50%; bottom: 0; width: 100%; height: 56%; transform: translateX(-50%);
+      border-radius: 50% 50% 0 0 / 92% 92% 0 0;
+      background:
+        linear-gradient(180deg, rgba(10,10,26,0.42), rgba(10,10,26,0.66) 78%),
+        linear-gradient(180deg, var(--chr1, #8b5cf6), var(--chr2, #5b21b6) 64%);
+      box-shadow: inset 0 2px 1px rgba(255,255,255,0.18), inset 0 -14px 26px rgba(10,10,26,0.55), 0 0 0 1px rgba(255,255,255,0.10); }
+    /* 后脑勺：宽屏 30% 头身比（竖屏 26% 见媒体块） */
+    .tp-head { position: absolute; left: 50%; bottom: 44%; width: 30%; height: 28%; transform: translateX(-50%);
+      border-radius: 50%;
+      background:
+        linear-gradient(205deg, rgba(10,10,26,0.30), rgba(10,10,26,0.55) 70%),
+        linear-gradient(200deg, var(--chr1, #8b5cf6) 12%, var(--chr2, #5b21b6) 80%);
+      box-shadow: inset 0 2px 2px rgba(255,255,255,0.20), 0 0 0 1px rgba(255,255,255,0.12); }
+    /* 「你」章挂背影头侧：竖屏下环上的名牌离得远，由它补身份链（桌面端与名牌并存无碍） */
+    .tp-you { position: absolute; top: 18%; right: 4%; font-size: 0.62rem; font-weight: 800;
+      color: #cffafe; background: rgba(10,10,26,0.66); border: 1px solid rgba(34,211,238,0.65);
+      border-radius: 999px; padding: 1px 7px; }
+    /* 轮到我：前倾推桌（持续态；过渡与座次卡同族 .45s，禁回弹族——回弹读作受惊弹起） */
+    .tp-back.tp-forward { transform: translateX(-50%) translateY(-8px) scale(1.05); }
+    .tp-back.tp-forward::after { opacity: 0.75; animation: seat-glow 0.9s ease-in-out infinite alternate; }
+    /* 说话：肩头轻晃（2.1s——与 chr-idle 3.2s 错开，同周期会同相锁死读成「没在动」） */
+    .tp-back.speaking .tp-inner { animation: chr-idle 3.2s ease-in-out infinite alternate, tp-sway 2.1s ease-in-out infinite; }
+    @keyframes tp-sway { 0%, 100% { transform: rotate(0deg); } 30% { transform: rotate(-0.8deg); } 70% { transform: rotate(0.8deg); } }
+    /* 我离座去抽卡：背影起身探向桌心（0.85s 与 flyAvatarToDeck 时钟同拍；transform 串必须显式带基准位移） */
+    .tp-back.tp-away { transform: translateX(-50%) translateY(-34px) scale(0.94); opacity: 0.85; }
+    /* 短窗桌面：环被压缩后余量小，背影同 步收一档保证头顶不探进对面座位带 */
+    @media (min-width: 601px) and (max-height: 920px) { body:not(.landui) #cam > #tp-back { height: min(252px, 32vh); } }
+    /* 揭晓态：我俯身看牌——躯干从题面卡下缘露出（人在画、卡是焦点）。
+       ⚠ 下沉量只给宽屏：竖屏/横屏的背影已锚在屏缘（bottom 负偏移），任何正 translateY 都会把整个
+       元素推出视口下缘并撑出滚动区（终审 P0-1 实测竖屏 revealed 出画 245px）。 */
+    #screen-game.stage-revealed #tp-back { transform: translateX(-50%) scale(0.94); }   /* 竖屏/横屏：只收不放，底缘贴屏不动 */
+    @media (min-width: 601px) {
+      body:not(.landui) #screen-game.stage-revealed #tp-back { transform: translateX(-50%) translateY(110px) scale(0.85); }
+    }
+    /* 矮窗桌面：纵向余量小，下沉收到 56px——躯干仍露 ~66px，且底缘不越 vh-8（写在 110px 之后，同特异度后者赢） */
+    @media (min-width: 601px) and (max-height: 820px) {
+      body:not(.landui) #screen-game.stage-revealed #tp-back { transform: translateX(-50%) translateY(56px) scale(0.85); }
+    }
+    /* 竖屏：背影收进屏幕下沿（top≥640 断言线），头身比 26%；肩没入选卡卡后 = 手机镜头更近 */
+    @media (max-width: 600px) {
+      #cam > #tp-back { width: min(35vw, 148px); height: min(168px, 21vh); bottom: -145px; }   /* 沉到屏缘：手机镜头更贴后脑；rx19 透视放大 ~8% 后仍 ≤24vh 投影 */
+      #cam > #tp-back .tp-head { width: 26%; height: 24%; }
+    }
+    /* 手机横屏：高度 ≤30% 屏高（117px@390），不侵右栏 */
+    body.landui #cam > #tp-back { left: 25%; width: min(28vw, 236px); height: min(112px, 29vh); bottom: -16px; }   /* 偏左栏桌沿不侵右栏；下沉让开侧座名牌 */
+
+    /* ══════════ 揭晓态：牌桌常驻（缩小让位 + 压暗，不许消失） ══════════
+       由 JS 在 revealed/choosing 分支挂/摘 #screen-game.stage-revealed（锁检查之后）——
+       ⚠ 绝不能改回 :has(#card-section:not([hidden]))：旧内核（微信 WebView）静默不生效，
+       且 dealFlyingCard 在 drawing 期就取消 card-section 的 hidden，会把压缩插进推镜中途。
+       压暗 = 静态罩层 + 卡透明度（禁 filter:saturate——挂在有常驻动画的子树上是每帧重光栅化）。 */
+    #screen-game.stage-revealed .players-grid.ring3d { height: 210px; }   /* height 不加 transition：layoutRing 同 tick 重锚要用新 offset 值 */
+    #screen-game.stage-revealed .players-grid.ring3d::after { content: ''; position: absolute; inset: 0;
+      background: rgba(10,10,26,0.45); z-index: 5; pointer-events: none; border-radius: 18px; }
+    #screen-game.stage-revealed .players-grid.ring3d .player-card { opacity: 0.85; }
+    #screen-game.stage-revealed .players-grid.ring3d .player-card.active { opacity: 1; }   /* 持麦人不暗：揭晓页的语义锚 */
+    /* 短窗桌面（平板/1440×900）：题面卡负 margin 叠进压暗的环（环露 ~110px 下沿）——
+       竖排让位在 768 高装不下，叠加式保住「桌子+人+题同框」且首屏不溢出 */
+    @media (min-width: 601px) and (max-height: 920px) {
+      body:not(.landui) #screen-game.stage-revealed .card-stage { margin-top: -100px; }
+      body:not(.landui) #screen-game.stage-revealed .flip-card { box-shadow: 0 24px 56px rgba(0,0,0,0.5); }
+    }
+    /* 竖屏揭晓：题面卡收一档 + 工具行收成单行横滚（不藏文字），四阶段不滚动可达 */
+    @media (max-width: 600px) {
+      #screen-game.stage-revealed .card-stage { width: min(260px, 68vw); }
+      #screen-game.stage-revealed .bet-box .bet-q { display: none; }   /* 押注按钮自释义，问题行在竖屏让位（押对+5/押错-5 语义不变） */
+      #screen-game.stage-revealed .tool-row { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+    }
+    /* 竖屏基础档：座次环 340→240（choosing 阶段的 79px 超屏由这里让位，不是只在揭晓）；
+       工具行收单行横滚（4 行折行是竖屏超屏的大头） */
+    @media (max-width: 600px) {
+      .players-grid.ring3d { height: clamp(190px, 30vh, 240px); }
+      #screen-game.active .tool-row { flex-wrap: nowrap !important; overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }   /* !important 压过元素上的内联 flex-wrap:wrap */
+      #screen-game.active .tool-row .btn { white-space: nowrap; flex: none; }   /* 按钮内文字折行会把工具行撑到 128px 高（竖屏超屏大头） */
+      #screen-game.active #game-tools { margin-top: 8px !important; }
+    }
     /* 揭晓卡的归属：卡面署名带抽卡者的头像 */
     .card-owner .owner-ava { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; vertical-align: -5px; margin-right: 4px; border: 1.5px solid rgba(255,255,255,0.5); }
 
-    @media (prefers-reduced-motion: reduce) { .chr-body, .chr-status, .players-grid.ring3d .player-card.chr-in { animation: none !important; } }
+    @media (prefers-reduced-motion: reduce) {
+      .chr-body, .chr-status, .players-grid.ring3d .player-card.chr-in { animation: none !important; }
+      /* 背影：呼吸/摇晃/拍桌/氛灯脉动全停；前倾保留静态终态（「轮到我了」是无障碍信息，视觉评审 e-6 裁定） */
+      .tp-inner, .tp-back.tp-slam .tp-inner, .tp-back::after { animation: none !important; }
+      .tp-back { transition: none; }
+    }
     body.loperf .chr-body, body.loperf .chr-status { animation: none !important; }
     body.loperf .players-grid.ring3d .player-card.chr-in { animation: none; }
+    /* 低端机：背影全部状态瞬移（transform-only 层不必保留过渡等待），动画全停 */
+    body.loperf .tp-inner, body.loperf .tp-back.tp-slam .tp-inner, body.loperf .tp-back::after { animation: none; }
+    body.loperf .tp-back { transition: none; }
 
     /* 连击徽章 */
     .combo-tag { position: absolute; top: -12px; left: -10px; background: linear-gradient(135deg, #f97316, #ef4444); color: #fff; font-size: 0.6rem; font-weight: 800; padding: 1px 6px; border-radius: 8px; z-index: 3; box-shadow: 0 2px 10px rgba(239,68,68,0.55); animation: combo-pop 0.5s cubic-bezier(0.34,1.56,0.64,1); }
@@ -873,9 +1021,10 @@
       .turn-info { font-size: 1.15rem; }
       .card-front .type-badge { font-size: 0.9rem; }
       .card-front .card-actions button { padding: 7px 12px; font-size: 0.82rem; }
-      /* 揭晓时收起座次环（纵向本来就不够）：优先保证题面与「完成/跳过/免答牌」都在首屏内。
-         手机横屏 landui 是左右分栏，不适用这条 —— 用 body:not(.landui) 排除。 */
-      body:not(.landui) #screen-game:has(#card-section:not([hidden])) .players-grid.ring3d { display: none; }
+      /* 揭晓时座次环不再 display:none（第三人称红线：桌子+人+题必须同框）——
+         改由 JS 挂 #screen-game.stage-revealed 做缩小让位+压暗（见 ring3d 段的 stage-revealed 规则）。
+         旧 :has 规则两宗罪：老 WebView 静默不生效；dealFlyingCard 在 drawing 期就取消 card-section
+         的 hidden，压缩会插进推镜中途。 */
     }
 
     /* 超宽屏（≥1440，非手机横屏）大厅两栏：左边「邀请 + 玩法 + 开局」，右边「玩家墙」。
@@ -1039,8 +1188,7 @@
     body.landui .react-fab { width: 40px; height: 40px; }
     body.landui .react-fab-emoji { font-size: 21px; }
     body.landui .react-pop button { width: 36px; height: 36px; font-size: 19px; }
-    body.landui .toast { top: 6px; bottom: auto; font-size: 0.8rem; padding: 7px 16px; max-width: 62%; }
-    body.landui .toast:not(.show) { transform: translateX(-50%) translateY(-160px); }   /* 顶部弹出：隐藏态向上走，不要从顶部下方冒出来 */
+    body.landui .toast { font-size: 0.8rem; padding: 7px 16px; max-width: 62%; }   /* 定位已收编进顶部全局规则 */
     body.landui .pick-tip { font-size: 0.7rem; }
     body.landui .wait-note { font-size: 0.78rem; }
     /* 旋转兜底：帧时间线用逻辑高度算（vh 在旋转下仍是物理竖屏尺寸） */
@@ -1218,6 +1366,14 @@
           <div class="deck-card">🎭</div>
           <div class="deck-card">🎴</div>
           <div class="deck-card">🎭</div>
+        </div>
+      </div>
+      <!-- 第三人称背影（骗子酒馆式）：我的角色背对镜头坐在桌前。锚定 #cam 底缘中央（视口锚定，非座位锚定），
+           pointer-events:none 不拦任何点击；状态类（tp-forward/tp-away/tp-slam/speaking）由 JS 挂。
+           ⚠ #cam > :not(...) 的 z 序规则必须排除它（见该规则的注释）。 -->
+      <div class="tp-back" id="tp-back" aria-hidden="true">
+        <div class="tp-inner">
+          <i class="tp-chair"></i><i class="tp-shoulder"></i><i class="tp-head"></i><span class="tp-you">你</span>
         </div>
       </div>
       <div class="stats-row">
@@ -2462,9 +2618,19 @@ function renderPlayers(gridId, showActive) {
       const card = document.createElement('div');
       card.className = 'player-card';
       card.dataset.pid = p.id;
-      if (p.id === myId) card.classList.add('me');   // 第一人称：自己的座位高亮
+      if (p.id === myId) {
+        card.classList.add('me');   // 自己的座位高亮
+        // 第三人称：me 卡只留名牌/徽章，正面化身由 #tp-back 背影承担。
+        // ⚠ 只在牌桌网格挂 .tp——renderPlayers 大厅/牌桌共用，泄漏进大厅会藏掉大厅自己的正面卡
+        if (gridId === 'game-players-grid') card.classList.add('tp');
+      }
       card.style.animationDelay = (i * 0.07) + 's';
       applyChrColors(card, p.id);   // 虚拟角色的衣服色（全端一致）
+      // 背影化身与 me 卡同源身份色（chrHue 按 id 哈希，全端一致）
+      if (p.id === myId && gridId === 'game-players-grid') {
+        const tp = document.getElementById('tp-back');
+        if (tp) applyChrColors(tp, p.id);
+      }
       // 虚拟世界：新到者才有「入座」动画——从桌心走到自己座位；其余人只换座位（CSS 过渡）
       if (gridId === 'game-players-grid' && !keepIds.includes(p.id)) card.classList.add('chr-in');
       if (gridId === 'game-players-grid') card.addEventListener('click', () => hostPickPlayer(p.id));
@@ -2534,6 +2700,16 @@ function renderPlayers(gridId, showActive) {
       }
     }
   });
+  // 背影化身的状态语言（与卡片状态同源同拍）：轮到我=前倾推桌（持续态），我离座=起身探向桌心
+  if (gridId === 'game-players-grid') {
+    const tp = document.getElementById('tp-back');
+    if (tp && S) {
+      const onStage = S.gameStarted && !S.finished && (S.turn.stage === 'drawing' || S.turn.stage === 'revealed');
+      const goId = onStage ? (S.turn.chooserId || activePlayerId()) : null;
+      tp.classList.toggle('tp-forward', !!S.gameStarted && !S.finished && S.turn.stage === 'choosing' && S.turn.chooserId === myId);
+      tp.classList.toggle('tp-away', goId === myId);
+    }
+  }
   if (showActive) {
     const activeId = activePlayerId();
     grid.querySelectorAll('.player-card').forEach(c => {
@@ -2647,6 +2823,20 @@ async function ghostSkip() {
   toast(`⏭ 已替「${stuck.name}」跳过本轮`, 'success');
 }
 
+// 揭晓态类开关（第三人称「牌桌常驻」的 JS 挂点）：缩小让位 + 压暗由 CSS 的 .stage-revealed 规则承担。
+// ⚠ 挂/摘后必须同 tick 重跑 layoutRing：height 无 transition（offset 已是新值），牌堆/毡面重锚不读中间值；
+//   卡片 left/top 是 %，高度瞬变后靠既有 0.55s 过渡自然滑到新座位。
+// ⚠ 触发时机只在 revealed/choosing 分支的锁检查之后——dealFlyingCard 会在 drawing 期提前取消
+//   card-section 的 hidden，按「卡面可见」挂类会把压缩插进推镜中途（旧 :has 方案的两宗罪之一）。
+function syncStageRevealed(on) {
+  const sc = document.getElementById('screen-game');
+  if (!sc) return;
+  if (!!on === sc.classList.contains('stage-revealed')) return;
+  sc.classList.toggle('stage-revealed', !!on);
+  const grid = $('game-players-grid');
+  if (grid && grid.offsetWidth > 0) layoutRing(grid);
+}
+
 function renderGameStatic() {
   renderPlayers('game-players-grid', true);
   const isFree = S.mode === 'free';
@@ -2683,6 +2873,7 @@ function renderGameStatic() {
   paintBetLog();
   $('btn-reroll').hidden = true;
   if (stage === 'choosing') {
+    syncStageRevealed(false);
     $('choice-section').hidden = false; $('deck-section').hidden = true; $('card-section').hidden = true;
     $('flip-card').classList.remove('flipped');
     $('card-truth').classList.remove('picked'); $('card-dare').classList.remove('picked');
@@ -2696,11 +2887,13 @@ function renderGameStatic() {
     else { $('turn-info').textContent = `轮到「${chooser?.name || '???'}」了`; $('choice-hint').textContent = '等待对方选择...'; setChoiceEnabled(false); }
   } else if (stage === 'drawing') {
     if (cardDealt) return;   // 牌已飞向中央：中途任何重渲染都不该把画面拽回卡堆
+    syncStageRevealed(false);
     $('choice-section').hidden = true; $('deck-section').hidden = false; $('card-section').hidden = true;
     $('turn-info').textContent = `「${chooser?.name || '???'}」起身去卡堆抽卡了…`;
     $('drawing-note').textContent = S.turn.choice === 'truth' ? '💬 真心话卡已锁定' : '🎯 大冒险卡已锁定';
   } else if (stage === 'revealed') {
     if (revealAnim) return;  // 本地翻牌/打字动画进行中：答案由动画自己绘制，不能提前上屏
+    syncStageRevealed(true);
     $('choice-section').hidden = true; $('deck-section').hidden = true; $('card-section').hidden = false;
     const t = S.turn;
     const front = $('card-front');
@@ -2840,18 +3033,19 @@ const CAM_EASE = {
 const Cam = {
   el: null, cur: { ...CAM_ID }, par: { x: 0, y: 0 }, raf: 0, raf2: 0, token: 0, busy: false, curScreen: 'join', enteredAt: 0,
   lastFocus: null, lastFocusPush: 1.05,   // 最近一次聚焦的元素（横竖屏切档时按新布局续接，见 realign）
-  // 每屏常态机位：镜头停在这（这就是「牌桌微微俯视」的来源）
+  // 每屏常态机位：镜头停在这。game = 第三人称过肩位——在「我」身后上方越过肩头看桌面：
+  // rx19 拉出俯视与近大远小，z-56 拉远让背影入画；result = 从桌边靠回去看结果的后撤位
   base: {
     join: { x: 0, y: 0, z: -40, rx: 2.2, ry: -3, rz: 0, s: 1 },
     lobby: { ...CAM_ID },
-    game: { x: 0, y: 0, z: -24, rx: 8, ry: 0, rz: 0, s: 1 },   // 牌桌微微俯视：第一人称坐在桌前（毡面/座次/牌堆都在这个俯角下读）
-    result: { x: 0, y: 0, z: -60, rx: 9, ry: 0, rz: 0, s: 1 },
+    game: { x: 0, y: 0, z: -56, rx: 19, ry: 0, rz: 0, s: 1 },
+    result: { x: 0, y: 0, z: -80, rx: 11, ry: 0, rz: 0, s: 1 },
   },
-  // 每屏入场机位：镜头从哪推/拉到常态位（「一镜到底」的开场段）
+  // 每屏入场机位：镜头从哪推/拉到常态位（「一镜到底」的开场段）。game 行程保持旧的 356px（-412-(-56)）
   spawn: {
     join: { z: 150, rx: -5, s: 1.05 },
     lobby: { z: -240, rx: 10, s: 1.12 },
-    game: { z: -380, rx: 16, s: 1.18 },
+    game: { z: -412, rx: 20, s: 1.18 },
     result: { z: 180, rx: -7, s: 0.92 },
   },
   baseOf(name) { return this.base[name] || CAM_ID; },
@@ -3045,6 +3239,7 @@ async function runStage(stage) {
 
 function flyAvatarToDeck(pid) {
   if (REDUCED) return;
+  if (pid === myId) return;   // 第三人称：我的离座由 #tp-back 的 tp-away 姿态承担，不再飞头像克隆（避免「双我」）
   const p = S.players.find(x => x.id === pid);
   const ring = document.querySelector(`#game-players-grid .player-card[data-pid="${CSS.escape(pid || '')}"] .avatar-ring`);
   const uri = resolveAvatar(p && p.avatar);
@@ -3783,19 +3978,50 @@ function layoutRing(grid) {
   if (!n) return;
   const narrow = grid.clientWidth < 620;   // 按实际座次区宽度判（横屏里座次区只占半屏）
   const land = LAND.ui && grid.clientHeight < 320;   // 横屏矮视口：椭圆压扁一点，玩家卡不越界
-  const rx = narrow ? 41 : 46, ry = land ? 24 : (narrow ? 30 : 26);
+  const rx = narrow ? 41 : 46, ry = land ? 24 : (narrow ? 34 : 26);
   const base = n > 10 ? 0.8 : n > 7 ? 0.88 : 1;
-  // 第一人称：自己固定坐在正前方最近位（屏幕下方），其余人按顺时针摊到两侧与对面
+  // 第三人称：自己固定坐在正前方最近位（屏幕下方，背影化身由 #tp-back 呈现），其余人只坐「远弧」——
+  // 我身边的扇形空出（GAP），无人坐我旁边/身后（侧座也不会被视口边缘裁切）。
+  // 公式（工程评审 B1 钉死）：n≥3 时 a_k = PI + GAP + k(2π-2GAP)/(n-2)，k=0..n-2（端点占位）；
+  // n=2 特例：唯一对手锚在 a≡0（正对面最远位，front=-1，与我的 rs 差 0.21，满足 test-3d 的 ≥0.15 锁）。
   const meIdx = Math.max(0, cards.findIndex(c => c.dataset.pid === myId));
+  const GAP = narrow ? 0.95 : 0.65;   // 窄环加大小空档：侧座内缘让开背影的横向 footprint（B3）
+  const ARC = Math.PI * 2 - GAP * 2;
+  const gw = grid.clientWidth || 900;
+  // 先算每张卡的角度，再做 n≥9 侧纵列阶梯（工程评审 B2）：|sinθ|≥0.8 的同侧两座中心距只剩 38-60px（0.8 而非 0.9：n=9 第二排侧座 |sinθ|=0.874，0.9 抓不到整对），
+  // 反向各偏 LADX（近座外移/远座内移+缩一档）拉开到 ~76px；zIndex 仍按 front 分层（近座天然压远座）。
+  const angles = cards.map((c, i) => {
+    const rel = (i - meIdx + n) % n;   // 0 = 我
+    if (rel === 0) return Math.PI;
+    if (n === 2) return 0;             // n=2 特例：唯一对手锚正对面最远位（front=-1，rs 差 0.37 ≥ test-3d 的 0.15 锁）
+    return Math.PI + GAP + ((rel - 1) / (n - 2)) * ARC;
+  });
+  const LADDER = n >= 9 || ((land || narrow) && n >= 5), LADX = land ? 46 : (narrow ? 26 : 38);   // 窄环/横屏竖向跨度小，侧座 n≥5 就要阶梯拉开始
+  const xShifts = cards.map(() => 0), rsMuls = cards.map(() => 1);
+  if (LADDER) {
+    for (const side of [1, -1]) {
+      const rows = [];
+      cards.forEach((c, i) => {
+        if (i === meIdx) return;
+        const a = angles[i];
+        if (Math.sign(Math.sin(a)) === side && Math.abs(Math.sin(a)) >= 0.8) rows.push(i);
+      });
+      rows.sort((i1, i2) => (-Math.cos(angles[i2])) - (-Math.cos(angles[i1])));   // front 大（近）在前
+      rows.forEach((i, row) => {
+        xShifts[i] = (row === 0 ? 1 : -(row)) * side * LADX / gw * 100;   /* row 越深内移越多：n≥12 同侧第三排也能分开 */
+        if (row > 0) rsMuls[i] = 0.85;
+      });
+    }
+  }
   cards.forEach((c, i) => {
-    const a = Math.PI + (((i - meIdx + n) % n) / n) * Math.PI * 2;   // 我的座位 = 正前方（离观众最近）
+    const a = angles[i];
     const front = -Math.cos(a);                  // 1=最前（我），-1=最后（对面）
-    c.style.setProperty('--rx', (50 + rx * Math.sin(a)).toFixed(2) + '%');
+    c.style.setProperty('--rx', (50 + rx * Math.sin(a) + xShifts[i]).toFixed(2) + '%');
     c.style.setProperty('--ry', (50 - ry * Math.cos(a)).toFixed(2) + '%');
-    c.style.setProperty('--rs', (base * (1 + 0.16 * front) + (i === meIdx ? 0.05 : 0)).toFixed(3));   // 近大远小拉大对比；自己再大半档
+    c.style.setProperty('--rs', (base * (1 + 0.08 * front) * rsMuls[i] + (i === meIdx ? 0.05 : 0)).toFixed(3));   // 近大远小（0.08：远座卡宽 ≥64px@桌面）；自己再大半档
     c.style.zIndex = String(20 + Math.round(front * 10));
     // 入座动画起点 = 桌心：把「座位 → 桌心」方向写进行走向量（translate % 按卡片自身尺寸换算）
-    const cw = c.offsetWidth || 90, ch = c.offsetHeight || 120, gw = grid.clientWidth || 900, gh = grid.clientHeight || 340;
+    const cw = c.offsetWidth || 90, ch = c.offsetHeight || 120, gh = grid.clientHeight || 340;
     c.style.setProperty('--wdx', ((-rx * Math.sin(a)) * gw / cw).toFixed(1) + '%');
     c.style.setProperty('--wdy', ((ry * Math.cos(a)) * gh / ch).toFixed(1) + '%');
   });
@@ -3804,7 +4030,9 @@ function layoutRing(grid) {
   // rect 是投影后坐标会被动画扭曲（实测横向偏 47px）。table3d 的 rect 还是透视包围盒（近大远小中心偏下），同样不可用。
   // 环不可见（display:none）时不写，保留上次可见时的值。
   if (grid.offsetWidth > 0) {
-    const cx = grid.offsetLeft + grid.offsetWidth / 2, cy = grid.offsetTop + grid.offsetHeight / 2;
+    // 第三人称：桌心往近侧（我的座位方向）偏 8% 环高——牌堆/光池落在对面玩家与我之间的台面上，
+    // 不再被正对面的卡压住（n=2 时对手恰在桌心正上方，不偏移就叠成一坨）。
+    const cx = grid.offsetLeft + grid.offsetWidth / 2, cy = grid.offsetTop + grid.offsetHeight / 2 + grid.offsetHeight * 0.08;
     const deckBox = document.querySelector('.table-deck');
     if (deckBox) { deckBox.style.left = cx + 'px'; deckBox.style.top = cy + 'px'; }
     const t3 = $('table3d');
@@ -3843,6 +4071,9 @@ async function choose(type) {
   $('card-' + type).classList.add('picked');
   setChoiceEnabled(false);
   SFX.play('whoosh');
+  // 第三人称拍桌：我选了，背影拍一下桌沿（一次性 keyframes 挂 .tp-inner，与前倾态 transform 不打架）
+  const tp = document.getElementById('tp-back');
+  if (tp) { tp.classList.remove('tp-slam'); void tp.offsetWidth; tp.classList.add('tp-slam'); setTimeout(() => tp.classList.remove('tp-slam'), 450); }
   $('bet-box').hidden = true;   // 进入抽卡：上一轮的押注面板收起来
   await mutate(n => {
     n.turn.stage = 'drawing';
@@ -4859,10 +5090,18 @@ function paintVoice(pid, level, speaking) {
     const ring = c.querySelector('.avatar-ring');
     if (ring) ring.style.setProperty('--voice', speaking ? Math.min(1, level * 1.8).toFixed(3) : '0');
   }
+  // 背影化身同步说话态（第三人称：我在画面里的化身是我自己的发言指示器）
+  const tp = document.getElementById('tp-back');
+  if (tp && pid === myId) {
+    tp.classList.toggle('speaking', speaking);
+    tp.style.setProperty('--voice', speaking ? Math.min(1, level * 1.8).toFixed(3) : '0');
+  }
 }
 function resetVoice() {
   document.querySelectorAll('.player-card.speaking').forEach(c => { c.classList.remove('speaking'); c.querySelector('.avatar-ring')?.style.setProperty('--voice', '0'); });
   document.querySelectorAll('.mic-btn').forEach(b => b.style.setProperty('--voice', '0'));
+  const tp = document.getElementById('tp-back');
+  if (tp) { tp.classList.remove('speaking'); tp.style.setProperty('--voice', '0'); }
 }
 function startMicMeter() {
   if (MIC.raf) return;

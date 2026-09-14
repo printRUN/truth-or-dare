@@ -161,6 +161,14 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
     });
     check('#btn-start 中心 elementFromPoint 命中自身', lobbyHit.ok, JSON.stringify(lobbyHit));
     await A.screenshot({ path: `${SHOTS}/3d-lobby.png` });
+    // 第三人称 .tp 类只允许出现在牌桌网格：大厅 me 卡必须保持正面（泄漏 = 回归）
+    const lobbyMe = await A.evaluate(() => {
+      const me = document.querySelector('#players-grid .player-card.me');
+      const ava = me && me.querySelector('.avatar-ring');
+      return { hasTp: !!me && me.classList.contains('tp'), avaVisible: !!ava && getComputedStyle(ava).visibility === 'visible' };
+    });
+    check('大厅 me 卡无 .tp 泄漏且头像可见（背影只属于牌桌网格）',
+      !lobbyMe.hasTp && lobbyMe.avaVisible, JSON.stringify(lobbyMe));
 
     // ───── 3) 开局机位 ─────
     await A.click('#btn-start');
@@ -179,8 +187,8 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
       return { rxA: Cam.cur.rx, w: t.width, h: t.height };
     });
     const rxB = await B.evaluate(() => Cam.cur.rx);
-    check('1.5s 后 game 常态俯视 |rx - 8| < 0.6（第一人称桌前俯角；world 收敛，只约束主动页 A；被动页 B 的扫视晚一个状态包到达）',
-      Math.abs(g3b.rxA - 8) < 0.6,
+    check('1.5s 后 game 常态过肩俯视 |rx - 19| < 0.6（第三人称俯角；world 收敛，只约束主动页 A；被动页 B 的扫视晚一个状态包到达）',
+      Math.abs(g3b.rxA - 19) < 0.6,
       `A.rx=${g3b.rxA.toFixed(3)} B.rx=${rxB.toFixed(3)}`);
     check('.table3d 可见且宽高 > 100px', g3b.w > 100 && g3b.h > 100, `宽=${g3b.w.toFixed(1)} 高=${g3b.h.toFixed(1)}`);
 
@@ -223,6 +231,25 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
       hitBad.length === 0 && cards.length === 2,
       `未命中=${JSON.stringify(hitBad)} 全部=${JSON.stringify(cards.map(c => ({ pid: c.pid, hit: c.hitPid, inside: c.inside })))}`);
     await A.screenshot({ path: `${SHOTS}/3d-ring.png` });
+    // 第三人称背影化身：存在、在视口内、不拦点击、me 卡正面已藏
+    const tp = await A.evaluate(() => {
+      const el = document.getElementById('tp-back');
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      const me = document.querySelector('#game-players-grid .player-card.me');
+      const meAva = me && me.querySelector('.avatar-ring');
+      return {
+        rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
+        pe: getComputedStyle(el).pointerEvents,
+        meAvaHidden: !!meAva && getComputedStyle(meAva).visibility === 'hidden',
+        inView: r.bottom <= innerHeight + 1 && r.left >= -1 && r.right <= innerWidth + 1,
+        chr1: el.style.getPropertyValue('--chr1'),
+      };
+    });
+    check('第三人称背影 #tp-back 存在、底缘锚定、在视口内、pointer-events:none',
+      !!tp && tp.inView && tp.pe === 'none', JSON.stringify(tp));
+    check('背影带本机身份色（--chr1 由 chrHue 写入）且 me 卡正面已隐藏',
+      !!tp && /^hsl\(/.test(tp.chr1 || '') && tp.meAvaHidden, JSON.stringify(tp));
 
     // ───── 5) 抽卡推镜 → revealed ─────
     const whoA = await A.evaluate(() => S.turn.chooserId === myId);
@@ -234,19 +261,24 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
       await chooser.waitForSelector('#choice-section:not([hidden])', { timeout: 15000 });
       await chooser.waitForSelector('#card-truth:not(.disabled)', { timeout: 15000 });
       const pre = await chooser.evaluate(() => ({ ...Cam.cur }));
+      // 前置校验：点击前镜头必在两个合法起点之一——home(-56) 或 runStage 已 nudge 到持麦人座位的推近档(-76)。
+      // （nudge 与 focus 的 z 增量同为 -20，所以「点击前就已在 -76」是设计内行为；落点判据由下面的 settled 断言承担）
+      check(`点击选卡前镜头处于合法起点（home -56 或持麦人推近档 -76）`,
+        Math.abs(pre.z + 56) < 1 || Math.abs(pre.z + 76) < 1,
+        `pre.z=${pre.z.toFixed(2)}`);
       const clickAt = Date.now();
       await chooser.click('#card-truth');
       let pushSeen = true;
       try {
-        await chooser.waitForFunction(() => Math.abs(Cam.cur.z + 24) > 5, null, { timeout: 1000 });
+        await chooser.waitForFunction(() => Math.abs(Cam.cur.z + 56) > 5, null, { timeout: 1000 });
       } catch { pushSeen = false; }
       const post = await chooser.evaluate(() => ({ ...Cam.cur }));
-      check(`抽卡后 1s 内 Cam.cur.z 脱离 game 常态(-24) 超过 5（${tag} 端推近卡堆）`,
-        pushSeen && Math.abs(post.z + 24) > 5, `超时未达成；pre.z=${pre.z.toFixed(2)} post.z=${post.z.toFixed(2)}`);
+      check(`抽卡后 1s 内 Cam.cur.z 脱离 game 常态(-56) 超过 5（${tag} 端推近卡堆）`,
+        pushSeen && Math.abs(post.z + 56) > 5, `超时未达成；pre.z=${pre.z.toFixed(2)} post.z=${post.z.toFixed(2)}`);
       await chooser.waitForTimeout(Math.max(0, 1200 - (Date.now() - clickAt)));   // 等 focusCam(#deck) 的 950ms 补间收尾
       const settled = await chooser.evaluate(() => ({ ...Cam.cur }));
-      check('推镜到达牌堆聚焦档（focusCam(#deck): z≈-44, s≈1.05）',
-        Math.abs(settled.z + 44) < 1 && Math.abs(settled.s - 1.05) < 0.01,
+      check('推镜到达牌堆聚焦档（focusCam(#deck): z≈-76, s≈1.05）',
+        Math.abs(settled.z + 76) < 1 && Math.abs(settled.s - 1.05) < 0.01,
         `z=${settled.z.toFixed(2)} s=${settled.s.toFixed(3)}`);
       await chooser.screenshot({ path: `${SHOTS}/3d-drawing.png` });
 
@@ -264,8 +296,25 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
       check('revealed：#card-section 可见且 #punishment-text === S.turn.punishment',
         rev.stage === 'revealed' && rev.hidden === false && rev.text === rev.p && rev.text.length > 5,
         JSON.stringify({ stage: rev.stage, hidden: rev.hidden, same: rev.text === rev.p, len: rev.text.length }));
-      check('revealed 镜头仍在推近档（|z + 24| > 5）', Math.abs(rev.z + 24) > 5, `z=${rev.z.toFixed(2)}`);
+      check('revealed 镜头仍在推近档（|z + 56| > 5）', Math.abs(rev.z + 56) > 5, `z=${rev.z.toFixed(2)}`);
       await chooser.screenshot({ path: `${SHOTS}/3d-revealed.png` });
+      // 揭晓态牌桌常驻（旧版此处整环 display:none 消失）+ 动作按钮完整落在首屏
+      const revScene = await chooser.evaluate(() => {
+        const grid = document.getElementById('game-players-grid');
+        const btn = document.getElementById('btn-skip') || document.getElementById('btn-accept');
+        const br = btn ? btn.getBoundingClientRect() : null;
+        const sc = document.getElementById('screen-game');
+        return {
+          ringW: grid.offsetWidth, ringH: grid.offsetHeight,
+          stageCls: sc.classList.contains('stage-revealed'),
+          btnBottom: br ? Math.round(br.bottom) : null, innerH: innerHeight,
+        };
+      });
+      check('revealed 座次环仍可见（stage-revealed 挂类 + 环宽 >0，牌桌不退场）',
+        revScene.stageCls && revScene.ringW > 50 && revScene.ringH > 50, JSON.stringify(revScene));
+      check('revealed 动作按钮完整在视口内（短窗桌面不折行不溢出）',
+        revScene.btnBottom !== null && revScene.btnBottom <= revScene.innerH - 8,
+        `btnBottom=${revScene.btnBottom} innerH=${revScene.innerH}`);
     }
 
     // ───── 6) REDUCED：Cam.to 瞬时到位 + 换屏不抛错 ─────
