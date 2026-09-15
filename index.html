@@ -748,6 +748,10 @@
 
     /* 揭晓/选卡的浮层永远在牌堆与座次环之上：z40 > 座次卡 z20-30 与背影 z35——
        按钮压在桌沿/背影上时必须是按钮接到点击且画在上层（定位/特异度收编进 #cam > 通配段） */
+    /* 选取真心话/大冒险也在桌上完成（2026-09-14 用户反馈）：选项双卡以躺角贴在近侧毡面上，
+       读作「摆在面前的两张桌牌」；#choice-section 是 #cam 直接子级，rotateX 吃 #cam 透视。
+       transform 只做视觉不占布局；点击热区随视觉同步缩放（双卡 136×158×0.9 仍远超 44px 触控线）。 */
+    #choice-section { transform: translateY(-30px) rotateX(14deg) scale(0.9); transform-origin: 50% 20%; }
 
     /* 3D 座次：玩家沿椭圆围桌（静态 left/top/scale 三变量，不逐帧重排）。环径 75px：世界 rx19°
        的透视会在远座吃掉 ~4% 投影宽，75×0.92×0.96 ≈ 66px 保证远座可读下限（婷婷 ≥64px@桌面） */
@@ -868,7 +872,7 @@
        ⚠ 下沉量只给宽屏：竖屏/横屏的背影已锚在屏缘（bottom 负偏移），任何正 translateY 都会把整个
        元素推出视口下缘并撑出滚动区（终审 P0-1 实测竖屏 revealed 出画 245px）。 */
     #screen-game.stage-revealed #tp-back { transform: translateX(-50%) scale(0.94); }   /* 竖屏/横屏：只收不放，底缘贴屏不动 */
-    body.landui #screen-game.stage-revealed .card-stage { transform: translateY(-6px) rotateX(12deg) scale(0.9); transform-origin: 50% 40%; }
+    body.landui #card-section.on-table { transform: translateY(-6px) rotateX(12deg) scale(0.9); transform-origin: 50% 40%; }
     @media (min-width: 601px) {
       body:not(.landui) #screen-game.stage-revealed #tp-back { transform: translateX(-50%) translateY(110px) scale(0.85); }
     }
@@ -894,15 +898,16 @@
       background: rgba(10,10,26,0.45); z-index: 5; pointer-events: none; border-radius: 18px; }
     #screen-game.stage-revealed .players-grid.ring3d .player-card { opacity: 0.85; }
     #screen-game.stage-revealed .players-grid.ring3d .player-card.active { opacity: 1; }   /* 持麦人不暗：揭晓页的语义锚 */
-    /* ── 修复2：抽出的牌躺在台面上（大家看得到），不再是竖在屏幕中央的大卡 ——
-       transform 只做视觉（rotateX 躺角 + 缩放 + 上移到毡面中下部），不动布局 → 零滚动变化；
-       只盖住中下部的空毡面，对面每个玩家（脸+名牌）都在卡外可见。落位动画走 transition。 */
-    #screen-game.stage-revealed .card-stage { transition: transform 0.55s cubic-bezier(0.22,0.61,0.36,1); }
-    body:not(.landui) #screen-game.stage-revealed .card-stage { transform: translateY(-105px) rotateX(14deg) scale(0.72); transform-origin: 50% 40%; }
-    body:not(.landui) #screen-game.stage-revealed .flip-card { box-shadow: 0 24px 56px rgba(0,0,0,0.5); }
+    /* ── 抽出的牌躺在台面上（大家看得到）：从牌背出现到翻面揭晓全程保持躺角 ——
+       on-table 类在发牌时挂上（dealFlyingCard）、选卡阶段摘除；transform 只做视觉（rotateX 躺角
+       + 缩放 + 上移到毡面中下部），不动布局 → 零滚动变化；只盖住中下部的空毡面，
+       对面每个玩家（脸+名牌）都在卡外可见。翻面（rotateY WAAPI）就在躺着的卡上原地翻。 */
+    #card-section { transition: transform 0.55s cubic-bezier(0.22,0.61,0.36,1); }
+    #card-section.on-table { transform: translateY(-105px) rotateX(14deg) scale(0.72); transform-origin: 50% 40%; }
+    #card-section.on-table .flip-card { box-shadow: 0 24px 56px rgba(0,0,0,0.5); }
     /* 竖屏揭晓：题面卡收一档 + 工具行收成单行横滚（不藏文字），四阶段不滚动可达 */
     @media (max-width: 600px) {
-      #screen-game.stage-revealed .card-stage { width: min(260px, 68vw); transform: translateY(-38px) rotateX(12deg) scale(0.88); transform-origin: 50% 40%; }
+      #card-section.on-table { width: min(260px, 68vw); transform: translateY(-38px) rotateX(12deg) scale(0.88); transform-origin: 50% 40%; }
       #screen-game.stage-revealed .bet-box .bet-q { display: none; }   /* 押注按钮自释义，问题行在竖屏让位（押对+5/押错-5 语义不变） */
       /* 押注面板改底部悬浮：抽离文档流，卡面/工具行不再被推到折叠线下（押注面板是功能内容，悬浮 = 全部可点不滚动） */
       #screen-game.stage-revealed .bet-box { position: absolute; left: 10px; right: 10px; bottom: 56px; z-index: 40; }
@@ -2858,10 +2863,15 @@ function anchorTpBack() {
   // 锚定基准必须「量测驱动」：#cam 在倾斜的世界里，它的 rect.bottom（投影值）和 absolute 子元素的
   // 本地锚定坐标不是同一个坐标系——任何「用公式猜 bottom」都会差几十像素（v1-v4 全踩过）。
   // 做法：先落位（底缘贴视口底），再读实际 top 与目标线的差值，闭环修 2-3 轮。
-  const requiredTop = limit > 0 ? limit + 6 : window.innerHeight;   // 无内容区时只要求贴屏底
-  if (limit > 0) tp.style.height = Math.max(80, window.innerHeight - limit - 12).toFixed(0) + 'px';   // 限高：盒子不探出视口
-  else tp.style.height = '';
+  // 高度：默认尊重 CSS 造型高；只有盒子会探出视口下缘时才收紧（收紧后顶边下移，需重校准）
+  tp.style.height = '';
+  if (limit > 0) {
+    const cssH = tp.getBoundingClientRect().height || 200;
+    const availH = window.innerHeight - (limit + 6) - 12;
+    if (cssH > availH) tp.style.height = Math.max(80, availH).toFixed(0) + 'px';
+  }
   tp.style.bottom = (b - window.innerHeight).toFixed(0) + 'px';
+  const requiredTop = limit > 0 ? limit + 6 : window.innerHeight;   // 无内容区时只要求贴屏底
   for (let i = 0; i < 3; i++) {
     const delta = tp.getBoundingClientRect().top - requiredTop;   // >0 太低 → 上移；<0 太高 → 下移
     if (Math.abs(delta) < 2) break;
@@ -2923,6 +2933,7 @@ function renderGameStatic() {
   anchorTpBackSoon();
   if (stage === 'choosing') {
     syncStageRevealed(false);
+    $('card-section').classList.remove('on-table');
     $('choice-section').hidden = false; $('deck-section').hidden = true; $('card-section').hidden = true;
     $('flip-card').classList.remove('flipped');
     $('card-truth').classList.remove('picked'); $('card-dare').classList.remove('picked');
@@ -3301,14 +3312,10 @@ function dealFlyingCard() {
   const prevDeck = ds.hidden;
   ds.hidden = true; cs.hidden = false; $('flip-card').classList.remove('flipped');
   ds.hidden = prevDeck; cs.hidden = true;
-  // 2026-09-14 用户反馈：不要「向下飘」的飞牌动画——抽中的牌直接落在台面上：
-  // 牌背原地落定（微落+回弹，transform-only 合成器路径），翻牌后以躺角呈现在毡面上给全桌看。
-  const fc = $('flip-card');
-  fc.animate([
-    { transform: 'translateY(-26px) scale(1.06)', opacity: 0 },
-    { transform: 'translateY(0px) scale(1)', opacity: 1 },
-  ], { duration: 420, easing: 'cubic-bezier(0.22,0.61,0.36,1)' });
-  SFX.play('draw');   // 落牌那一下的“发牌”声
+  // 2026-09-14 用户反馈：抽卡不许有任何向下漂移——牌背直接以「躺在台面上」的姿态出现
+  // （on-table 躺角，见 CSS），翻面就在桌上原地翻，全桌可见。
+  cs.classList.add('on-table');
+  SFX.play('draw');   // 抽中那一下的“发牌”声
   // 落牌即亮出牌背：镜头缓推到中央，“抽取中…”呼吸到翻牌一刻，中段不再空窗
   cardDealt = true;
   $('choice-section').hidden = true; $('deck-section').hidden = true; cs.hidden = false;

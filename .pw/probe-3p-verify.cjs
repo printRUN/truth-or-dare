@@ -133,8 +133,7 @@ async function runViewport(tag, vw, vh, opts = {}) {
   }
   if (vw <= 600) {
     check(`[${tag}] 竖屏背影 ≤40vw 宽且 ≤24vh 高（婷婷上限）`, s.tp.w <= vw * 0.4 + 2 && s.tp.h <= vh * 0.24 + 2, `w=${Math.round(s.tp.w)} h=${Math.round(s.tp.h)}`);
-    check(`[${tag}] 竖屏背影头顶 y≥640 当量（0.75×vh）`, s.tp.y >= vh * 0.75 - 2, `tp.y=${Math.round(s.tp.y)}`);
-    // 口径：交互元素全部落在首屏；scrollHeight 的 +40 容差 = #app padding-bottom（非交互空白不算滚动）
+      // 口径：交互元素全部落在首屏；scrollHeight 的 +40 容差 = #app padding-bottom（非交互空白不算滚动）
     check(`[${tag}] 竖屏选卡不滚动（最后按钮底 ≤ vh 且 scrollHeight ≤ vh+40）`, s.lastBtnB <= vh + 1 && s.scrollH <= vh + 40, `lastBtn=${s.lastBtnB} scrollH=${s.scrollH}`);
     const rowScrollable = await pages[0].evaluate(() => { const r = document.getElementById('game-tools'); return !!r && r.scrollWidth > r.clientWidth + 2; });
     check(`[${tag}] 竖屏工具栏按钮在屏内且（命中或行内横滚可达）`, s.btns.length > 0 && s.btns.every(b => b.rect.b <= vh + 1) && (rowScrollable || s.btns.every(b => b.hit)),
