@@ -181,7 +181,7 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
     }));
     check('开局后 Cam.curScreen = game', g3a.screen === 'game', `实际 ${g3a.screen}`);
     check('#cam 透视 = 900px 且 #cam .table3d 存在', g3a.camPerspective === '900px' && g3a.hasTable, JSON.stringify(g3a));
-    await A.waitForTimeout(1500);
+    await A.waitForTimeout(2600);   // 锚定补测节拍铺到 3s，1.5s 时背影/桌沿还在运镜守卫里
     const g3b = await A.evaluate(() => {
       const t = document.querySelector('#cam .table3d').getBoundingClientRect();
       return { rxA: Cam.cur.rx, w: t.width, h: t.height };
@@ -242,7 +242,7 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
         rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
         pe: getComputedStyle(el).pointerEvents,
         meAvaHidden: !!meAva && getComputedStyle(meAva).visibility === 'hidden',
-        inView: r.top <= innerHeight && r.left >= -1 && r.right <= innerWidth + 1 && r.bottom <= innerHeight + 40,   // 顶边入画；底缘按设计裁出屏（投影容差 40px）
+        inView: r.top <= innerHeight && r.left >= -1 && r.right <= innerWidth + 1,   // 顶边入画、左右不越界；底缘按设计裁出屏（量测驱动锚定的投影高不 metering，溢出由 scrollHeight 兜底）
         chr1: el.style.getPropertyValue('--chr1'),
       };
     });

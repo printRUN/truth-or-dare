@@ -709,13 +709,23 @@
        overflow-clip-margin 留 28px 出血，保证座位环前后排卡片的轻微溢出不被切。
        overflow:hidden 让台面子元素（扫光条/桌心徽记）裁在椭圆内；其子树是平的，不触 preserve-3d 红线。 */
     #cam { position: relative; perspective: 900px; overflow-x: clip; overflow-clip-margin: 28px; }   /* 牌桌自带透视：台面 rotateX 躺下不会被拍成平图 */
-    .table3d { position: absolute; left: 50%; top: 44%; width: min(98vw, 940px); height: min(64vh, 540px); transform: translate(-50%, -50%) rotateX(62deg) translateZ(-40px); border-radius: 50%; pointer-events: none; z-index: 0; overflow: hidden;
-      background: radial-gradient(ellipse at 50% 46%, rgba(139,92,246,0.30) 0%, rgba(139,92,246,0.15) 40%, rgba(34,211,238,0.09) 60%, rgba(10,10,26,0) 78%);
-      box-shadow: inset 0 0 90px rgba(139,92,246,0.22), 0 0 0 2px rgba(255,255,255,0.06); }
+    /* 真 3D 桌面（2026-09-14 用户反馈：桌子不完整/3d 不真实）：rotateX 躺倒的圆角矩形，
+       透视给出「远窄近宽」的真实收缩；box-shadow 同心环 = 木质围边（与毡面同平面）+ 沿口高光。
+       桌子是最底层（z0），任何内容都画在它上面。 */
+    .table3d { position: absolute; left: 50%; top: 44%; width: min(96vw, 960px); height: min(46vh, 400px); transform: translate(-50%, -50%) rotateX(62deg) translateZ(-40px); border-radius: 34px; pointer-events: none; z-index: 0; overflow: hidden;
+      background:
+        radial-gradient(ellipse at 50% 38%, rgba(139,92,246,0.32) 0%, rgba(109,58,220,0.22) 45%, rgba(59,23,120,0.38) 72%, rgba(36,16,74,0.6) 100%),
+        linear-gradient(155deg, #33195a 0%, #1d0d38 55%, #150826 100%);
+      box-shadow:
+        0 0 0 9px #2a1548,
+        0 0 0 11px rgba(255,255,255,0.07),
+        inset 0 0 0 2px rgba(196,181,253,0.15),
+        inset 0 26px 60px rgba(0,0,0,0.4),
+        0 46px 90px rgba(0,0,0,0.55); }
     /* 进牌桌「点亮舞台」：亮度覆层（同一张渐变叠 0→1，随转身起点并行）+ 落位后一道台面反光扫过
        （sheen 延迟 640ms = 转身落定才起，避免在旋转的墙上扫第二道运动源）。LOWPERF/REDUCED 不挂 lit。 */
-    .table3d::before { content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity 0.7s ease;
-      background: radial-gradient(ellipse at 50% 46%, rgba(139,92,246,0.30) 0%, rgba(139,92,246,0.15) 40%, rgba(34,211,238,0.09) 60%, rgba(10,10,26,0) 78%); }
+    .table3d::before { content: ''; position: absolute; inset: 0; border-radius: 34px; pointer-events: none; opacity: 0; transition: opacity 0.7s ease;
+      background: radial-gradient(ellipse at 50% 40%, rgba(160,120,255,0.22) 0%, rgba(139,92,246,0.10) 45%, rgba(255,255,255,0.04) 70%, rgba(0,0,0,0) 100%); }
     .table3d.lit::before { opacity: 1; }
     .table-sheen { position: absolute; top: -20%; bottom: -20%; left: 0; width: 34%; pointer-events: none; opacity: 0; transform: translateX(-150%) skewX(-14deg);
       background: linear-gradient(105deg, transparent 0%, rgba(255,255,255,0.11) 50%, transparent 100%); }
@@ -724,6 +734,12 @@
     /* 桌心徽记：填补牌桌中段的视觉空洞、强化「这是一张桌子」；台面平面上的静态装饰（0.12 透明度），
        pointer-events:none —— 绝不能进 3D 命中栈让人误以为可点；被牌面（z=2）压住。 */
     .table-emblem { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 5rem; opacity: 0.12; pointer-events: none; }
+    /* 桌沿厚度立面：暗紫渐变竖条 = 桌板的「厚度」，上缘压过桌面近缘 8px 遮住接缝 */
+    .table-edge { position: absolute; z-index: 0; pointer-events: none; height: 20px;
+      background: linear-gradient(180deg, #2b1746 0%, #170b2c 55%, #0c0518 100%);
+      border-radius: 0 0 30px 30px;
+      box-shadow: inset 0 2px 0 rgba(255,255,255,0.10), 0 16px 34px rgba(0,0,0,0.55); }
+    body.loperf .table-edge { display: none; }
     /* 流内内容压在牌堆(z1)/光池(z0)之上。⚠ 不要往 :not 链里加 :not(#tp-back)——那会把本规则
        特异度抬到 (2,2,1)，压过浮层 z40 规则导致选卡/题面被背影盖住（实施时踩过，勿回退）。 */
     #cam > :not(.table3d):not(.table-deck) { position: relative; z-index: 2; }
@@ -760,12 +776,11 @@
     /* 牌桌毡面：直接垫在座次环下（z:-1，只在本环的坐标系里），座位与桌面永不脱节 ——
        第三人称 rx19° 俯角下向下扩（h210%/top56%）：下沿探到我的座位脚下，近坡大远坡小读作桌面。
        缘光四元组（视觉评审 c）：紫-300 全缘 0.22 让椭圆读作「桌界」+ 贴近沿一道内反光。 */
-    .players-grid.ring3d::before { content: ''; position: absolute; left: 50%; top: 92%; width: 122%; height: 130%; transform: translate(-50%, -50%);
+    /* 座次环下只保留桌下环境光（无硬边）——真正的桌面由 #table3d 的 3D 桌面承担，
+       两层叠画会出现「双桌叠影」（2026-09-14 用户反馈「桌子不完整」的根因之一）。 */
+    .players-grid.ring3d::before { content: ''; position: absolute; left: 50%; top: 60%; width: 132%; height: 170%; transform: translate(-50%, -50%);
       border-radius: 50%; pointer-events: none; z-index: -1;
-      background:
-        radial-gradient(ellipse at 50% 38%, rgba(139,92,246,0.30) 0%, rgba(109,58,220,0.22) 42%, rgba(76,29,149,0.16) 66%, rgba(30,12,64,0.05) 86%, rgba(0,0,0,0) 100%),
-        radial-gradient(ellipse at 50% 50%, rgba(23,12,48,0.92) 0%, rgba(17,9,38,0.88) 58%, rgba(12,7,28,0.7) 76%, rgba(0,0,0,0) 94%);
-      box-shadow: inset 0 0 0 3px rgba(196,181,253,0.22), inset 0 -16px 32px rgba(139,92,246,0.12), inset 0 0 60px rgba(0,0,0,0.5), 0 18px 44px rgba(0,0,0,0.45); }
+      background: radial-gradient(ellipse at 50% 55%, rgba(22,11,46,0.9) 0%, rgba(13,7,28,0.8) 48%, rgba(10,10,26,0) 74%); }
     .players-grid.ring3d .player-card { position: absolute; left: var(--rx, 50%); top: var(--ry, 50%); transform: translate(-50%, -50%) scale(var(--rs, 1)); transition: left 0.55s cubic-bezier(0.22,0.61,0.36,1), top 0.55s cubic-bezier(0.22,0.61,0.36,1), transform 0.45s cubic-bezier(0.22,0.61,0.36,1), opacity 0.45s; animation: none; }
     .players-grid.ring3d .player-card .player-name { max-width: 92px; }
     /* 命运转盘：光点扫过谁，谁亮起 */
@@ -873,6 +888,7 @@
        元素推出视口下缘并撑出滚动区（终审 P0-1 实测竖屏 revealed 出画 245px）。 */
     #screen-game.stage-revealed #tp-back { transform: translateX(-50%) scale(0.94); }   /* 竖屏/横屏：只收不放，底缘贴屏不动 */
     body.landui #card-section.on-table { transform: translateY(-6px) rotateX(12deg) scale(0.9); transform-origin: 50% 40%; }
+    body.landui #screen-game.stage-revealed .card-stage { width: min(232px, calc(var(--lvh) * 0.42)); height: calc(min(232px, calc(var(--lvh) * 0.42)) * 4 / 3); }
     @media (min-width: 601px) {
       body:not(.landui) #screen-game.stage-revealed #tp-back { transform: translateX(-50%) translateY(110px) scale(0.85); }
     }
@@ -1373,6 +1389,8 @@
   <div id="screen-game" class="screen">
     <div class="cam" id="cam">
       <div class="table3d" id="table3d" aria-hidden="true"><i class="table-sheen"></i><span class="table-emblem">🎭</span></div>
+      <!-- 桌沿厚度立面：贴在桌面近缘下方的竖直沿面（2.5D 假厚度），位置由 anchorTableEdge 按投影矩形校准 -->
+      <i class="table-edge" id="table-edge" aria-hidden="true"></i>
       <!-- 牌堆常驻桌心：第一人称视角下桌上始终放着一叠牌；#deck id 不变，抽卡动画锚点自动跟随 -->
       <div class="table-deck" aria-hidden="true">
         <div class="deck" id="deck">
@@ -2863,13 +2881,9 @@ function anchorTpBack() {
   // 锚定基准必须「量测驱动」：#cam 在倾斜的世界里，它的 rect.bottom（投影值）和 absolute 子元素的
   // 本地锚定坐标不是同一个坐标系——任何「用公式猜 bottom」都会差几十像素（v1-v4 全踩过）。
   // 做法：先落位（底缘贴视口底），再读实际 top 与目标线的差值，闭环修 2-3 轮。
-  // 高度：默认尊重 CSS 造型高；只有盒子会探出视口下缘时才收紧（收紧后顶边下移，需重校准）
-  tp.style.height = '';
-  if (limit > 0) {
-    const cssH = tp.getBoundingClientRect().height || 200;
-    const availH = window.innerHeight - (limit + 6) - 12;
-    if (cssH > availH) tp.style.height = Math.max(80, availH).toFixed(0) + 'px';
-  }
+  // 高度：默认尊重 CSS 造型高；只有盒子会探出视口下缘时才收紧（收紧后顶边下移，需重校准）。
+  // limit 钳在视口内：补测拍在卡面 transform 过渡中途会量到「深于视口」的暂态值，把背影压扁到贴屏底。
+  limit = Math.min(limit, window.innerHeight - 60);
   tp.style.bottom = (b - window.innerHeight).toFixed(0) + 'px';
   const requiredTop = limit > 0 ? limit + 6 : window.innerHeight;   // 无内容区时只要求贴屏底
   for (let i = 0; i < 3; i++) {
@@ -2878,12 +2892,23 @@ function anchorTpBack() {
     tp.style.bottom = ((parseFloat(tp.style.bottom) || 0) + delta).toFixed(0) + 'px';
   }
 }
+// 桌沿厚度立面：贴着 #table3d 的投影矩形近缘（上缘压入 8px 遮接缝，左右各外扩 10px 包住圆角）
+function anchorTableEdge() {
+  const edge = document.getElementById('table-edge'), t3 = $('table3d');
+  if (!edge || !t3 || !joined) return;
+  if (typeof Cam !== 'undefined' && (Cam.busy || Cam.raf)) return;
+  const r = t3.getBoundingClientRect();
+  if (r.width <= 0 || r.bottom <= 0) return;
+  edge.style.left = (r.left - 10) + 'px';
+  edge.style.width = (r.width + 20) + 'px';
+  edge.style.top = (r.bottom - 8) + 'px';
+}
 function anchorTpBackSoon() {
-  anchorTpBack();
+  anchorTpBack(); anchorTableEdge();
   tpAnchorTimers.forEach(clearTimeout);
   // 补测节拍铺到 3s：进桌运镜 = 入场 glance(~640ms) + fresh nudge(1240ms 延迟 + 820ms 补间)
   // 会在 ~2.1s 前一直处于 busy，节拍不够密就全被守卫跳过、锚定永不落地（实测教训）。
-  tpAnchorTimers = [500, 1000, 1600, 2300, 3000].map(ms => setTimeout(anchorTpBack, ms));
+  tpAnchorTimers = [500, 1000, 1600, 2300, 3000].map(ms => setTimeout(() => { anchorTpBack(); anchorTableEdge(); }, ms));
 }
 
 function syncStageRevealed(on) {
