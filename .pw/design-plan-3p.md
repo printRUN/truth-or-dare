@@ -81,3 +81,9 @@
 - **锚定限位钳制**：limit 钳到 innerHeight−60——补测拍在卡面 transform 过渡中途会量到深于视口的暂态 limit，把背影压扁贴屏底（竖屏 visH 21px 事故）。
 - **landui 揭晓卡面收窄**（min(232px, lvh×0.42)）：右栏 bet/tools 回到 390 视口内。
 - **测试口径**：test-3d 背影 inView 断言改为「头顶入画+左右不越界」（量测驱动锚定的投影高不做 metering，溢出面由 scrollH 兜底）；test-landscape landui 工具行断言对齐「可横滑条」设计（超出 ≤3vw）。
+
+## 9. Three.js 真 3D 升级（2026-09-15 v7，用户点名）
+- three.js r128 UMD 内联进单文件（603KB，离线可用）；可读模块源 `.pw/three-scene.src.js`。
+- 混合架构：WebGL 画布在 #cam 底层渲染房间/桌子/3D 人物（头像=脸部贴图），DOM UI 叠加；loperf/无 WebGL 自动回退 CSS 3D 路径（零删码）。
+- 相机：Cam.apply 钩子把一镜到底姿态映射到 three 相机；名牌每帧投影跟随；人物状态 600ms 节询（S 驱动）。
+- 实施教训：模块里 `window.__three = { chars }` 写在 chars 声明前 → TDZ 崩掉整条初始化链；buildChar 的 userData 漏 face 字段 → 同步循环在第二个玩家处抛错被静默吞掉（除我之外全没渲染）——静默 catch 必须落日志。

@@ -61,6 +61,7 @@ async function runViewport(tag, vw, vh, opts = {}) {
   await sleep(3300);   // 入座 + 镜头推进落定（nudge 820ms 补间要留足余量，否则运镜中量 rect 会误判）
 
   const NAMES = ['choosing', 'drawing', 'revealed', 'next'];
+  const is3d = await pages[0].evaluate(() => document.body.classList.contains('three3d'));
   async function snapshot(stage) {
     await pages[0].evaluate(() => { try { Cam.jump(Cam.baseOf('game')); } catch (e) {} });   // 顶层 const 不挂 window，必须裸引用
     await pages[0].evaluate(() => { try { anchorTpBack(); } catch (e) { window.__anchorErr = e.message; } });
@@ -101,11 +102,11 @@ async function runViewport(tag, vw, vh, opts = {}) {
 
   // ── 选卡阶段 ──
   let s = await snapshot();
-  check(`[${tag}] 背影存在且不拦点击`, !!s.tp && s.tp.pe === 'none', JSON.stringify(s.tp));
-  check(`[${tag}] 背影带身份色`, !!s.tp && /^hsl\(/.test(s.tp.chr1 || ''), s.tp && s.tp.chr1);
-  check(`[${tag}] 背影在视口内（头顶入画、左右不越界；底缘按设计可裁出屏）`, !!s.tp && s.tp.y <= s.innerH && s.tp.x >= -1 && s.tp.r <= s.innerW + 1, JSON.stringify(s.tp));
-  check(`[${tag}] 背影投影 ≤ 视口上限（前倾 1.05 后：竖屏 ≤40vw/≤24vh）`, !s.tp || (vw > 600 || (s.tp.w <= vw * 0.4 + 2 && s.tp.h <= vh * 0.24 + 2)), JSON.stringify({ w: Math.round(s.tp ? s.tp.w : 0), h: Math.round(s.tp ? s.tp.h : 0) }));
-  check(`[${tag}] 背影不盖内容区（顶边 ≥ 选卡/题面/押注下缘）`, !s.tp || s.tp.y >= s.contentB - 2 || s.contentB === 0, `tp.y=${Math.round(s.tp ? s.tp.y : 0)} contentB=${s.contentB} inline=${s.tpBottomInline} dbg=${JSON.stringify(s.tpDbg)}`);
+  if (!is3d) check(`[${tag}] 背影存在且不拦点击`, !!s.tp && s.tp.pe === 'none', JSON.stringify(s.tp));
+  if (!is3d) check(`[${tag}] 背影带身份色`, !!s.tp && /^hsl\(/.test(s.tp.chr1 || ''), s.tp && s.tp.chr1);
+  if (!is3d) check(`[${tag}] 背影在视口内（头顶入画、左右不越界；底缘按设计可裁出屏）`, !!s.tp && s.tp.y <= s.innerH && s.tp.x >= -1 && s.tp.r <= s.innerW + 1, JSON.stringify(s.tp));
+  if (!is3d) check(`[${tag}] 背影投影 ≤ 视口上限（前倾 1.05 后：竖屏 ≤40vw/≤24vh）`, !s.tp || (vw > 600 || (s.tp.w <= vw * 0.4 + 2 && s.tp.h <= vh * 0.24 + 2)), JSON.stringify({ w: Math.round(s.tp ? s.tp.w : 0), h: Math.round(s.tp ? s.tp.h : 0) }));
+  if (!is3d) check(`[${tag}] 背影不盖内容区（顶边 ≥ 选卡/题面/押注下缘）`, !s.tp || s.tp.y >= s.contentB - 2 || s.contentB === 0, `tp.y=${Math.round(s.tp ? s.tp.y : 0)} contentB=${s.contentB} inline=${s.tpBottomInline} dbg=${JSON.stringify(s.tpDbg)}`);
   const others = s.cards.filter(c => !c.me);
   check(`[${tag}] 对手无一遮挡（脸=圆，圆心距 ≥ 半径和×0.92；包围盒角碰不算压脸）`, (() => {
     for (let i = 0; i < others.length; i++) for (let j = i + 1; j < others.length; j++) {
@@ -129,10 +130,10 @@ async function runViewport(tag, vw, vh, opts = {}) {
   if (vw >= 1024) {
     const far = others.reduce((m, c) => c.face.w < m.face.w ? c : m, others[0]);
     check(`[${tag}] 远座卡宽 ≥64px（6-7 人档；8+ 人允许分层缩一档）`, far.face.w >= (others.length <= 6 ? 64 : 54), `far=${Math.round(far.face.w)}px n=${others.length + 1}`);
-    check(`[${tag}] 背影头顶不爬进对面座位带（低于环盒中点）`, s.tp.y >= s.ring.rect.y + s.ring.h * 0.55, `tp.y=${Math.round(s.tp.y)} ringMid=${Math.round(s.ring.rect.y + s.ring.h * 0.55)}`);
+  if (!is3d) check(`[${tag}] 背影头顶不爬进对面座位带（低于环盒中点）`, s.tp.y >= s.ring.rect.y + s.ring.h * 0.55, `tp.y=${Math.round(s.tp.y)} ringMid=${Math.round(s.ring.rect.y + s.ring.h * 0.55)}`);
   }
   if (vw <= 600) {
-    check(`[${tag}] 竖屏背影 ≤40vw 宽且 ≤24vh 高（婷婷上限）`, s.tp.w <= vw * 0.4 + 2 && s.tp.h <= vh * 0.24 + 2, `w=${Math.round(s.tp.w)} h=${Math.round(s.tp.h)}`);
+  if (!is3d) check(`[${tag}] 竖屏背影 ≤40vw 宽且 ≤24vh 高（婷婷上限）`, s.tp.w <= vw * 0.4 + 2 && s.tp.h <= vh * 0.24 + 2, `w=${Math.round(s.tp.w)} h=${Math.round(s.tp.h)}`);
       // 口径：交互元素全部落在首屏；scrollHeight 的 +40 容差 = #app padding-bottom（非交互空白不算滚动）
     check(`[${tag}] 竖屏选卡不滚动（最后按钮底 ≤ vh 且 scrollHeight ≤ vh+40）`, s.lastBtnB <= vh + 1 && s.scrollH <= vh + 40, `lastBtn=${s.lastBtnB} scrollH=${s.scrollH}`);
     const rowScrollable = await pages[0].evaluate(() => { const r = document.getElementById('game-tools'); return !!r && r.scrollWidth > r.clientWidth + 2; });
@@ -159,12 +160,12 @@ async function runViewport(tag, vw, vh, opts = {}) {
     await pages[0].waitForFunction(() => document.getElementById('screen-game').classList.contains('stage-revealed'), null, { timeout: 20000 }).catch(() => {});
     await sleep(900);   // 挂类 + 压暗/下沉 transition（0.45s）落定
     s = await snapshot();
-    check(`[${tag}] 揭晓牌桌常驻（stage-revealed + 环可见 + 背影在画）`, s.stageCls && s.ring.w > 50 && !!s.tp, `cls=${s.stageCls} ringW=${s.ring.w}`);
+  if (!is3d) check(`[${tag}] 揭晓牌桌常驻（stage-revealed + 环可见 + 背影在画）`, s.stageCls && s.ring.w > 50 && !!s.tp, `cls=${s.stageCls} ringW=${s.ring.w}`);
     check(`[${tag}] 揭晓桌子完整（环高与选卡档一致，不再压缩）`, Math.abs(s.ring.h - ringHChoosing) <= 2, `revealed=${s.ring.h} choosing=${ringHChoosing}`);
     check(`[${tag}] 题面卡躺在台面上（rotateX 躺角生效）`, !!s.cardTf && s.cardTf !== 'none' && s.cardTf.split(',').length >= 14, String(s.cardTf).slice(0, 60));
     if (vw <= 600) {
       const visH = Math.min(s.tp.b, s.innerH) - Math.max(s.tp.y, 0);
-      check(`[${tag}] 揭晓背影可见高度 ≥40px（竖屏不随下沉出画）`, visH >= 40, `visH=${Math.round(visH)} tp=${JSON.stringify({ y: Math.round(s.tp.y), b: Math.round(s.tp.b) })}`);
+      if (!is3d) check(`[${tag}] 揭晓背影可见高度 ≥40px（CSS 回退档）`, visH >= 40, `visH=${Math.round(visH)}`);
       // 揭晓押注面板在流内（功能内容）：允许 ≤vh+150 的轻微滚动，但按钮必须全部可滚达
       check(`[${tag}] 揭晓轻微滚动可达（scrollHeight ≤ vh+150 且最后按钮底 ≤ scrollH）`, s.scrollH <= vh + 150 && s.lastBtnB <= s.scrollH, `lastBtn=${s.lastBtnB} scrollH=${s.scrollH}`);
     }
@@ -173,7 +174,7 @@ async function runViewport(tag, vw, vh, opts = {}) {
       const cardSec = await pages[0].evaluate(() => { const r = document.getElementById('card-section').getBoundingClientRect(); return { x: r.x, b: r.bottom }; });
       // 题面卡下缘未吃掉全部纵向余量时，背影躯干必须露出 ≥40px（1024×768 卡下缘 743 已过 vh-46，几何上无从露出，豁免）
       if (cardSec.b <= s.innerH - 60) {
-        check(`[${tag}] 揭晓背影躯干从题面卡下缘露出 ≥40px`, s.tp.b - cardSec.b >= 40, `tpB=${Math.round(s.tp.b)} cardB=${Math.round(cardSec.b)} tf=${s.tp.tf} cls=${s.tp.cls}`);
+  if (!is3d) check(`[${tag}] 揭晓背影躯干从题面卡下缘露出 ≥40px`, s.tp.b - cardSec.b >= 40, `tpB=${Math.round(s.tp.b)} cardB=${Math.round(cardSec.b)} tf=${s.tp.tf} cls=${s.tp.cls}`);
       }
       const isChooser = await pages[0].evaluate(() => (S.turn.chooserId || activePlayerId()) === myId);
       if (isChooser) {
@@ -193,7 +194,7 @@ async function runViewport(tag, vw, vh, opts = {}) {
     }
     await sleep(2400);
     s = await snapshot();
-    check(`[${tag}] 交接后牌桌与背影仍在画`, !s.stageCls && s.ring.w > 50 && !!s.tp, JSON.stringify({ cls: s.stageCls, ring: s.ring.w }));
+  if (!is3d) check(`[${tag}] 交接后牌桌与背影仍在画`, !s.stageCls && s.ring.w > 50 && !!s.tp, JSON.stringify({ cls: s.stageCls, ring: s.ring.w }));
     if (vw <= 600) {
       check(`[${tag}] 交接不滚动（最后按钮底 ≤ vh 且 scrollHeight ≤ vh+40）`, s.lastBtnB <= vh + 1 && s.scrollH <= vh + 40, `lastBtn=${s.lastBtnB} scrollH=${s.scrollH}`);
     }

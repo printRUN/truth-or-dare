@@ -73,8 +73,15 @@ const check = (name, ok, info) => { console.log(`${ok ? '✅' : '❌'} ${name}${
     });
   }
 
+  const is3d = await A.p.evaluate(() => document.body.classList.contains('three3d'));
   for (const [tag, pl] of [['A(手机竖屏)', A], ['B(桌面宽屏)', B]]) {
     const g = await geom(pl.p);
+    if (is3d) {
+      const n3 = await pl.p.evaluate(() => (window.__three && window.__three.chars) ? window.__three.chars.size : -1);
+      check(`[${tag}] 3D 模式：WebGL 人物数 = 玩家数`, n3 === g.cards.length, `chars=${n3}`);
+      check(`[${tag}] 3D 模式：CSS 桌面/背影已隐藏（画布接管）`, await pl.p.evaluate(() => getComputedStyle(document.querySelector('.table3d')).display === 'none' && !!document.getElementById('three-canvas')));
+      continue;   // CSS 毡面/牌堆锚定断言是 CSS 回退路径的语义，3D 模式跳过
+    }
     const me = g.cards.find(c => c.me), other = g.cards.find(c => !c.me);
     check(`[${tag}] 自己的卡带 .me 且 --rs 全场最大`, me && other && me.rs > other.rs, `me.rs=${me && me.rs} other.rs=${other && other.rs}`);
     check(`[${tag}] 自己的卡在正前（--ry 最大、--rx 居中）`, me && other && me.ry > other.ry && Math.abs(me.rx - 50) < 1, `me(rx=${me && me.rx},ry=${me && me.ry}) other(ry=${other && other.ry})`);

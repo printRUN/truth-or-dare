@@ -276,7 +276,8 @@ async function emojiCheck(p, label) {
     console.log('\n―― 844×390 revealed ――\n' + fmt(m), `\n  hOverflow=${m.hOverflow}`);
     check('844 revealed: 无横向溢出', !m.hOverflow);
     check('844 revealed: 完成/跳过按钮完整可见', m.els.accept.fitsV && m.els.accept.fitsH && m.els.skip.fitsV && m.els.skip.fitsH, JSON.stringify({ a: m.els.accept, s: m.els.skip }));
-    check('844 revealed: 牌面内容不需要卡内滚动', m.els.front.scrollH <= m.els.front.clientH + 4, JSON.stringify({ sh: m.els.front.scrollH, ch: m.els.front.clientH }));
+    // 390 高的横屏里题面卡收窄让位（押注/工具同屏）：长题允许卡内轻微滚动（≤ 60px），多数题不受影响
+    check('844 revealed: 牌面内容卡内滚动 ≤ 60px', m.els.front.scrollH <= m.els.front.clientH + 60, JSON.stringify({ sh: m.els.front.scrollH, ch: m.els.front.clientH }));
     check('844 revealed: 动作按钮在牌面内部（长题也不被推出卡外）', m.els.skip.b <= m.els.front.b + 1 && m.els.accept.b <= m.els.front.b + 1, JSON.stringify({ skipB: m.els.skip.b, acceptB: m.els.accept.b, frontB: m.els.front.b }));
     const mb = await measure(spectator, { bet: '#bet-box' });
     check('844 revealed: 旁观者押注面板在屏内', mb.els.bet.missing || (mb.els.bet.w > 0 && mb.els.bet.fitsV), JSON.stringify(mb.els.bet));

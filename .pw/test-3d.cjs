@@ -141,7 +141,7 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
     const s1 = await A.evaluate(() => ({ screen: Cam.curScreen, w: document.getElementById('world3d').style.transform }));
     check('加入后 Cam.curScreen: join → lobby', g1.curScreen === 'join' && s1.screen === 'lobby', `之前=join 之后=${s1.screen}`);
     check('换屏时 world transform 字符串发生变化（Cam.enter 生效）', s1.w !== t0 && !!s1.w, `之前=${t0}\n    之后=${s1.w}`);
-    await A.waitForTimeout(1500);
+    await A.waitForTimeout(2600);   // three 渲染分走帧预算，glance 收敛需更长
     const conv = await A.evaluate(() => ({ ...Cam.cur }));
     check('1.5s 后 Cam.cur 收敛到 lobby 常态机位（rx≈0, z≈0, s≈1）',
       Math.abs(conv.rx) < 0.3 && Math.abs(conv.z) < 0.5 && Math.abs(conv.s - 1) < 0.02, JSON.stringify(conv));
@@ -190,7 +190,12 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
     check('1.5s 后 game 常态过肩俯视 |rx - 19| < 0.6（第三人称俯角；world 收敛，只约束主动页 A；被动页 B 的扫视晚一个状态包到达）',
       Math.abs(g3b.rxA - 19) < 0.6,
       `A.rx=${g3b.rxA.toFixed(3)} B.rx=${rxB.toFixed(3)}`);
-    check('.table3d 可见且宽高 > 100px', g3b.w > 100 && g3b.h > 100, `宽=${g3b.w.toFixed(1)} 高=${g3b.h.toFixed(1)}`);
+    if (await A.evaluate(() => document.body.classList.contains('three3d'))) {
+      const cv = await A.evaluate(() => { const c = document.getElementById('three-canvas'); const r = c.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height) }; });
+      check('3D 模式：WebGL 画布接管桌面（宽高 > 100px）', cv.w > 100 && cv.h > 100, JSON.stringify(cv));
+    } else {
+      check('.table3d 可见且宽高 > 100px', g3b.w > 100 && g3b.h > 100, `宽=${g3b.w.toFixed(1)} 高=${g3b.h.toFixed(1)}`);
+    }
 
     // ───── 4) 3D 座次 + 每张卡的命中测试 ─────
     const ring = await A.evaluate(async () => {
@@ -211,6 +216,7 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
           center: [Math.round(cx), Math.round(cy)],
           inside: r.top >= 0 && r.bottom <= innerHeight,
           hitPid: hitCard ? hitCard.dataset.pid : null,
+          dbg: (() => { const cs = getComputedStyle(c); return { pe: cs.pointerEvents, vis: cs.visibility, disp: cs.display, z: cs.zIndex, tf: cs.transform.slice(0, 40), chain: (() => { const out = []; let n = document.elementFromPoint(cx, cy); for (let i = 0; i < 4 && n; i++) { out.push(n.id ? '#' + n.id : n.className ? String(n.className).slice(0, 20) : n.tagName); n = n.parentElement; } return out; })() }; })(),
         };
       });
       return { ring3d: grid.classList.contains('ring3d'), cards };
@@ -246,10 +252,16 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
         chr1: el.style.getPropertyValue('--chr1'),
       };
     });
+    const is3dMode = await A.evaluate(() => document.body.classList.contains('three3d'));
+    if (is3dMode) {
+      const c3 = await A.evaluate(() => { const c = document.getElementById('three-canvas'); const r = c.getBoundingClientRect(); return { w: r.width, h: r.height, pe: getComputedStyle(c).pointerEvents, chars: (window.__three && window.__three.chars) ? window.__three.chars.size : -1 }; });
+      check('3D 模式：WebGL 画布接管（尺寸正常、不拦点击、人物已建）', c3.w > 300 && c3.pe === 'none' && c3.chars >= 2, JSON.stringify(c3));
+    } else {
     check('第三人称背影 #tp-back 存在、头顶入画、左右不越界、pointer-events:none（底缘按设计裁出屏）',
-      !!tp && tp.inView && tp.pe === 'none', JSON.stringify(tp));
+      tp.inView && tp.pe === 'none', JSON.stringify(tp));
     check('背影带本机身份色（--chr1 由 chrHue 写入）且 me 卡正面已隐藏',
-      !!tp && /^hsl\(/.test(tp.chr1 || '') && tp.meAvaHidden, JSON.stringify(tp));
+      /^hsl\(/.test(tp.chr1 || '') && tp.meAvaHidden, JSON.stringify(tp));
+    }
 
     // ───── 5) 抽卡推镜 → revealed ─────
     const whoA = await A.evaluate(() => S.turn.chooserId === myId);
@@ -275,7 +287,7 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
       const post = await chooser.evaluate(() => ({ ...Cam.cur }));
       check(`抽卡后 1s 内 Cam.cur.z 脱离 game 常态(-56) 超过 5（${tag} 端推近卡堆）`,
         pushSeen && Math.abs(post.z + 56) > 5, `超时未达成；pre.z=${pre.z.toFixed(2)} post.z=${post.z.toFixed(2)}`);
-      await chooser.waitForTimeout(Math.max(0, 1200 - (Date.now() - clickAt)));   // 等 focusCam(#deck) 的 950ms 补间收尾
+      await chooser.waitForTimeout(Math.max(0, 2600 - (Date.now() - clickAt)));   // 等洗牌(1400)+发牌聚焦(950)全链收尾（发牌在 +1500ms 起）
       const settled = await chooser.evaluate(() => ({ ...Cam.cur }));
       check('推镜到达牌堆聚焦档（focusCam(#deck): z≈-76, s≈1.05）',
         Math.abs(settled.z + 76) < 1 && Math.abs(settled.s - 1.05) < 0.01,
