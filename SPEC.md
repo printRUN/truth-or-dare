@@ -20,6 +20,15 @@
   ④ **揭晓态牌桌常驻**：JS 挂 `#screen-game.stage-revealed`（renderGameStatic 的 revealed/choosing 分支锁检查后 + playReveal ③落定帧）——**绝不能改回 `:has(#card-section:not([hidden]))`**：老 WebView 静默不生效，且 dealFlyingCard 在 drawing 期就取消 card-section hidden 会把压缩插进推镜中途；规则 = **环高任何阶段保持原生值（桌子不许压缩——2026-09-14 用户反馈后废弃了 210px 压档）** + `::after` 静态压暗罩 rgba(10,10,26,.45)（**禁 filter:saturate**——挂在有常驻动画的环上=每帧重光栅化）+ 卡 opacity .85（.active 豁免）+ **题面卡与真心话/大冒险选项双卡都以 rotateX(12-14°) 躺角贴在毡面上**（`#card-section.on-table` 在发牌时挂上、选卡阶段摘除——牌背出现即躺着，翻面就在桌上原地翻，全程无向下漂移；选项双卡常驻躺角、transform 只做视觉不动布局；点击热区随视觉缩放，仍远超触控线）+ 竖屏押注面板改底部悬浮（`position:absolute; bottom:56px`，抽离文档流；包含块 `#screen-game.stage-revealed:not(.leaving)`——⚠ 裸 id 和 .stage-revealed 特异度都会压过 `.screen.leaving` 的 absolute，把退场旧屏留在流里顶出 result 屏，两处都实测过）；
   ⑤ **机位**：base.game = `{z:-56, rx:19}`（过肩俯视；landui 维持 LAND_CAM.game z-26/rx2）；spawn.game `{z:-412, rx:20}`（保持 356px 推进行程）；base.result `{z:-80, rx:11}`（离席后撤）；抽卡推镜落 `z≈-76 s≈1.05`（发牌无飞行动画：牌背在台面原地落定，翻牌后以躺角呈现在毡面上——2026-09-14 用户反馈去掉向下飘牌）；轮到我 = 背影 `.tp-forward` 前倾（持续态）+ 选卡瞬间 `tp-slam` 400ms 拍桌 + 我抽卡 `.tp-away` 离座（flyAvatarToDeck 对 `pid===myId` 早退，避免双我）
   降级：REDUCED 背影动画全停、前倾保留静态终态（「轮到我了」是无障碍信息）；loperf 同停 + 状态瞬移；`body.paused` 自动覆盖。
+- **Three.js 真 3D 场景（2026-09-15 v7，用户点名「用 threejs 模拟真实 3d 游戏，头像改为人物戴着头像」）**：混合架构——WebGL 画布 `#three-canvas`（#cam 最底层 z0，pointer-events:none）渲染房间/圆桌/单柱脚/牌堆/**3D 人物**，DOM UI（HUD/名牌/选卡/题面/押注）叠加其上。要点：
+  ① three.js r128 UMD **内联**进单文件（603KB，不走 CDN 保 file:// 离线）；可读模块源 `.pw/three-scene.src.js`；
+  ② 门禁：THREE 存在 + WebGL context 可用 + 非 loperf → `body.three3d`；否则整条链路回退 CSS 3D（零删码）；loperf 中途触发/页面 hidden → 渲染循环自动跳帧回退；
+  ③ **人物**：每玩家一组 3D 身体（凳+双段身体 chrHue 身份色+头球+上半球发色），**脸部 = CircleGeometry 贴玩家头像图**（resolveAvatar 的 dataURL 画到 160px canvas → CanvasTexture，SVG/PNG 都吃）；座位角复用 layoutRing 的分配（`window.__seatAngleByPid`），人物面向桌心；
+  ④ **相机**：挂 `Cam.apply` 钩子，Cam.cur 姿态实时映射 three 相机（x 平移/高度随 rx/距离随 z）——一镜到底编排（glance/nudge/focus/shake）零改动驱动 3D 视角；
+  ⑤ **名牌投影**：每帧把人物头顶世界坐标 project 到屏幕，DOM 名牌（头像/身体已 hidden，徽章保留）跟随；z 序按深度；me 名牌 pointer-events:none（不吞工具栏点击）；
+  ⑥ 状态动画：呼吸（torso scaleY）/离座探身（.away 等价）/说话摇摆（voice 幅度）；人物同步走 600ms 节询（不 hook renderPlayers——其调用时序不可靠）；
+  ⑦ 特异度铁律再现：任何 #cam 子元素都会被 `#cam > :not(...)` 的 (1,2,0) relative-z2 通配压住——`#three-canvas` 必须写 `#cam > #three-canvas` (2,0,0)；
+  ⑧ 调试句柄：`window.__three = { scene, camera, chars }`（必须写在 chars 声明之后，否则 TDZ 崩掉整条初始化链）。
   锚定实现（⚠ 实雷两个）：牌堆与 `.table3d` 光池由 `layoutRing` 顺手锚到环心，**只能用 `offsetLeft/offsetTop`（纯布局值）** —— ① rect 是投影后坐标，状态包在扫视/运镜中到达时会被动画扭曲（实测横向偏 47px）；② `.table3d` 的 rect 是 rotateX 62° 的透视包围盒（近大远小 → 中心偏下），拿它当桌心会把牌堆压到自己座位上。环 `display:none` 时跳过不写，保留上次可见值。另：`#table3d` 的 id 是这次补上的 —— `armTableLit`/`renderScreen` 一直用 `$('table3d')` 取元素，此前只有 class 没有 id，「点亮舞台/台面扫光」整段静默失效（真 bug，顺手修复）
 
 #### 3D 实现的红线（踩过的坑，改动前必读）
