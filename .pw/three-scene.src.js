@@ -856,9 +856,29 @@
   document.addEventListener('click', function (e) {
     const dbg = window.__rayDbg = { t: Date.now(), target: e.target && e.target.closest ? (e.target.id || e.target.className || e.target.tagName) : '?', detail: e.detail };   // 静默必须落日志（项目红线）
     if (retired || e.detail > 1 || !onTableScreen()) { dbg.stop = 'retired/multi/offtable'; return; }   // 双击缩放第二击不吞；非牌桌屏不 raycast
-    if (document.body.classList.contains('egg-aim')) { dbg.stop = 'egg-aim'; return; }   // 🥚 瞄准态不消费选卡：click 语义已让位给「点名牌扔蛋」
     const rejEl = e.target && e.target.closest && e.target.closest(REJECT_SEL);
     if (rejEl) { dbg.stop = 'rejected:' + (typeof rejEl.className === 'string' ? rejEl.className.split(' ')[0] : rejEl.tagName); return; }
+    if (document.body.classList.contains('egg-aim')) {   // 🥚 瞄准态：点 3D 小人本体也能扔（任何阶段；近景/走位时名牌缩小或隐藏，只认名牌会「点人没反应」——用户实测反馈）
+      dbg.stop = 'egg-aim';
+      const pk = (typeof landPick === 'function') ? landPick(e.clientX, e.clientY) : { x: e.clientX, y: e.clientY };
+      mouseNdc.x = (pk.x / canvas.clientWidth) * 2 - 1;
+      mouseNdc.y = -(pk.y / canvas.clientHeight) * 2 + 1;
+      raycaster.setFromCamera(mouseNdc, camera);
+      const groups = [];
+      for (const [, ch] of chars) { if (ch.visible) groups.push(ch); }
+      const eHits = raycaster.intersectObjects(groups, true);
+      dbg.eggHits = eHits.length;
+      const hit = eHits[0];
+      if (!hit) return;
+      let o = hit.object;
+      while (o && !(o.userData && o.userData.pid)) o = o.parent;
+      if (!o) { dbg.eggNoPid = true; return; }
+      dbg.eggPid = o.userData.pid;
+      try { SFX.play('tap'); } catch (err) {}
+      feltRipple(hit.point.x, hit.point.z, 0xfbbf24);
+      try { throwEgg(o.userData.pid); } catch (err) { dbg.eggErr = err.message; }
+      return;
+    }
     let stage = '';
     try { stage = S.turn.stage; } catch (err) { dbg.stop = 'no-S'; return; }
     dbg.stage = stage; dbg.latch = rayLatch;

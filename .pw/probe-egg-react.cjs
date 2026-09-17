@@ -168,6 +168,27 @@ const server = http.createServer((req, res) => {
   ok(passes1 === passes0 - 1, 'passes decremented once', [passes0, passes1]);
   await chooser.screenshot({ path: 'shots/eggfx-redeal.png' });
 
+  // ── ⑥b 揭晓阶段点 3D 小人本体也能扔（GL raycast 路径；此前瞄准态只认名牌，近景点人没反应——用户实测反馈）──
+  const spec2 = chooser === A ? B : A;
+  await spec2.evaluate(() => mutate(n => { const p = n.players.find(x => x.id === myId); if (p) p.eggs = 2; }));   // 正路补蛋（本地 hack 会被对端心跳整文档覆盖）
+  await spec2.waitForTimeout(900);
+  const cid = await chooser.evaluate(() => myId);
+  await spec2.click('#btn-egg');
+  ok(await spec2.evaluate(() => document.body.classList.contains('egg-aim')), 'egg aim armed in revealed stage');
+  const pt = await spec2.evaluate(pid2 => {
+    const ch = window.__three.chars.get(pid2);
+    const v = ch.userData.head.getWorldPosition(new THREE.Vector3());   // 头球心：任何 lean/走位姿态下射线都必然命中本体
+    v.project(window.__three.camera);
+    return { x: Math.round((v.x + 1) / 2 * innerWidth), y: Math.round((1 - (v.y + 1) / 2) * innerHeight), vis: ch.visible };
+  }, cid);
+  ok(pt.vis && pt.x > 2 && pt.x < 898 && pt.y > 2 && pt.y < 898, 'chooser char on screen in revealed close-up', pt);
+  await spec2.mouse.click(pt.x, pt.y);
+  const specEggs = await spec2.evaluate(() => eggsOf(me()));
+  ok(specEggs === 1, 'clicking 3D char body throws in revealed stage (raycast path)', specEggs);
+  const specSplat = await chooser.waitForSelector('.egg-splat', { state: 'attached', timeout: 4000 }).then(() => true).catch(() => false);
+  ok(specSplat, 'target gets splat from body-click throw');
+  await spec2.evaluate(() => setEggAim(false));
+
   // ── ⑦ 完成挑战 = 赢家鸡蛋 +1 ──
   const before = await chooser.evaluate(() => ({ eggs: document.getElementById('egg-left').textContent, p: me().eggs ?? 1 }));
   await chooser.click('#btn-accept');
