@@ -81,16 +81,21 @@ const server = http.createServer((req, res) => {
   const hookOk = await A.evaluate(pid => { paintVoice(pid, 0.9, true); const ch = window.__three.chars.get(pid); return ch ? ch.userData.voice : -1; }, bid2);
   ok(hookOk > 0.4, 'paintVoice hook feeds RMS into 3D char voice', hookOk);
   await A.evaluate(pid => { window.__three.chars.get(pid).userData.voice = 0.85; }, bid2);   // 直驱视觉（探针无麦，避开 MIC 节询写零）
-  await A.waitForTimeout(700);
-  const vfx = await A.evaluate(pid => {
+  // 软渲帧稀疏：单点采样会落在生成帧之前——轮询等首个波环出现，并在窗口内取点头最大角
+  const vfxOk = await A.waitForFunction(pid => {
     const T = window.__three;
     const ch = T.chars.get(pid);
-    if (!ch) return { waves: 0, nod: 0, glow: 0, dbg: { pid: String(pid || '').slice(-4), keys: [...T.chars.keys()].map(k => k.slice(-4)), canvas: !!document.getElementById('three-canvas'), active: document.getElementById('screen-game').className } };
+    if (!ch) return false;
     const u = ch.userData;
-    return { waves: window.__three.fxState().voiceWaves, nod: +Math.abs(u.head.rotation.x).toFixed(3), glow: +u.torso.material.emissive.g.toFixed(3) };
+    window.__nodMax = Math.max(window.__nodMax || 0, Math.abs(u.head.rotation.x));
+    return T.fxState().voiceWaves > 0 && u.torso.material.emissive.g > 0.02;
+  }, bid2, { timeout: 4000, polling: 120 }).then(() => true).catch(() => false);
+  const vfx = await A.evaluate(pid => {
+    const u = window.__three.chars.get(pid).userData;
+    return { waves: window.__three.fxState().voiceWaves, nod: +(window.__nodMax || 0).toFixed(3), glow: +u.torso.material.emissive.g.toFixed(3) };
   }, bid2);
-  ok(vfx.waves >= 1 && vfx.glow > 0.02, 'speaking spawns expanding voice waves + green body glow', vfx);
-  ok(vfx.nod > 0.005, 'head nods while speaking', vfx);
+  ok(vfxOk && vfx.waves >= 1 && vfx.glow > 0.02, 'speaking spawns expanding voice waves + green body glow', vfx);
+  ok(vfxOk && vfx.nod > 0.005, 'head nods while speaking', vfx);
   await A.screenshot({ path: 'shots/voicewave.png' });
   await A.evaluate(pid => { paintVoice(pid, 0, false); window.__three.chars.get(pid).userData.voice = 0; }, bid2);
   await A.waitForTimeout(1300);

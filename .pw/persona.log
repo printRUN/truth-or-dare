@@ -1,0 +1,20 @@
+[persona]   ✅ P1 host creates room "4XK6F"
+[persona]   ✅ P1 three players seated 
+[persona]   ✅ P2 game started on all clients (three3d) 
+[persona]   ✅ P3 r1 accept: +10 score, +1 egg [{"score":0,"eggs":1},{"score":10,"eggs":2}]
+[persona]   ✅ P3 r1 reaction bubble on sender 
+[persona]   ✅ P3 r2 walker in front of camera (raycast reachable) {"vz":-1.67,"x":1791,"y":1210}
+[persona]   ✅ P3 r2 spectator egg thrown at walker via body click 1
+[persona]   ✅ P3 r2 skip: score -5 applied -5
+[persona]   ✅ P3 r2 reaction bubble on sender 
+[persona]   ✅ P3 r3 pass card re-dealt, still revealed {"stage":"revealed","passes":1,"phase":"shown"}
+[persona]   ✅ P3 r3 accepted after pass 
+[persona]   ✅ P3 r3 reaction bubble on sender 
+[persona]   ✅ P4 host random designate landed (new chooser) {"pre":"zrlw","now":"zwsp"}
+[persona]   ✅ P4 host reroll changed the question {"q1":"当场模仿最近火的一个","q2":"当场模仿一个emoj","seq0":{"seq":14,"p":"当场模仿最近火的一个短视频","host":true,"stage":"revealed","vis":true},"seq1":{"seq":15,"p":"当场模仿一个emoji的表情","same":false,"rr":0,"elSame":true,"cov":"zero-box","rect":[0,0,0,0]}}
+[persona]   ✅ P5 refresh rejoins same identity, back at table ["zum2","zum2"]
+[persona]   ✅ P6 result podium rendered 3
+[persona]   ✅ P6 rematch resets scores and eggs {"score":0,"eggs":1,"started":true}
+[persona]   ✅ P7 leave returns to join screen 
+[persona] no page errors ✅
+[persona] PERSONA FULL-GAME WALKTHROUGH PASSED ✅

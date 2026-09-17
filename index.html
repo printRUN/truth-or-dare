@@ -7376,7 +7376,14 @@ setTimeout(() => {
       const bp = tr && tr.top > 0 ? Math.max(60, Math.round(window.innerHeight - tr.top + 10)) + 'px'
                                   : 'calc(env(safe-area-inset-bottom, 0px) + 68px)';   // 窄屏面板收起时量不到行：锚到 🧰 浮标上方
       if (betMoved.el.style.bottom !== bp) betMoved.el.style.bottom = bp;
-    }
+      // 🎲 主持人旁观：押注浮窗与 #stage-actions 里的换一题同区叠放——#bet-box 会盖死换一题钮（走查实测 cov=#bet-box、rr=0）→ 让位到押注浮窗上方
+      const rrEl = document.getElementById('btn-reroll');
+      if (rrEl && !rrEl.hidden && rrEl.parentElement === stageActions) {
+        const br = betMoved.el.getBoundingClientRect();
+        const want = Math.max(60, Math.round(window.innerHeight - br.top + 10)) + 'px';
+        if (stageActions.style.bottom !== want) stageActions.style.bottom = want;
+      } else if (stageActions.style.bottom) stageActions.style.bottom = '';   // 押注收起/换题归位：还原默认锚点
+    } else if (stageActions.style.bottom) stageActions.style.bottom = '';
     if (!active) {
       if (frame.cursor) { frame.cursor = ''; document.body.style.cursor = ''; }   // 出牌桌归还光标（悬停代码在早退之后，不补这条会顶着「手型」回大厅）
       return;
