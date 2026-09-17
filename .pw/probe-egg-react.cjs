@@ -138,6 +138,11 @@ const server = http.createServer((req, res) => {
   for (const t of [A, B]) { try { if (await t.evaluate(() => S.turn.chooserId === myId)) { chooser = t; break; } } catch (e) {} }
   if (!chooser) { log('❌ no chooser tab'); process.exit(1); }
   await chooser.evaluate(() => choose(Math.random() < 0.5 ? 'truth' : 'dare'));   // 选卡路径 feel 探针已覆盖，这里走直调
+  // 🃏 洗牌动作（用户点名「洗牌动作不要少」）：drawing 边沿起洗 0.95s，随后关闭交棒飞卡
+  const shufOn = await chooser.waitForFunction(() => window.__three.fxState().shuffling === true, null, { timeout: 2500 }).then(() => true).catch(() => false);
+  ok(shufOn, 'deck shuffle starts on draw');
+  const shufOff = await chooser.waitForFunction(() => window.__three.fxState().shuffling === false, null, { timeout: 4000 }).then(() => true).catch(() => false);
+  ok(shufOff, 'deck shuffle finishes and hands off to fly');
   await chooser.waitForFunction(() => S.turn.stage === 'revealed', null, { timeout: 20000 });
   await chooser.waitForFunction(() => window.__three.fxState().cardPhase === 'shown', null, { timeout: 12000 });
   await chooser.waitForTimeout(400);

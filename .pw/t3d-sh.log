@@ -1,0 +1,40 @@
+PASS · #app 透视 = 1400px
+PASS · #world3d transformStyle = flat（防 3D 命中回归锁）
+PASS · world 内联 transform = translate3d + rotateX/Y/Z + scale
+PASS · 每个 .screen 自身 transform = none
+PASS · #btn-join 中心 elementFromPoint 命中自身（落在 join 屏内）
+PASS · 前置条件：全效档（无自动省电模式把运镜平面化）
+PASS · 前置条件：非 REDUCED 环境
+PASS · 初始 curScreen = join
+PASS · 加入后 Cam.curScreen: join → lobby
+PASS · 换屏时 world transform 字符串发生变化（Cam.enter 生效）
+PASS · 1.5s 后 Cam.cur 收敛到 lobby 常态机位（rx≈0, z≈0, s≈1）
+PASS · #btn-start 中心 elementFromPoint 命中自身
+PASS · 大厅 me 卡无 .tp 泄漏且头像可见（背影只属于牌桌网格）
+PASS · 开局后 Cam.curScreen = game
+PASS · #cam 透视 = 900px 且 #cam .table3d 存在
+PASS · 1.5s 后 game 常态过肩俯视 |rx - 19| < 0.6（第三人称俯角；world 收敛，只约束主动页 A；被动页 B 的扫视晚一个状态包到达）
+PASS · 3D 模式：WebGL 画布接管桌面（宽高 > 100px）
+PASS · #game-players-grid 有 ring3d 且 2 张卡的 --rx/--ry/--rs/zIndex 均已写入
+PASS · 前排（--ry 更大）--rs 也更大，前后排 --rs 差 ≥ 0.15
+PASS · zIndex 随前后排分层（前排更大）
+PASS · 两张玩家卡中心 elementFromPoint 各自命中自己（closest(.player-card).dataset.pid）
+PASS · 3D 模式：WebGL 画布接管（尺寸正常、不拦点击、人物已建）
+PASS · 轮流模式决出唯一抽卡人（S.turn.chooserId === myId）
+PASS · 点击选卡前镜头处于合法起点（home -56 或持麦人推近档 -76）
+PASS · 抽卡后 1s 内 Cam.cur.z 脱离 game 常态(-56) 超过 5（B 端推近卡堆）
+PASS · 3D 抽卡机位合法（focusCam(#deck) 在 three3d 下 no-op——牌堆 DOM 自 v7 隐藏；推近由 GL overlay 在翻面时接管）
+PASS · revealed：#card-section 可见且 #punishment-text === S.turn.punishment
+PASS · revealed 镜头仍在推近档（|z + 56| > 5）
+PASS · revealed 座次环仍可见（stage-revealed 挂类 + 环宽 >0，牌桌不退场）
+PASS · revealed 动作按钮完整在视口内（短窗桌面不折行不溢出）
+PASS · REDUCED 环境生效（matchMedia reduce → 全局 REDUCED=true）
+PASS · REDUCED：#world3d computed transform = none（降噪下不动镜头）
+PASS · REDUCED 下换屏 join→lobby→game 正常且 curScreen=game
+PASS · REDUCED 下 Cam.to({x:41},500) 同一 tick 瞬时到位（Cam.cur.x === 41）
+PASS · REDUCED 期间零 pageerror / console.error
+INFO · 软件光栅（ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)）：WebGL 帧率无信号意义，A=1.4 B=32.6 仅记录，不判失败
+PASS · A/B 软渲环境：仅记录（信息性）
+PASS · 全程 pageerror / console.error 为 0
+
+断言合计 37：PASS 37 / FAIL 0

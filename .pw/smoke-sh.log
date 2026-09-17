@@ -1,0 +1,6 @@
+[3d-smoke] stage: {"appPerspective":"1400px","worldPreserve":"flat","worldTransform":"translate3d(0px, 0px, -40px) rotateX(2.2deg) rotateY(-3deg) rotateZ(0deg) scale(1)","joinTransform":"none"}
+[3d-smoke] ring: {"table":true,"count":2,"pos":[{"rx":"50.00%","ry":"76.00%","rs":"1.130","z":"315"},{"rx":"50.00%","ry":"24.00%","rs":"0.920","z":"306"}],"worldTransform":"translate3d(0px, 31.13px, -76px) rotateX(19.54deg) rotateY(0deg) rotateZ(0deg) scale(1.035)","reactBar":true,"stakeVisible":true}
+[3d-smoke] after reveal: {"cam":"translate3d(0px, 0px, -76px) rotateX(19deg) rotateY(0deg) rotateZ(0deg) scale(1.05)","stakeBadge":false}
+[3d-smoke] reaction rain on other tab: 0
+[3d-smoke] sfx: {"on":true,"hasCtx":true}
+[3d-smoke] no page errors ✅

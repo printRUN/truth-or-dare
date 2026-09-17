@@ -6561,10 +6561,53 @@ setTimeout(() => {
     slab.rotation.y = (Math.random() * 2 - 1) * 0.06;
     slab.position.set(0, 0.006 + i * 0.012, 0);
     slab.castShadow = true;
+    slab.userData.base = { y: 0.006 + i * 0.012, rot: slab.rotation.y };   // 洗牌复位基准
     deck.add(slab);
   }
   deck.position.copy(DECK_POS);
   scene.add(deck);
+
+  // ── 洗牌（2026-09-17 用户点名「洗牌动作不要少」）：CSS 层 .deck.shuffling 的 GL 等价——
+  // 顶两张左右交叉互换+中层微位移+牌背亮度脉动，待抽的牌躺在牌堆顶跟着一起滑；drawing 边沿与免答重抽取牌时各跑一遍 ──
+  const deckShuffle = { t0: 0, dur: 950, on: false };
+  function startDeckShuffle(now) {
+    if (IS_REDUCED) return 0;   // 降噪：静态退路（与 CSS REDUCED 的 animation:none 同哲学）
+    deckShuffle.t0 = now; deckShuffle.on = true;
+    return deckShuffle.dur;
+  }
+  function tickDeckShuffle(now) {
+    if (!deckShuffle.on) return;
+    const k = Math.min(1, (now - deckShuffle.t0) / deckShuffle.dur);
+    const sl = deck.children, top = sl[4], second = sl[3];
+    if (k >= 1) {   // 归位：两张的层位/随机转角互换（读作「牌序洗过了」），余牌回正
+      deckShuffle.on = false;
+      for (let i = 0; i < sl.length; i++) {
+        const s = sl[i], b = s.userData.base;
+        s.position.set(0, b.y, 0); s.rotation.y = b.rot;
+        (Array.isArray(s.material) ? s.material : [s.material]).forEach(m => { if (m.emissive) m.emissive.setRGB(0, 0, 0); });
+      }
+      const by = top.userData.base.y; top.userData.base.y = second.userData.base.y; second.userData.base.y = by;
+      const br = top.userData.base.rot; top.userData.base.rot = second.userData.base.rot; second.userData.base.rot = br;
+      top.position.y = top.userData.base.y; second.position.y = second.userData.base.y;
+      shadowDirty();
+      return;
+    }
+    const sw = Math.sin(k * Math.PI * 2);   // 一来一回：顶两张左右交叉
+    const hopT = Math.max(0, sw), hopS = Math.max(0, -sw);
+    top.position.set(sw * 0.26, top.userData.base.y + hopT * 0.06, Math.sin(k * Math.PI * 2 + 0.6) * 0.05);
+    top.rotation.y = top.userData.base.rot + sw * 0.5;
+    second.position.set(-sw * 0.26, second.userData.base.y + hopS * 0.06, -Math.sin(k * Math.PI * 2 + 0.6) * 0.05);
+    second.rotation.y = second.userData.base.rot - sw * 0.5;
+    for (let i = 0; i < 3; i++) sl[i].position.x = Math.sin(k * Math.PI * 4 + i) * 0.018;   // 中层微位移
+    const glow = 0.1 * Math.abs(Math.sin(k * Math.PI * 3));
+    top.material[2].emissive.setRGB(glow, glow * 0.92, glow * 0.55);
+    second.material[2].emissive.setRGB(glow, glow * 0.92, glow * 0.55);
+    if (actionCard.visible) {   // 待抽的牌在堆顶跟着一起滑（洗的就是它）
+      actionCard.position.set((DECK_POS.x - PIVOT.x) + sw * 0.26, CARD_T / 2 + 0.06 + hopT * 0.06, (DECK_POS.z - PIVOT.z) + Math.sin(k * Math.PI * 2 + 0.6) * 0.05);
+      actionCard.rotation.y = (actionCard.userData.dealRot || 0) + sw * 0.5;
+    }
+    shadowDirty();
+  }
 
   // ── 桌上卡系统：飞卡（deck→桌心北）→ 牌背脉动 → 远边枢轴翻面 → 题面躺毡面；选卡双卡平贴毡面 ──
   const CARD_W = 0.46, CARD_L = 0.64, CARD_T = 0.012;
@@ -7255,10 +7298,10 @@ setTimeout(() => {
       ripples: ripplePool.filter(r => r.active).length,
     };
   };
-  window.__three.fxState = function () {   // 调试访问器（追加访问器约定）：表情气泡/飞蛋/声波环/蛋碎/出卡阶段，探针用
+  window.__three.fxState = function () {   // 调试访问器（追加访问器约定）：表情气泡/飞蛋/声波环/蛋碎/洗牌/出卡阶段，探针用
     return { bubbles: bubbles.length, eggs: eggs3d.length, cardPhase: st.phase, leanMax: LEAN_MAX,
       voiceWaves: voicePool.filter(r => r.active).length,
-      shells: shellPool.filter(p => p.active).length, faceSplats: faceSplats.length,
+      shells: shellPool.filter(p => p.active).length, faceSplats: faceSplats.length, shuffling: deckShuffle.on,
       cardPos: { x: +actionCard.position.x.toFixed(2), z: +actionCard.position.z.toFixed(2) } };   // rest 本地 (0, ·, CARD_L/2)；重抽被劫持时会停在牌堆 x≈1.12
   };
   document.addEventListener('click', function (e) {
@@ -7358,9 +7401,16 @@ setTimeout(() => {
     const inRound = stage === 'drawing' || stage === 'revealed';
     if (stage === 'drawing' && (st.phase === 'park' || st.phase === 'shown' || st.phase === 'flip' || st.phase === 'reback' || st.phase === 'refly')) {
       st.phase = IS_REDUCED ? 'pulse' : 'waitfly';   // 降噪：牌直接出现在桌上（CSS 路径同哲学）
-      st.flyAt = now + 600; st.t0 = now; qDrawn = false;
+      st.flyAt = now + (IS_REDUCED ? 600 : 1050); st.t0 = now; qDrawn = false;   // 非降噪多留 450ms 给洗牌（fly 总 时点不变：原为 pulse 空窗）
       flipG.rotation.x = 0; actionCard.visible = true;
-      actionCard.position.set(0, 0, CARD_L / 2); actionCard.rotation.y = 0;
+      if (IS_REDUCED) {
+        actionCard.position.set(0, 0, CARD_L / 2); actionCard.rotation.y = 0;
+      } else {   // 待抽的牌先躺上牌堆顶参与洗牌（旧版出现在桌心北、飞卡起点又瞬移回牌堆=隐性跳变，顺手修掉）
+        actionCard.position.set(DECK_POS.x - PIVOT.x, CARD_T / 2 + 0.06, DECK_POS.z - PIVOT.z);
+        actionCard.rotation.y = (Math.random() * 2 - 1) * 0.1;
+        actionCard.userData.dealRot = actionCard.rotation.y;
+        startDeckShuffle(now);
+      }
       resetChoiceCards();
       shadowDirty();
     } else if (!inRound && st.phase !== 'park') {
@@ -7372,10 +7422,10 @@ setTimeout(() => {
     }
     if (st.phase === 'waitfly' && now >= st.flyAt) { st.phase = 'fly'; st.t0 = now; }
     if (st.phase === 'fly') {   // 900ms：单正弦弧（顶 +0.5 单位）+ 飞行旋卡 ≤180°；落定 80ms 微弹由 pulse 起始承接
-      const k = Math.min(1, (now - st.t0) / 900);
+      const k = Math.min(1, Math.max(0, (now - st.t0) / 900));   // 免答重抽时 t0 含 950ms 洗牌窗，k 钳 0
       const sx = DECK_POS.x - PIVOT.x, sz = DECK_POS.z - PIVOT.z;         // deckLocal
       const ex = 0, ez = CARD_L / 2;                                       // restLocal（枢轴系）
-      actionCard.position.set(sx + (ex - sx) * k, CARD_T / 2 + Math.sin(Math.PI * k) * 0.5, sz + (ez - sz) * k);
+      actionCard.position.set(sx + (ex - sx) * k, CARD_T / 2 + 0.06 * (1 - k) + Math.sin(Math.PI * k) * 0.5, sz + (ez - sz) * k);
       actionCard.rotation.y = Math.sin(Math.PI * k) * 2.6;
       if (k >= 1) { st.phase = 'pulse'; st.t0 = now; actionCard.position.set(0, 0, CARD_L / 2); actionCard.rotation.y = 0; shadowDirty(); }
     }
@@ -7416,12 +7466,12 @@ setTimeout(() => {
       flipG.rotation.x = -Math.PI * (1 - easeIO(k));
       if (k >= 1) { st.phase = 'refly'; st.t0 = now; }
     }
-    if (st.phase === 'refly') {   // 重抽②：牌收回牌堆（倒放飞卡弧线），落位无缝交给既有 fly 段重新发牌
+    if (st.phase === 'refly') {   // 重抽②：牌收回牌堆顶（倒放飞卡弧线），洗一遍牌后无缝交给既有飞卡段重新发出
       const k = Math.min(1, (now - st.t0) / 420);
       const sx = DECK_POS.x - PIVOT.x, sz = DECK_POS.z - PIVOT.z;
-      actionCard.position.set(sx * k, CARD_T / 2 + Math.sin(Math.PI * k) * 0.35, CARD_L / 2 + (sz - CARD_L / 2) * k);
+      actionCard.position.set(sx * k, CARD_T / 2 + 0.06 * k + Math.sin(Math.PI * k) * 0.35, CARD_L / 2 + (sz - CARD_L / 2) * k);
       actionCard.rotation.y = Math.sin(Math.PI * k) * 2.2;
-      if (k >= 1) { st.phase = 'fly'; st.t0 = now; shadowDirty(); }
+      if (k >= 1) { st.phase = 'fly'; st.t0 = now + startDeckShuffle(now); shadowDirty(); }
     }
     if (st.phase === 'shown') actionCard.scale.set(1, 1, 1);   // 题面躺定
     if (stage === 'revealed' && st.phase === 'shown') {   // 免答牌/换一题：题面签名边沿（逻辑终审 P0-1：否则玩家对旧题打完整轮）
@@ -7464,6 +7514,7 @@ setTimeout(() => {
     tickFx(now);   // 表情气泡 + 🥚 飞蛋/碎粒/脸贴蛋液
     tickVoiceWaves(now);   // 说话声波外扩环
     tickFaceSplats(now); tickShells(dt, now);   // 蛋碎：脸上蛋液下淌 + 壳屑弹地
+    tickDeckShuffle(now);   // 🃏 牌堆洗牌（drawing 边沿/免答重抽各跑一遍）
     tickChoice(cTruth, dt, hovName === 'truth', pressCard === cTruth);
     tickChoice(cDare, dt, hovName === 'dare', pressCard === cDare);
 
