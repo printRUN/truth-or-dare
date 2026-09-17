@@ -1,0 +1,136 @@
+{
+  "results": [
+    {
+      "id": "C1-boot-css",
+      "op": "loperf 开机走 CSS 路径",
+      "expect": "three3d=false loperf=true 无 WebGL 画布 DOM 牌堆/选卡可见",
+      "actual": {
+        "three3d": false,
+        "loperf": true,
+        "canvas": false,
+        "stage": "choosing",
+        "deckVisible": true,
+        "choiceVisible": true
+      },
+      "pass": true
+    },
+    {
+      "id": "C1-css-round",
+      "op": "CSS 路径完整一局（选→抽→揭晓）",
+      "expect": "deck-section→card-section 正常切换，题面=状态，按钮可见",
+      "actual": {
+        "drawing": {
+          "choiceSectionHidden": true,
+          "deckSectionShown": true,
+          "info": "「阿泽」起身去卡堆抽卡了…"
+        },
+        "revealed": {
+          "cardShown": true,
+          "punish": "你小时候最害怕什么？",
+          "accVisible": true
+        }
+      },
+      "pass": true
+    },
+    {
+      "id": "C1-css-scoring",
+      "op": "CSS 计分/轮转（对照基准）",
+      "expect": "choosing、+10、rounds=1、chooser 换人",
+      "actual": {
+        "stage": "choosing",
+        "rounds": 1,
+        "chooser": "tmv3nqemu489r07",
+        "scores": [
+          10,
+          0
+        ],
+        "turnIndex": 1,
+        "chooserBefore": 2,
+        "otherSee": "tmv3nqemu489r07"
+      },
+      "pass": true
+    },
+    {
+      "id": "C2-retire3d",
+      "op": "运行中触发 loperf → retire3D 全量还原",
+      "expect": "three3d 摘除、画布/动作条移除、按钮归位、名牌 inline 清空、CSS 题面卡出现",
+      "actual": {
+        "three3d": false,
+        "loperf": true,
+        "canvas": false,
+        "stageActions": false,
+        "cardActionsParent": "card-front",
+        "toolsParent": "screen-game",
+        "plateInline": "clean",
+        "cardShown": true,
+        "punish": "模仿在场你最不熟悉的人的说话方式",
+        "stage": "revealed"
+      },
+      "pass": true
+    },
+    {
+      "id": "C2-css-continue",
+      "op": "retire 后 CSS 路径连续两局可玩",
+      "expect": "choosing、rounds=2、两个 ±10 结算",
+      "actual": {
+        "stage": "choosing",
+        "rounds": 2,
+        "scores": [
+          10,
+          10
+        ]
+      },
+      "pass": true
+    },
+    {
+      "id": "C3-boot",
+      "op": "REDUCED 下 3D 保留（静态）",
+      "expect": "three3d=true REDUCED=true chars=2",
+      "actual": {
+        "three3d": true,
+        "reduced": true,
+        "chars": 2
+      },
+      "pass": true
+    },
+    {
+      "id": "C3-draw-static",
+      "op": "REDUCED 抽卡=牌直接出现在桌上（无飞行）",
+      "expect": "卡即刻躺在 REST(0,−0.64)",
+      "actual": {
+        "vis": true,
+        "pos": [
+          0,
+          -0.64
+        ]
+      },
+      "pass": true
+    },
+    {
+      "id": "C3-reveal-shown",
+      "op": "REDUCED 揭晓=牌直接翻好躺桌",
+      "expect": "flipRotX=−π 且题面文本就绪",
+      "actual": {
+        "rx": -3.142,
+        "punish": "当场模仿最近火的一个短视频",
+        "punishState": "当场模仿最近火的一个短视频"
+      },
+      "pass": false
+    },
+    {
+      "id": "C3-flow",
+      "op": "REDUCED 一局完整可玩",
+      "expect": "choosing、+10、rounds=1",
+      "actual": {
+        "stage": "choosing",
+        "rounds": 1,
+        "scores": [
+          0,
+          10
+        ]
+      },
+      "pass": true
+    }
+  ],
+  "errs": []
+}

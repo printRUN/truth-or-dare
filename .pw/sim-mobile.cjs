@@ -191,12 +191,15 @@ const waitReady = (p, t) => p.waitForFunction(() => {
       log(`等待态: ${await p1.evaluate(() => document.getElementById('turn-info').textContent)}`);
     }
     await p1.evaluate(() => window.__fiBegin());
-    await cp.tap(pick);
+    // three3d 下 DOM 选卡 pointer-events:none（点击走 GL raycast），必须 evaluate 级 click；CSS 路径照常 tap
+    if (await cp.evaluate(() => document.body.classList.contains('three3d'))) await cp.evaluate(sel => document.querySelector(sel).click(), pick);
+    else await cp.tap(pick);
     // 抽卡动画中段连拍
     await p1.waitForSelector('#deck-section:not([hidden])', { timeout: 15000 });
     await sleep(650); await shot(p1, '10-draw-mid');
     await sleep(1150); await shot(p1, '10b-draw-late');
-    await p1.waitForSelector('#card-section:not([hidden])', { timeout: 20000 });
+    // three3d 下 #card-section 被 CSS display:none!important（hidden 属性照常摘除）→ 按 E2E 契约用 waitForFunction
+    await p1.waitForFunction(() => !document.getElementById('card-section').hidden, null, { timeout: 20000 });
     await p1.waitForFunction(() => document.getElementById('flip-card').classList.contains('flipped'), null, { timeout: 15000 });
     await sleep(280); await shot(p1, '11-flip-mid');
     await waitReady(p1);
@@ -237,6 +240,19 @@ const waitReady = (p, t) => p.waitForFunction(() => {
 
   // ── 7. 提前结算（立方体转身 game→result）──
   await p1.evaluate(() => window.__fiBegin());
+  // 窄屏 3D：工具收进 🧰 浮标，先点开面板再结算（非 3D 回退层没有浮标，直接点按钮）
+  const fabDiag = await p1.evaluate(() => {
+    const f = document.getElementById('tools-fab');
+    return { three3d: document.body.classList.contains('three3d'), loperf: document.body.classList.contains('loperf'),
+      hasFab: !!f, fabW: f ? f.getBoundingClientRect().width : -1,
+      panel: getComputedStyle(document.getElementById('game-tools')).display };
+  });
+  console.log('[sim] FAB 诊断:', JSON.stringify(fabDiag));
+  if (fabDiag.hasFab && fabDiag.fabW > 0) {
+    await p1.tap('#tools-fab');
+    await p1.waitForTimeout(250);
+    console.log('[sim] FAB tap 后面板:', await p1.evaluate(() => getComputedStyle(document.getElementById('game-tools')).display));
+  }
   await p1.tap('#btn-finish-game');
   await p1.tap('#btn-finish-game'); // armedTap 二次确认
   await p1.waitForSelector('.screen.entering', { timeout: 8000 }).catch(() => digest.notes.push('结算未见 .entering'));

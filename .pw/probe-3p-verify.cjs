@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = 'D:/myidea/truth-or-dare';
-const PORT = 8841;
+const PORT = parseInt(process.env.PORT3P || '8841', 10);   // 端口被残留句柄占住时可用 PORT3P=xxxx 换口重跑
 const URL = `http://127.0.0.1:${PORT}/index.html`;
 const SHOTS = path.join(ROOT, '.pw', 'shots');
 if (!fs.existsSync(SHOTS)) fs.mkdirSync(SHOTS, { recursive: true });
@@ -65,9 +65,13 @@ async function runViewport(tag, vw, vh, opts = {}) {
   async function snapshot(stage) {
     await pages[0].evaluate(() => { try { Cam.jump(Cam.baseOf('game')); } catch (e) {} });   // 顶层 const 不挂 window，必须裸引用
     await pages[0].evaluate(() => { try { anchorTpBack(); } catch (e) { window.__anchorErr = e.message; } });
-    // 等镜头真收敛：jump 之后 runStage 的 nudge 定时器可能再拉起运镜，SPEC 明告 rect 只能在静止态量
+    // 等镜头真收敛：jump 之后 runStage 的 nudge（「等 Cam 空闲再发射」轮询）可能复燃运镜——软渲低帧率下轮询
+    // 粒度放大，恰好落在 jump 之后把镜头拉回 z-76 特写位，近侧座名牌（72/rs 补偿）量出来只有 ~33px 假红。
+    // SPEC 明告 rect 只能在静止态量：先睡过一次轮询 tick（nudge 一次性定时器，复燃至多一次），二次 jump 掐掉，再等 rx/z 双收敛
     const restRx = pages[0].landui ? 2 : 19;
-    await pages[0].waitForFunction(rx => Math.abs(Cam.cur.rx - rx) < 0.15, null, { timeout: 3000 }).catch(() => {});
+    await sleep(700);
+    await pages[0].evaluate(() => { try { Cam.jump(Cam.baseOf('game')); } catch (e) {} });
+    await pages[0].waitForFunction(rx => Math.abs(Cam.cur.rx - rx) < 0.15 && Math.abs(Cam.cur.z - Cam.baseOf('game').z) < 0.6, null, { timeout: 3000 }).catch(() => {});
     await sleep(150);
     return pages[0].evaluate(() => {
       const rectOf = el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, r: r.right, b: r.bottom }; };
@@ -76,10 +80,10 @@ async function runViewport(tag, vw, vh, opts = {}) {
       const cards = [...grid.querySelectorAll('.player-card')].map(c => {
         const wrap = c.querySelector('.avatar-wrap');
         const name = c.querySelector('.player-name');
-        return { pid: c.dataset.pid, me: c.classList.contains('me'), rx: c.style.getPropertyValue('--rx'), ry: c.style.getPropertyValue('--ry'), face: rectOf(wrap || c), name: rectOf(name), cardW: rectOf(c).w };
+        return { pid: c.dataset.pid, me: c.classList.contains('me'), vis: getComputedStyle(c).visibility, rx: c.style.getPropertyValue('--rx'), ry: c.style.getPropertyValue('--ry'), face: rectOf(wrap || c), name: rectOf(name), cardW: rectOf(c).w };
       });
-      const btns = [...document.querySelectorAll('#screen-game.active .tool-row .btn-secondary')].map(b => ({ t: b.textContent.slice(0, 4), rect: rectOf(b), hit: (() => { const r = b.getBoundingClientRect(); const h = document.elementFromPoint(r.left + r.width / 2, Math.min(r.top + r.height / 2, innerHeight - 1)); return !!h && (h === b || b.contains(h)); })(), hitEl: (() => { const r = b.getBoundingClientRect(); const h = document.elementFromPoint(r.left + r.width / 2, Math.min(r.top + r.height / 2, innerHeight - 1)); return h ? (h.id ? '#' + h.id : h.tagName + '.' + String(h.className).slice(0, 30)) : 'null'; })() }));
-      const tb = document.querySelector('#screen-game.active .tool-row');
+      const btns = [...document.querySelectorAll('.tool-row .btn-secondary')].filter(b => b.closest('#screen-game.active') || (b.closest('#game-tools') && b.getBoundingClientRect().width > 0)).map(b => ({ t: b.textContent.slice(0, 4), rect: rectOf(b), hit: (() => { const r = b.getBoundingClientRect(); const h = document.elementFromPoint(r.left + r.width / 2, Math.min(r.top + r.height / 2, innerHeight - 1)); return !!h && (h === b || b.contains(h)); })(), hitEl: (() => { const r = b.getBoundingClientRect(); const h = document.elementFromPoint(r.left + r.width / 2, Math.min(r.top + r.height / 2, innerHeight - 1)); return h ? (h.id ? '#' + h.id : h.tagName + '.' + String(h.className).slice(0, 30)) : 'null'; })() }));
+      const tb = (document.querySelector('#screen-game.active .tool-row') || (document.body.classList.contains('three3d') ? document.getElementById('game-tools') : null));
       return {
         tp: tp ? { ...rectOf(tp), pe: getComputedStyle(tp).pointerEvents, chr1: tp.style.getPropertyValue('--chr1'), tf: getComputedStyle(tp).transform, cls: tp.className } : null,
         ring: { w: grid.offsetWidth, h: grid.offsetHeight, rect: rectOf(grid) },
@@ -109,8 +113,9 @@ async function runViewport(tag, vw, vh, opts = {}) {
   if (!is3d) check(`[${tag}] 背影不盖内容区（顶边 ≥ 选卡/题面/押注下缘）`, !s.tp || s.tp.y >= s.contentB - 2 || s.contentB === 0, `tp.y=${Math.round(s.tp ? s.tp.y : 0)} contentB=${s.contentB} inline=${s.tpBottomInline} dbg=${JSON.stringify(s.tpDbg)}`);
   const others = s.cards.filter(c => !c.me);
   check(`[${tag}] 对手无一遮挡（脸=圆，圆心距 ≥ 半径和×0.92；包围盒角碰不算压脸）`, (() => {
-    for (let i = 0; i < others.length; i++) for (let j = i + 1; j < others.length; j++) {
-      const a = others[i].face, b = others[j].face;
+    const pool = is3d ? others.filter(c => c.vis === 'visible').map(c => c.name) : others.map(c => c.face);   // three3d：出画名牌被裁剪隐藏（设计行为），只测可见名牌
+    for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) {
+      const a = pool[i], b = pool[j];   // three3d：脸在 WebGL 里，可见身份标签=名牌，改测名牌两两间距
       const dx = (a.x + a.w / 2) - (b.x + b.w / 2), dy = (a.y + a.h / 2) - (b.y + b.h / 2);
       const dist = Math.hypot(dx, dy), rSum = (Math.min(a.w, a.h) + Math.min(b.w, b.h)) / 2;
       if (dist < rSum * 0.92) return false;   // 0.92：wrap 方盒略大于内切脸圆，留角部余量
@@ -128,17 +133,47 @@ async function runViewport(tag, vw, vh, opts = {}) {
     return true;
   })(), JSON.stringify(others.map(c => ({ pid: c.pid.slice(-4), f: c.face, n: c.name }))));
   if (vw >= 1024) {
-    const far = others.reduce((m, c) => c.face.w < m.face.w ? c : m, others[0]);
-    check(`[${tag}] 远座卡宽 ≥64px（6-7 人档；8+ 人允许分层缩一档）`, far.face.w >= (others.length <= 6 ? 64 : 54), `far=${Math.round(far.face.w)}px n=${others.length + 1}`);
+    const visOthers = others.filter(c => !is3d || c.vis === 'visible');   // three3d：出画名牌被裁剪隐藏（设计行为），不参与可辨识判定
+    if (visOthers.length) {
+      const far = visOthers.reduce((m, c) => c.face.w < m.face.w ? c : m, visOthers[0]);
+      check(`[${tag}] 远座卡宽 ≥64px（6-7 人档；8+ 人允许分层缩一档）`, far.face.w >= (others.length <= 6 ? 64 : 54), `far=${Math.round(far.face.w)}px n=${others.length + 1}`);
+    }
   if (!is3d) check(`[${tag}] 背影头顶不爬进对面座位带（低于环盒中点）`, s.tp.y >= s.ring.rect.y + s.ring.h * 0.55, `tp.y=${Math.round(s.tp.y)} ringMid=${Math.round(s.ring.rect.y + s.ring.h * 0.55)}`);
   }
   if (vw <= 600) {
   if (!is3d) check(`[${tag}] 竖屏背影 ≤40vw 宽且 ≤24vh 高（婷婷上限）`, s.tp.w <= vw * 0.4 + 2 && s.tp.h <= vh * 0.24 + 2, `w=${Math.round(s.tp.w)} h=${Math.round(s.tp.h)}`);
       // 口径：交互元素全部落在首屏；scrollHeight 的 +40 容差 = #app padding-bottom（非交互空白不算滚动）
     check(`[${tag}] 竖屏选卡不滚动（最后按钮底 ≤ vh 且 scrollHeight ≤ vh+40）`, s.lastBtnB <= vh + 1 && s.scrollH <= vh + 40, `lastBtn=${s.lastBtnB} scrollH=${s.scrollH}`);
-    const rowScrollable = await pages[0].evaluate(() => { const r = document.getElementById('game-tools'); return !!r && r.scrollWidth > r.clientWidth + 2; });
-    check(`[${tag}] 竖屏工具栏按钮在屏内且（命中或行内横滚可达）`, s.btns.length > 0 && s.btns.every(b => b.rect.b <= vh + 1) && (rowScrollable || s.btns.every(b => b.hit)),
-      JSON.stringify({ rowScrollable, b: s.btns.map(b => ({ t: b.t, b: Math.round(b.rect.b), hit: b.hit })) }));
+    // 窄屏 3D：工具收进 🧰 浮标（面板默认收起）；非 3D 回退层保持常驻横滚条 → 分叉断言
+    const fab = await pages[0].evaluate(() => {
+      const f = document.getElementById('tools-fab');
+      if (!f) return null;
+      const cs = getComputedStyle(f); const r = f.getBoundingClientRect();
+      const h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return { disp: cs.display, x: r.x, y: r.y, r: r.right, b: r.bottom, w: r.width, h: r.height, hit: !!h && (h === f || f.contains(h)) };
+    });
+    if (fab && fab.disp !== 'none' && fab.w > 0) {
+      check(`[${tag}] 竖屏工具 FAB 在屏内且可点`, fab.x >= -1 && fab.y >= -1 && fab.r <= s.innerW + 1 && fab.b <= s.innerH + 1 && fab.hit, JSON.stringify(fab));
+      await pages[0].evaluate(() => document.getElementById('tools-fab').click());   // 点开面板
+      await sleep(220);
+      const openState = await pages[0].evaluate(() => {
+        const panel = document.getElementById('game-tools');
+        const btns = [...panel.querySelectorAll('.btn-secondary')].filter(b => b.getBoundingClientRect().width > 0).map(b => {
+          const r = b.getBoundingClientRect();
+          const h = document.elementFromPoint(r.left + r.width / 2, Math.min(r.top + r.height / 2, innerHeight - 1));
+          return { t: b.textContent.slice(0, 4), b: Math.round(r.bottom), hit: !!h && (h === b || b.contains(h)) };
+        });
+        return { shown: getComputedStyle(panel).display !== 'none', rowScrollable: panel.scrollWidth > panel.clientWidth + 2, btns };
+      });
+      check(`[${tag}] 竖屏工具面板点开全量展示（无横滚、全部在屏内且可点）`, openState.shown && openState.btns.length > 0 && !openState.rowScrollable && openState.btns.every(b => b.b <= vh + 1) && openState.btns.every(b => b.hit),
+        JSON.stringify(openState));
+      await pages[0].evaluate(() => document.getElementById('tools-fab').click());   // 还原收起（不影响后续阶段量测）
+      await sleep(150);
+    } else {
+      const rowScrollable = await pages[0].evaluate(() => { const r = document.getElementById('game-tools'); return !!r && r.scrollWidth > r.clientWidth + 2; });
+      check(`[${tag}] 竖屏工具栏按钮在屏内且（命中或行内横滚可达）`, s.btns.length > 0 && s.btns.every(b => b.rect.b <= vh + 1) && (rowScrollable || s.btns.every(b => b.hit)),
+        JSON.stringify({ rowScrollable, b: s.btns.map(b => ({ t: b.t, b: Math.round(b.rect.b), hit: b.hit })) }));
+    }
   } else {
     check(`[${tag}] 工具栏按钮全部可点（elementFromPoint 命中）`, s.btns.length > 0 && s.btns.every(b => b.hit), JSON.stringify(s.btns.map(b => ({ t: b.t, hit: b.hit }))));
   }
@@ -151,7 +186,7 @@ async function runViewport(tag, vw, vh, opts = {}) {
     if (await p.evaluate(() => !!document.querySelector('#card-truth:not(.disabled)'))) { drawer = p; break; }
   }
   if (drawer) {
-    await drawer.click('#card-truth', { force: true });
+    await drawer.evaluate(() => document.getElementById('card-truth').click());   // three3d：DOM 选卡 pointer-events:none，坐标点击会落到 #cam；evaluate click 两种路径都触发绑定 handler
     await sleep(1300);
     s = await snapshot();
     check(`[${tag}] 抽卡阶段座次环在画`, s.ring.w > 50, `ringW=${s.ring.w}`);
@@ -162,7 +197,8 @@ async function runViewport(tag, vw, vh, opts = {}) {
     s = await snapshot();
   if (!is3d) check(`[${tag}] 揭晓牌桌常驻（stage-revealed + 环可见 + 背影在画）`, s.stageCls && s.ring.w > 50 && !!s.tp, `cls=${s.stageCls} ringW=${s.ring.w}`);
     check(`[${tag}] 揭晓桌子完整（环高与选卡档一致，不再压缩）`, Math.abs(s.ring.h - ringHChoosing) <= 2, `revealed=${s.ring.h} choosing=${ringHChoosing}`);
-    check(`[${tag}] 题面卡躺在台面上（rotateX 躺角生效）`, !!s.cardTf && s.cardTf !== 'none' && s.cardTf.split(',').length >= 14, String(s.cardTf).slice(0, 60));
+    if (!is3d) check(`[${tag}] 题面卡躺在台面上（rotateX 躺角生效）`, !!s.cardTf && s.cardTf !== 'none' && s.cardTf.split(',').length >= 14, String(s.cardTf).slice(0, 60));
+    else check(`[${tag}] 揭晓 3D 出卡（卡系统在场 + 画布全屏 + 人物齐）`, await pages[0].evaluate(() => { const cv = document.getElementById('three-canvas'); return !!window.__three && !!cv && Math.abs(cv.getBoundingClientRect().width - innerWidth) < 2 && window.__three.chars.size === (S.players || []).length; }), 'three3d card system');
     if (vw <= 600) {
       const visH = Math.min(s.tp.b, s.innerH) - Math.max(s.tp.y, 0);
       if (!is3d) check(`[${tag}] 揭晓背影可见高度 ≥40px（CSS 回退档）`, visH >= 40, `visH=${Math.round(visH)}`);

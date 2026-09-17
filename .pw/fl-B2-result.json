@@ -1,0 +1,65 @@
+{
+  "results": [
+    {
+      "id": "B6-host-reroll",
+      "op": "主持人换一题（host≠chooser，揭晓期点 #stage-actions 内换一题）",
+      "expect": "punishment 变化 seq+1 stage 仍 revealed 且按钮可见",
+      "actual": {
+        "rerollVis": true,
+        "changed": true,
+        "seq": [
+          6,
+          7
+        ],
+        "stage": "revealed"
+      },
+      "pass": true
+    },
+    {
+      "id": "B6b-reroll-texture",
+      "op": "换一题后 3D 题面是否重绘（>2%=重绘）",
+      "expect": "题面应更新",
+      "actual": {
+        "diffRatio": 0,
+        "domNow": "模仿在场你最不熟悉的人的说话方式"
+      },
+      "pass": false
+    },
+    {
+      "id": "B7c2-stake-labels",
+      "op": "加倍后（打字机完成+1.2s）按钮文案",
+      "expect": "完成啦含 +20、跳过含 −10、typewriter 完成",
+      "actual": {
+        "acc": "完成啦 ✅ +20",
+        "skip": "这题先跳过 −10",
+        "tw": true,
+        "stake": 2
+      },
+      "pass": true
+    },
+    {
+      "id": "A5b-flip-mid",
+      "op": "翻面中间态（.flipped 后 1.3s 内每 110ms 采样）",
+      "expect": "存在 ∈(−π,0) 的中间角度=有翻面动画",
+      "actual": {
+        "series": [
+          0,
+          -3.142,
+          -3.142,
+          -3.142,
+          -3.142,
+          -3.142,
+          -3.142,
+          -3.142,
+          -3.142,
+          -3.142,
+          -3.142,
+          -3.142
+        ],
+        "midCount": 0
+      },
+      "pass": false
+    }
+  ],
+  "errs": []
+}

@@ -126,7 +126,7 @@
     input[type="text"]:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(139,92,246,0.2); }
     .hint { font-size: 0.76rem; color: rgba(255,255,255,0.62); line-height: 1.5; }
     .mode-row { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: rgba(255,255,255,0.7); }
-    .mode-row input { accent-color: var(--primary); width: 15px; height: 15px; }
+    .mode-row input { accent-color: var(--primary); width: 16px; height: 16px; }
 
     .avatar-selector { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .avatar-option { width: 52px; height: 52px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; overflow: hidden; transition: all 0.3s; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-family: inherit; color: inherit; padding: 0; }
@@ -211,6 +211,7 @@
        border-radius 保留：它同时负责给不支持 clip-path 的老引擎兜底，两者取交叠，观感等价。 */
     .avatar-inner { width: 100%; height: 100%; border-radius: 50%; clip-path: circle(50%); overflow: hidden; background: var(--bg); position: relative; z-index: 1; transition: transform 0.09s linear; }
     .avatar-inner img { width: 100%; height: 100%; object-fit: cover; }
+    .avatar-emoji { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 1.7rem; line-height: 1; }
     .avatar-wrap { position: relative; }
     .me-tag { position: absolute; top: -4px; right: -8px; background: var(--primary); color: #fff; font-size: 0.6rem; font-weight: 700; padding: 1px 5px; border-radius: 6px; z-index: 2; }
     .host-tag { position: absolute; top: -6px; left: -10px; background: linear-gradient(135deg, #d97706, #fbbf24); color: #351f03; font-size: 0.58rem; font-weight: 800; padding: 1px 6px; border-radius: 8px; z-index: 3; box-shadow: 0 2px 8px rgba(245, 158, 11, 0.45); letter-spacing: 0.5px; }
@@ -445,11 +446,14 @@
        两行用 grid 逐列流式；两端 12px 渐隐 mask 示能「还能滑」。 */
     @media (max-width: 619px) {
       #avatar-selector { display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, auto);
-        grid-auto-columns: 52px; gap: 8px; justify-items: center; align-items: center;
+        grid-auto-columns: 48px; gap: 6px; justify-items: center; align-items: center;
         overflow-x: auto; overflow-y: hidden; padding: 2px 12px 6px 2px;
-        -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 14px), transparent 100%);
-        mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 14px), transparent 100%); }
-      #avatar-selector .avatar-option { width: 48px; height: 48px; }
+        -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 22px), transparent 100%);
+        mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 22px), transparent 100%); }
+      #avatar-selector .avatar-option { width: 44px; height: 44px; }
+      /* 走查 P1（2026-09-17）：390×844 下 CTA 底边压视口线、iOS 可视高 ~664 必折下——整列收紧把按钮收回首屏 */
+      #btn-join { padding: 12px 22px; font-size: 1.02rem; }
+      .join-box { padding: 16px 18px; }
     }
     /* 宽屏（≥760px）的加入页：左边表单 + 右边头像墙。单栏版在笔记本（高 720~900）会把
        「加入游戏」推到折线以下，还要滚动才能点；宽屏空着的右半边正好放下头像墙。
@@ -528,6 +532,58 @@
     details.adv { background: rgba(255,255,255,0.045); border: 1px solid var(--glass-border); border-radius: 14px; padding: 10px 14px; }
     details.adv summary { cursor: pointer; font-size: 0.82rem; color: rgba(255,255,255,0.68); font-weight: 700; }
     details.adv[open] summary { margin-bottom: 8px; }
+
+    /* ════════ Join 填表页精美化 v2（2026-09-17）：只动观感，id/结构/handler 全不动 ════════ */
+    .join-box { position: relative; border-radius: 28px; padding: 28px 30px 24px; gap: 15px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.026)), var(--glass);
+      border-color: rgba(255,255,255,0.15);
+      box-shadow: 0 26px 72px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.09), inset 0 -20px 46px rgba(139,92,246,0.1); }
+    .join-box::before { content: ''; position: absolute; top: 0; left: 26px; right: 26px; height: 1px; pointer-events: none;
+      background: linear-gradient(90deg, transparent, rgba(34,211,238,0.65), rgba(236,72,153,0.65), transparent); }
+    .join-box h2 { font-size: 1.72rem; letter-spacing: 3px; background: linear-gradient(120deg, #c4b5fd, #f9a8d4 46%, #67e8f9);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .join-box h2::after { content: ''; display: block; width: 58px; height: 3px; margin: 7px auto 0; border-radius: 2px;
+      background: linear-gradient(90deg, var(--primary), var(--accent-pink)); box-shadow: 0 0 14px rgba(236,72,153,0.55); }
+    .join-box .input-group > label { display: flex; align-items: center; gap: 7px; font-size: 0.76rem; font-weight: 700; letter-spacing: 1.5px; color: rgba(255,255,255,0.6); }
+    .join-box .input-group > label::before { content: ''; width: 5px; height: 5px; border-radius: 50%; flex: none;
+      background: linear-gradient(135deg, var(--primary), var(--accent-pink)); box-shadow: 0 0 8px rgba(139,92,246,0.8); }
+    .join-box input[type="text"] { padding: 13px 16px; border-radius: 14px; background: rgba(10,10,26,0.45);
+      border-color: rgba(255,255,255,0.13); box-shadow: inset 0 2px 10px rgba(0,0,0,0.28); }
+    .join-box input[type="text"]:focus { background: rgba(10,10,26,0.62); border-color: rgba(139,92,246,0.85);
+      box-shadow: 0 0 0 4px rgba(139,92,246,0.16), inset 0 2px 10px rgba(0,0,0,0.28); }
+    #input-room { font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase; }
+    #input-room::placeholder { font-weight: 500; letter-spacing: 0.2px; text-transform: none; color: rgba(255,255,255,0.32); }
+    #btn-join { align-self: stretch; padding: 15px 28px; font-size: 1.08rem; border-radius: 16px; letter-spacing: 5px; text-indent: 5px;
+      background: linear-gradient(120deg, #8b5cf6, #d946ef 52%, #ec4899);
+      box-shadow: 0 10px 32px rgba(139,92,246,0.42), inset 0 2px 0 rgba(255,255,255,0.28), inset 0 -10px 22px rgba(236,72,153,0.3);
+      position: relative; overflow: hidden; }
+    #btn-join::after { content: ''; position: absolute; top: 0; bottom: 0; left: -70%; width: 44%; pointer-events: none;
+      background: linear-gradient(105deg, transparent, rgba(255,255,255,0.38), transparent);
+      transform: skewX(-18deg); animation: cta-shine 3.4s cubic-bezier(.4,0,.2,1) infinite; }
+    @keyframes cta-shine { 0%, 60% { left: -70%; } 88%, 100% { left: 132%; } }
+    #btn-join:hover { transform: translateY(-2px); box-shadow: 0 16px 46px rgba(139,92,246,0.55), inset 0 2px 0 rgba(255,255,255,0.28), inset 0 -10px 22px rgba(236,72,153,0.3); }
+    #btn-join:active { transform: scale(0.98); }
+    .join-box .av-tabs { background: rgba(10,10,26,0.42); border: 1px solid rgba(255,255,255,0.1); border-radius: 999px; padding: 4px; gap: 4px; width: max-content; max-width: 100%; }
+    .join-box .av-tab { border: none; background: transparent; padding: 7px 15px; border-radius: 999px; }
+    .join-box .av-tab.sel { background: linear-gradient(135deg, var(--primary), var(--accent-pink)); border-color: transparent; box-shadow: 0 4px 14px rgba(139,92,246,0.4); }
+    .avatar-option { width: 54px; height: 54px; border-radius: 16px; background: rgba(255,255,255,0.08);
+      transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1), border-color 0.2s, box-shadow 0.2s; }
+    .avatar-option:hover { transform: translateY(-3px) scale(1.06); }
+    .avatar-option.selected { border-color: var(--accent-cyan); box-shadow: 0 0 0 3px rgba(34,211,238,0.32), 0 8px 20px rgba(34,211,238,0.22); }
+    .mini-opt { padding: 9px 16px; border-radius: 13px; background: rgba(10,10,26,0.4); border-color: rgba(255,255,255,0.12); }
+    .mini-opt:hover { transform: translateY(-1px); }
+    .mini-opt.sel { border-color: rgba(34,211,238,0.75); background: linear-gradient(135deg, rgba(34,211,238,0.16), rgba(139,92,246,0.15)); box-shadow: 0 6px 18px rgba(34,211,238,0.18); }
+    .join-box .howto-link { text-decoration: none; border: 1px solid rgba(255,255,255,0.14); border-radius: 999px; padding: 7px 16px; background: rgba(255,255,255,0.05); transition: background 0.2s, border-color 0.2s; }
+    .join-box .howto-link:hover { background: rgba(255,255,255,0.12); border-color: rgba(34,211,238,0.5); }
+    .join-box .hint { text-align: center; background: rgba(34,211,238,0.06); border: 1px solid rgba(34,211,238,0.16); border-radius: 12px; padding: 9px 14px; }
+    details.join-adv summary { list-style: none; display: flex; align-items: center; gap: 8px; }
+    details.join-adv summary::-webkit-details-marker { display: none; }
+    details.join-adv summary::before { content: '▸'; color: var(--accent-cyan); display: inline-block; transition: transform 0.25s; }
+    details.join-adv[open] summary::before { transform: rotate(90deg); }
+    @media (max-width: 760px) { .join-box { padding: 22px 18px; border-radius: 22px; } }
+    /* 新动画的静态退路（红线：REDUCED / 软渲 loperf 不跑循环动画） */
+    @media (prefers-reduced-motion: reduce) { #btn-join::after { animation: none !important; display: none; } }
+    body.loperf #btn-join::after { display: none; }
 
     /* ── 主持人可见元素 ── */
     .only-host { display: none !important; }
@@ -757,7 +813,7 @@
     /* ══════════ Three.js 真 3D 模式（body.three3d） ══════════
        WebGL 画布渲染房间/桌子/3D 人物（头像即人物的脸部贴图），DOM UI 叠加其上。
        仅在 WebGL 可用且非 loperf 时启用；loperf/不支持 → 自动回退上面的 CSS 3D 路径（零删码）。 */
-    #cam > #three-canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }   /* (2,0,0) 压过 #cam > :not(...) 通配的 relative z2 */
+    body > #three-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; display: block; }   /* body 层全屏：星空(#bg-canvas z0)之上、#app(z1) 之下；landforce 下 fixed 锚到被旋转的 body 盒=逻辑全屏 */
     body.three3d:not(.loperf) .table3d,
     body.three3d:not(.loperf) .table-edge,
     body.three3d:not(.loperf) .table-deck,
@@ -769,6 +825,43 @@
     body.three3d:not(.loperf) #game-players-grid .player-card .me-tag,
     body.three3d:not(.loperf) #game-players-grid .player-card .mic-badge,
     body.three3d:not(.loperf) #game-players-grid .player-card .wave { visibility: hidden; }
+    /* ── v8 优化轮：题面 3D 化/工具栏钉底/名牌流式排布（design-plan-3d-polish v3）── */
+    body.three3d:not(.loperf) #card-section { display: none !important; }
+    body.three3d:not(.loperf) .players-grid.ring3d::after { display: none; }   /* CSS 揭晓压暗罩是给 DOM 卡的：3D 里它会把题卡/名牌压暗一整层（逻辑终审 P1-4） */   /* 题面卡 3D 化：卡面在毡面上；动作按钮 reparent 到 body 层 #stage-actions */
+    body.three3d:not(.loperf) #choice-section .choice-card { opacity: 0.001; pointer-events: none; }   /* 禁 display:none：E2E force 点击需要盒子（有盒、可聚焦、真人不可见不可点） */
+    body.three3d:not(.loperf) #screen-game:not(.leaving) { position: relative; }   /* 阶段间锚定基准恒定（:not(.leaving) 必带——否则压掉 .screen.leaving 的 absolute，退场死） */
+    body.three3d:not(.loperf) #game-tools { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); margin: 0 !important; z-index: 40; width: min(96vw, 1100px); }   /* ≥768px 桌面：折行常驻（全部可点）；<768px 见下：收进 🧰 浮标 */
+    @media (max-width: 767px) {
+      /* 窄屏收纳：工具行不再常驻钉底（横滚藏按钮 + 挡桌面），改右下角 🧰 浮标点开玻璃面板——
+         wrap 全量展示不横滚；display 开合由 frame() 按 toolsOpen 写（CSS 不写 display，避免吃掉 JS 状态） */
+      body.three3d:not(.loperf) #game-tools {
+        left: auto; right: calc(env(safe-area-inset-right, 0px) + 10px); transform: none;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 66px);
+        width: max-content; max-width: min(92vw, 360px);
+        max-height: calc(100vh - 180px); overflow-y: auto; -webkit-overflow-scrolling: touch;
+        flex-wrap: wrap !important; justify-content: flex-end;
+        padding: 12px 14px; border-radius: 18px;
+        background: rgba(23,15,44,0.82); border: 1px solid rgba(139,92,246,0.42);
+        box-shadow: 0 14px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      }
+    }
+    body.three3d:not(.loperf) #game-tools > * { flex: 0 0 auto; white-space: nowrap; }   /* 子项不被压缩成竖条 */   /* 工具行钉底：四阶段同位，不随内容流漂移 */
+    /* 🧰 工具浮标（仅 three3d 窄屏；与右上角表情互动浮标同一「点开才展开」模式）：
+       无动画所以无需 REDUCED/loperf 退路；非 3D 路径没有此元素，CSS 回退层不受影响 */
+    #tools-fab { position: fixed; right: calc(env(safe-area-inset-right, 0px) + 12px); bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); width: 48px; height: 48px; border-radius: 50%; z-index: 41; display: none; align-items: center; justify-content: center; font-size: 21px; line-height: 1; padding: 0; cursor: pointer; color: #ddd6fe; border: 1px solid rgba(139,92,246,0.55); background: radial-gradient(circle at 32% 26%, rgba(139,92,246,0.5), rgba(12,10,28,0.94) 72%); box-shadow: 0 6px 20px rgba(0,0,0,0.42), 0 0 14px rgba(139,92,246,0.32); }
+    #tools-fab:active { transform: scale(0.93); }
+    #tools-fab:focus-visible { outline: 2px solid var(--accent-cyan, #22d3ee); outline-offset: 2px; }
+    body.three3d:not(.loperf) #stage-actions .card-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 0; }
+    body.three3d:not(.loperf) #stage-actions .btn-reroll { display: block; margin: 0; }   /* 行距由浮窗 flex gap 统一，不再用 margin 拍 */
+    body.three3d:not(.loperf) #game-players-grid .player-card .avatar-wrap { display: flex; flex-direction: column; align-items: center; gap: 3px; }   /* 名牌区改流式排布：徽章不再绝对定位互压（婷婷#6 胶囊叠罗汉） */
+    body.three3d:not(.loperf) #game-players-grid .player-card .avatar-wrap > span { position: static !important; transform: none !important; }
+    body.three3d:not(.loperf) #game-players-grid .player-card .player-name { font-size: 15px; max-width: 128px; }   /* min-width：远座名牌可辨识下限（远座卡宽 ≥64px 契约） */   /* 15px：躺着可读（落地后截图实测防媒体查询压回） */
+    @media (min-width: 768px) { body.three3d:not(.loperf) #game-players-grid .player-card .player-name { min-width: calc(96px / var(--rs)); } }   /* 缩放补偿：渲染宽恒 96px 不随座位 --rs 缩（远座卡宽 ≥64 契约）；竖屏不启用防互压 */
+    #stage-actions { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 64px); width: max-content; max-width: 96vw; z-index: 40; pointer-events: auto; text-align: center; padding: 14px 18px 16px; border-radius: 18px; display: flex; flex-direction: column; align-items: center; gap: 10px; background: rgba(23,15,44,0.78); border: 1px solid rgba(139,92,246,0.42); box-shadow: 0 14px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }   /* 初始隐藏由模块内联 style 控制（CSS 写 display:none 会吃掉 JS 的 display:''）；玻璃浮窗与押注面板同族，替代旧渐变贴条 */
+    #stage-actions .card-actions button { padding: 10px 20px; font-size: 0.92rem; border-radius: 13px; min-height: 42px; }   /* 承接 .card-front .card-actions button 尺寸（祖先链在 body 层失配）；浮窗里放大到主操作级 */
+    #stage-actions .btn-accept { box-shadow: 0 4px 18px rgba(34,197,94,0.35); }   /* 主操作微光，与 hover 呼应 */
+    #stage-actions .btn-reroll { border-style: solid; border-color: rgba(34,211,238,0.4); background: rgba(34,211,238,0.1); padding: 8px 16px; font-size: 0.85rem; border-radius: 12px; margin: 0; }   /* 换一题：虚线改实边幽灵键，与同排按钮同族 */
 
     /* 牌堆常驻桌心：桌上始终放着一叠牌（第三人称下读作「躺在台面上的牌堆」）。
        scale 0.72→0.8 + 静态 opacity：镜头拉远后的增重补偿，牌子不再读作幽灵卡（静态值，无动画）。 */
@@ -952,6 +1045,18 @@
       #screen-game.stage-revealed .bet-box { position: absolute; left: 10px; right: 10px; bottom: 56px; z-index: 40; }
       #screen-game.stage-revealed .tool-row { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
     }
+    /* three3d 押注浮窗（面板已上收 body>层，fixed 锚视口；与 #stage-actions 同一浮窗家族）。
+       旧 175px/absolute 档把面板顶进近景题卡正中=文字叠文字；现在贴工具行上方。
+       hidden 属性仍由 renderBetBox 管理（stage/revealAnim/身份门禁全在 JS） */
+    body.three3d:not(.loperf) > #bet-box {
+      position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 60px); width: min(96vw, 460px); z-index: 40;
+      background: rgba(23,15,44,0.82); border: 1px solid rgba(139,92,246,0.42); border-radius: 16px;
+      box-shadow: 0 14px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.08);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); padding: 12px 16px;
+    }
+    body.three3d:not(.loperf) > #bet-box .bet-q { margin: 0 0 2px; }
+    body.three3d:not(.loperf) > #bet-box .bet-note { margin: 2px 0 0; }
     /* 竖屏基础档：座次环 340→240（choosing 阶段的 79px 超屏由这里让位，不是只在揭晓）；
        工具行收单行横滚（4 行折行是竖屏超屏的大头） */
     @media (max-width: 600px) {
@@ -1017,6 +1122,37 @@
     .react-pop button:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 2px; }
     .react-rain { position: fixed; z-index: 1290; pointer-events: none; font-size: 1.7rem; animation: react-rise 2.4s ease-out forwards; }
     @keyframes react-rise { 0% { transform: translate3d(0, 0, 0) scale(0.6); opacity: 0; } 12% { opacity: 1; transform: translate3d(0, -16px, 0) scale(1.18); } 100% { transform: translate3d(var(--rdx, 0px), calc(var(--rh, 36vh) * -1), 0) scale(0.85) rotate(var(--rrot, 0deg)); opacity: 0; } }
+
+    /* 🥚 扔鸡蛋：瞄准态（十字准星+金圈提示可砸）与糊屏蛋液层（必须挂 body——#app perspective 是 fixed 后代包含块红线） */
+    #btn-egg.aim { border-color: rgba(251,191,36,0.85); color: #fde68a; box-shadow: 0 0 18px rgba(251,191,36,0.45); animation: egg-aim-pulse 1.1s ease-in-out infinite; }
+    @keyframes egg-aim-pulse { 50% { box-shadow: 0 0 30px rgba(251,191,36,0.7); } }
+    body.egg-aim #screen-game .player-card { cursor: crosshair; }
+    body.egg-aim #screen-game .player-card .avatar-ring::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 2px dashed rgba(251,191,36,0.75); opacity: 0.9; pointer-events: none; }
+    body.egg-aim.three3d:not(.loperf) #screen-game .player-card { outline: 2px dashed rgba(251,191,36,0.75); outline-offset: 3px; border-radius: 14px; }   /* three3d 下 avatar-ring 整体 visibility:hidden，金圈改描名牌本体 */
+    body.egg-aim #choice-section .choice-card { pointer-events: none; }   /* 瞄准态误触选卡不得烧掉回合（three3d 本就 pe:none，这里护 CSS 路径） */
+    .egg-splat { position: fixed; inset: 0; z-index: 1295; pointer-events: none; opacity: 1; transition: opacity 0.6s ease; }
+    .egg-splat.out { opacity: 0; }
+    .egg-splat i { position: absolute; display: block; pointer-events: none; }
+    /* 蛋清：不规则大 blob（多段 radial-gradient 画柔边，禁 filter:blur——paint-bound 红线） */
+    .egg-splat .blob { width: 46vmin; height: 34vmin; margin: -17vmin 0 0 -23vmin; animation: egg-splat-in 0.45s cubic-bezier(0.34,1.56,0.64,1) both;
+      border-radius: 46% 54% 52% 48% / 55% 48% 52% 45%;
+      background:
+        radial-gradient(closest-side at 38% 42%, rgba(255,255,255,0.98), rgba(255,255,255,0.92) 58%, rgba(255,255,255,0.0) 78%),
+        radial-gradient(closest-side at 66% 58%, rgba(255,251,240,0.95), rgba(255,251,240,0.0) 74%),
+        radial-gradient(closest-side at 55% 30%, rgba(255,255,255,0.9), rgba(255,255,255,0.0) 70%);
+      box-shadow: 0 0 34px rgba(255,255,255,0.28), inset 0 -6px 22px rgba(148,163,184,0.28); }
+    .egg-splat .yolk { width: 12.5vmin; height: 12.5vmin; margin: -6.2vmin 0 0 -6.2vmin; animation: egg-splat-in 0.5s 0.08s cubic-bezier(0.34,1.56,0.64,1) both;
+      border-radius: 50%; background: radial-gradient(closest-side at 40% 34%, #fff3b0, #fbbf24 58%, #f59e0b 88%);
+      box-shadow: 0 0 26px rgba(251,191,36,0.65), inset -2px -4px 8px rgba(180,83,9,0.45); }
+    .egg-splat .drip { top: -12px; width: 3.4vmin; height: 24vmin; animation: egg-drip 3.6s 0.35s ease-in both; border-radius: 2vmin;
+      background: linear-gradient(rgba(255,255,255,0.95), rgba(255,255,255,0.85) 70%, rgba(255,255,255,0.0)); }
+    .egg-splat .drip.d2 { height: 17vmin; animation-delay: 0.8s; }
+    @keyframes egg-splat-in { from { transform: scale(0.35); opacity: 0; } 62% { transform: scale(1.07); opacity: 1; } to { transform: scale(1); opacity: 1; } }
+    @keyframes egg-drip { from { transform: translateY(-4vmin) scaleY(0.5); } to { transform: translateY(52vh) scaleY(1.15); } }
+    @media (prefers-reduced-motion: reduce) { #btn-egg.aim { animation: none; } .egg-splat .blob, .egg-splat .yolk, .egg-splat .drip { animation: none !important; } .egg-splat .drip { display: none; } }
+    body.loperf #btn-egg.aim { animation: none; }
+    body.loperf .egg-splat .blob, body.loperf .egg-splat .yolk, body.loperf .egg-splat .drip { animation: none; }
+    body.loperf .egg-splat .drip { display: none; }
 
     /* ── 🎲 观众押注 ── */
     .bet-box { width: 100%; max-width: 460px; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 11px 14px; border-radius: 16px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); }
@@ -1123,9 +1259,9 @@
     body.landui #btn-land { position: static; grid-area: 1 / 3; justify-self: end; }
     body.landui #btn-land .land-txt { display: inline; }
     body.landui .screen { max-width: none; }
-    body.landui .tool-row { width: 100%; max-width: 100%; margin-left: auto; margin-right: auto; flex-wrap: nowrap !important; justify-content: flex-start !important; overflow-x: auto; gap: 6px !important; margin-top: 6px !important; padding-bottom: 2px; scrollbar-width: none; }
+    body.landui .tool-row { width: 100%; max-width: 100%; margin-left: auto; margin-right: auto; flex-wrap: nowrap !important; justify-content: flex-start !important; overflow-x: auto; gap: 4px !important; margin-top: 6px !important; padding-bottom: 2px; scrollbar-width: none; }
     body.landui .tool-row::-webkit-scrollbar { display: none; }
-    body.landui .tool-row .btn { font-size: 0.66rem !important; padding: 5px 6px !important; white-space: nowrap; flex: none; }
+    body.landui .tool-row .btn { font-size: 0.62rem !important; padding: 4px 5px !important; white-space: nowrap; flex: none; }   /* 0.62/4px/5px：12 颗按钮（含 🥚 扔鸡蛋）在 844 宽也要一行放下不横向溢出（verify/test-landscape 契约） */
 
     /* ── 加入页：左边表单 + 右边头像墙，导入题库当第三栏（收起时窄条，展开自宽） ── */
     body.landui #screen-join.active { display: flex; flex-direction: row; align-items: flex-start; justify-content: center; gap: 10px; }
@@ -1346,14 +1482,14 @@
           <button class="mini-opt" type="button" data-pack="office">🏢 办公室安全</button>
         </div>
       </div>
-      <details class="adv">
+      <details class="adv join-adv">
         <summary>高级选项</summary>
         <div class="mode-row">
           <input type="checkbox" id="chk-local" />
           <label for="chk-local">本地模式：不联网，只在同一台电脑这个浏览器的多个标签页之间联机（断网时会自动启用）</label>
         </div>
       </details>
-      <button class="btn btn-primary" id="btn-join" style="align-self:center">加入游戏 🎮</button>
+      <button class="btn btn-primary" id="btn-join">加入游戏 🎮</button>
       <button class="howto-link" id="btn-howto-join" type="button">❓ 怎么玩？3 秒看懂</button>
       <button class="howto-link" id="btn-donate" type="button" style="margin-top:-6px">☕ 喜欢的话，助力一下作者</button>
       <p class="hint">💡 朋友们各自打开这个游戏、输入同一个房间号，就能跨设备一起玩；每个人的抽卡动画全场同步。</p>
@@ -1440,7 +1576,7 @@
       </div>
       <div class="turn-info" id="turn-info"></div>
       <div class="players-grid ring3d" id="game-players-grid"></div>
-      <p class="pick-tip" id="pick-tip" hidden>🎯 点玩家头像即可指定 TA 玩这一轮，或按下方「🎲 随机点名」</p>
+      <p class="pick-tip" id="pick-tip" hidden>🎯 点玩家头像即可指定 TA 玩这一轮，或在工具面板里点「🎲 随机点名」</p>
       <div id="ghost-bar" style="display:none;flex-direction:column;align-items:center;gap:8px">
         <p class="wait-note" id="ghost-note" style="color:#fbbf24"></p>
         <button class="btn btn-secondary" id="btn-ghost-skip" style="padding:9px 18px;font-size:0.88rem">⏭ 替 TA 跳过本轮</button>
@@ -1508,6 +1644,7 @@
       <button class="btn btn-secondary mic-btn js-mic-btn" id="btn-mic-game" style="font-size:0.8rem;padding:6px 14px"><span class="mic-meter"><i></i><i></i><i></i></span>🎙️ <span class="mic-label">连麦</span></button>
       <button class="btn btn-secondary listen-btn js-listen-btn" id="btn-listen-game" style="font-size:0.8rem;padding:6px 14px" title="不点连麦也能听到开麦的人；这里只关自己听到的声音">🔊 <span class="listen-label">收听</span></button>
       <button class="btn btn-secondary" id="btn-stats" style="font-size:0.8rem;padding:6px 14px">📊 战况</button>
+      <button class="btn btn-secondary" id="btn-egg" style="font-size:0.8rem;padding:6px 14px" title="🥚 扔鸡蛋：点我进入瞄准，再点一位玩家的名牌扔过去（完成挑战赢鸡蛋，开局每人 1 颗）">🥚 <span id="egg-left">1</span></button>
       <button class="btn btn-secondary js-sfx-btn" id="btn-sfx-game" style="font-size:0.8rem;padding:6px 14px" title="本机音效开关">🔊 音效</button>
       <button class="btn btn-secondary js-bgm-btn" id="btn-bgm-game" style="font-size:0.8rem;padding:6px 14px" title="本机背景音乐开关">🎵 背景音乐</button>
       <button class="btn btn-secondary only-host" id="btn-settings-game" style="font-size:0.8rem;padding:6px 14px">⚙️ 设置 · 题库</button>
@@ -1901,7 +2038,9 @@ function typewriter(el, text, speed = 30, done) {
 }
 
 function avatarImgHtml(p) {
-  return `<img src="${esc(resolveAvatar(p.avatar))}" alt="" data-fallback />`;
+  const a = resolveAvatar(p.avatar);
+  if (a && !/^(data:|blob:|https?:)/i.test(a)) return `<span class="avatar-emoji">${esc(a)}</span>`;   // emoji 头像走文本：<img src="🐵"> 会向服务器发请求 404
+  return `<img src="${esc(a)}" alt="" data-fallback />`;
 }
 
 // 虚拟角色的「衣服」配色：同一玩家在所有端永远同色（按 id 哈希出两档色）
@@ -2127,7 +2266,15 @@ class RoomLink {
   }
   async open() {
     this.statusCb('connecting', '');
-    await Promise.all(BROKERS.map(url => this._dial(url)));   // 并行拨号，比逐台试错快且不会被单台卡住的 5s 拖死
+    // 入场门禁只等「第一台拨通」：Promise.all 等的是最慢一台落定，被墙/挂掉的 broker 会吃满
+    // 5s 超时，把所有人的进房速度拖到它的水平——旧注释宣称「不会被单台卡住」，实际恰恰相反。
+    // 没拨完的两台留在后台继续（_dialing 防 keeper 重复拨）；晚到链路 _wire 时读最新 cbs，
+    // retained 照常重投，三台各持一份房间状态的不变式由 keeper 补齐。
+    const allSettled = Promise.all(BROKERS.map(url => this._dial(url)));
+    await Promise.race([
+      (async () => { while (!this.alive && !this._closing) await sleep(50); })(),   // 第一台活 → 立刻放行
+      allSettled,   // 全部落定仍无一存活 → 走本地兜底
+    ]);
     if (!this.alive) return this._fallbackLocal('所有在线服务器不可用，已切换到本地模式（同浏览器多标签）');
     await sleep(400);   // 稍等 retained 消息送达
     this.kind = 'mqtt';
@@ -2356,6 +2503,7 @@ function normState(s) {
     if (typeof p.dare !== 'number') p.dare = 0;
     if (typeof p.score !== 'number') p.score = 0;
     if (typeof p.passes !== 'number') p.passes = PASSES_PER_GAME;
+    if (typeof p.eggs !== 'number') p.eggs = 1;   // 🥚 鸡蛋库存（开局每人 1 颗；0 是合法值，不会被这里重置）
     if (typeof p.combo !== 'number') p.combo = 0;   // 🔥 连击计数（旧文档补齐，全员同值）
   }
   if (!s.hostId || !s.players.some(p => p.id === s.hostId)) {
@@ -2443,6 +2591,24 @@ function hideLoading() {
   // 加载层收起＝过场的一段：揭幕 260ms 里旧屏在画面中央独处（pan-out from 帧），新屏在 +S 视口外
   // 一像素不入画；280ms（> 揭幕）后两面动画与镜头偏头一瞥才一起起扫——「一定要等加载完成之后再扫过去」。
   if (pendingSceneEnter) { const p = pendingSceneEnter; pendingSceneEnter = null; if (p.prev) { armPan(p.prev, p.name, 280); SFX.play(p.name === 'result' ? 'win' : 'whoosh'); } armDepth(p.back, 280); playSceneEnter(p.name, p.back, 280); }
+}
+
+// 等加载效果播完再揭幕（用户点名：填房号进房太快，「没等加载效果完毕房间就进了」）。
+// 两道门：① 至少看满 minMs（一整轮 2.4s 翻牌，从点「加入」起算）；② 对齐到翻牌 CSS 动画
+// 循环回到 0% 帧（正面朝上）那一拍——揭幕读作「这张卡抽完了」。误差 80ms 内视为已对齐，
+// 免得多睡一整轮。REDUCED/loperf 把 loader 动画关掉时 getAnimations 为空，只剩时长门。
+const LOADER_FLIP_MS = 2400;
+async function waitLoaderDone(minMs, t0) {
+  const o = $('loading-overlay');
+  if (!o || o._hid) return;
+  const left = minMs - (Date.now() - t0);
+  if (left > 0) await sleep(left);
+  const card = o.querySelector('.loader-card');
+  const anims = card && card.getAnimations ? card.getAnimations() : [];
+  const cur = anims.length ? anims[0].currentTime : null;
+  if (cur == null) return;
+  const into = Math.round(Number(cur)) % LOADER_FLIP_MS;
+  if (into > 80) await sleep(LOADER_FLIP_MS - into);
 }
 
 // 修改状态：先本地应用（保证发起端无回显的本地模式也同步生效），再发布
@@ -2552,6 +2718,7 @@ function myPlayerTemplate() {
     id: myId, name: myName, avatar: myAvatar, joinedAt: myJoinedAt, lastSeen: Date.now(),
     skips: r.skips || 0, draws: r.draws || 0, truth: r.truth || 0, dare: r.dare || 0,
     score: r.score || 0, passes: r.passes == null ? PASSES_PER_GAME : r.passes, micOn: r.micOn || false,
+    eggs: r.eggs == null ? 1 : r.eggs,   // 🥚 重连回房鸡蛋不重置（随 myRecord 整对象快照保住）
     micListen: r.micListen == null ? !!MIC.listen : !!r.micListen,
   };
 }
@@ -2654,6 +2821,7 @@ function renderScreen() {
     else { const t3 = $('table3d'); if (t3) t3.classList.remove('lit'); }
   }
   updateReactBar();
+  updateEggUi();
   if (name === 'lobby') renderLobby();
   if (name === 'game') renderGameStatic();
   if (name === 'result') renderResult();
@@ -2687,7 +2855,7 @@ function renderPlayers(gridId, showActive) {
       }
       // 虚拟世界：新到者才有「入座」动画——从桌心走到自己座位；其余人只换座位（CSS 过渡）
       if (gridId === 'game-players-grid' && !keepIds.includes(p.id)) card.classList.add('chr-in');
-      if (gridId === 'game-players-grid') card.addEventListener('click', () => hostPickPlayer(p.id));
+      if (gridId === 'game-players-grid') card.addEventListener('click', () => { if (eggAim) throwEgg(p.id); else hostPickPlayer(p.id); });
       card.innerHTML = `
         <div class="avatar-wrap">
           <span class="wave w1"></span><span class="wave w2"></span>
@@ -2992,7 +3160,7 @@ function renderGameStatic() {
       $('choice-hint').textContent = '麦克风开放，谁先点谁先抽～';
       setChoiceEnabled(true);
     } else if (chooserId === myId) { $('turn-info').textContent = '🎭 轮到你了！'; $('choice-hint').textContent = S.turn.stake === 2 ? '🔥 加倍挑战已开启：完成 +20 / 跳过 −10' : '选择一项：'; setChoiceEnabled(true); }
-    else { $('turn-info').textContent = `轮到「${chooser?.name || '???'}」了`; $('choice-hint').textContent = '等待对方选择...'; setChoiceEnabled(false); }
+    else { $('turn-info').textContent = `轮到「${chooser?.name || '???'}」了`; $('choice-hint').textContent = '等待对方选择...'; setChoiceEnabled(false); } if (document.body.classList.contains('three3d')) $('choice-hint').style.visibility = $('pick-tip').hidden ? '' : 'hidden';   // P1-7：与主持人点名提示互斥（同屏叠字）
   } else if (stage === 'drawing') {
     if (cardDealt) return;   // 牌已飞向中央：中途任何重渲染都不该把画面拽回卡堆
     syncStageRevealed(false);
@@ -3304,7 +3472,13 @@ async function runStage(stage) {
     const fresh = performance.now() - (Cam.enteredAt || 0) < 1300;
     if (!fresh) Cam.home(420);
     const seat = activeCard && activeCard.closest('.player-card');
-    if (seat) stageTimers.push(setTimeout(() => Cam.nudge(seat), fresh ? 1240 : 460));
+    if (seat) {
+      // 慢帧率竞态修复：glance 第二段(320ms)收尾若被 rAF 饥饿拖过 1240ms，nudge 的 token 会把
+      // 它当场作废——done 回调不触发，rx 永远冻在进场前的值（headless/低端机实测 0.000）。
+      // 等 Cam 空闲再 nudge：编排语义不变（仍是「glance 落定→滑向持麦人」两段接力）。
+      const nudgeWhenFree = () => { if (Cam.busy || Cam.raf) stageTimers.push(setTimeout(nudgeWhenFree, 120)); else Cam.nudge(seat); };
+      stageTimers.push(setTimeout(nudgeWhenFree, fresh ? 1240 : 460));
+    }
     return;
   }
   if (stage === 'drawing') {
@@ -3492,8 +3666,9 @@ async function playReveal() {
         revealAnim = false;   // 动画谢幕，后续心跳重渲染直接画终态即可
         renderGameStatic();   // 补一次同步绘制：turn-info/按钮状态不能等到下一次心跳才更新
         playSurpriseFx();     // 🎁 1/5 概率开出惊喜卡（确定性：同题同 seq 全场同结论）
-        const r = $('card-section').getBoundingClientRect();
-        burst(r.left + r.width / 2, r.top + r.height / 2);
+        const o3 = (document.body.classList.contains('three3d') && window.__three && window.__three.tableCenterScreen) ? window.__three.tableCenterScreen() : null;
+        if (o3) burst(o3.x, o3.y + Math.min(140, window.innerHeight * 0.16), 18);   // three3d：卡面 rect 全零，炸点改桌心投影南移+减量（揭晓近景里彩带不穿题面）
+        else { const r = $('card-section').getBoundingClientRect(); burst(r.left + r.width / 2, r.top + r.height / 2); }
         stageTimers.push(setTimeout(() => {   // 🎁 角标最后入列：答案读完了，彩头才上桌
           surpriseTagHold = false;
           paintSurprise('revealed');
@@ -3504,7 +3679,19 @@ async function playReveal() {
 }
 
 // 相机聚焦（世界层缓推；3D 姿态由各屏的静态机位叠加）
-function focusCam(el) { Cam.focus(el, { push: 1.05, dur: 950 }); }
+// three3d 下牌堆 DOM 藏进 GL（.table-deck display:none）→ rect 全零会让 Cam.focus 早退，
+// 抽卡推镜静默死亡（选卡 nudge 若先被 clearStageTimers 清掉，z 永远停在 -56 宽景机位）。
+// 目标不可量测时推镜语义照走：不做 x/y 偏移（GL 里没有可量锚点），只做聚焦档 z/s dolly（-20/+1.05 与 Cam.focus 同参）。
+function focusCam(el) {
+  const r = el && el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+  if (r && !r.width && !r.height && typeof THREE !== 'undefined' && document.body.classList.contains('three3d') && !REDUCED) {
+    const b = Cam.baseOf(Cam.curScreen);
+    Cam.lastFocus = el; Cam.lastFocusPush = 1.05;
+    Cam.to({ x: b.x, y: b.y, z: b.z - 20, s: b.s * 1.05 }, 950, 'dolly');
+    return;
+  }
+  Cam.focus(el, { push: 1.05, dur: 950 });
+}
 function resetCam(instant) { if (instant) Cam.jump(Cam.baseOf(Cam.curScreen)); else Cam.home(750); }
 
 // ───────────────────────────── 趣味互动：音效 / 表情雨 / 加倍 / 限时 / 命运转盘 ─────────────────────────────
@@ -3555,6 +3742,20 @@ const SFX = {
     o.connect(g); g.connect(this.master);
     o.start(t0); o.stop(t0 + dur + 0.04);
   },
+  noise(dur, vol = 0.4, delay = 0, cutoff = 1200) {   // 白噪声脉冲（低通截频+线性衰减包络）：溅/碎/砸类质感，振荡器做不像
+    const c = this.ctx, t0 = c.currentTime + delay;
+    const len = Math.max(1, Math.floor(c.sampleRate * dur));
+    const buf = c.createBuffer(1, len, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = c.createBufferSource(); src.buffer = buf;
+    const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cutoff;
+    const g = c.createGain();
+    g.gain.setValueAtTime(Math.max(0.001, vol), t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(f); f.connect(g); g.connect(this.master);
+    src.start(t0); src.stop(t0 + dur + 0.02);
+  },
   play(name) {
     if (!this.on || !this.ctx || this.ctx.state === 'closed') return;
     try {
@@ -3570,6 +3771,8 @@ const SFX = {
       else if (name === 'draw') { this.tone(280, 0.3, 'triangle', 0.42, 880); this.tone(960, 0.18, 'sine', 0.28, 1520, 0.16); }
       else if (name === 'spark') [880, 1174, 1568].forEach((f, i) => this.tone(f, 0.16, 'sine', 0.32, 0, i * 0.05));
       else if (name === 'react') this.tone(560 + Math.random() * 420, 0.12, 'sine', 0.38);
+      else if (name === 'pop') this.tone(620 + Math.random() * 160, 0.1, 'sine', 0.5, 1320);   // 表情气泡弹出（3D 小人头顶）：短促上滑啵
+      else if (name === 'splat') { this.tone(150, 0.2, 'sine', 0.7, 70); this.tone(520, 0.09, 'triangle', 0.28, 190, 0.03); this.noise(0.22, 0.5, 0, 900); }   // 🥚 蛋砸屏幕：闷响+啪+溅开噪声
     } catch {}
   },
   toggle() {
@@ -3756,10 +3959,12 @@ function sendReact(e) {
   const now = Date.now();
   if (now - reactLast < 320) return;   // 防刷屏：同一人 320ms 一颗
   reactLast = now;
-  link.publishReact({ id: myId, e, mid: genId(), t: now });
-  spawnReact(e, myId + now);
+  const msg = { id: myId, e, mid: genId(), t: now };
+  link.publishReact(msg);
+  onReact(msg);   // 本机即时演 + 预登记 mid：MQTT broker 会把 publish 回投给发布者，同 mid 被 REACT_SEEN 去重（本地模式无自回声恰好演一次）
 }
 function onReact(m) {
+  if (m && m.egg) { onEggMsg(m); return; }   // 🥚 扔鸡蛋复用 react 即发即忘频道（独立 mid 去重，见 onEggMsg）
   if (!m || !REACT_SET.includes(m.e)) return;
   const now = Date.now();
   if (now - (m.t || 0) > 5000) return;   // 本地模式 retained 回放的旧表情不补放
@@ -3768,9 +3973,18 @@ function onReact(m) {
     REACT_SEEN.set(m.mid, now);
     if (REACT_SEEN.size > 160) REACT_SEEN.delete(REACT_SEEN.keys().next().value);
   }
-  spawnReact(m.e, String(m.id || '') + (m.mid || ''));
+  spawnReact(m.e, String(m.id || '') + (m.mid || ''), m.id);
 }
-function spawnReact(e, seed) {
+function spawnReact(e, seed, pid) {
+  // 牌桌 3D：表情改挂到发送者 3D 小人头顶（表情包气泡，用户点名「右上角的特效改为3d小人的表情包显示」）；
+  // 大厅没有 3D 小人、loperf/无 WebGL 回退层没有 chars —— 这两种情形继续走 DOM 表情雨
+  if (pid) {
+    let bubbled = false;
+    try {
+      bubbled = !!(document.body.classList.contains('three3d') && window.__three && window.__three.reactBubble && window.__three.reactBubble(pid, e));
+    } catch (err) {}
+    if (bubbled) { SFX.play('pop'); return; }   // 气泡路径也要有声（此前提前 return 把 react 音吞了——用户点名「发表情要音效」）
+  }
   const wrap = $('burst-container');
   if (!wrap) return;
   const live = wrap.querySelectorAll('.react-rain');
@@ -3809,6 +4023,91 @@ function setReactDock(open) {
   if (open) REACT_DOCK.timer = setTimeout(() => setReactDock(false), 9000);   // 没人动就自己收起来
 }
 function armReactDockClose(ms = 1500) { clearTimeout(REACT_DOCK.timer); REACT_DOCK.timer = setTimeout(() => setReactDock(false), ms); }
+
+// ───────────────────────── 🥚 扔鸡蛋（2026-09-17 用户点名） ─────────────────────────
+// 库存：开局每人 1 颗（normState 缺省/startGame 重置），完成挑战 +1（closeTurn，上限 9）；
+// 投掷：🥚 按钮进入瞄准 → 点目标名牌 → mutate 扣蛋 + react 频道广播（即发即忘，mid 去重 + 5s 时效，不撑状态包）；
+// 表现：全场看 3D 飞蛋弧线；被砸端蛋「前半程看不见、临头才显形」，糊屏蛋液由 .egg-splat DOM 层承接几秒
+const EGG_SEEN = new Map();
+let eggAim = false, eggAimTimer = 0;
+function eggsOf(p) { return p && typeof p.eggs === 'number' ? p.eggs : 1; }
+function updateEggUi() {
+  const n = $('egg-left');
+  if (n) n.textContent = String(eggsOf(me()));
+}
+function setEggAim(on) {
+  eggAim = !!on;
+  document.body.classList.toggle('egg-aim', eggAim);
+  const b = $('btn-egg');
+  if (b) b.classList.toggle('aim', eggAim);
+  clearTimeout(eggAimTimer);
+  if (eggAim) {
+    eggAimTimer = setTimeout(() => setEggAim(false), 9000);   // 瞄准没人点就自己收（与 react 浮窗同一习惯）
+    toast('🥚 点一位玩家的名牌扔过去（再点 🥚 取消）');
+  }
+}
+let eggLastThrow = 0;
+async function throwEgg(pid) {
+  if (!joined || !S || !link || currentScreen() !== 'game') return;
+  const now0 = Date.now();
+  if (now0 - eggLastThrow < 1500) return;   // 冷却：防双击误触连发（满 9 颗时可对同一人叠出连续糊屏）
+  const target = S.players.find(p => p.id === pid);
+  if (!target) return;
+  if (pid === myId) { toast('🥚 不能砸自己呀'); return; }
+  if (eggsOf(me()) <= 0) { toast('鸡蛋用完了，完成挑战赢一颗', 'error'); setEggAim(false); return; }
+  let ok = false;
+  await mutate(n => {
+    const p = n.players.find(x => x.id === myId);
+    if (!p || eggsOf(p) <= 0) return;   // 并发防御：状态回来那一刻蛋可能已被自己上一击用掉
+    p.eggs = eggsOf(p) - 1;
+    ok = true;
+  });
+  if (!ok) { toast('鸡蛋用完了，完成挑战赢一颗', 'error'); setEggAim(false); return; }
+  setEggAim(false);
+  eggLastThrow = Date.now();
+  const now = Date.now();
+  const msg = { egg: 1, from: myId, to: pid, mid: genId(), t: now };
+  try { link.publishReact(msg); } catch (e) {}
+  onEggMsg(msg);   // 本机即时演 + 预登记同一个 mid：MQTT 回声（broker 把 publish 回投发布者）被 EGG_SEEN 去重，投掷者不会看到双份飞蛋；whoosh/splat 由 playEggFx 全场统一播
+}
+function onEggMsg(m) {
+  const now = Date.now();
+  if (!m || now - (m.t || 0) > 5000) return;
+  if (m.mid) {
+    if (EGG_SEEN.has(m.mid)) return;
+    EGG_SEEN.set(m.mid, now);
+    if (EGG_SEEN.size > 80) EGG_SEEN.delete(EGG_SEEN.keys().next().value);
+  }
+  playEggFx(m);
+}
+function playEggFx(m) {
+  const isMe = m.to === myId;
+  SFX.play('whoosh');   // 出手呼啸全场都听（本机=投掷即响，对端=收到广播那刻起飞）
+  let handled = false;
+  try { handled = !!(window.__three && window.__three.eggFx && window.__three.eggFx(m.from, m.to, isMe)); } catch (e) {}
+  const impact = handled ? 1150 : 900;   // 3D 飞蛋 1.15s 落地；无 3D 退路：被砸端「过一会」蛋液才冒出来
+  setTimeout(() => SFX.play('splat'), impact);
+  if (isMe) setTimeout(() => {
+    showEggSplat(String(m.mid || Math.random()));
+    try { Cam.shake(5, 260); } catch (e) {}   // 砸中本机镜头：轻震一下，糊屏更「命中」（用户点名优化被砸碎效果）
+  }, impact);
+}
+function showEggSplat(seed) {
+  if (document.querySelector('.egg-splat[data-seed="' + seed + '"]')) return;
+  const el = document.createElement('div');
+  el.className = 'egg-splat';
+  el.dataset.seed = seed;
+  let h = 0; const s = String(seed);
+  for (let i = 0; i < s.length; i++) h = (h * 33 + s.charCodeAt(i)) >>> 0;
+  const cx = 50 + (h % 24) - 12, cy = 34 + ((h >> 6) % 18) - 9;   // 糊在屏幕中上部，每颗蛋落点略有不同
+  el.innerHTML = '<i class="blob" style="left:' + cx + '%;top:' + cy + '%"></i>' +
+    '<i class="yolk" style="left:' + (cx + 2.5) + '%;top:' + (cy + 3.5) + '%"></i>' +
+    '<i class="drip d1" style="left:' + (cx - 6) + '%"></i>' +
+    '<i class="drip d2" style="left:' + (cx + 7) + '%"></i>';
+  document.body.appendChild(el);
+  setTimeout(() => el.classList.add('out'), 4200);
+  setTimeout(() => el.remove(), 5000);
+}
 
 // 命运转盘：主持人随机点名时，光点沿座次环跑动减速，镜头跟着扫一圈（只在本机演，状态由 designate 落地）
 async function spinPick() {
@@ -4191,6 +4490,7 @@ function closeTurn(n, actorId, opts) {
   if (opts.accepted && p) {
     p.combo = Math.min(9, (p.combo || 0) + 1);   // 🔥 连击：连续完成（不计分，纯荣誉）
     if (n.scoring !== false) p.score = (p.score || 0) + SCORE_ACCEPT * k;
+    p.eggs = Math.min(9, eggsOf(p) + 1);   // 🥚 完成挑战=赢家，赢一颗鸡蛋（上限 9 防状态包膨胀）
   }
   settleBets(n, opts.skipped ? 'skip' : 'accept');   // 🎲 押注结算（无押注则零开销）
   if (n.turn) n.turn.stake = 1;
@@ -4275,7 +4575,7 @@ async function startGame() {
     n.turnIndex = Math.floor(Math.random() * n.players.length);
     n.stats = { truth: 0, dare: 0, skips: 0, rounds: 0 };
     n.recent = { truth: [], dare: [] };
-    for (const p of n.players) { p.skips = 0; p.draws = 0; p.truth = 0; p.dare = 0; p.score = 0; p.passes = PASSES_PER_GAME; p.combo = 0; }
+    for (const p of n.players) { p.skips = 0; p.draws = 0; p.truth = 0; p.dare = 0; p.score = 0; p.passes = PASSES_PER_GAME; p.combo = 0; p.eggs = 1; }
     n.turn.stage = 'choosing';
     n.turn.stake = 1;
     // 轮流制随机先手；自由对决开局即开放麦克风
@@ -4464,6 +4764,7 @@ async function doJoin(name, avatar, roomInput, forceLocal) {
   const btn = $('btn-join');
   btn.disabled = true; btn.textContent = '连接中...';
   setNet('syncing', '连接中...');
+  const loadT0 = Date.now();   // 加载时长门以「点加入」为起点：成功的进房至少播完一整轮加载效果
   showLoading(creating ? '🃏 创建房间...' : '🃏 进入房间...');
 
   link = new RoomLink(room);
@@ -4496,8 +4797,22 @@ async function doJoin(name, avatar, roomInput, forceLocal) {
 
   // 等待房间当前状态（retained）到达
   setLoadingText('🔍 同步房间状态...');
-  const waitUntil = Date.now() + (creating ? 1800 : 3200);
+  // 创建：5 位随机房号（31^5≈2860 万），这段等待只为「撞上已有房间」的检测——订阅后首台
+  // broker 的 retained 重投几百 ms 内必到，1000ms 足够（旧值 1800ms 是纯固定开销）；
+  // 加入：retained 是「房间存在」的唯一证据，窗口保持 3200ms 不动（sawState 到了就提前走）
+  const waitUntil = Date.now() + (creating ? 1000 : 3200);
   while (!sawState && Date.now() < waitUntil) await sleep(150);
+
+  if (!creating && !sawState) {
+    // 门禁提前放行后,房间的唯一活副本可能还压在没连上的那台 broker 上(两台设备可达集
+    // 不对称分区)。宣判「房间不存在」前先全量重拨 + 重订阅(retained 会重投),再补看 1.5s——
+    // 只在本来就要失败的路径上多花时间,顺风路径零开销
+    setLoadingText('🔍 再确认一次房间...');
+    await link.retryNow();
+    link.resubscribe();
+    const t2 = Date.now() + 1500;
+    while (!sawState && Date.now() < t2) await sleep(150);
+  }
 
   if (!creating && !sawState) {
     link.close(); link = null;
@@ -4578,6 +4893,10 @@ async function doJoin(name, avatar, roomInput, forceLocal) {
     await mutate(n => { if (!n.players.some(p => p.id === myId)) n.players.push(myPlayer()); });
   }
 
+  setLoadingText('✅ 就绪...');
+  // 按钮解禁必须排在 await 之后：等待揭幕期间按钮保持禁用，否则 input-name 上的 Enter
+  // （keydown→btn-join.click）会重入 doJoin，掐掉活链路并以新 myId 再坐一个「自己」
+  await waitLoaderDone(LOADER_FLIP_MS, loadT0);   // 房间数据就绪 ≠ 揭幕：等加载效果播完这拍再进
   btn.disabled = false; btn.textContent = '加入游戏 🎮';
   hideLoading();
   renderScreen();
@@ -5888,6 +6207,7 @@ document.querySelectorAll('.js-listen-btn').forEach(b => b.addEventListener('cli
 $('btn-accept').addEventListener('click', () => finishTurn(false));
 $('btn-skip').addEventListener('click', () => finishTurn(true));
 $('btn-pass').addEventListener('click', usePass);
+$('btn-egg').addEventListener('click', () => setEggAim(!eggAim));
 $('btn-reroll').addEventListener('click', hostReroll);
 $('btn-ghost-skip').addEventListener('click', ghostSkip);
 $('btn-stats').addEventListener('click', openStatsModal);
@@ -5900,7 +6220,7 @@ $('bet-skip').addEventListener('click', () => placeBet('skip'));
 $('react-fab').addEventListener('click', () => { setReactDock(!reactDockOpen()); SFX.play('tick'); });
 $('react-bar').querySelectorAll('button[data-react]').forEach(b => b.addEventListener('click', () => { sendReact(b.dataset.react); armReactDockClose(1400); }));
 document.addEventListener('pointerdown', e => { if (!e.target.closest('#react-bar')) setReactDock(false); }, true);   // 点屏幕任意处收起
-document.addEventListener('keydown', e => { if (e.key === 'Escape') setReactDock(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { setReactDock(false); if (eggAim) setEggAim(false); } });
 document.querySelectorAll('.js-sfx-btn').forEach(b => b.addEventListener('click', () => SFX.toggle()));
 $('btn-sfx-guide').addEventListener('click', () => SFX.toggle());
 document.querySelectorAll('.js-bgm-btn').forEach(b => b.addEventListener('click', () => BGM.toggle()));
@@ -6072,6 +6392,7 @@ const bootTimer = setInterval(() => {
 }, 340);
 setTimeout(() => {
   clearInterval(bootTimer);
+  if (link || rejoinName) return;   // doJoin 已接管（或 1350ms 后即将接管）加载层与网络条，boot 揭幕不许半路拆台（_hid 置真会废掉时长门并中途闪掉加载层）
   hideLoading();
   setNet('', (urlRoom || rejoinName) ? '待加入' : '未连接');
 }, 1200);
@@ -6086,11 +6407,16 @@ setTimeout(() => {
 
 </script>
 <script>
-/* ══════════ Three.js 真 3D 场景（第三人称牌桌，body.three3d） ══════════
-   混合架构：WebGL 画布（#three-canvas，#cam 最底层）渲染房间/桌子/3D 人物——
-   人物头戴玩家头像（CircleGeometry 脸贴图）；DOM UI（HUD/名牌/选卡/题面/押注）叠加其上。
-   一镜到底相机：挂 Cam.apply 钩子，Cam.cur 姿态实时映射 three 相机——既有运镜编排零改动复用。
-   门禁：THREE 存在 + WebGL 可用才启用（body.three3d）；loperf/页面隐藏自动不渲染，回退 CSS 路径。 */
+/* ══════════ Three.js 真 3D 场景（第三人称牌桌，body.three3d）v8 ══════════
+   混合架构：WebGL 画布（body 层全屏，#bg-canvas 之上 #app 之下）渲染房间/桌子/牌堆/3D 人物与桌上卡；
+   DOM UI（HUD/名牌/选卡按钮/押注）叠加其上。一镜到底相机：挂 Cam.apply 钩子 + 竖屏后撤 + 揭晓近景 overlay。
+   v8（2026-09-16 优化轮，设计/评审档案 .pw/design-plan-3d-polish.md v3 + review-3d-polish-*.md）：
+   · 全屏化修「裁剪」；loperf 翻转 → retire3D() 完整退役修「混合怪象」；dpr 动态封顶保帧预算
+   · 头像脸盘出球面（修「头像没映射」真因：脸盘原陷在头球内被深度剔除）；cover 裁剪 + sRGB
+   · 抽卡/出卡全程在桌面：走位→飞卡→远边枢轴翻面→题面 CanvasTexture 躺毡面；选卡双卡上桌 raycast
+   · 揭晓近景机位（GL 独占 overlay，题干落屏 ≥16px）；名牌 offset 链修「贴错人」
+   · 光有源（吊灯）+影落地（事件驱动阴影）+雾融地板；ACES+sRGB
+   门禁：THREE 存在 + WebGL 可用才启用（body.three3d）；loperf → retire3D 全量还原 CSS 路径。 */
 (function () {
   'use strict';
   if (typeof THREE === 'undefined') return;
@@ -6098,76 +6424,323 @@ setTimeout(() => {
     const t = document.createElement('canvas');
     if (!(t.getContext('webgl') || t.getContext('experimental-webgl'))) return;
   } catch (e) { return; }
-  if (document.body.classList.contains('loperf')) return;   // 省电档维持 CSS 路径
+  if (document.body.classList.contains('loperf')) return;   // 省电档维持 CSS 路径（boot 期判定）
 
-  document.body.classList.add('three3d');   // 激活 three3d 门控 CSS（隐藏 CSS 桌面/背影，画布接管）
-  const camEl = document.getElementById('cam');
+  const IS_REDUCED = (typeof REDUCED !== 'undefined') && !!REDUCED;   // boot 快照，禁 live 监听（全文件同模式）
+  let retired = false;
+
+  // ── 画布：body 层全屏（#bg-canvas z0 之上、#app z1 之下），landforce 下 fixed 锚到被旋转的 body 盒=逻辑全屏 ──
+  document.body.classList.add('three3d');
   const canvas = document.createElement('canvas');
   canvas.id = 'three-canvas';
-  camEl.insertBefore(canvas, camEl.firstChild);
+  document.body.appendChild(canvas);
 
   let renderer;
   try { renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true }); }
-  catch (e) { return; }
+  catch (e) { canvas.remove(); document.body.classList.remove('three3d'); return; }
   renderer.setClearColor(0x000000, 0);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.autoUpdate = false;   // 事件驱动：座次/阶段变化或走位中才重绘阴影（稳态零阴影 pass）
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(46, 2, 0.1, 80);
+  scene.fog = new THREE.FogExp2(0x0a0a1a, 0.042);   // 远缘融进 CSS 星空（色=--bg，禁自选）
+  const camera = new THREE.PerspectiveCamera(46, 2, 0.1, 120);
+  const maxAniso = renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 1;
+  const V = new THREE.Vector3();
+  const V2 = new THREE.Vector3();
+
   function size() {
-    const w = camEl.clientWidth || 1, h = camEl.clientHeight || 1;
+    // 只量画布自身（fixed 全屏；禁 window.innerWidth——landforce 旋转下物理/逻辑互换必错）
+    const w = canvas.clientWidth || 1, h = canvas.clientHeight || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.6, Math.sqrt(2.3e6 / Math.max(1, w * h)));
+    renderer.setPixelRatio(dpr);
     renderer.setSize(w, h, false);
     camera.aspect = w / h; camera.updateProjectionMatrix();
   }
   size();
   window.addEventListener('resize', size);
 
-  // ── 灯光：桌面吊灯（暖）+ 环境 + 冷色补光 ──
-  scene.add(new THREE.AmbientLight(0x8890c0, 0.9));
-  const lamp = new THREE.PointLight(0xffe2b8, 1.15, 20); lamp.position.set(0, 4.4, 0); scene.add(lamp);
-  const fill = new THREE.DirectionalLight(0x88aaff, 0.32); fill.position.set(-4, 3, 6); scene.add(fill);
+  // ── 灯光：可见吊灯=唯一光源叙事；阴影平行光与吊灯自洽（影短投向右后、永不向镜头）；冷补光只作「我」的缘光 ──
+  const hemi = new THREE.HemisphereLight(0x7078b8, 0x2a1840, 0.7); scene.add(hemi);
+  const lamp = new THREE.PointLight(0xffd9a8, 1.25, 9); lamp.position.set(0, 2.58, 0); scene.add(lamp);
+  const sun = new THREE.DirectionalLight(0xffedd0, 0.8);
+  sun.position.set(-1.7, 6.0, 1.3); sun.castShadow = true;
+  sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.camera.left = -4.5; sun.shadow.camera.right = 4.5;
+  sun.shadow.camera.top = 4.5; sun.shadow.camera.bottom = -4.5;
+  sun.shadow.camera.near = 2; sun.shadow.camera.far = 12;
+  sun.shadow.bias = -0.0002; sun.shadow.normalBias = 0.02;
+  scene.add(sun); scene.add(sun.target);
+  const fill = new THREE.DirectionalLight(0x88aaff, 0.24); fill.position.set(-4, 3, 6); scene.add(fill);
+  function shadowDirty() { renderer.shadowMap.needsUpdate = true; }
 
+  // ── 房间：大圆地板（雾融掉硬边）+ 桌下织物地毯圆 ──
   const MAT = (c, r) => new THREE.MeshStandardMaterial({ color: c, roughness: r });
-  // ── 地面 ──
-  const floor = new THREE.Mesh(new THREE.CircleGeometry(10, 48), MAT(0x110a24, 0.95));
-  floor.rotation.x = -Math.PI / 2; scene.add(floor);
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(48, 48), MAT(0x110a24, 0.95));
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+  const rug = new THREE.Mesh(new THREE.CircleGeometry(3.4, 40), MAT(0x181030, 0.95));
+  rug.rotation.x = -Math.PI / 2; rug.position.y = 0.005; rug.receiveShadow = true; scene.add(rug);
 
-  // ── 桌子：桌面 + 毡面 + 围边 + 单柱脚；桌心牌堆 ──
+  // ── 桌子：桌面 + 毡面（细噪纹理）+ 围边 + 单柱脚 ──
   const TABLE_R = 2.05, TABLE_H = 0.92, SEAT_R = TABLE_R + 0.66;
+  const FELT_Y = TABLE_H + 0.05;
+  const feltTex = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const g = c.getContext('2d');
+    g.fillStyle = '#808080'; g.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 2600; i++) {
+      const v = 128 + ((Math.random() * 20 - 10) | 0);
+      g.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')';
+      g.fillRect((Math.random() * 256) | 0, (Math.random() * 256) | 0, 1, 1);
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(5, 5);
+    t.encoding = THREE.sRGBEncoding; t.anisotropy = maxAniso;
+    return t;
+  })();
+  const feltMat = new THREE.MeshStandardMaterial({ color: 0x4c2a8f, roughness: 0.95, map: feltTex });
   const table = new THREE.Group();
   const top = new THREE.Mesh(new THREE.CylinderGeometry(TABLE_R + 0.26, TABLE_R + 0.26, 0.09, 44), MAT(0x2a1548, 0.6));
-  top.position.y = TABLE_H;
-  const felt = new THREE.Mesh(new THREE.CircleGeometry(TABLE_R, 44), MAT(0x4c2a8f, 0.95));
-  felt.rotation.x = -Math.PI / 2; felt.position.y = TABLE_H + 0.05;
+  top.position.y = TABLE_H; top.castShadow = true; top.receiveShadow = true;
+  const felt = new THREE.Mesh(new THREE.CircleGeometry(TABLE_R, 44), feltMat);
+  felt.rotation.x = -Math.PI / 2; felt.position.y = FELT_Y; felt.receiveShadow = true;
   const rim = new THREE.Mesh(new THREE.TorusGeometry(TABLE_R + 0.1, 0.09, 10, 44), MAT(0x1c0e33, 0.5));
-  rim.rotation.x = Math.PI / 2; rim.position.y = TABLE_H;
+  rim.rotation.x = Math.PI / 2; rim.position.y = TABLE_H; rim.castShadow = true;
   const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, TABLE_H - 0.04, 18), MAT(0x1c0e33, 0.55));
   leg.position.y = (TABLE_H - 0.04) / 2;
   const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.86, 0.07, 24), MAT(0x150826, 0.6));
-  foot.position.y = 0.035;
+  foot.position.y = 0.035; foot.receiveShadow = true;
   table.add(top, felt, rim, leg, foot);
   scene.add(table);
+
+  // ── 可见吊灯：吊线 + 灯罩（内壁自发光）+ 灯泡；点光挂罩内。罩摆 ±1.2°，光源位置恒定 ──
+  const lampG = new THREE.Group();
+  const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 3.3, 6), MAT(0x0d0620, 0.9));
+  cord.position.y = 4.42;
+  const shade = new THREE.Mesh(
+    new THREE.ConeGeometry(0.30, 0.26, 24, 1, true),
+    new THREE.MeshStandardMaterial({ color: 0x1c0e33, roughness: 0.6, emissive: 0xffd9a8, emissiveIntensity: 0.9, side: THREE.DoubleSide })
+  );
+  shade.position.y = 2.62;
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.07, 14, 10), new THREE.MeshBasicMaterial({ color: 0xffe9c4 }));
+  bulb.position.y = 2.55;
+  lampG.add(cord, shade, bulb);
+  scene.add(lampG);
+
+  // ── 牌堆：挪位 (1.12, ·, 0.60) 给飞卡让出落点（评审 3.6 穿模修复）；牌背纹理与 DOM 牌背同语言 ──
+  const DECK_POS = new THREE.Vector3(1.12, FELT_Y, 0.60);
+  const backTex = (() => {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 512;
+    const g = c.getContext('2d');
+    const gr = g.createLinearGradient(0, 0, 256, 512);
+    gr.addColorStop(0, '#8b5cf6'); gr.addColorStop(1, '#f472b6');
+    g.fillStyle = gr; g.fillRect(0, 0, 256, 512);
+    g.strokeStyle = 'rgba(255,255,255,0.3)'; g.lineWidth = 8; g.strokeRect(4, 4, 248, 504);
+    g.setLineDash([10, 8]); g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 3;
+    g.strokeRect(14, 21, 228, 470);
+    g.setLineDash([]);
+    g.fillStyle = 'rgba(255,255,255,0.92)';
+    g.font = '700 92px "ZCOOL KuaiLe", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('♠', 128, 200); g.fillText('♥', 128, 330);
+    const t = new THREE.CanvasTexture(c);
+    t.encoding = THREE.sRGBEncoding; t.anisotropy = maxAniso;
+    t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;   // NPOT 免疫 WebGL1 强制 resize
+    return t;
+  })();
   const deck = new THREE.Group();
-  const dk1 = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.05, 0.64), MAT(0x6d3ae0, 0.4)); dk1.rotation.y = 0.12;
-  const dk2 = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.05, 0.64), MAT(0x8b5cf6, 0.4)); dk2.rotation.y = -0.08; dk2.position.y = 0.05;
-  deck.add(dk1, dk2); deck.position.set(0.1, TABLE_H + 0.09, 0.1);
+  for (let i = 0; i < 5; i++) {
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.012, 0.64), [
+      MAT(0x7c3aed, 0.6), MAT(0x7c3aed, 0.6),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, map: backTex }),
+      MAT(0x7c3aed, 0.6), MAT(0x7c3aed, 0.6), MAT(0x7c3aed, 0.6),
+    ]);
+    slab.rotation.y = (Math.random() * 2 - 1) * 0.06;
+    slab.position.set(0, 0.006 + i * 0.012, 0);
+    slab.castShadow = true;
+    deck.add(slab);
+  }
+  deck.position.copy(DECK_POS);
   scene.add(deck);
 
-  // ── 3D 人物：凳 + 身体（chrHue 身份色）+ 头 + 头像脸盘（戴头像）──
+  // ── 桌上卡系统：飞卡（deck→桌心北）→ 牌背脉动 → 远边枢轴翻面 → 题面躺毡面；选卡双卡平贴毡面 ──
+  const CARD_W = 0.46, CARD_L = 0.64, CARD_T = 0.012;
+  const REST = new THREE.Vector3(0, FELT_Y, -0.64);                               // 抽出的卡歇身处（桌心偏北）
+  const PIVOT = new THREE.Vector3(0, FELT_Y + CARD_T / 2, REST.z - CARD_L / 2);   // 翻面枢轴=远边中点
+  function rr(g, x, y, w, h, r) {
+    g.beginPath();
+    g.moveTo(x + r, y);
+    g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r);
+    g.closePath();
+  }
+  function cardTex(w, h, draw) {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    draw(c.getContext('2d'), w, h);
+    const t = new THREE.CanvasTexture(c);
+    t.encoding = THREE.sRGBEncoding; t.anisotropy = maxAniso;
+    t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
+    return t;
+  }
+  // 题面纹理：单实例复用，回合级重绘一次（评审豁免条款：禁逐帧、禁每回合新建、禁翻到一半才画）
+  const qCanvas = document.createElement('canvas'); qCanvas.width = 512; qCanvas.height = 1024;
+  const qTex = new THREE.CanvasTexture(qCanvas);
+  qTex.encoding = THREE.sRGBEncoding; qTex.anisotropy = maxAniso;
+  qTex.minFilter = THREE.LinearFilter; qTex.generateMipmaps = false;
+  qTex.repeat.set(1, 680 / 1024); qTex.offset.set(0, 1 - 680 / 1024);   // 只采样上部内容区：卡面下段不再带空白黑带
+  try { if (document.fonts && document.fonts.load) document.fonts.load('700 44px "ZCOOL KuaiLe"'); } catch (e) {}   // 提热，落时兜底 sans-serif
+  function avCanvasOf(ch) {   // 已栅格化的 256px 头像 canvas（SVG/emoji 同源同修）
+    const e = ch && texCache.get(ch.id);
+    const img = e && e.tex && e.tex.image;
+    return (img && img.width) ? img : null;
+  }
+  function drawQuestion(truth, name, text, avatarCanvas) {
+    const g = qCanvas.getContext('2d');
+    g.fillStyle = '#2d1a4a'; g.fillRect(0, 0, 512, 1024);
+    g.fillStyle = 'rgba(255,255,255,0.07)'; g.fillRect(10, 10, 492, 660);
+    const label = truth ? '💬 真心话' : '🎯 大冒险';
+    g.font = '700 30px "ZCOOL KuaiLe", sans-serif';
+    const bw = g.measureText(label).width + 56;
+    g.fillStyle = truth ? '#3b82f6' : '#f97316';
+    rr(g, (512 - bw) / 2, 44, bw, 56, 28); g.fill();
+    g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(label, 256, 73);
+    let by = 160;
+    if (avatarCanvas) {   // 直接复用 syncPlayers 栅格化好的 256px 头像 canvas（SVG 同源同修）
+      g.save(); g.beginPath(); g.arc(256, by, 28, 0, Math.PI * 2); g.clip();
+      g.drawImage(avatarCanvas, 228, by - 28, 56, 56);
+      g.restore();
+      by += 64;
+    }
+    g.fillStyle = 'rgba(255,255,255,0.75)';
+    g.font = '700 28px "ZCOOL KuaiLe", sans-serif';
+    g.fillText('「' + (name || '???') + '」抽到的题', 256, by);
+    let fs = 60;
+    const wrap = (size) => {
+      g.font = '700 ' + size + 'px "ZCOOL KuaiLe", sans-serif';
+      const lines = []; let line = '';
+      for (const chb of String(text || '')) {
+        if (g.measureText(line + chb).width > 424) { lines.push(line); line = chb; if (lines.length > 5) return null; }
+        else line += chb;
+      }
+      if (line) lines.push(line);
+      return lines;
+    };
+    let lines = wrap(fs);
+    while (lines === null && fs > 40) { fs -= 6; lines = wrap(fs); }
+    g.fillStyle = '#fff';
+    g.font = '700 ' + fs + 'px "ZCOOL KuaiLe", sans-serif';
+    const lh = Math.round(fs * 1.42);
+    const y0 = 400 - (Math.max(1, lines.length) - 1) * lh / 2;
+    (lines || ['']).forEach((ln, i) => g.fillText(ln, 256, y0 + i * lh));
+    g.fillStyle = 'rgba(255,255,255,0.35)';
+    g.font = '700 24px "ZCOOL KuaiLe", sans-serif';
+    g.fillText('— 真心话大冒险 —', 256, 620);
+    qTex.needsUpdate = true;
+  }
+  const sideMat = MAT(0x7c3aed, 0.6);
+  function cardMesh(w, l, mats) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, CARD_T, l), mats);
+    m.castShadow = true;
+    return m;
+  }
+  // 抽出的卡：枢轴组（远边）+ 卡体；+y 面=牌背，−y 面=题面（翻面后朝上）
+  const flipG = new THREE.Group();
+  flipG.position.copy(PIVOT);
+  const actionCard = cardMesh(CARD_W, CARD_L, [
+    sideMat, sideMat,
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, map: backTex }),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.55, map: qTex, emissive: 0xffffff, emissiveMap: qTex, emissiveIntensity: 0.85 }),   // 自发光：题面文字暗房间可读（婷婷硬5）
+    sideMat, sideMat,
+  ]);
+  actionCard.position.set(0, 0, CARD_L / 2);
+  actionCard.visible = false;   // 停选阶段不显示（待抽时它就是牌堆本体）
+  flipG.add(actionCard);
+  scene.add(flipG);
+  // 选卡双卡：x=±0.78 平贴毡面（±0.62 的内缝与「我」躯干同宽会穿帮——评审 3.5）；枢轴=各自远边
+  function choiceTexture(truth) {
+    return cardTex(512, 1024, (g) => {
+      g.fillStyle = truth ? '#1d4ed8' : '#c2410c';
+      g.fillRect(0, 0, 512, 1024);
+      g.strokeStyle = 'rgba(255,255,255,0.4)'; g.lineWidth = 10; g.strokeRect(16, 16, 480, 992);
+      g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.font = '400 150px sans-serif';
+      g.fillText(truth ? '💬' : '🎯', 256, 330);
+      g.font = '700 116px "ZCOOL KuaiLe", sans-serif';
+      g.fillText(truth ? '真心话' : '大冒险', 256, 590);
+      g.fillStyle = 'rgba(255,255,255,0.55)';
+      g.font = '700 34px "ZCOOL KuaiLe", sans-serif';
+      g.fillText(truth ? '说实话的机会' : '接受小惩罚', 256, 700);
+    });
+  }
+  function choiceCard(x, truth) {
+    const g = new THREE.Group();
+    g.position.set(x, FELT_Y + CARD_T / 2, -0.12 - 0.42);   // 枢轴在远边，卡体向近侧伸出
+    const side = MAT(truth ? 0x1e40af : 0x9a3412, 0.6);
+    const faceMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, map: choiceTexture(truth), transparent: true });
+    const mats = [side.clone(), side.clone(), faceMat, side.clone(), side.clone(), side.clone()];
+    mats.forEach(mm => { mm.transparent = true; });   // 六面都透：压暗时侧缘同步（opacity 是 uniform，禁 needsUpdate）
+    const m = cardMesh(0.60, 0.84, mats);
+    m.position.set(0, 0, 0.42);
+    g.add(m);
+    scene.add(g);
+    return { group: g, mesh: m, pick: 0, pickTarget: 0, hov: 0, press: 0, flash: 0 };
+  }
+  const cTruth = choiceCard(-0.78, true), cDare = choiceCard(0.78, false);
+  const CARD_LOOK = new THREE.Vector3(0, FELT_Y + 0.05, REST.z - CARD_L);   // 翻面后卡心实际在 -1.28（远边枢轴北移一个卡长），取景对齐它
+  const REVEAL_POS = new THREE.Vector3(CARD_LOOK.x - 0.9, CARD_LOOK.y + 2.08, CARD_LOOK.z + 1.14);   // 到卡 ≈2.5、仰角 56°；实测吊灯/两端人物离轴 ≥36° 出画（-1.25/3.45/0.15 变体会把吊灯带成 430px 大球）   // 到卡 ≈2.85、仰角 59°；西侧出「我」巨头画外，抽卡人头肩留在框内同框
+
+  // ── 3D 人物：凳 + 身体（chrHue 身份色）+ 头 + 头像脸盘（球面外，自亮不受光衰）──
   const chars = new Map();
   const texCache = new Map();
-  window.__three = { scene, camera, chars };   // 调试句柄
+  // 摸牌走位参数：停点圈半径 = 桌缘外一站位（围边外缘 2.24 + 人体半径留量）；
+  // 前倾上限 0.38rad 与该半径联算是「上身越台面高度带时仍在围边之外」的几何前提，别单边调
+  const WALK_R = TABLE_R + 0.57, LEAN_MAX = 0.38;
+  window.__three = { scene, camera, chars };   // 调试句柄（位置铁律：chars 声明之后；只许追加访问器）
+  window.__three.tableCenterScreen = function () {   // 桌心上方 → 物理屏坐标（彩带炸点/探针用）
+    if (retired || !document.getElementById('screen-game').classList.contains('active')) return null;
+    V.set(0, TABLE_H + 0.35, 0).project(camera);
+    const r = canvas.getBoundingClientRect();
+    return { x: (V.x + 1) / 2 * r.width + r.left, y: (1 - (V.y + 1) / 2) * r.height + r.top };
+  };
   function chrColor(id, l) { const c = new THREE.Color(); try { c.setStyle('hsl(' + chrHue(id) + ', 66%, ' + l + '%)'); } catch (e) { c.set(0x8b5cf6); } return c; }
+  function circleMask(g) {   // 圆角方章蒙版（squircle）：只削四角小弧，满幅头像几乎完整（drawQuestion 的圆裁剪不受影响）。
+    g.globalCompositeOperation = 'destination-in';   // 旧圆形蒙版 + cover 裁中心会把头像四周整圈削掉（用户点名「头像被裁剪」真因）。
+    g.beginPath();   // 四周留 5px 透明蚀刻边：脸贴片 r0.225 比头球 0.2 大，满幅不透明时侧座斜视角会在头轮廓外露出彩色月牙边
+    if (g.roundRect) g.roundRect(5, 5, 246, 246, 76); else g.rect(5, 5, 246, 246);
+    g.fill();
+    g.globalCompositeOperation = 'source-over';
+  }
   function avatarTexture(pid, uri) {
     let e = texCache.get(pid);
     if (e && e.uri === uri) return e.tex;
     const tex = new THREE.Texture();
+    tex.encoding = THREE.sRGBEncoding; tex.anisotropy = maxAniso;
+    if (!uri || !/^(data:|blob:|https?:)/i.test(uri)) {   // emoji 头像：直接画字，不发网络请求（img.src='🐵' 会被当成相对 URL 打到服务器上 404）
+      const c0 = document.createElement('canvas'); c0.width = c0.height = 256;
+      const g0 = c0.getContext('2d');
+      g0.fillStyle = '#241235'; g0.fillRect(0, 0, 256, 256);
+      g0.font = '170px sans-serif'; g0.textAlign = 'center'; g0.textBaseline = 'middle';
+      g0.fillText(String(uri).slice(0, 4), 128, 132);
+      circleMask(g0);
+      tex.image = c0; tex.needsUpdate = true;
+      e = { uri, tex }; texCache.set(pid, e);
+      return e.tex;
+    }
     const img = new Image();
     img.onload = () => {
-      const c = document.createElement('canvas'); c.width = c.height = 160;
+      const c = document.createElement('canvas'); c.width = c.height = 256;
       const g = c.getContext('2d');
-      g.fillStyle = '#241235'; g.fillRect(0, 0, 160, 160);
-      try { g.drawImage(img, 0, 0, 160, 160); } catch (err) {}
+      g.fillStyle = '#241235'; g.fillRect(0, 0, 256, 256);
+      try {
+        const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+        if (!iw || !ih) { g.drawImage(img, 0, 0, 256, 256); }   // SVG 无固有尺寸：整图拉伸（矢量无损）
+        else { const s = Math.min(256 / iw, 256 / ih); g.drawImage(img, (256 - iw * s) / 2, (256 - ih * s) / 2, iw * s, ih * s); }   // contain：整张图入画，一张不裁
+      } catch (err) { try { g.drawImage(img, 0, 0, 256, 256); } catch (e2) {} }
+      circleMask(g);
       tex.image = c; tex.needsUpdate = true;
     };
     img.src = uri;
@@ -6178,119 +6751,877 @@ setTimeout(() => {
     const g = new THREE.Group();
     const c1 = chrColor(p.id, 60), c2 = chrColor(p.id, 34);
     const stool = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.34, 0.1, 12), MAT(0x1c0e33, 0.6));
-    stool.position.y = 0.44;
+    stool.position.y = 0.44; stool.castShadow = true;
+    // lean 组 = 髋部枢轴（y0.52）：摸牌前倾时上半身（躯干/胸/头/脸/发）整体探出，chest/head 不再留在原位脱节
+    const lean = new THREE.Group();
+    lean.position.y = 0.52;
     const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.27, 0.62, 14), MAT(c2, 0.75));
-    torso.position.y = 0.82;
+    torso.position.y = 0.30; torso.castShadow = true;
     const chest = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.195, 0.16, 14), MAT(c1, 0.7));
-    chest.position.y = 1.03;
+    chest.position.y = 0.51; chest.castShadow = true;
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 20, 14), MAT(0xe8b98c, 0.65));
-    head.position.y = 1.33;
-    const face = new THREE.Mesh(new THREE.CircleGeometry(0.17, 24), new THREE.MeshBasicMaterial({ transparent: true }));
-    face.position.set(0, 1.33, 0.168);
+    head.position.y = 0.81; head.castShadow = true;
+    // 脸盘 = 头球同心球面贴片（r0.215，整体在头球 0.2 / 发壳 0.207 之外）：v8 的平贴片斜视角下
+    // 视差错动半个头宽（用户实测「头像偏移/被裁剪」真因，z0.195→0.21 治不了）；曲面任何方位角都贴头。
+    // 贴片矩形角对应头像画布四角（画布 squircle 蒙版见 circleMask）；r 曾 0.225，满幅蒙版下侧座
+    // 斜视角会在头轮廓外露出彩色月牙边 → 收到 0.215 + 蒙版 5px 蚀刻边双保险（2026-09-17 走查 P1）
+    const face = new THREE.Mesh(
+      new THREE.SphereGeometry(0.215, 20, 14, Math.PI / 2 - 0.7, 1.4, Math.PI / 2 - 0.7, 1.4),
+      new THREE.MeshBasicMaterial({ transparent: true, alphaTest: 0.5 })
+    );
+    face.position.set(0, 0.81, 0);
     const hair = new THREE.Mesh(new THREE.SphereGeometry(0.207, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), MAT(c1, 0.8));
-    hair.position.y = 1.345;
-    g.add(stool, torso, chest, head, face, hair);
-    g.userData = { pid: p.id, torso, chest, head, face, hair, phase: Math.random() * 6.28, voice: 0, lean: 0 };
+    hair.position.y = 0.825;
+    lean.add(torso, chest, head, face, hair);
+    g.add(stool, lean);
+    g.userData = { pid: p.id, torso, chest, head, face, hair, lean, phase: Math.random() * 6.28, voice: 0, go: 0, cheer: 0, waveT: 0, seat: new THREE.Vector3(), baseRotY: 0 };
+    scene.add(g);
     return g;
   }
   function syncPlayers() {
-    if (typeof S === 'undefined' || !S || !S.players || !document.getElementById('screen-game').classList.contains('active')) { window.__syncLog = (window.__syncLog || []).concat([['skip', typeof S === 'undefined' ? 'noS' : (S ? 'players=' + (S.players || []).length : 'S=null')]]).slice(-6); return; }
+    if (typeof S === 'undefined' || !S || !S.players || !document.getElementById('screen-game').classList.contains('active')) return;
     const seen = new Set();
+    let changed = false;
     for (const p of S.players) {
       seen.add(p.id);
       let ch = chars.get(p.id);
-      if (!ch) { ch = buildChar(p); chars.set(p.id, ch); scene.add(ch); }
+      if (!ch) { ch = buildChar(p); chars.set(p.id, ch); changed = true; }
+      const u = ch.userData;
       const aCss = (window.__seatAngleByPid || {})[p.id];
       if (aCss != null) {
         const a3 = aCss - Math.PI;
-        ch.position.set(Math.sin(a3) * SEAT_R, 0, Math.cos(a3) * SEAT_R);
-        ch.rotation.y = Math.atan2(-ch.position.x, -ch.position.z);
+        // 只写基座数据；transform 由帧循环独占合成（走位/回座不被节询拽回）
+        u.seat.set(Math.sin(a3) * SEAT_R, 0, Math.cos(a3) * SEAT_R);
+        u.baseRotY = Math.atan2(-u.seat.x, -u.seat.z);
       }
       const uri = resolveAvatar(p.avatar);
       if (uri) {
         const tex = avatarTexture(p.id, uri);
-        const f = ch.userData;
-        if (f.face.material.map !== tex) { f.face.material.map = tex; f.face.material.needsUpdate = true; }
+        if (u.face.material.map !== tex) { u.face.material.map = tex; u.face.material.needsUpdate = true; }
       }
     }
-    for (const [pid, ch] of chars) if (!seen.has(pid)) { scene.remove(ch); chars.delete(pid); }
-    window.__syncLog = (window.__syncLog || []).concat([['ok', S.players.length, chars.size]]).slice(-6);
+    for (const [pid, ch] of chars) if (!seen.has(pid)) { scene.remove(ch); chars.delete(pid); changed = true; }
+    if (changed) shadowDirty();
   }
 
-  // ── 钩子：paintVoice（音量 → 摆动幅度）、Cam.apply（相机）；人物名单改为帧循环节询 ──
+  // ── 进行中提示：当前玩家（chooserId/轮次持麦人）脚下的呼吸光环——房间尺度里「这轮是谁」的第一眼信号 ──
+  // additive+fog:false 保持亮色；depthWrite:false 不进深度写（名牌投影/拾取不受影响）；follows 走位每帧贴角色
+  const turnRing = (() => {
+    const grp = new THREE.Group();
+    const mk = (rIn, rOut, op) => {
+      const m = new THREE.Mesh(new THREE.RingGeometry(rIn, rOut, 40),
+        new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+      m.rotation.x = -Math.PI / 2; m.renderOrder = 3;
+      return m;
+    };
+    const inner = mk(0.42, 0.5, 0.8), outer = mk(0.56, 0.578, 0.38);
+    grp.add(inner, outer);
+    grp.visible = false; grp.position.y = 0.015;
+    scene.add(grp);
+    return { grp, inner };
+  })();
+
+  // ── 说话声波（连麦可视，2026-09-17 用户点名「开启说话的声波在3d里要有效果」）──
+  // 与 DOM 头像环同一套语言（#4ade80 绿 / 1.1s 外扩淡出 / 0.55s 交错双环）：绿光身体+点头+脚下外扩波环；
+  // three3d 下 DOM 头像环 visibility:hidden，原名牌只剩名字变绿——这里补上世界尺度的「谁在说话」
+  const voicePool = [];
+  const voiceWaveGeo = new THREE.RingGeometry(0.44, 0.485, 36);
+  function voiceWave(pid, level) {
+    let r = null;
+    for (const o of voicePool) { if (!o.active) { r = o; break; } }
+    if (!r) {
+      if (voicePool.length >= 10) return;
+      r = { mesh: new THREE.Mesh(voiceWaveGeo, new THREE.MeshBasicMaterial({ color: 0x4ade80, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })), active: false, t0: 0, pid: null, level: 0 };
+      r.mesh.rotation.x = -Math.PI / 2; r.mesh.renderOrder = 3; r.mesh.visible = false;
+      voicePool.push(r); scene.add(r.mesh);
+    }
+    r.active = true; r.t0 = performance.now(); r.pid = pid; r.level = level;
+    const ch = chars.get(pid);
+    if (ch) r.mesh.position.set(ch.position.x, 0.02, ch.position.z);
+    r.mesh.visible = true;
+  }
+  function tickVoiceWaves(now) {
+    for (const r of voicePool) {
+      if (!r.active) continue;
+      const k = (now - r.t0) / 1100;   // DOM wave-out 同款 1.1s
+      if (k >= 1) { r.active = false; r.mesh.visible = false; continue; }
+      const s = 1 + k * 0.85;
+      r.mesh.scale.set(s, s, 1);
+      const ch = chars.get(r.pid);
+      if (ch) r.mesh.position.set(ch.position.x, 0.02, ch.position.z);   // 跟随走位
+      r.mesh.material.opacity = 0.65 * (1 - k) * (0.35 + 0.65 * (r.level || 0.5));
+    }
+  }
+
+  // ── 钩子：paintVoice（音量 → 摆动幅度）、Cam.apply（相机）——retire 时还原 ──
+  let _pv = null, _ap = null;
   try {
-    const _pv = paintVoice;
+    _pv = paintVoice;
     paintVoice = function (pid, level, speaking) {
       _pv(pid, level, speaking);
       const ch = chars.get(pid);
       if (ch) ch.userData.voice = speaking ? Math.min(1, level * 1.8) : 0;
     };
-    const _ap = Cam.apply.bind(Cam);
+    _ap = Cam.apply.bind(Cam);
     Cam.apply = function () { _ap(); syncCam(); };
   } catch (e) {}
 
-  // ── 相机：Cam.cur（CSS 姿态）→ three 相机 ──
+  // ── 相机：Cam.cur 映射 + 竖屏后撤（aspect<0.8）+ 揭晓近景 overlay（GL 独占通道，CSS 机位不动）──
+  let revealK = 0, revealTarget = 0;
   function syncCam() {
     const c = Cam.cur;
-    camera.position.set(c.x * 0.02, 3.75 + (c.rx - 19) * 0.03, 5.4 + (-56 - c.z) * 0.035);
-    camera.lookAt(c.x * 0.006, 0.55, 0);
+    const asp = camera.aspect || 1;
+    const pt = asp < 0.8 ? Math.min(1, (0.8 - asp) / 0.34) : 0;
+    let px = c.x * 0.02;
+    let py = 3.75 + (c.rx - 19) * 0.03 + pt * 0.5;
+    let pz = 5.4 + (-56 - c.z) * 0.035 + pt * 1.3;
+    let lx = c.x * 0.006, ly = 0.35 - pt * 0.5, lz = 0;   // 俯角随竖屏系数加深：灯罩顶出 HUD（pt 在桌面恒 0 不影响既有构图）
+    if (revealK > 0.0005) {   // 推近到卡面 ≈2.3 单位：同一位姿喂给名牌投影/拾取，禁缓存
+      const rk = revealK * revealK * (3 - 2 * revealK);   // smoothstep：起收零速
+      px += (REVEAL_POS.x - px) * rk;
+      py += (REVEAL_POS.y - py) * rk;
+      pz += (REVEAL_POS.z - pz) * rk;
+      lx += (CARD_LOOK.x - lx) * rk;
+      ly += (CARD_LOOK.y - ly) * rk;
+      lz += (CARD_LOOK.z - lz) * rk;
+    }
+    camera.position.set(px, py, pz);
+    camera.lookAt(lx, ly, lz);
     camera.rotateY(-(c.ry || 0) * Math.PI / 180);
     camera.rotateZ(-(c.rz || 0) * Math.PI / 180);
   }
 
-  // ── 名牌投影：人物头顶 → 屏幕坐标，DOM 名牌跟随（z 序按深度）──
-  const V = new THREE.Vector3();
+  // ── 名牌投影：头顶世界坐标 → 画布像素 − offsetLeft/Top 链（禁 rect 差值，landforce 旋转下必错）──
+  function offsetChain(el) { let x = 0, y = 0; while (el) { x += el.offsetLeft || 0; y += el.offsetTop || 0; el = el.offsetParent; } return [x, y]; }
   function updatePlates() {
     const grid = document.getElementById('game-players-grid');
     if (!grid) return;
-    const cr = camEl.getBoundingClientRect();
+    const og = offsetChain(grid);
     grid.querySelectorAll('.player-card').forEach(card => {
       const ch = chars.get(card.dataset.pid);
       if (!ch) return;
-      V.set(ch.position.x, 1.72, ch.position.z).project(camera);
-      const sx = (V.x + 1) / 2 * cr.width + cr.left;
-      const sy = (1 - (V.y + 1) / 2) * cr.height + cr.top;
-      card.style.left = sx.toFixed(1) + 'px';
-      card.style.top = sy.toFixed(1) + 'px';
+      if (!ch.visible) { card.style.visibility = 'hidden'; return; }   // 近景让镜被隐藏的角色，名牌一起收（否则浮空名牌）
+      // 视空间深度先判：相机背后的点投影会镜像翻转，绝不写样式（绝对定位会把文档撑出上万 px 滚动区）
+      V.set(ch.position.x, 1.72, ch.position.z);
+      const vz = V2.set(ch.position.x, 1.72, ch.position.z).applyMatrix4(camera.matrixWorldInverse).z;   // V2 复用，8 人局不逐帧分配
+      if (vz > -0.05) { card.style.visibility = 'hidden'; return; }
+      V.project(camera);   // 渲染相机现算（揭晓推镜名牌不脱头）
+      const cw = canvas.clientWidth, chh = canvas.clientHeight;
+      const wantX = (V.x + 1) / 2 * cw, wantY = (1 - (V.y + 1) / 2) * chh;   // 视口目标点（头顶）
+      if (wantX < -180 || wantX > cw + 60 || wantY < -80 || wantY > chh - 20) { card.style.visibility = 'hidden'; return; }   // 出屏不写
+      card.style.visibility = '';
+      card.style.left = (wantX - og[0]).toFixed(1) + 'px';   // 直写投影（v7 同构）：实测即贴头；wantX/wantY 已是全屏画布视口坐标
+      card.style.top = (wantY - og[1]).toFixed(1) + 'px';
       card.style.zIndex = String(600 - Math.round(V.z * 300));
+      const rsV = parseFloat(card.style.getPropertyValue('--rs')) || 1;
+      const mw = (72 / rsV).toFixed(0) + 'px';   // 基数 72：留取整与文字折行余量（渲染宽恒 ≥72 ≥64）
+      if (card.style.minWidth !== mw) {
+        card.style.minWidth = mw;   // 缩放补偿：渲染宽恒 ≥64px（远座可辨识契约）
+        const wrapEl = card.__wrapEl || (card.__wrapEl = card.querySelector('.avatar-wrap'));
+        if (wrapEl) wrapEl.style.minWidth = mw;   // verify 量的是 wrap：只补 card 时 wrap 贴内容宽（远座 65px 贴 64 线，±1px 抖动即挂）
+      }
     });
   }
 
+  // ── DOM 桥：three3d 下把动作按钮 reparent 到 body 层 #stage-actions（记录原位，三时机归还）──
+  const stageActions = document.createElement('div');
+  stageActions.id = 'stage-actions';
+  stageActions.style.display = 'none';
+  document.body.appendChild(stageActions);
+  const movedEls = [];
+  let toolsMoved = null;   // .world 每帧写 transform → fixed 的包含块变成它；工具行钉底必须挂 body 层
+  (function bridgeTools() {
+    const t = document.getElementById('game-tools');
+    if (!t) return;
+    toolsMoved = { el: t, parent: t.parentElement, next: t.nextSibling, origDisplay: t.style.display || 'flex' };   // 记住 HTML 原始 inline display，retire 时归还（frame 可能写过 'none'）
+    document.body.appendChild(t);
+  })();
+  // ── 窄屏工具收纳：🧰 浮标 + 玻璃面板（<768px 才有浮标；桌面工具行常驻照旧）──
+  const mqToolsNarrow = window.matchMedia('(max-width: 767px)');
+  let toolsOpen = !mqToolsNarrow.matches;   // 桌面常开；窄屏默认收起（不挡桌面）
+  const toolsFab = document.createElement('button');
+  toolsFab.id = 'tools-fab';
+  toolsFab.type = 'button';
+  toolsFab.textContent = '🧰';
+  toolsFab.title = '游戏工具';
+  toolsFab.setAttribute('aria-label', '游戏工具');
+  toolsFab.setAttribute('aria-expanded', String(toolsOpen));
+  toolsFab.style.display = 'none';
+  document.body.appendChild(toolsFab);
+  toolsFab.addEventListener('click', () => {
+    toolsOpen = !toolsOpen;
+    toolsFab.setAttribute('aria-expanded', String(toolsOpen));
+  });
+  // 面板点这些按钮即收起：扔蛋要瞄准桌面、战况/设置会开弹层、随机点名的反馈在桌上
+  if (toolsMoved) toolsMoved.el.addEventListener('click', e => {
+    const b = e.target && e.target.closest ? e.target.closest('button') : null;
+    if (b && (b.id === 'btn-egg' || b.id === 'btn-stats' || b.id === 'btn-settings-game' || b.id === 'btn-pick-next')) {
+      toolsOpen = false;
+      toolsFab.setAttribute('aria-expanded', 'false');
+    }
+  });
+  // 点面板外收起（capture：不怕谁 stopPropagation）；FAB 自己与面板内除外
+  document.addEventListener('pointerdown', e => {
+    if (retired || !toolsOpen || !mqToolsNarrow.matches) return;
+    const t = e.target;
+    if (!t || !(t.nodeType === 1)) return;
+    if (toolsMoved && toolsMoved.el.contains(t)) return;
+    if (t === toolsFab || toolsFab.contains(t)) return;
+    toolsOpen = false;
+    toolsFab.setAttribute('aria-expanded', 'false');
+  }, true);
+  // 押注面板同理上收 body：留在 #screen-game 里做 absolute 只能锚到内容盒（屏盒高度随内容），
+  // 贴不到视口底；hidden 属性照常由 renderBetBox 管理，retire 时归还
+  let betMoved = null;
+  (function bridgeBet() {
+    const b = document.getElementById('bet-box');
+    if (!b) return;
+    betMoved = { el: b, parent: b.parentElement, next: b.nextSibling };
+    document.body.appendChild(b);
+  })();
+  function bridgeMove(el) {
+    if (!el || !el.parentElement || el.parentElement === stageActions) return;
+    movedEls.push({ el, parent: el.parentElement, next: el.nextSibling });
+    stageActions.appendChild(el);
+    stageActions.style.display = '';
+  }
+  function bridgeSync() {
+    const g = document.getElementById('screen-game');
+    if (g && g.classList.contains('leaving')) { bridgeRestore(); return; }   // 退场同步归还（评审 ③）
+    const cs = document.getElementById('card-section');
+    const sr = document.getElementById('stake-row');
+    let stageNow = '';
+    try { stageNow = S.turn.stage; } catch (e) {}
+    const csOut = !!(cs && !cs.hidden && stageNow === 'revealed');   // dealFlyingCard 会提前取消 hidden：完成啦组只在 revealed 上桌
+    const srOut = !!(sr && !sr.hidden && stageNow === 'choosing');   // 押注只属于选卡期，别一路挂到揭晓
+    if (csOut) { bridgeMove(document.getElementById('card-actions')); bridgeMove(document.getElementById('btn-reroll')); }
+    if (srOut) bridgeMove(sr);
+    if (!csOut && !srOut) bridgeRestore();
+  }
+  function bridgeRestore() {
+    if (!movedEls.length) { stageActions.style.display = 'none'; return; }
+    for (let i = movedEls.length - 1; i >= 0; i--) {
+      const m = movedEls[i];
+      try { m.parent.insertBefore(m.el, m.next); } catch (e) {}
+    }
+    movedEls.length = 0;
+    stageActions.style.display = 'none';
+  }
+
+  // ── 桌上选卡点击：document 级 raycast 转发（画布保持 pointer-events:none 红线不破）──
+  const raycaster = new THREE.Raycaster();
+  const mouseNdc = new THREE.Vector2();
+  let rayLatch = false;
+  const REJECT_SEL = 'button,a,input,textarea,select,label,.choice-card,.player-card,#game-tools,#stage-actions,#bet-box,.modal-mask,.react-bar,.toast';
+  function pickChoiceCard(cx, cy) {   // 屏幕 → NDC → 双卡命中；'truth' | 'dare' | null（三个 raycast 入口共用同一换算，landforce 换算禁分叉）
+    const pk = (typeof landPick === 'function') ? landPick(cx, cy) : { x: cx, y: cy };
+    mouseNdc.x = (pk.x / canvas.clientWidth) * 2 - 1;      // 画布固定全屏：逻辑尺寸直除（禁 rect 物理盒混 landPick 逻辑坐标，landforce 下必错）
+    mouseNdc.y = -(pk.y / canvas.clientHeight) * 2 + 1;
+    raycaster.setFromCamera(mouseNdc, camera);
+    const hit = raycaster.intersectObjects([cTruth.mesh, cDare.mesh], false)[0];
+    return hit ? (hit.object === cTruth.mesh ? 'truth' : 'dare') : null;
+  }
+  // ── 桌面涟漪：点击反馈的 GL 版 tap-ring（单几何复用池，0.55s 自清；additive 在毡面上读作光斑）──
+  const ripplePool = [];
+  function feltRipple(x, z, color) {
+    if (IS_REDUCED) return;
+    let r = null;
+    for (const o of ripplePool) { if (!o.active) { r = o; break; } }
+    if (!r) {
+      if (ripplePool.length >= 4) return;
+      r = { mesh: new THREE.Mesh(
+        new THREE.RingGeometry(0.16, 0.215, 36),
+        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })
+      ), active: false, t0: 0 };
+      r.mesh.rotation.x = -Math.PI / 2; r.mesh.renderOrder = 3;
+      ripplePool.push(r); scene.add(r.mesh);
+    }
+    r.mesh.material.color.set(color);
+    r.mesh.position.set(x, FELT_Y + 0.012, z);
+    r.active = true; r.t0 = performance.now(); r.mesh.visible = true;
+  }
+
+  // ── 表情包气泡（2026-09-17 用户点名「右上角的特效改为3d小人的表情包显示」）：互动表情挂到发送者小人头顶 ──
+  // spawnReact 的 DOM 表情雨只服务大厅/loperf 回退；牌桌 3D 且发送者在场 ⇒ 这里返回 true，DOM 雨不再重复出
+  const bubbles = [];
+  const bubbleTex = new Map();
+  function emojiTexture(e) {
+    let t = bubbleTex.get(e);
+    if (t) return t;
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const g = c.getContext('2d');
+    g.font = '92px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(String(e), 64, 70);
+    t = new THREE.CanvasTexture(c);
+    t.encoding = THREE.sRGBEncoding;
+    bubbleTex.set(e, t);
+    return t;
+  }
+  window.__three.reactBubble = function (pid, e) {
+    if (retired) return false;
+    const ch = chars.get(pid);
+    if (!ch || !document.getElementById('screen-game').classList.contains('active')) return false;
+    if (bubbles.length >= 8) { const old = bubbles.shift(); scene.remove(old.spr); old.spr.material.dispose(); }
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTexture(e), transparent: true, depthWrite: false, depthTest: false, fog: false }));
+    spr.renderOrder = 6;
+    spr.position.set(ch.position.x, 1.66, ch.position.z);
+    spr.scale.set(0.001, 0.001, 1);
+    scene.add(spr);
+    bubbles.push({ spr, t0: performance.now(), pid });
+    ch.userData.cheer = 1;   // 小人为表情开心蹦一下（帧循环衰减）
+    return true;
+  };
+
+  // ── 🥚 飞蛋（2026-09-17 用户点名）：投掷者小人抛向目标；被砸端飞向本机镜头、前半程隐形临头才显形，糊屏由 DOM .egg-splat 承接 ──
+  const eggs3d = [];
+  const eggGeo = new THREE.SphereGeometry(0.085, 12, 10);
+  eggGeo.scale(1, 1.28, 1);
+
+  // ── 🥚 蛋碎表现（2026-09-17 用户反馈：旁观视角蛋砸到 3D 人脸上就消失、要优化碎裂）──
+  // 命中 = 脸上糊一滩蛋液（billboard 挂人物组随走位、缓慢下淌、数秒后淡去）+ 蛋壳/蛋黄碎粒迸溅（重力弹地）+ 既有毡面白涟漪；
+  // 被砸端本机镜头的糊屏仍由 DOM .egg-splat 承接（命中瞬间另加 Cam.shake）
+  const eggSplatTex = (() => {
+    let t = null;
+    return function () {
+      if (t) return t;
+      const c = document.createElement('canvas'); c.width = c.height = 256;
+      const g = c.getContext('2d');
+      const blob = (cx, cy, R, ph) => {   // 不规则蛋清团（半径按 3 瓣正弦扰动）
+        g.beginPath();
+        for (let i = 0; i <= 32; i++) { const a = i / 32 * Math.PI * 2; const r = R * (0.78 + 0.24 * Math.sin(3 * a + ph)); const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r * 0.82; i ? g.lineTo(x, y) : g.moveTo(x, y); }
+        g.closePath(); g.fill();
+      };
+      g.fillStyle = 'rgba(255,255,255,0.97)';
+      blob(128, 104, 72, 0.6); blob(84, 132, 42, 2.1); blob(172, 130, 46, 4.4); blob(126, 150, 50, 1.3);
+      g.fillStyle = 'rgba(255,255,255,0.85)';   // 下挂蛋液（读作往下流）
+      g.fillRect(96, 150, 14, 66); g.fillRect(140, 146, 12, 84); g.fillRect(118, 160, 10, 46);
+      const yolk = g.createRadialGradient(116, 96, 5, 128, 106, 33);
+      yolk.addColorStop(0, '#fff3b0'); yolk.addColorStop(0.55, '#fbbf24'); yolk.addColorStop(1, '#f59e0b');
+      g.fillStyle = yolk; g.beginPath(); g.ellipse(128, 106, 33, 29, 0.25, 0, Math.PI * 2); g.fill();
+      t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
+      return t;
+    };
+  })();
+  const faceSplats = [];
+  function eggFaceSplat(pid) {
+    const ch = chars.get(pid);
+    if (!ch) return;
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: eggSplatTex(), transparent: true, depthWrite: false, depthTest: false, fog: false }));
+    spr.position.set(0, 1.3, 0);   // 头心（billboard 朝镜头；挂人物组=走位/点头都带着）
+    spr.scale.set(0.001, 0.001, 1); spr.renderOrder = 5;
+    ch.add(spr);
+    faceSplats.push({ spr, t0: performance.now() });
+    if (faceSplats.length > 6) { const old = faceSplats.shift(); if (old.spr.parent) old.spr.parent.remove(old.spr); old.spr.material.dispose(); }
+  }
+  function tickFaceSplats(now) {
+    for (let i = faceSplats.length - 1; i >= 0; i--) {
+      const s = faceSplats[i];
+      const t = (now - s.t0) / 4500;
+      if (t >= 1) { if (s.spr.parent) s.spr.parent.remove(s.spr); s.spr.material.dispose(); faceSplats.splice(i, 1); continue; }
+      const pop = t < 0.08 ? (t / 0.08) * 1.18 : (t < 0.2 ? 1.18 - (t - 0.08) * 1.5 : 1);   // 砸上超冲→回落
+      s.spr.scale.set(pop * 0.62, pop * 0.62, 1);
+      s.spr.position.y = 1.3 - t * 0.14;   // 蛋液缓缓下淌
+      s.spr.material.rotation = Math.sin(t * 9) * 0.05;
+      s.spr.material.opacity = t > 0.72 ? 1 - (t - 0.72) / 0.28 : 1;
+    }
+  }
+  const shellPool = [];
+  const shellGeo = new THREE.SphereGeometry(0.03, 6, 5);
+  function shellBurst(x, y, z, n) {
+    for (let i = 0; i < n; i++) {
+      let p = null;
+      for (const o of shellPool) { if (!o.active) { p = o; break; } }
+      if (!p) {
+        if (shellPool.length >= 26) break;
+        p = { mesh: new THREE.Mesh(shellGeo, new THREE.MeshBasicMaterial({ color: 0xfff6e8, transparent: true, opacity: 1, fog: false })), active: false, vel: new THREE.Vector3(), spin: 0, t0: 0 };
+        shellPool.push(p); scene.add(p.mesh);
+      }
+      p.active = true; p.t0 = performance.now(); p.mesh.visible = true; p.mesh.material.opacity = 1;
+      const roll = Math.random();
+      p.mesh.material.color.set(roll < 0.2 ? 0xfbbf24 : (roll < 0.6 ? 0xfff6e8 : 0xfffdf0));   // 少量蛋黄色混在壳屑里
+      p.mesh.position.set(x + (Math.random() - 0.5) * 0.07, y + (Math.random() - 0.5) * 0.07, z + (Math.random() - 0.5) * 0.07);
+      const a = Math.random() * Math.PI * 2;
+      p.vel.set(Math.cos(a) * (0.45 + Math.random() * 0.95), 0.85 + Math.random() * 1.35, Math.sin(a) * (0.45 + Math.random() * 0.95));
+      p.spin = (Math.random() - 0.5) * 14;
+      const s = 0.65 + Math.random() * 0.95;
+      p.mesh.scale.set(s, s * 0.62, s);
+    }
+  }
+  function tickShells(dt, now) {
+    for (const p of shellPool) {
+      if (!p.active) continue;
+      const t = (now - p.t0) / 950;
+      if (t >= 1) { p.active = false; p.mesh.visible = false; continue; }
+      p.vel.y -= 4.2 * dt;
+      p.mesh.position.addScaledVector(p.vel, dt);
+      if (p.mesh.position.y < 0.03 && p.vel.y < 0) { p.mesh.position.y = 0.03; p.vel.y *= -0.3; p.vel.x *= 0.62; p.vel.z *= 0.62; }   // 落毡面小弹跳
+      p.mesh.rotation.x += p.spin * dt; p.mesh.rotation.z += p.spin * 0.7 * dt;
+      p.mesh.material.opacity = t > 0.6 ? 1 - (t - 0.6) / 0.4 : 1;
+    }
+  }
+  window.__three.eggFx = function (fromPid, toPid, isMe) {
+    if (retired || !document.getElementById('screen-game').classList.contains('active')) return false;
+    const fc = chars.get(fromPid);
+    const from = fc ? new THREE.Vector3(fc.position.x, 1.15, fc.position.z) : new THREE.Vector3(DECK_POS.x, 1.0, DECK_POS.z);
+    let to;
+    if (isMe) to = camera.position.clone();   // 砸「我」=冲着本机镜头来
+    else {
+      const tc = chars.get(toPid);
+      if (!tc) return false;   // 目标不在场且不是我：没得演（DOM 端同样不糊屏）
+      to = new THREE.Vector3(tc.position.x, 1.02, tc.position.z);
+    }
+    const m = new THREE.Mesh(eggGeo, new THREE.MeshStandardMaterial({ color: 0xfff3e0, roughness: 0.45, transparent: true, opacity: isMe ? 0 : 1 }));
+    scene.add(m);
+    eggs3d.push({ m, from, to, t0: performance.now(), isMe, toPid });
+    return true;
+  };
+  function tickFx(now) {   // 气泡/飞蛋逐帧推进（帧循环调用；池上限防刷屏）
+    for (let i = bubbles.length - 1; i >= 0; i--) {
+      const b = bubbles[i];
+      const k = (now - b.t0) / 1900;
+      if (k >= 1) { scene.remove(b.spr); b.spr.material.dispose(); bubbles.splice(i, 1); continue; }
+      const ch = chars.get(b.pid);
+      if (ch) b.spr.position.set(ch.position.x, 1.66 + (IS_REDUCED ? 0 : k * 0.5), ch.position.z);   // 跟随走位+上浮
+      const pop = k < 0.15 ? k / 0.15 : (k < 0.3 ? 1.2 - (k - 0.15) * 1.34 : 1);   // 弹出超冲→回落
+      b.spr.scale.set(pop * 0.52, pop * 0.52, 1);
+      b.spr.material.opacity = k > 0.75 ? 1 - (k - 0.75) / 0.25 : 1;
+    }
+    for (let i = eggs3d.length - 1; i >= 0; i--) {
+      const e = eggs3d[i];
+      const k = Math.min(1, (now - e.t0) / 1150);
+      const lift = Math.sin(Math.PI * k) * 0.9 + k * k * 0.35;
+      e.m.position.set(e.from.x + (e.to.x - e.from.x) * k, e.from.y + (e.to.y - e.from.y) * k + lift, e.from.z + (e.to.z - e.from.z) * k);
+      e.m.rotation.x += 0.16; e.m.rotation.z += 0.11;
+      if (e.isMe) {   // 0~45% 全透明（「看不见」），45~75% 临头显形，一路放大顶到镜头
+        e.m.material.opacity = Math.max(0, Math.min(1, (k - 0.45) / 0.3));
+        const s = 0.7 + k * 1.6;
+        e.m.scale.set(s, s, s);
+      }
+      if (k >= 1) {
+        if (!e.isMe) {   // 旁观视角：蛋在小人身上砸碎——脸上糊蛋液+壳屑迸溅+毡面溅圈（此前只是蛋消失+涟漪=「砸到脸上就没」）
+          eggFaceSplat(e.toPid);
+          shellBurst(e.to.x, e.to.y, e.to.z, 12);
+          feltRipple(e.to.x, e.to.z, 0xfff3e0);
+        }
+        scene.remove(e.m); e.m.material.dispose(); eggs3d.splice(i, 1);
+      }
+    }
+  }
+  // ── 悬停/按压态：hover=近侧探头 invitation、press=按下回弹；只在 choosing 生效（选中抬升优先，不叠）──
+  // 互动语义只给「轮到我」的客户端：choose() 的回合校验在此前置，观众点卡不再有可点暗示/抬升/闩锁
+  function iCanPick() {
+    try {
+      if (!joined || !S || S.turn.stage !== 'choosing') return false;
+      if (S.mode === 'free') return !(S.turn.chooserId && S.turn.chooserId !== myId);   // 自由对决：麦没被抢谁都能点
+      return S.turn.chooserId === myId;
+    } catch (e) { return false; }
+  }
+  const ptr = { x: 0, y: 0, has: false };
+  let hoverName = null, pressCard = null;
+  document.addEventListener('pointermove', function (e) {
+    if (retired) return;
+    ptr.x = e.clientX; ptr.y = e.clientY; ptr.has = true;
+  }, { passive: true });
+  function onTableScreen() { const g = document.getElementById('screen-game'); return !!(g && g.classList.contains('active')); }   // 大厅默认 stage='choosing'：raycast 必须钉在牌桌屏上，否则大厅点击会误响/误 toast
+  document.addEventListener('pointerdown', function (e) {
+    if (retired || e.detail > 1 || !onTableScreen()) return;
+    if (document.body.classList.contains('egg-aim')) return;   // 🥚 瞄准态：毡面/选卡 raycast 全部让位，误触不得烧掉回合
+    if (e.target && e.target.closest && e.target.closest(REJECT_SEL)) return;
+    let stg = ''; try { stg = S.turn.stage; } catch (err) { return; }
+    if (!actionCard.visible && stg !== 'choosing') return;
+    const pk = (typeof landPick === 'function') ? landPick(e.clientX, e.clientY) : { x: e.clientX, y: e.clientY };
+    mouseNdc.x = (pk.x / canvas.clientWidth) * 2 - 1;
+    mouseNdc.y = -(pk.y / canvas.clientHeight) * 2 + 1;
+    raycaster.setFromCamera(mouseNdc, camera);
+    const objs = stg === 'choosing' ? [cTruth.mesh, cDare.mesh] : [actionCard];
+    const h0 = raycaster.intersectObjects(objs, false)[0];
+    if (!h0) return;
+    if (stg === 'choosing') {
+      if (rayLatch || !iCanPick()) return;
+      try { SFX.play('tap'); } catch (err) {}
+      pressCard = h0.object === cTruth.mesh ? cTruth : cDare;   // 按压视觉由 tickChoice 衰减写出
+    } else if (h0.object === actionCard) {
+      try { SFX.play('tap'); } catch (err) {}
+      feltRipple(h0.point.x, h0.point.z, 0xc4b5fd);   // 题面/牌背摸一下：纯触感反馈，无动作语义
+    }
+  }, { passive: true });
+  function pressClear() { pressCard = null; }
+  document.addEventListener('pointerup', pressClear, { passive: true });
+  document.addEventListener('pointercancel', pressClear, { passive: true });
+  window.__three.feelState = function () {   // 调试访问器（追加访问器约定）：悬停/按压/涟漪态，探针用
+    return {
+      hover: hoverName,
+      press: pressCard === cTruth ? 'truth' : (pressCard === cDare ? 'dare' : null),
+      ripples: ripplePool.filter(r => r.active).length,
+    };
+  };
+  window.__three.fxState = function () {   // 调试访问器（追加访问器约定）：表情气泡/飞蛋/声波环/蛋碎/出卡阶段，探针用
+    return { bubbles: bubbles.length, eggs: eggs3d.length, cardPhase: st.phase, leanMax: LEAN_MAX,
+      voiceWaves: voicePool.filter(r => r.active).length,
+      shells: shellPool.filter(p => p.active).length, faceSplats: faceSplats.length,
+      cardPos: { x: +actionCard.position.x.toFixed(2), z: +actionCard.position.z.toFixed(2) } };   // rest 本地 (0, ·, CARD_L/2)；重抽被劫持时会停在牌堆 x≈1.12
+  };
+  document.addEventListener('click', function (e) {
+    const dbg = window.__rayDbg = { t: Date.now(), target: e.target && e.target.closest ? (e.target.id || e.target.className || e.target.tagName) : '?', detail: e.detail };   // 静默必须落日志（项目红线）
+    if (retired || e.detail > 1 || !onTableScreen()) { dbg.stop = 'retired/multi/offtable'; return; }   // 双击缩放第二击不吞；非牌桌屏不 raycast
+    if (document.body.classList.contains('egg-aim')) { dbg.stop = 'egg-aim'; return; }   // 🥚 瞄准态不消费选卡：click 语义已让位给「点名牌扔蛋」
+    const rejEl = e.target && e.target.closest && e.target.closest(REJECT_SEL);
+    if (rejEl) { dbg.stop = 'rejected:' + (typeof rejEl.className === 'string' ? rejEl.className.split(' ')[0] : rejEl.tagName); return; }
+    let stage = '';
+    try { stage = S.turn.stage; } catch (err) { dbg.stop = 'no-S'; return; }
+    dbg.stage = stage; dbg.latch = rayLatch;
+    if (stage !== 'choosing' || rayLatch || !iCanPick()) { dbg.stop = 'stage/latch/turn'; return; }   // 阶段闩锁 + 回合门禁：一次选卡只认首击，非我回合不消费任何状态
+    rayLatch = true;
+    const picked = pickChoiceCard(e.clientX, e.clientY);
+    dbg.hit = picked || 'miss';
+    if (picked) {
+      const truth = picked === 'truth';
+      const cc = truth ? cTruth : cDare;
+      cTruth.pickTarget = truth ? 1 : -1;
+      cDare.pickTarget = truth ? -1 : 1;
+      cc.flash = 1;   // 牌面白闪（tickChoice 衰减）
+      feltRipple(cc.group.position.x, cc.group.position.z + 0.42, truth ? 0x3b82f6 : 0xf97316);   // 选中卡的毡面炸一圈
+      try { choose(truth ? 'truth' : 'dare'); } catch (err) { dbg.chooseErr = err.message; }
+    } else {
+      rayLatch = false;   // 落空不闩：还能再点
+    }
+  });
+
   // ── 主循环 ──
   const t0 = performance.now();
-  let wasActive = false;
+  let wasActive = false, lastFrame = t0;
+  const st = { phase: 'park', t0: 0, flyAt: 0 };   // park | waitfly | fly | pulse | flip | shown
+  let qDrawn = false;
+  const easeIO = k => (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
   function frame(t) {
+    if (retired) return;   // 先查再排队：retire 后 rAF 不空转（代码终审 P2-2）
     requestAnimationFrame(frame);
+    if (document.body.classList.contains('loperf')) { retire3D(); return; }   // 最顶检测：任何屏翻转都不漏
     const active = document.getElementById('screen-game').classList.contains('active');
-    if (active && !wasActive) size();   // #cam 在大厅不可见（clientWidth=0），进桌重新量尺寸
+    if (active && !wasActive) size();
+    if (!active && wasActive) renderer.clear();   // 出牌桌清一次残帧，别垫在 lobby/result 底下
     wasActive = active;
-    if (!active) return;
-    if (document.body.classList.contains('loperf') || document.body.classList.contains('paused')) return;
+    if (toolsMoved) {   // 已移出 .screen：非 active 屏时隐藏（必须先于早退，否则卡在 lobby 挡按钮）
+      if (active && !wasActive && mqToolsNarrow.matches) toolsOpen = false;   // 重进牌桌：窄屏默认收起
+      toolsMoved.el.style.display = active && (!mqToolsNarrow.matches || toolsOpen) ? 'flex' : 'none';
+      toolsFab.style.display = active && mqToolsNarrow.matches ? 'flex' : 'none';
+    }
+    if (!active && (movedEls.length || stageActions.style.display !== 'none')) bridgeRestore();   // 退场归还必须在早退前（否则死按钮条浮在大厅/结算上拦点击——代码终审 P0-2）
+    if (!active && betMoved && !betMoved.el.hidden) betMoved.el.hidden = true;   // 押注面板随屏隐藏（body 层不再吃 #screen-game 的 hidden 语境）
+    if (active && betMoved && !betMoved.el.hidden) {   // 贴工具行上缘：折行行数随视口/字宽变，预测量时序不可靠 → 可见时帧内实测（仅变化才写）
+      const tr = toolsMoved ? toolsMoved.el.getBoundingClientRect() : null;
+      const bp = tr && tr.top > 0 ? Math.max(60, Math.round(window.innerHeight - tr.top + 10)) + 'px'
+                                  : 'calc(env(safe-area-inset-bottom, 0px) + 68px)';   // 窄屏面板收起时量不到行：锚到 🧰 浮标上方
+      if (betMoved.el.style.bottom !== bp) betMoved.el.style.bottom = bp;
+    }
+    if (!active) {
+      if (frame.cursor) { frame.cursor = ''; document.body.style.cursor = ''; }   // 出牌桌归还光标（悬停代码在早退之后，不补这条会顶着「手型」回大厅）
+      return;
+    }
+    if (document.body.classList.contains('paused')) return;
+    const now = performance.now();
+    const dt = Math.min(0.2, (now - lastFrame) / 1000); lastFrame = now;   // 0.2：软渲 5fps 内推镜/走位仍按墙钟走（真机 ≥20fps 不触及）
     const sec = (t - t0) / 1000;
+
     if (t - (frame.lastSync || 0) > 600) {
       frame.lastSync = t;
       try { syncPlayers(); } catch (e) { window.__syncErr = e.message; }
-      window.__frameDbg = { active, hidden: document.hidden, paused: document.body.classList.contains('paused'), t: Math.round(t) };
-    }   // 名单/头像/座位节询
-    let goId = null;
+    }   // 名单/头像/座位节询（只写数据不写 transform）
+
+    // 阶段与边沿
+    let stage = '', goId = null;
     try {
-      const onStage = S.gameStarted && !S.finished && (S.turn.stage === 'drawing' || S.turn.stage === 'revealed');
+      stage = S.turn.stage;
+      const onStage = S.gameStarted && !S.finished && (stage === 'drawing' || stage === 'revealed');
       goId = onStage ? (S.turn.chooserId || activePlayerId()) : null;
     } catch (e) {}
+    const inRound = stage === 'drawing' || stage === 'revealed';
+    if (stage === 'drawing' && (st.phase === 'park' || st.phase === 'shown' || st.phase === 'flip' || st.phase === 'reback' || st.phase === 'refly')) {
+      st.phase = IS_REDUCED ? 'pulse' : 'waitfly';   // 降噪：牌直接出现在桌上（CSS 路径同哲学）
+      st.flyAt = now + 600; st.t0 = now; qDrawn = false;
+      flipG.rotation.x = 0; actionCard.visible = true;
+      actionCard.position.set(0, 0, CARD_L / 2); actionCard.rotation.y = 0;
+      resetChoiceCards();
+      shadowDirty();
+    } else if (!inRound && st.phase !== 'park') {
+      st.phase = 'park'; revealTarget = 0; rayLatch = false;
+      resetChoiceCards();
+      actionCard.visible = false;   // 停选阶段不显示（牌堆本体就是「待抽」语言）
+      flipG.rotation.x = 0; actionCard.scale.set(1, 1, 1);
+      shadowDirty();
+    }
+    if (st.phase === 'waitfly' && now >= st.flyAt) { st.phase = 'fly'; st.t0 = now; }
+    if (st.phase === 'fly') {   // 900ms：单正弦弧（顶 +0.5 单位）+ 飞行旋卡 ≤180°；落定 80ms 微弹由 pulse 起始承接
+      const k = Math.min(1, (now - st.t0) / 900);
+      const sx = DECK_POS.x - PIVOT.x, sz = DECK_POS.z - PIVOT.z;         // deckLocal
+      const ex = 0, ez = CARD_L / 2;                                       // restLocal（枢轴系）
+      actionCard.position.set(sx + (ex - sx) * k, CARD_T / 2 + Math.sin(Math.PI * k) * 0.5, sz + (ez - sz) * k);
+      actionCard.rotation.y = Math.sin(Math.PI * k) * 2.6;
+      if (k >= 1) { st.phase = 'pulse'; st.t0 = now; actionCard.position.set(0, 0, CARD_L / 2); actionCard.rotation.y = 0; shadowDirty(); }
+    }
+    if (st.phase === 'pulse') {
+      if (IS_REDUCED) { actionCard.scale.set(1, 1, 1); }
+      else {
+        const b = Math.max(0, 1 - (now - st.t0) / 80);   // 落弹
+        const pl = 1 + 0.015 * Math.sin(sec * 3.9) + 0.02 * b;   // 抽取中呼吸脉动（治 1.1s 死气）
+        actionCard.scale.set(pl, 1, pl);
+      }
+    }
+    let flippedNow = false;
+    try { flippedNow = document.getElementById('flip-card').classList.contains('flipped'); } catch (e) {}
+    if (stage === 'revealed' && flippedNow && st.phase !== 'flip' && st.phase !== 'shown' && st.phase !== 'reback' && st.phase !== 'refly' && st.phase !== 'fly' && st.phase !== 'waitfly') {   // fly/waitfly 也排除：免答重抽交棒 fly 的下一帧 flippedNow 仍为 true（DOM .flipped 未摘），不排会把飞行中的卡当场劫持成原地翻面（代码终审 P0）
+      if (!qDrawn) {   // 翻面前一次性画题面（回合级豁免逐帧红线）
+        qDrawn = true;
+        try {
+          const t2 = S.turn;
+          const ch = (S.players || []).find(p => p.id === t2.chooserId);
+          drawQuestion(t2.choice !== 'dare', ch && ch.name, t2.punishment, avCanvasOf(ch));
+        } catch (e) { try { drawQuestion(true, '', '真心话大冒险', ''); } catch (e2) {} }
+      }
+      st.phase = IS_REDUCED ? 'shown' : 'flip'; st.t0 = now;
+      actionCard.visible = true;
+      frame.qSig = (S.turn.punishment || '') + '#' + (S.turn.choice || '') + '#' + (S.turn.chooserId || '');
+      if (IS_REDUCED) { flipG.rotation.x = -Math.PI; revealK = revealTarget = 1; }
+      else revealTarget = 1;
+      shadowDirty();
+    }
+    if (st.phase === 'flip') {   // 650ms 三段：立起→拍下→回弹（远边枢轴 −180°，翻给全桌看）
+      const k = Math.min(1, (now - st.t0) / 650);
+      const th = k < 0.55 ? easeIO(k / 0.55) * 0.53 : 0.53 + easeIO(Math.min(1, (k - 0.55) / 0.37)) * 0.47;
+      flipG.rotation.x = -Math.PI * th;
+      if (k >= 1) { st.phase = 'shown'; flipG.rotation.x = -Math.PI; }
+    }
+    if (st.phase === 'reback') {   // 免答牌/换一题重抽①：题面翻回背面（用户点名「免牌时刷新牌要重新抽牌」）
+      const k = Math.min(1, (now - st.t0) / 300);
+      flipG.rotation.x = -Math.PI * (1 - easeIO(k));
+      if (k >= 1) { st.phase = 'refly'; st.t0 = now; }
+    }
+    if (st.phase === 'refly') {   // 重抽②：牌收回牌堆（倒放飞卡弧线），落位无缝交给既有 fly 段重新发牌
+      const k = Math.min(1, (now - st.t0) / 420);
+      const sx = DECK_POS.x - PIVOT.x, sz = DECK_POS.z - PIVOT.z;
+      actionCard.position.set(sx * k, CARD_T / 2 + Math.sin(Math.PI * k) * 0.35, CARD_L / 2 + (sz - CARD_L / 2) * k);
+      actionCard.rotation.y = Math.sin(Math.PI * k) * 2.2;
+      if (k >= 1) { st.phase = 'fly'; st.t0 = now; shadowDirty(); }
+    }
+    if (st.phase === 'shown') actionCard.scale.set(1, 1, 1);   // 题面躺定
+    if (stage === 'revealed' && st.phase === 'shown') {   // 免答牌/换一题：题面签名边沿（逻辑终审 P0-1：否则玩家对旧题打完整轮）
+      const sig = (S.turn.punishment || '') + '#' + (S.turn.choice || '') + '#' + (S.turn.chooserId || '');
+      if (sig !== (frame.qSig || '')) {
+        frame.qSig = sig;
+        if (IS_REDUCED) {   // 降噪：题面瞬换（原行为）
+          try {
+            const ch = (S.players || []).find(p => p.id === S.turn.chooserId);
+            drawQuestion(S.turn.choice !== 'dare', ch && ch.name, S.turn.punishment, avCanvasOf(ch));
+          } catch (e) {}
+        } else {   // 正常路径：收牌重抽——翻回背面→收回牌堆→重新飞出→重新翻面（翻面入口 qDrawn=false 会拿新题重画）
+          qDrawn = false;
+          st.phase = 'reback'; st.t0 = now;
+        }
+      }
+    }
+    const rStep = dt / (revealTarget > revealK ? 0.9 : 0.7);   // 墙钟定长推镜：慢帧率设备节奏不漂
+    revealK += Math.sign(revealTarget - revealK) * Math.min(Math.abs(revealTarget - revealK), rStep);
+    if (IS_REDUCED) revealK = revealTarget;
+
+    syncCam();   // P0：近景/竖屏位姿逐帧现算——syncCam 不能只靠 Cam.apply 钩子，revealed 期无运镜时它永不被调（代码终审 P0-1）
+    lampG.position.y = revealK * 3.2;   // 近景推进时吊灯过顶出画（滑移与推镜同一墙钟曲线）
+
+    // 悬停/按压/涟漪：choosing 且轮到我且未闩锁才给「可点」语义；光标只随命中态切换（禁每帧无条件写样式）
+    let hovName = null;
+    if (stage === 'choosing' && !rayLatch && ptr.has && iCanPick()) hovName = pickChoiceCard(ptr.x, ptr.y);
+    hoverName = hovName;
+    const cur = hovName ? 'pointer' : '';
+    if (frame.cursor !== cur) { frame.cursor = cur; document.body.style.cursor = cur; }
+    for (const r of ripplePool) {
+      if (!r.active) continue;
+      const k = (now - r.t0) / 550;
+      if (k >= 1) { r.active = false; r.mesh.visible = false; continue; }
+      const es = 1 - (1 - k) * (1 - k);
+      const s = 0.5 + es * 2.4;
+      r.mesh.scale.set(s, s, 1);
+      r.mesh.material.opacity = 0.9 * (1 - k);
+    }
+    tickFx(now);   // 表情气泡 + 🥚 飞蛋/碎粒/脸贴蛋液
+    tickVoiceWaves(now);   // 说话声波外扩环
+    tickFaceSplats(now); tickShells(dt, now);   // 蛋碎：脸上蛋液下淌 + 壳屑弹地
+    tickChoice(cTruth, dt, hovName === 'truth', pressCard === cTruth);
+    tickChoice(cDare, dt, hovName === 'dare', pressCard === cDare);
+
+    // 人物：呼吸/摇摆/走位合成（transform 只由这里写）
+    let walking = false;
     for (const [pid, ch] of chars) {
       const u = ch.userData;
-      u.torso.scale.y = 1 + 0.03 * Math.sin(sec * 2.2 + u.phase);                                  // 呼吸
-      u.torso.rotation.z = Math.sin(sec * 3.1 + u.phase) * 0.05 * (0.25 + u.voice);                // 说话摇摆
+      if (!IS_REDUCED) {
+        u.torso.scale.y = 1 + 0.03 * Math.sin(sec * 2.2 + u.phase);
+        u.torso.rotation.z = Math.sin(sec * 3.1 + u.phase) * 0.05 * (0.25 + u.voice);
+        u.hair.position.y = 0.825 + 0.01 * Math.sin(sec * 2.2 + u.phase);
+      }
+      // 说话声波可视：绿光身+点头+头组随音量微缩+脚下外扩波环（voice 由 paintVoice 钩子按 RMS 实时喂）
+      const talk = u.voice;
+      const glow = talk > 0.01 ? 0.045 + 0.15 * talk : 0;
+      u.torso.material.emissive.setRGB(0, glow, glow * 0.28);
+      u.chest.material.emissive.setRGB(0, glow * 1.1, glow * 0.3);
+      const hs = 1 + 0.1 * talk;
+      u.head.scale.set(hs, hs, hs); u.face.scale.set(hs, hs, hs); u.hair.scale.set(hs, hs, hs);
+      u.head.rotation.x = !IS_REDUCED ? Math.sin(sec * 6.4 + u.phase) * 0.11 * talk : 0;
+      if (!IS_REDUCED && talk > 0.06) {
+        u.waveT += dt;
+        if (u.waveT >= 0.55) { u.waveT = 0; voiceWave(pid, talk); }   // 0.55s 交错 → 恒 2 环在场，与 DOM w1/w2 同节奏
+      } else u.waveT = 0;
       const isGo = pid === goId;
-      u.lean += ((isGo ? 0.4 : 0) - u.lean) * 0.08;                                                // 离座探身
-      u.torso.rotation.x = -u.lean;
-      u.hair.position.y = 1.345 + 0.01 * Math.sin(sec * 2.2 + u.phase);
+      const tgt = isGo ? 1 : 0;
+      u.go += (tgt - u.go) * (1 - Math.exp(-dt * (isGo ? 2.6 : 3.2)));
+      if (IS_REDUCED) u.go = tgt;
+      if (Math.abs(u.go - tgt) > 0.01) walking = true;
+      if (u.go > 0.001) {
+        // 走位：座位 → 座位与牌堆连线上、桌缘圈（WALK_R）的停点——绝不上桌。
+        // 旧版走全程 55% 终点 r≈1.67 深陷桌面内，躯干/胸直接插穿台面=「摸牌穿模」。
+        // 停点方程 |seat+u·s|=WALK_R 的正根（牌堆本体在圈内 ⇒ 根必在射程内）；
+        // 到位后髋部枢轴整体前倾 LEAN_MAX 探向牌堆——倾角与停点半径联算过：上身越过
+        // 台面高度带（0.875~0.965）时水平位置仍在围边外缘（r2.24）之外，几何上无接触。
+        const dx = DECK_POS.x - u.seat.x, dz = DECK_POS.z - u.seat.z;
+        const dist = Math.sqrt(dx * dx + dz * dz) || 1;
+        const ux = dx / dist, uz = dz / dist;
+        const bq = u.seat.x * ux + u.seat.z * uz;
+        const disc = bq * bq - (u.seat.x * u.seat.x + u.seat.z * u.seat.z - WALK_R * WALK_R);
+        let s = dist;
+        if (disc > 0) { const r1 = -bq - Math.sqrt(disc); if (r1 > 0.01 && r1 < s) s = r1; }
+        const tx = u.seat.x + ux * s, tz = u.seat.z + uz * s;
+        ch.position.set(u.seat.x + (tx - u.seat.x) * u.go, 0, u.seat.z + (tz - u.seat.z) * u.go);
+        const face = Math.atan2(DECK_POS.x - tx, DECK_POS.z - tz);
+        let d = face - u.baseRotY;
+        while (d > Math.PI) d -= Math.PI * 2;
+        while (d < -Math.PI) d += Math.PI * 2;
+        ch.rotation.y = u.baseRotY + d * u.go;
+        u.lean.rotation.x = LEAN_MAX * u.go;   // 正角=上身探向本地 +Z（面向牌堆）；曾写成负角把人旋成后仰（用户点名「弯腰方向错了」）——数值 0.38 与 WALK_R 的联算不变
+      } else {
+        ch.position.copy(u.seat);
+        ch.rotation.y = u.baseRotY;
+        u.lean.rotation.x = 0;
+      }
+      if (u.cheer > 0) {   // 表情气泡触发的小蹦跳（1.1s 衰减；REDUCED 不跳，只留气泡）
+        u.cheer = Math.max(0, u.cheer - dt / 1.1);
+        if (!IS_REDUCED) ch.position.y = Math.abs(Math.sin(sec * 11 + u.phase)) * 0.075 * u.cheer;
+      } else if (ch.position.y !== 0) ch.position.y = 0;
     }
+    if (walking) shadowDirty();
+
+    // 揭晓近景：贴脸角色让镜——REVEAL 机位就落在座位弧旁，相邻角色只剩半个头占画幅（用户实测「头像被裁剪」）。
+    // 水平距相机 <2.05 单位的角色在推镜后段隐藏（此时他本已大半出画，弹现不显）；回座即还原
+    let culled = false;
+    if (revealK > 0.55) {
+      const ccx = camera.position.x, ccz = camera.position.z;
+      for (const [, ch] of chars) {
+        const dx = ch.position.x - ccx, dz = ch.position.z - ccz;
+        const want = dx * dx + dz * dz >= 4.2;
+        if (ch.visible !== want) { ch.visible = want; culled = true; }
+      }
+    } else {
+      for (const [, ch] of chars) { if (!ch.visible) { ch.visible = true; culled = true; } }
+    }
+    if (culled) shadowDirty();
+
+    // 进行中光环：选卡/抽卡/揭晓全程跟随「正在进行的人」（含走到牌堆旁的位移）
+    let ringPid = null;
+    try {
+      if (S.gameStarted && !S.finished && (stage === 'choosing' || stage === 'drawing' || stage === 'revealed'))
+        ringPid = S.turn.chooserId || activePlayerId();
+    } catch (e) {}
+    const ringCh = ringPid ? chars.get(ringPid) : null;
+    if (ringCh) {
+      turnRing.grp.visible = true;
+      turnRing.grp.position.x = ringCh.position.x;
+      turnRing.grp.position.z = ringCh.position.z;
+      if (!IS_REDUCED) {
+        const pl = 1 + 0.07 * Math.sin(sec * 3.4);
+        turnRing.grp.scale.set(pl, 1, pl);
+        turnRing.inner.material.opacity = 0.55 + 0.25 * Math.sin(sec * 3.4);
+      }
+    } else if (turnRing.grp.visible) {
+      turnRing.grp.visible = false;   // 空闲/结算熄灭
+    }
+
+    bridgeSync();
     updatePlates();
     renderer.render(scene, camera);
   }
+  function resetChoiceCards() {
+    cTruth.pickTarget = 0; cDare.pickTarget = 0; cTruth.pick = 0; cDare.pick = 0;
+    cTruth.group.rotation.x = 0; cDare.group.rotation.x = 0;
+    cTruth.group.position.y = FELT_Y + CARD_T / 2; cDare.group.position.y = FELT_Y + CARD_T / 2;
+    [cTruth, cDare].forEach(cc => {
+      [cc.mesh.material].flat().forEach(mm => { if (mm.opacity !== 1) { mm.opacity = 1; } });
+      cc.hov = 0; cc.press = 0;
+      cc.mesh.scale.set(1, 1, 1);
+      // flash 不清：本地模式 choose() 同步翻转 drawing、reset 当帧执行——清了玩家就永远看不到选中白闪，交给 tickChoice 衰减
+    });
+    hoverName = null; pressCard = null;
+  }
+  function tickChoice(cc, dt, isHover, isPress) {
+    cc.pick += (cc.pickTarget - cc.pick) * (1 - Math.exp(-dt * 6));
+    if (IS_REDUCED) cc.pick = cc.pickTarget;
+    const lift = Math.max(0, cc.pick);
+    if (lift > 0.001) {
+      cc.group.rotation.x = -65 * Math.PI / 180 * lift;   // 选中向镜头翘 65°
+      cc.group.position.y = FELT_Y + CARD_T / 2 + 0.12 * lift;
+    } else if (!IS_REDUCED) {
+      // 悬停：近侧微探 + 轻抬（邀请可点）；按压：整卡回弹下压。都让位给选中抬升，不叠
+      cc.hov += ((isHover ? 1 : 0) - cc.hov) * (1 - Math.exp(-dt * 10));
+      cc.group.rotation.x = -0.2 * cc.hov;
+      cc.group.position.y = FELT_Y + CARD_T / 2 + 0.045 * cc.hov;
+      cc.press += ((isPress ? 1 : 0) - cc.press) * (1 - Math.exp(-dt * 16));
+      const sc = 1 - 0.05 * cc.press;
+      cc.mesh.scale.set(sc, 1, sc);
+    } else {
+      cc.group.rotation.x = 0;
+      cc.group.position.y = FELT_Y + CARD_T / 2;
+    }
+    if (cc.flash > 0) {   // 选中白闪：emissive 是 uniform，直接写值衰减（禁 needsUpdate=重编译）
+      cc.flash = Math.max(0, cc.flash - dt * 2.4);
+      cc.mesh.material[2].emissive.setRGB(cc.flash, cc.flash, cc.flash);
+    }
+    const dim = cc.pick < -0.001 ? 0.3 : 1;   // 未选压暗（uniform 写值即可，禁 needsUpdate——会触发重编译）
+    const mats = [cc.mesh.material].flat();
+    mats.forEach(mm => { if (mm.transparent && mm.opacity !== dim) mm.opacity = dim; });
+  }
+
+  // ── retire：loperf 翻转/退役时全量还原（评审不可让步 #2，同一同步函数）──
+  function retire3D() {
+    if (retired) return;
+    retired = true;
+    try { document.body.style.cursor = ''; } catch (e) {}   // 悬停手型随 3D 一起退役
+    try { bridgeRestore(); } catch (e) {}
+    try { if (toolsMoved) { toolsMoved.el.style.display = toolsMoved.origDisplay; toolsMoved.parent.insertBefore(toolsMoved.el, toolsMoved.next); toolsMoved = null; } } catch (e) {}   // display 一并归还：loperf 若在进桌前翻转，frame 的显隐写入再也不会跑，残留 'none' 会让 CSS 回退局工具行整局不可见（sim-mobile 实测）
+    try { toolsFab.remove(); } catch (e) {}   // 🧰 浮标只属于 3D 窄屏，随场景退役（CSS 回退层没有它）
+    try { if (betMoved) { betMoved.parent.insertBefore(betMoved.el, betMoved.next); betMoved = null; } } catch (e) {}   // 押注面板归还 CSS 路径
+    try { stageActions.remove(); } catch (e) {}
+    document.body.classList.remove('three3d');
+    bubbles.length = 0; eggs3d.length = 0; voicePool.length = 0; faceSplats.length = 0; shellPool.length = 0;   // 特效池随场景退役（mesh 已被下方 traverse dispose）
+    try { window.removeEventListener('resize', size); } catch (e) {}
+    try { if (_ap) Cam.apply = _ap; } catch (e) {}
+    try { if (_pv) paintVoice = _pv; } catch (e) {}
+    try {   // 名牌回归 layoutRing CSS 定位（inline 补偿一并归还，否则 CSS 回退层带着 3D 的 min-width 布局）
+      document.querySelectorAll('#game-players-grid .player-card').forEach(c => {
+        c.style.left = ''; c.style.top = ''; c.style.zIndex = '';
+        c.style.visibility = ''; c.style.minWidth = '';
+        const w = c.__wrapEl || c.querySelector('.avatar-wrap');
+        if (w) w.style.minWidth = '';
+      });
+    } catch (e) {}
+    try {
+      scene.traverse(o => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m.map) m.map.dispose(); m.dispose(); });
+      });
+    } catch (e) {}
+    try { renderer.dispose(); } catch (e) {}
+    try { renderer.forceContextLoss && renderer.forceContextLoss(); } catch (e) {}
+    try { canvas.remove(); } catch (e) {}
+  }
+
   requestAnimationFrame(frame);
 })();
+
 
 </script>
 </body>

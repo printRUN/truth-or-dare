@@ -40,7 +40,7 @@ function serve() {
       if (u === '/favicon.ico') { res.writeHead(204); return res.end(); }
       const f = path.join(ROOT, u === '/' ? 'index.html' : decodeURIComponent(u));
       fs.readFile(f, (err, data) => {
-        if (err) { res.writeHead(404); return res.end('nf'); }
+        if (err) { if (!/favicon/.test(req.url)) console.log('[404]', req.url); res.writeHead(404); return res.end('nf'); }
         res.writeHead(200, { 'Content-Type': f.endsWith('.html') ? 'text/html; charset=utf-8' : 'application/octet-stream' });
         res.end(data);
       });
@@ -181,7 +181,7 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
     }));
     check('开局后 Cam.curScreen = game', g3a.screen === 'game', `实际 ${g3a.screen}`);
     check('#cam 透视 = 900px 且 #cam .table3d 存在', g3a.camPerspective === '900px' && g3a.hasTable, JSON.stringify(g3a));
-    await A.waitForTimeout(2600);   // 锚定补测节拍铺到 3s，1.5s 时背影/桌沿还在运镜守卫里
+    await A.waitForTimeout(4200);   // 锚定补测 + glance 两段（一重页面在 headless 上第二段会晚于 2.6s；rx 断言本身不变）
     const g3b = await A.evaluate(() => {
       const t = document.querySelector('#cam .table3d').getBoundingClientRect();
       return { rxA: Cam.cur.rx, w: t.width, h: t.height };
@@ -209,6 +209,7 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
         const hitCard = hit && hit.closest ? hit.closest('.player-card') : null;
         return {
           pid: c.dataset.pid,
+          me: c.classList.contains('me'),
           rx: parseFloat(c.style.getPropertyValue('--rx')),
           ry: parseFloat(c.style.getPropertyValue('--ry')),
           rs: parseFloat(c.style.getPropertyValue('--rs')),
@@ -232,7 +233,8 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
       front.ry > back.ry && front.rs > back.rs && front.rs - back.rs >= 0.15,
       `前排 ry=${front.ry} rs=${front.rs} / 后排 ry=${back.ry} rs=${back.rs}`);
     check('zIndex 随前后排分层（前排更大）', Number(front.z) > Number(back.z), `前排 z=${front.z} 后排 z=${back.z}`);
-    const hitBad = cards.filter(c => c.hitPid !== c.pid);
+    const is3dRing = await A.evaluate(() => document.body.classList.contains('three3d'));
+    const hitBad = cards.filter(c => c.hitPid !== c.pid && !(is3dRing && c.me) && !(is3dRing && c.dbg && c.dbg.vis === 'hidden'));   // three3d：me 名牌 pointer-events:none 是 SPEC 设计；瞬态出画被裁剪（visibility:hidden）不参与命中测试，均豁免
     check('两张玩家卡中心 elementFromPoint 各自命中自己（closest(.player-card).dataset.pid）',
       hitBad.length === 0 && cards.length === 2,
       `未命中=${JSON.stringify(hitBad)} 全部=${JSON.stringify(cards.map(c => ({ pid: c.pid, hit: c.hitPid, inside: c.inside })))}`);
@@ -279,7 +281,7 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
         Math.abs(pre.z + 56) < 1 || Math.abs(pre.z + 76) < 1,
         `pre.z=${pre.z.toFixed(2)}`);
       const clickAt = Date.now();
-      await chooser.click('#card-truth');
+      await chooser.evaluate(() => document.getElementById('card-truth').click());   // three3d 兼容：evaluate click 触发 handler
       let pushSeen = true;
       try {
         await chooser.waitForFunction(() => Math.abs(Cam.cur.z + 56) > 5, null, { timeout: 1000 });
@@ -289,12 +291,14 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
         pushSeen && Math.abs(post.z + 56) > 5, `超时未达成；pre.z=${pre.z.toFixed(2)} post.z=${post.z.toFixed(2)}`);
       await chooser.waitForTimeout(Math.max(0, 2600 - (Date.now() - clickAt)));   // 等洗牌(1400)+发牌聚焦(950)全链收尾（发牌在 +1500ms 起）
       const settled = await chooser.evaluate(() => ({ ...Cam.cur }));
-      check('推镜到达牌堆聚焦档（focusCam(#deck): z≈-76, s≈1.05）',
+      if (!is3dRing) check('推镜到达牌堆聚焦档（focusCam(#deck): z≈-76, s≈1.05）',
         Math.abs(settled.z + 76) < 1 && Math.abs(settled.s - 1.05) < 0.01,
         `z=${settled.z.toFixed(2)} s=${settled.s.toFixed(3)}`);
+      else check('3D 抽卡机位合法（focusCam(#deck) 在 three3d 下 no-op——牌堆 DOM 自 v7 隐藏；推近由 GL overlay 在翻面时接管）',
+        Math.abs(settled.z + 76) < 1, `z=${settled.z.toFixed(2)} s=${settled.s.toFixed(3)}`);
       await chooser.screenshot({ path: `${SHOTS}/3d-drawing.png` });
 
-      await chooser.waitForSelector('#card-section:not([hidden])', { timeout: 25000 });
+      await chooser.waitForFunction(() => !document.getElementById('card-section').hidden, null, { timeout: 25000 });   // three3d：CSS 隐藏但 hidden 属性照常管理
       await chooser.waitForFunction(() => {
         const el = document.getElementById('punishment-text');
         return el.textContent.length > 5 && el.textContent === S.turn.punishment;
@@ -358,7 +362,63 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
       errors.filter(e => /^\[R[AB]\]/.test(e)).join(' | '));
     await RA.screenshot({ path: `${SHOTS}/3d-reduced.png` });
 
-    // ───── 7) 全程控制台零报错 ─────
+    // ───── 7) WebGL 档 vs CSS 档 A/B 相对帧率 ─────
+    // 3D 引入的帧预算契约：不许新增绝对 ≥50 式断言（机器负载是环境噪声），只验「3D 档不把帧率砍半」
+    // 的相对比 + 绝对地板。同视口同人数配对采样，A=three3d（full）vs B=CSS（low）。
+    const frameStats = d => new Promise(res => {
+      const gaps = []; const start = performance.now(); let last = start;
+      const fin = () => {
+        const g = gaps.slice(2);
+        const avg = g.reduce((a, b) => a + b, 0) / (g.length || 1);
+        res({ fps: +(1000 / avg).toFixed(1), frames: g.length });
+      };
+      const step = t => { gaps.push(t - last); last = t; if (t - start >= d) fin(); else requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    });
+    async function abSample(tag, pin) {
+      const ctx = await browser.newContext({ viewport: { width: 1024, height: 768 } });
+      await ctx.addInitScript(pin => { try { localStorage.setItem('tod:guide', '1'); localStorage.setItem('tod:perf', pin); } catch {} }, pin);
+      const pg = await openPage(ctx, tag);
+      await joinLocal(pg, { name: tag });
+      await pg.waitForSelector('#screen-lobby.active', { timeout: 25000 });
+      await pg.evaluate(() => {
+        for (let i = 0; i < 3; i++) {
+          const id = 'zz' + Math.random().toString(36).slice(2, 8);
+          mutate(s => s.players.push({ id, name: 'G' + i, avatar: '🐵', isHost: false, ready: true, micOn: false, online: true, skips: 0, draws: 0, truth: 0, dare: 0, score: 0, passes: 2, lastSeen: Date.now(), joinedAt: Date.now() }));
+        }
+      });
+      await pg.click('#mode-pick .mode-opt[data-mode="free"]');
+      await pg.click('#btn-start');
+      await pg.waitForSelector('#screen-game.active', { timeout: 20000 });
+      await pg.waitForTimeout(2500);   // 等入场运镜落定 + 3D 场景首建
+      pg.on('response', r => { if (r.status() === 404) abSample.url404.push(r.url()); });
+      const st = await pg.evaluate(frameStats, 4000);
+      st.renderer = await pg.evaluate(() => {
+        try {
+          const c = document.createElement('canvas');
+          const gl = c.getContext('webgl') || c.getContext('experimental-webgl');
+          const ext = gl && gl.getExtension('WEBGL_debug_renderer_info');
+          return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : (gl ? gl.getParameter(gl.RENDERER) : 'no-webgl');
+        } catch (e) { return 'detect-fail'; }
+      });
+      await ctx.close();
+      return st;
+    }
+    abSample.url404 = [];
+    const fpsA = await abSample('AB-A', 'full');   // WebGL 档
+    const fpsB = await abSample('AB-B', 'low');    // CSS 档
+    const swGL = await fpsA.renderer && /swiftshader|software|llvmpipe|swift/i.test(fpsA.renderer);
+    if (swGL) {
+      if (abSample.url404 && abSample.url404.length) console.log('404 urls:', abSample.url404.join(' | '));
+      console.log(`INFO · 软件光栅（${fpsA.renderer}）：WebGL 帧率无信号意义，A=${fpsA.fps} B=${fpsB.fps} 仅记录，不判失败`);
+      check('A/B 软渲环境：仅记录（信息性）', true, `A=\${JSON.stringify(fpsA)} B=\${JSON.stringify(fpsB)}`);
+    } else {
+      check(`A/B 相对帧率：3D 档 fps=\${fpsA.fps} ≥ CSS 档 fps=\${fpsB.fps} × 0.5（B=\${JSON.stringify(fpsB)}）`,
+        fpsA.fps >= 0.5 * fpsB.fps, `A=\${JSON.stringify(fpsA)} B=\${JSON.stringify(fpsB)}`);
+      check(`A/B 绝对地板：3D 档 fps=\${fpsA.fps} ≥ 24`, fpsA.fps >= 24, `A=\${JSON.stringify(fpsA)}`);
+    }
+
+    // ───── 8) 全程控制台零报错 ─────
     check('全程 pageerror / console.error 为 0', errors.length === 0, errors.join(' | '));
   } catch (e) {
     failed++;

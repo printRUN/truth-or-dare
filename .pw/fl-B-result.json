@@ -1,0 +1,270 @@
+{
+  "results": [
+    {
+      "id": "B1-reveal-cam-converge",
+      "op": "揭晓近景相机 6s 内是否落到 REVEAL_POS[−1.2,2.82,0.46]",
+      "expect": "收敛到位",
+      "actual": [
+        [
+          -0.88,
+          3.38,
+          0.32
+        ],
+        [
+          -0.9,
+          3.37,
+          0.11
+        ],
+        [
+          -0.9,
+          3.37,
+          0.11
+        ],
+        [
+          -0.9,
+          3.37,
+          0.11
+        ],
+        [
+          -0.9,
+          3.37,
+          0.11
+        ],
+        [
+          -0.9,
+          3.37,
+          0.11
+        ]
+      ],
+      "pass": false
+    },
+    {
+      "id": "B2-rapid-triple-click",
+      "op": "选卡 3 连击",
+      "expect": "仅 1 次抽卡：Δdraws=1、Δrounds=1、Δseq=1",
+      "actual": {
+        "dDraws": 1,
+        "dRounds": 1,
+        "dSeq": 1,
+        "stage": "drawing",
+        "choice": "dare"
+      },
+      "pass": true
+    },
+    {
+      "id": "B3-opponent-blocked",
+      "op": "对手在抽卡期抢选",
+      "expect": "被拒（toast 提示），choice 未被改写",
+      "actual": {
+        "toast": "现在不是抽卡时机",
+        "choiceStill": "dare"
+      },
+      "pass": true
+    },
+    {
+      "id": "B4-raycast-during-drawing",
+      "op": "抽卡期点桌面选卡",
+      "expect": "被阶段闩锁拒绝(stage!=choosing)，双卡无选中残影",
+      "actual": {
+        "dbg": {
+          "t": 1789570294783,
+          "target": "game-players-grid",
+          "detail": 1,
+          "stage": "revealed",
+          "latch": false,
+          "stop": "stage/latch"
+        },
+        "choice": [
+          {
+            "x": -0.78,
+            "rotX": 0,
+            "op": 1,
+            "lift": 0.976
+          },
+          {
+            "x": 0.78,
+            "rotX": 0,
+            "op": 1,
+            "lift": 0.976
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "id": "B5-pass-effect",
+      "op": "免答牌：静默换题",
+      "expect": "punishment 变化、seq+1、chooser passes−1、score 不变、stage 仍 revealed",
+      "actual": {
+        "punishChanged": true,
+        "passes": [
+          2,
+          1
+        ],
+        "dScores": [
+          0,
+          0
+        ],
+        "skips": 1,
+        "stage": "revealed",
+        "seq": [
+          6,
+          7
+        ]
+      },
+      "pass": true
+    },
+    {
+      "id": "B5b-3d-texture-refresh",
+      "op": "免答牌后 3D 题面是否重绘（>2% 像素变化=重绘了）",
+      "expect": "题面应更新为新题",
+      "actual": {
+        "diffRatio": 0.0063
+      },
+      "pass": false
+    },
+    {
+      "id": "B6-host-reroll",
+      "op": "主持人换一题（host==chooser 跳过本轮验证）",
+      "expect": "环境",
+      "actual": "host is chooser this round",
+      "pass": true
+    },
+    {
+      "id": "B7a-stake-visible",
+      "op": "加倍按钮在 #stage-actions 可见（本回合持麦人）",
+      "expect": "stakeVisible=true",
+      "actual": {
+        "vis": true,
+        "parent": "stage-actions"
+      },
+      "pass": true
+    },
+    {
+      "id": "B7b-stake-on",
+      "op": "点加倍 → stake=2、按钮收起",
+      "expect": "S.turn.stake=2 且加倍的入口隐藏",
+      "actual": {
+        "stake": 2,
+        "vis": false
+      },
+      "pass": true
+    },
+    {
+      "id": "B7c-stake-labels",
+      "op": "加倍后按钮文案/徽章",
+      "expect": "完成啦含 +20、跳过含 −10",
+      "actual": {
+        "acc": "完成啦 ✅",
+        "skip": "这题先跳过"
+      },
+      "pass": false
+    },
+    {
+      "id": "B7d-stake-accept-20",
+      "op": "加倍完成 +20",
+      "expect": "chooser score=20",
+      "actual": {
+        "players": [
+          {
+            "n": "阿泽",
+            "score": 15,
+            "passes": 2,
+            "draws": 2,
+            "skips": 1
+          },
+          {
+            "n": "小雨",
+            "score": 10,
+            "passes": 1,
+            "draws": 1,
+            "skips": 0
+          }
+        ]
+      },
+      "pass": false
+    },
+    {
+      "id": "B8-race-accept-reroll",
+      "op": "竞态：完成啦 vs 换一题同时",
+      "expect": "恰好一次结算（rounds+1、有 ±分），终态 choosing，无页面错",
+      "actual": {
+        "stage": "choosing",
+        "roundsDelta": 0,
+        "scores": [
+          15,
+          20
+        ],
+        "errs": 0
+      },
+      "pass": false
+    },
+    {
+      "id": "B9a-free-repeat-stale",
+      "op": "自由局连续持麦：选卡期旧动作按钮是否残留可见",
+      "expect": "不应看到上一轮的 完成啦/跳过",
+      "actual": {
+        "accVisible": false,
+        "parent": "card-front",
+        "stage": "choosing"
+      },
+      "pass": true
+    },
+    {
+      "id": "B9b-free-repeat-play",
+      "op": "自由局再抢再玩",
+      "expect": "可再进入 drawing",
+      "actual": true,
+      "pass": true
+    },
+    {
+      "id": "B10-plates",
+      "op": "名牌贴头（名牌中心与头顶投影距离 ≤90px）",
+      "expect": "全部贴合",
+      "actual": {
+        "plates": [
+          {
+            "pid": "你",
+            "plateXY": [
+              723,
+              518
+            ],
+            "headProj": [
+              826,
+              420
+            ],
+            "vis": ""
+          },
+          {
+            "pid": "看牌中",
+            "plateXY": [
+              717,
+              86
+            ],
+            "headProj": [
+              720,
+              103
+            ],
+            "vis": ""
+          }
+        ],
+        "off": [
+          {
+            "pid": "你",
+            "plateXY": [
+              723,
+              518
+            ],
+            "headProj": [
+              826,
+              420
+            ],
+            "vis": ""
+          }
+        ]
+      },
+      "pass": false
+    }
+  ],
+  "errs": []
+}
