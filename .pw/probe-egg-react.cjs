@@ -162,11 +162,11 @@ const server = http.createServer((req, res) => {
     requestAnimationFrame(tick);
   });
   await chooser.click('#btn-pass');
-  // 软渲下主线程被 WebGL 阻塞：rAF 逐帧采样（与应用帧循环同拍），判据取「本质」：牌曾离桌（x>0.5 在牌堆）且终态回桌心（|x|<0.05）+ 相位 shown
+  // 软渲下主线程被 WebGL 阻塞：rAF 逐帧采样（与应用帧循环同拍），判据取「本质」：牌曾离桌（|x|>0.5 在牌堆，placement 偏航后 deckL.x 可为负）且终态回桌心（|x|<0.05）+ 相位 shown
   await chooser.waitForTimeout(5300);
   const ph = await chooser.evaluate(() => window.__phases || []);
   const xs = await chooser.evaluate(() => window.__xs || []);
-  const wentToDeck = xs.some(x => x > 0.5);   // 收回牌堆（deck 本地 x≈1.12；rest x≈0）
+  const wentToDeck = xs.some(x => Math.abs(x) > 0.5);   // 收回牌堆（deck 本地 |x|≈1.12；rest x≈0）
   const backToRest = Math.abs(xs[xs.length - 1]) < 0.05;
   ok(wentToDeck && backToRest, 'pass card replays re-deal: card left table and returned to rest', { phases: ph.filter((v, i, a) => a[i - 1] !== v), wentToDeck, backToRest });
   ok(ph[ph.length - 1] === 'shown', 're-deal settles back to shown', ph.slice(-4));
@@ -179,19 +179,22 @@ const server = http.createServer((req, res) => {
   await chooser.screenshot({ path: 'shots/eggfx-redeal.png' });
 
   // ── ⑥b 揭晓阶段点 3D 小人本体也能扔（GL raycast 路径；此前瞄准态只认名牌，近景点人没反应——用户实测反馈）──
+  // 2026-09-18 起 near-景机位随卡走到抽卡者一侧：近景里全员贴脸/出画 → 🥚 瞄准态自动拉远（任何阶段可扔），此处一并回归该行为
   const spec2 = chooser === A ? B : A;
-  await spec2.evaluate(() => mutate(n => { const p = n.players.find(x => x.id === myId); if (p) p.eggs = 2; }));   // 正路补蛋（本地 hack 会被对端心跳整文档覆盖）
+  await spec2.evaluate(() => mutate(n => { const p = n.players.find(x => x.id === myId); if (p) p.eggs = 2; }));
   await spec2.waitForTimeout(900);
   const cid = await chooser.evaluate(() => myId);
   await spec2.click('#btn-egg');
   ok(await spec2.evaluate(() => document.body.classList.contains('egg-aim')), 'egg aim armed in revealed stage');
+  const wideOk = await spec2.waitForFunction(() => window.__three.fxState().revealK < 0.05, null, { timeout: 4000 }).then(() => true).catch(() => false);
+  ok(wideOk, 'egg aim zooms the reveal close-up back out (targets visible again)');
   const pt = await spec2.evaluate(pid2 => {
     const ch = window.__three.chars.get(pid2);
     const v = ch.userData.head.getWorldPosition(new THREE.Vector3());   // 头球心：任何 lean/走位姿态下射线都必然命中本体
     v.project(window.__three.camera);
     return { x: Math.round((v.x + 1) / 2 * innerWidth), y: Math.round((1 - (v.y + 1) / 2) * innerHeight), vis: ch.visible };
   }, cid);
-  ok(pt.vis && pt.x > 2 && pt.x < 898 && pt.y > 2 && pt.y < 898, 'chooser char on screen in revealed close-up', pt);
+  ok(pt.vis && pt.x > 2 && pt.x < 898 && pt.y > 2 && pt.y < 898, 'chooser char on screen after aim zoom-out', pt);
   await spec2.mouse.click(pt.x, pt.y);
   const specEggs = await spec2.evaluate(() => eggsOf(me()));
   ok(specEggs === 1, 'clicking 3D char body throws in revealed stage (raycast path)', specEggs);

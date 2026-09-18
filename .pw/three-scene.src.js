@@ -1,4 +1,3 @@
-
 /* ══════════ Three.js 真 3D 场景（第三人称牌桌，body.three3d）v8 ══════════
    混合架构：WebGL 画布（body 层全屏，#bg-canvas 之上 #app 之下）渲染房间/桌子/牌堆/3D 人物与桌上卡；
    DOM UI（HUD/名牌/选卡按钮/押注）叠加其上。一镜到底相机：挂 Cam.apply 钩子 + 竖屏后撤 + 揭晓近景 overlay。
@@ -194,8 +193,9 @@
     const glow = 0.1 * Math.abs(Math.sin(k * Math.PI * 3));
     top.material[2].emissive.setRGB(glow, glow * 0.92, glow * 0.55);
     second.material[2].emissive.setRGB(glow, glow * 0.92, glow * 0.55);
-    if (actionCard.visible) {   // 待抽的牌在堆顶跟着一起滑（洗的就是它）
-      actionCard.position.set((DECK_POS.x - PIVOT.x) + sw * 0.26, CARD_T / 2 + 0.06 + hopT * 0.06, (DECK_POS.z - PIVOT.z) + Math.sin(k * Math.PI * 2 + 0.6) * 0.05);
+    if (actionCard.visible) {   // 待抽的牌在堆顶跟着一起滑（洗的就是它）；位置摆幅经 RYm 折算（世界轴摆向与 deck 子牌一致），朝向由 dealRot 内含的 −φ 对齐堆面（终审 FIX-1）
+      const wob = RYm(cardPlace.phi, sw * 0.26, Math.sin(k * Math.PI * 2 + 0.6) * 0.05);
+      actionCard.position.set(cardPlace.deckL.x + wob.x, CARD_T / 2 + 0.06 + hopT * 0.06, cardPlace.deckL.z + wob.z);
       actionCard.rotation.y = (actionCard.userData.dealRot || 0) + sw * 0.5;
     }
     shadowDirty();
@@ -284,6 +284,7 @@
   }
   // 抽出的卡：枢轴组（远边）+ 卡体；+y 面=牌背，−y 面=题面（翻面后朝上）
   const flipG = new THREE.Group();
+  flipG.rotation.order = 'YXZ';   // 偏航+翻转复合：先 Y（面向该回合玩家）后 X（绕已偏航的枢轴边翻面）；运行中绝不改 order（同角度会被重新解释）
   flipG.position.copy(PIVOT);
   const actionCard = cardMesh(CARD_W, CARD_L, [
     sideMat, sideMat,
@@ -326,7 +327,197 @@
   }
   const cTruth = choiceCard(-0.78, true), cDare = choiceCard(0.78, false);
   const CARD_LOOK = new THREE.Vector3(0, FELT_Y + 0.05, REST.z - CARD_L);   // 翻面后卡心实际在 -1.28（远边枢轴北移一个卡长），取景对齐它
-  const REVEAL_POS = new THREE.Vector3(CARD_LOOK.x - 0.9, CARD_LOOK.y + 2.08, CARD_LOOK.z + 1.14);   // 到卡 ≈2.5、仰角 56°；实测吊灯/两端人物离轴 ≥36° 出画（-1.25/3.45/0.15 变体会把吊灯带成 430px 大球）   // 到卡 ≈2.85、仰角 59°；西侧出「我」巨头画外，抽卡人头肩留在框内同框
+  const REVEAL_POS = new THREE.Vector3(CARD_LOOK.x - 0.9, CARD_LOOK.y + 2.08, CARD_LOOK.z + 1.14);   // 到卡 ≈2.5、仰角 56°；西侧出「我」巨头画外、抽卡人头肩留在框内同框（2026-09-18 起为 cardPlace 的 φ=0 初值/兜底，常态由 solvePlacement 随卡重算）
+
+  // ── 题卡落点 = 该回合玩家面前（2026-09-18 用户点名「翻牌后的位置要到该回合的那个人面前」）──
+  // 旧版写死桌心北：2p 局里牌正好躺在对面（非抽卡者）面前。现按 chooser 座位方向放牌：翻面前卡心
+  // d̂·(R+0.64)（落在近抽卡者处，外缘 R+0.96 ≤1.98 < 毡缘 2.05），翻面后卡心 d̂·R，枢轴 = d̂·(R+0.32)
+  // （翻面前卡的内缘），rotation.order='YXZ' 让 −π 翻转绕「已偏航的枢轴边」进行——卡向桌心翻、题面对
+  // 抽卡者正读；近景机位 reveal = look + RY(φ)·(-0.9,2.08,+1.14)（φ=0 时与旧常量逐字节同构）。
+  const cardPlace = { phi: 0, chooser: null, look: CARD_LOOK.clone(), reveal: REVEAL_POS.clone(),
+    deckL: { x: DECK_POS.x - PIVOT.x, z: DECK_POS.z - PIVOT.z } };   // 初值=旧北位：任何未计算路径行为与历史一致
+  function RYm(phi, x, z) { const c = Math.cos(phi), s = Math.sin(phi); return { x: x * c - z * s, z: x * s + z * c }; }   // 偏航 φ 的枢轴系：世界偏移→局部（=RY(−φ)；lx 里是减号，写反=牌堆顶悬幽灵位）
+  function placeDirOf(pid) {   // 方向解析链：chars 座位（u.seat，绝不用 ch.position——drawing 期人正走向牌堆）→ layoutRing 角度（同步值）→ null=旧北位兜底
+    const ch = chars.get(pid);
+    if (ch) { const s2 = ch.userData.seat; if (s2 && s2.lengthSq() > 1e-6) { const l2 = Math.sqrt(s2.lengthSq()); return { x: s2.x / l2, z: s2.z / l2 }; } }   // 零向量守卫：normalize(0)=NaN 会把整卡连同阴影变没
+    const a = (window.__seatAngleByPid || {})[pid];
+    if (a != null) { const a3 = a - Math.PI; return { x: Math.sin(a3), z: Math.cos(a3) }; }
+    return null;
+  }
+  const PLACE_OBST = [   // 圆近似障碍：牌堆 0.62（含洗牌横移 ±0.26 包络）/ 选卡双卡 0.55（drawing/revealed 期双卡仍在桌上，被选卡还保持抬升）
+    { x: DECK_POS.x, z: DECK_POS.z, r: 0.62 },
+    { x: -0.78, z: -0.12, r: 0.55 }, { x: 0.78, z: -0.12, r: 0.55 },
+  ];
+  function placeClear(cx, cz, phi2) {   // 翻面前后两个卡位都要避开障碍；翻面前卡的外缘（卡心+0.96）还要留在毡缘 2.05 之内（终审 FIX-2：守卫点必须是外缘而非卡心）
+    const dx2 = Math.sin(phi2), dz2 = Math.cos(phi2);
+    const ox2 = cx + dx2 * 0.96, oz2 = cz + dz2 * 0.96;   // 翻面前卡外缘点（毡面约束）
+    const px2 = cx + dx2 * 0.64, pz2 = cz + dz2 * 0.64;   // 翻面前卡心（障碍约束；障碍半径已含卡半长包络）
+    if (ox2 * ox2 + oz2 * oz2 > 2.05 * 2.05) return false;
+    for (const o of PLACE_OBST) {
+      if ((cx - o.x) * (cx - o.x) + (cz - o.z) * (cz - o.z) < o.r * o.r) return false;
+      if ((px2 - o.x) * (px2 - o.x) + (pz2 - o.z) * (pz2 - o.z) < o.r * o.r) return false;
+    }
+    return true;
+  }
+  function solvePlacement(d) {   // 纯函数：给定座位方向求落点（不写任何状态）；placeDebug 探针访问器复用
+    const basePhi = Math.atan2(d.x, d.z);
+    const R0 = camera.aspect < 0.8 ? 0.92 : 1.02;   // 竖屏收一档：卡下缘离开前倾头顶带（挑刺 A#7）；外缘 0.92+0.96=1.88 < 2.05 仍成立
+    const tang = { x: d.z, z: -d.x };   // 切向单位向量（侧移方向）
+    let best = null, bestScore = -1;
+    const score = (cx, cz, phi2) => {   // 全碰撞时的最小侵入解：最大「归一化障碍距离」，绝不跳回旧北位（=牌落对面面前，比斜 24° 更伤）
+      let sc = 1e9;
+      const dx2 = Math.sin(phi2), dz2 = Math.cos(phi2);
+      const px2 = cx + dx2 * 0.64, pz2 = cz + dz2 * 0.64;
+      for (const o of PLACE_OBST) sc = Math.min(sc, Math.hypot(cx - o.x, cz - o.z) / o.r, Math.hypot(px2 - o.x, pz2 - o.z) / o.r);
+      if (sc > bestScore) { bestScore = sc; best = { cx, cz, phi: phi2 }; }
+    };
+    const tryR = (R2, shift, phi2) => {
+      const cx = Math.sin(phi2) * R2 + tang.x * shift, cz = Math.cos(phi2) * R2 + tang.z * shift;
+      if (placeClear(cx, cz, phi2)) return { cx, cz, phi: phi2 };
+      score(cx, cz, phi2); return null;
+    };
+    let hit = null;
+    for (const rc of [[R0, 0], [0.90, 0], [0.80, 0], [R0, 0.30], [R0, -0.30], [0.90, 0.30], [0.90, -0.30]]) {   // 径向优先→切向侧移：「在你面前偏一点」好过「转到斜前方」
+      hit = tryR(rc[0], rc[1], basePhi); if (hit) break;
+    }
+    if (!hit) {   // 限角旋转殿后：上限随人数收紧（邻座间隔小，转多就读成别人的牌）
+      const cap = Math.min(60, Math.max(24, 180 / Math.max(2, (S.players || []).length) - 8)) * Math.PI / 180;
+      const steps = Math.ceil(cap / 0.12);
+      outer: for (let k2 = 1; k2 <= steps; k2++) {
+        for (const sg of [1, -1]) { hit = tryR(R0, 0, basePhi + sg * k2 * 0.12); if (hit) break outer; }
+      }
+    }
+    if (!hit) hit = best;
+    const px4 = hit.cx + Math.sin(hit.phi) * 0.32, pz4 = hit.cz + Math.cos(hit.phi) * 0.32;   // 枢轴 P = 翻面后卡心 + d̂·(L/2)
+    hit.px = px4; hit.pz = pz4;
+    hit.deckL = RYm(hit.phi, DECK_POS.x - px4, DECK_POS.z - pz4);
+    return hit;
+  }
+  function ensurePlacement(pid) {   // 幂等：同 chooser 不重算（免答重抽/换一题落点稳定）；三时机调用=drawing 边沿 / 翻面入口 / reback 入口
+    if (cardPlace.chooser === pid) return;
+    cardPlace.chooser = pid;
+    const d = placeDirOf(pid);
+    if (!d) {   // 兜底=旧北位（chooser 身份都拿不到时保持历史行为，不猜错人）
+      cardPlace.phi = 0; cardPlace.look.set(0, FELT_Y + 0.05, REST.z - CARD_L);
+      cardPlace.reveal.copy(REVEAL_POS); cardPlace.deckL.x = DECK_POS.x - PIVOT.x; cardPlace.deckL.z = DECK_POS.z - PIVOT.z;
+      flipG.position.copy(PIVOT); flipG.rotation.y = 0;
+      return;
+    }
+    const hit = solvePlacement(d);
+    cardPlace.phi = hit.phi;
+    cardPlace.look.set(hit.cx, FELT_Y + 0.05, hit.cz);
+    const rv = RYm(-hit.phi, -0.9, 1.14);   // 近景偏移转到世界系：RY(φ)·(-0.9, 2.08, +1.14) 的水平分量（锚 look 点，y 与旧值同构）
+    cardPlace.reveal.set(cardPlace.look.x + rv.x, cardPlace.look.y + 2.08, cardPlace.look.z + rv.z);
+    cardPlace.deckL = hit.deckL;   // solvePlacement 已按枢轴算好并随 hit 返回（placeDebug 同源，探针锁 RYm 旋向）
+    flipG.position.set(hit.px, FELT_Y + CARD_T / 2, hit.pz);
+    flipG.rotation.y = hit.phi;
+  }
+
+  // ── 选卡浮动文字提示 + 互动光效（2026-09-18 用户点名「选择模式在桌面上看不清：浮动文字提示、互动光效加强」）──
+  // 三枚 Sprite 全程 billboard（reactBubble 同语言：fog/depthTest 关、renderOrder 6，不进 raycast 命中表）；
+  // 透明度目标追踪、<0.012 钳 0 并 visible=false（不烧空 draw call）；文字纹理只在状态签名变化时重绘（回合级豁免，同 qSig）。
+  // 光的静/动分线（挑刺 A#14）：呼吸脉动是「邀请」语义只给 iCanPick 客户端；旁观 0.10 恒静态纯指认。
+  function labelTexture(truth) {
+    const c = document.createElement('canvas'); c.width = 384; c.height = 160;
+    const g = c.getContext('2d');
+    g.fillStyle = 'rgba(10,5,26,0.78)'; rr(g, 8, 8, 368, 144, 62); g.fill();
+    g.strokeStyle = truth ? 'rgba(56,189,248,0.75)' : 'rgba(249,115,22,0.75)'; g.lineWidth = 5; rr(g, 8, 8, 368, 144, 62); g.stroke();
+    const word = truth ? '真心话' : '大冒险', icon = truth ? '💬' : '🎯';
+    g.fillStyle = '#fff'; g.textBaseline = 'middle';
+    g.font = '400 74px sans-serif'; const iw = g.measureText(icon).width;
+    g.font = '700 84px "ZCOOL KuaiLe", sans-serif'; const ww = g.measureText(word).width;
+    const x0 = (384 - iw - 18 - ww) / 2;
+    g.font = '400 74px sans-serif'; g.fillText(icon, x0, 86);
+    g.font = '700 84px "ZCOOL KuaiLe", sans-serif'; g.fillText(word, x0 + iw + 18, 82);
+    const t = new THREE.CanvasTexture(c);
+    t.encoding = THREE.sRGBEncoding; t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
+    return t;
+  }
+  const hintCanvas = document.createElement('canvas'); hintCanvas.width = 704; hintCanvas.height = 112;
+  const hintTex = new THREE.CanvasTexture(hintCanvas);
+  hintTex.encoding = THREE.sRGBEncoding; hintTex.minFilter = THREE.LinearFilter; hintTex.generateMipmaps = false;
+  const hintTip = { spr: null, kind: '', t0: 0 };
+  function drawHint(kind, name) {
+    const g = hintCanvas.getContext('2d');
+    g.clearRect(0, 0, 704, 112);
+    const me = kind === 'me';
+    g.fillStyle = 'rgba(10,5,26,0.78)'; rr(g, 6, 6, 692, 100, 50); g.fill();
+    g.strokeStyle = me ? 'rgba(103,232,249,0.8)' : 'rgba(255,255,255,0.4)'; g.lineWidth = 4; rr(g, 6, 6, 692, 100, 50); g.stroke();
+    g.fillStyle = me ? '#67e8f9' : 'rgba(255,255,255,0.92)';
+    g.font = '700 62px "ZCOOL KuaiLe", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(me ? '轮到你了 · 点一张' : '等待「' + name + '」选择…', 352, 58);
+    hintTex.needsUpdate = true;
+  }
+  function makeTip(tex, w, h) {
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false, depthTest: false, fog: false }));
+    spr.renderOrder = 6; spr.scale.set(w, h, 1); spr.visible = false;   // 材质默认 opacity=1：先 0+隐藏，防首个 choosing 帧闪满亮
+    scene.add(spr); return spr;
+  }
+  function tipFade(spr, target, dt) {
+    if (IS_REDUCED) { spr.material.opacity = target; spr.visible = target > 0; return; }
+    if (target > 0 && !spr.visible) { spr.visible = true; spr.material.opacity = 0; }
+    const o = spr.material.opacity + (target - spr.material.opacity) * (1 - Math.exp(-dt * 6));
+    if (target === 0 && o < 0.012) { spr.material.opacity = 0; spr.visible = false; }
+    else spr.material.opacity = o;
+  }
+  const glowTex = (() => {   // 卡下光池共用一张径向渐变白图，蓝/橙靠 material.color 染色
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const g = c.getContext('2d');
+    const gr = g.createRadialGradient(128, 128, 12, 128, 128, 126);
+    gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(0.45, 'rgba(255,255,255,0.38)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+    const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
+    return t;
+  })();
+  function makePool(color) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: glowTex, color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+    m.rotation.x = -Math.PI / 2; m.renderOrder = 2; m.position.y = FELT_Y + 0.008;   // 涟漪 0.012 之下、毡面之上（16 位深度机型的 z-fight 余量）
+    m.scale.set(1.5, 1.9, 1); m.visible = false;
+    scene.add(m); return m;
+  }
+  cTruth.pool = makePool(0x38bdf8); cTruth.pool.position.set(-0.78, FELT_Y + 0.008, -0.12);   // 真心话青蓝：品牌蓝 0x3b82f6 在紫毡(色相258°)上被吞成「偏亮的紫」（挑刺 A#12）
+  cDare.pool = makePool(0xf97316); cDare.pool.position.set(0.78, FELT_Y + 0.008, -0.12);
+  cTruth.label = makeTip(labelTexture(true), 0.62, 0.26); cTruth.label.position.set(-0.78, FELT_Y + 0.80, -0.12);   // 抬到卡上沿空档，不盖卡面图标（挑刺 A#2）
+  cDare.label = makeTip(labelTexture(false), 0.62, 0.26); cDare.label.position.set(0.78, FELT_Y + 0.80, -0.12);
+  hintTip.spr = makeTip(hintTex, 1.42, 0.226);
+  function tickChoiceFx(dt, sec, stage, canPickNow, hovName) {
+    const choosing = stage === 'choosing';
+    for (let i = 0; i < 2; i++) {
+      const cc = i ? cDare : cTruth;
+      const breathe = choosing && canPickNow && !IS_REDUCED ? 0.5 + 0.5 * Math.sin(sec * 3.4) : 0;   // 3.4Hz 与 turnRing 同拍
+      const hovB = canPickNow && hovName === (i ? 'dare' : 'truth') ? 1.35 : 1;   // hover 增益只在能点时生效（⑫① 门禁同规）
+      cc.pool.visible = choosing;
+      cc.pool.material.opacity = choosing ? (canPickNow ? (0.34 + 0.16 * breathe) * hovB : 0.10) : 0;
+      if (cc.flash <= 0) {   // 卡面自发光呼吸（uniform 直写；flash 白闪优先，不叠染色）
+        const k = choosing ? (canPickNow ? 0.10 + 0.10 * breathe + 0.18 * cc.hov : 0.04) : 0;
+        const tn = i ? [0.98, 0.45, 0.09] : [0.22, 0.74, 0.97];
+        cc.mesh.material[2].emissive.setRGB(tn[0] * k, tn[1] * k, tn[2] * k);
+      }
+      tipFade(cc.label, choosing ? 1 : 0, dt);
+    }
+    let name = '', kind = '';
+    if (choosing) {
+      if (canPickNow) kind = 'me';   // 轮到我=持久指令（选卡者没有任何可操作提示是本轮的真痛点）
+      else {
+        kind = 'wait';
+        try {
+          const p2 = (S.players || []).find(p => p.id === S.turn.chooserId);
+          name = (p2 && p2.name) || '??';
+          if (name.length > 4) name = name.slice(0, 1) + '…';
+        } catch (e) { name = '??'; }
+      }
+    }
+    const sig = kind + '|' + name;
+    if (sig !== hintTip.kind) {
+      hintTip.kind = sig;
+      if (kind) drawHint(kind, name);
+      hintTip.t0 = performance.now();   // 旁观 4s 后淡出（挑刺 A#1 裁定）；轮到我无时限
+    }
+    tipFade(hintTip.spr, !choosing ? 0 : (kind === 'me' ? 1 : (performance.now() - hintTip.t0 < 4000 ? 1 : 0)), dt);
+    if (hintTip.spr.visible) {   // 双卡近侧下方空带（桌面/竖屏同位，2026-09-18 实测定稿）：上方竖带被 turn-info 与词牌行带咬死塞不下（代码检查官 FIX-3），近侧毛毡带与两者天然解耦
+      hintTip.spr.position.set(0, FELT_Y + 0.26, 1.28);
+    }
+  }
 
   // ── 3D 人物：凳 + 身体（chrHue 身份色）+ 头 + 头像脸盘（球面外，自亮不受光衰）──
   const chars = new Map();
@@ -402,18 +593,19 @@
     // 斜视角会在头轮廓外露出彩色月牙边 → 收到 0.215 + 蒙版 5px 蚀刻边双保险（2026-09-17 走查 P1）
     const face = new THREE.Mesh(
       new THREE.SphereGeometry(0.215, 20, 14, Math.PI / 2 - 0.7, 1.4, Math.PI / 2 - 0.7, 1.4),
-      new THREE.MeshBasicMaterial({ transparent: true, alphaTest: 0.5 })
+      new THREE.MeshBasicMaterial({ color: 0xe8b98c, transparent: true, alphaTest: 0.5 })   // color=头球肤色：头像纹理未就绪/解析失败时读作裸脸，不是白片
     );
     face.position.set(0, 0.81, 0);
     const hair = new THREE.Mesh(new THREE.SphereGeometry(0.207, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), MAT(c1, 0.8));
     hair.position.y = 0.825;
     lean.add(torso, chest, head, face, hair);
     g.add(stool, lean);
-    g.userData = { pid: p.id, torso, chest, head, face, hair, lean, phase: Math.random() * 6.28, voice: 0, go: 0, cheer: 0, waveT: 0, seat: new THREE.Vector3(), baseRotY: 0 };
+    g.userData = { pid: p.id, torso, chest, head, face, hair, lean, phase: Math.random() * 6.28, voice: 0, go: 0, cheer: 0, waveT: 0, seat: new THREE.Vector3(), baseRotY: 0,
+      moveFrom: new THREE.Vector3(), rotFrom: 0, moveT0: 0, scaleT0: 0, pending: null, seatInit: false };   // 换座滑移状态（syncPlayers 记账、帧循环消费，墙钟 0.7s）
     scene.add(g);
     return g;
   }
-  function syncPlayers() {
+  function syncPlayers(now) {
     if (typeof S === 'undefined' || !S || !S.players || !document.getElementById('screen-game').classList.contains('active')) return;
     const seen = new Set();
     let changed = false;
@@ -425,14 +617,40 @@
       const aCss = (window.__seatAngleByPid || {})[p.id];
       if (aCss != null) {
         const a3 = aCss - Math.PI;
-        // 只写基座数据；transform 由帧循环独占合成（走位/回座不被节询拽回）
-        u.seat.set(Math.sin(a3) * SEAT_R, 0, Math.cos(a3) * SEAT_R);
-        u.baseRotY = Math.atan2(-u.seat.x, -u.seat.z);
+        const sx = Math.sin(a3) * SEAT_R, sz = Math.cos(a3) * SEAT_R;
+        const ry = Math.atan2(-sx, -sz);
+        // 只写基座数据；transform 由帧循环独占合成（走位/回座不被节询拽回）。
+        // 换座平滑（2026-09-18 站位全环重排）：REDUCED 直接落位（信息无损）；首见=从座位外沿走入，
+        // 但出生点水平距 base 相机 (0,·,5.4) <2.6 时改「原地放大入场」（0.42→1，DOM chr-in 同语言，
+        // 免 13-16 人局近侧座巨物贴脸）；走位中（u.go，每回合 drawing/revealed 全程 ≈1）与揭晓近景
+        // （revealK/revealTarget，情绪峰值画面）只记账 pending 不挪人，帧循环在安全帧消费；ε 门防
+        // 600ms 节询同值重置在飞的 0.7s 滑移（否则链式加入永不收敛）。
+        if (IS_REDUCED) {
+          u.seatInit = true;
+          u.seat.set(sx, 0, sz); u.baseRotY = ry;
+        } else if (!u.seatInit) {
+          u.seatInit = true;
+          u.seat.set(sx, 0, sz); u.baseRotY = ry;
+          const px = sx * (1 + 1.15 / SEAT_R), pz = sz * (1 + 1.15 / SEAT_R);
+          if (Math.hypot(px, pz - 5.4) < 2.6) {
+            ch.position.set(sx, 0, sz);
+            u.scaleT0 = now;
+          } else {
+            ch.position.set(px, 0, pz);
+            u.moveFrom.set(px, 0, pz); u.rotFrom = ry; u.moveT0 = now;
+          }
+        } else if (Math.abs(sx - u.seat.x) > 1e-4 || Math.abs(sz - u.seat.z) > 1e-4 || Math.abs(ry - u.baseRotY) > 1e-4) {
+          if (u.go > 0.001 || revealK > 0.05 || revealTarget > 0) u.pending = { x: sx, z: sz, ry };
+          else {
+            u.moveFrom.copy(ch.position); u.rotFrom = ch.rotation.y; u.moveT0 = now;
+            u.seat.set(sx, 0, sz); u.baseRotY = ry;
+          }
+        }
       }
       const uri = resolveAvatar(p.avatar);
       if (uri) {
         const tex = avatarTexture(p.id, uri);
-        if (u.face.material.map !== tex) { u.face.material.map = tex; u.face.material.needsUpdate = true; }
+        if (u.face.material.map !== tex) { u.face.material.map = tex; u.face.material.color.set(0xffffff); u.face.material.needsUpdate = true; }   // color 必须归白：material.color 会与 map 相乘，留着肤色兜底=全桌 3D 脸染土棕
       }
     }
     for (const [pid, ch] of chars) if (!seen.has(pid)) { scene.remove(ch); chars.delete(pid); changed = true; }
@@ -511,14 +729,14 @@
     let py = 3.75 + (c.rx - 19) * 0.03 + pt * 0.5;
     let pz = 5.4 + (-56 - c.z) * 0.035 + pt * 1.3;
     let lx = c.x * 0.006, ly = 0.35 - pt * 0.5, lz = 0;   // 俯角随竖屏系数加深：灯罩顶出 HUD（pt 在桌面恒 0 不影响既有构图）
-    if (revealK > 0.0005) {   // 推近到卡面 ≈2.3 单位：同一位姿喂给名牌投影/拾取，禁缓存
+    if (revealK > 0.0005) {   // 推近到卡面 ≈2.3 单位：同一位姿喂给名牌投影/拾取，禁缓存（look/reveal 随 placement 走=近景怼着「该回合玩家面前」的题卡拍）
       const rk = revealK * revealK * (3 - 2 * revealK);   // smoothstep：起收零速
-      px += (REVEAL_POS.x - px) * rk;
-      py += (REVEAL_POS.y - py) * rk;
-      pz += (REVEAL_POS.z - pz) * rk;
-      lx += (CARD_LOOK.x - lx) * rk;
-      ly += (CARD_LOOK.y - ly) * rk;
-      lz += (CARD_LOOK.z - lz) * rk;
+      px += (cardPlace.reveal.x - px) * rk;
+      py += (cardPlace.reveal.y - py) * rk;
+      pz += (cardPlace.reveal.z - pz) * rk;
+      lx += (cardPlace.look.x - lx) * rk;
+      ly += (cardPlace.look.y - ly) * rk;
+      lz += (cardPlace.look.z - lz) * rk;
     }
     camera.position.set(px, py, pz);
     camera.lookAt(lx, ly, lz);
@@ -894,7 +1112,32 @@
     return { bubbles: bubbles.length, eggs: eggs3d.length, cardPhase: st.phase, leanMax: LEAN_MAX,
       voiceWaves: voicePool.filter(r => r.active).length,
       shells: shellPool.filter(p => p.active).length, faceSplats: faceSplats.length, shuffling: deckShuffle.on,
-      cardPos: { x: +actionCard.position.x.toFixed(2), z: +actionCard.position.z.toFixed(2) } };   // rest 本地 (0, ·, CARD_L/2)；重抽被劫持时会停在牌堆 x≈1.12
+      cardPos: { x: +actionCard.position.x.toFixed(2), z: +actionCard.position.z.toFixed(2) },   // 本地系：rest 恒 (0, ·, CARD_L/2)；被劫持/待抽时停在 |deckL|（旧值 1.12，placement 偏航后带符号）
+      cardWorld: (function () { V.copy(actionCard.position); flipG.localToWorld(V); return { x: +V.x.toFixed(2), z: +V.z.toFixed(2) }; })(),   // 世界系：飞卡起点应 ≈DECK_POS（旁观端 φ≠0 的 deckL 旋向回归锁）
+      revealK: +revealK.toFixed(2),   // 近景推进度（🥚 瞄准拉远回归锁用）
+      place: { phi: +cardPlace.phi.toFixed(2), cx: +cardPlace.look.x.toFixed(2), cz: +cardPlace.look.z.toFixed(2) },   // 翻面后卡心（世界）：断言 ≈ chooser 座位方向 · R
+      choiceFx: { hint: +hintTip.spr.material.opacity.toFixed(2), hintKind: hintTip.kind.split('|')[0], hintAge: +((performance.now() - hintTip.t0) / 1000).toFixed(1),
+        labelT: +cTruth.label.material.opacity.toFixed(2), labelD: +cDare.label.material.opacity.toFixed(2),
+        poolT: +cTruth.pool.material.opacity.toFixed(2), poolD: +cDare.pool.material.opacity.toFixed(2) } };
+  };
+  window.__three.placeDebug = function (dx, dz) {   // 调试访问器（追加访问器约定）：纯函数落点求解，探针测避障/锁 RYm 旋向不污染现场
+    const h = solvePlacement({ x: dx, z: dz });
+    return { phi: +h.phi.toFixed(3), cx: +h.cx.toFixed(2), cz: +h.cz.toFixed(2), px: +h.px.toFixed(2), pz: +h.pz.toFixed(2),
+      deckL: { x: +h.deckL.x.toFixed(3), z: +h.deckL.z.toFixed(3) } };
+  };
+  window.__three.choiceTipRects = function () {   // 调试访问器：三枚提示 Sprite 的屏上包围盒（探针做遮挡断言；SVG 纹理同款投影换算）
+    if (retired || !document.getElementById('screen-game').classList.contains('active')) return null;
+    const r = canvas.getBoundingClientRect();
+    const rectOf = (spr) => {
+      V.set(spr.position.x, spr.position.y, spr.position.z);
+      V2.copy(spr.position).applyMatrix4(camera.matrixWorldInverse);
+      if (V2.z > -0.05) return null;
+      V.project(camera);
+      const ppu = r.height / (2 * (-V2.z) * Math.tan(camera.fov * Math.PI / 360));   // 方形像素：世界单位→像素
+      const cx = (V.x + 1) / 2 * r.width, cy = (1 - (V.y + 1) / 2) * r.height;
+      return { x: cx - spr.scale.x * ppu / 2, y: cy - spr.scale.y * ppu / 2, w: spr.scale.x * ppu, h: spr.scale.y * ppu };
+    };
+    return { hint: rectOf(hintTip.spr), truth: rectOf(cTruth.label), dare: rectOf(cDare.label) };
   };
   document.addEventListener('click', function (e) {
     const dbg = window.__rayDbg = { t: Date.now(), target: e.target && e.target.closest ? (e.target.id || e.target.className || e.target.tagName) : '?', detail: e.detail };   // 静默必须落日志（项目红线）
@@ -987,7 +1230,7 @@
 
     if (t - (frame.lastSync || 0) > 600) {
       frame.lastSync = t;
-      try { syncPlayers(); } catch (e) { window.__syncErr = e.message; }
+      try { syncPlayers(now); } catch (e) { window.__syncErr = e.message; }
     }   // 名单/头像/座位节询（只写数据不写 transform）
 
     // 阶段与边沿
@@ -999,14 +1242,15 @@
     } catch (e) {}
     const inRound = stage === 'drawing' || stage === 'revealed';
     if (stage === 'drawing' && (st.phase === 'park' || st.phase === 'shown' || st.phase === 'flip' || st.phase === 'reback' || st.phase === 'refly')) {
+      try { ensurePlacement(S.turn.chooserId || activePlayerId()); } catch (e) {}   // 落点先于一切卡位写入（含 REDUCED）：flipG.position/rotation.y 与 deckL 同帧就位
       st.phase = IS_REDUCED ? 'pulse' : 'waitfly';   // 降噪：牌直接出现在桌上（CSS 路径同哲学）
       st.flyAt = now + (IS_REDUCED ? 600 : 1050); st.t0 = now; qDrawn = false;   // 非降噪多留 450ms 给洗牌（fly 总 时点不变：原为 pulse 空窗）
       flipG.rotation.x = 0; actionCard.visible = true;
       if (IS_REDUCED) {
         actionCard.position.set(0, 0, CARD_L / 2); actionCard.rotation.y = 0;
       } else {   // 待抽的牌先躺上牌堆顶参与洗牌（旧版出现在桌心北、飞卡起点又瞬移回牌堆=隐性跳变，顺手修掉）
-        actionCard.position.set(DECK_POS.x - PIVOT.x, CARD_T / 2 + 0.06, DECK_POS.z - PIVOT.z);
-        actionCard.rotation.y = (Math.random() * 2 - 1) * 0.1;
+        actionCard.position.set(cardPlace.deckL.x, CARD_T / 2 + 0.06, cardPlace.deckL.z);
+        actionCard.rotation.y = (Math.random() * 2 - 1) * 0.1 - cardPlace.phi;   // −φ 补偿 flipG 偏航：牌背世界朝向与牌堆子牌一致（dealRot 带着它，洗牌段不必再减）
         actionCard.userData.dealRot = actionCard.rotation.y;
         startDeckShuffle(now);
       }
@@ -1014,6 +1258,7 @@
       shadowDirty();
     } else if (!inRound && st.phase !== 'park') {
       st.phase = 'park'; revealTarget = 0; rayLatch = false;
+      cardPlace.chooser = null;   // 强制下回合重算落点（中途入座重排后跟随新座向）
       resetChoiceCards();
       actionCard.visible = false;   // 停选阶段不显示（牌堆本体就是「待抽」语言）
       flipG.rotation.x = 0; actionCard.scale.set(1, 1, 1);
@@ -1022,10 +1267,10 @@
     if (st.phase === 'waitfly' && now >= st.flyAt) { st.phase = 'fly'; st.t0 = now; }
     if (st.phase === 'fly') {   // 900ms：单正弦弧（顶 +0.5 单位）+ 飞行旋卡 ≤180°；落定 80ms 微弹由 pulse 起始承接
       const k = Math.min(1, Math.max(0, (now - st.t0) / 900));   // 免答重抽时 t0 含 950ms 洗牌窗，k 钳 0
-      const sx = DECK_POS.x - PIVOT.x, sz = DECK_POS.z - PIVOT.z;         // deckLocal
+      const sx = cardPlace.deckL.x, sz = cardPlace.deckL.z;                // deckLocal（枢轴本体系，placement 偏航已折算）
       const ex = 0, ez = CARD_L / 2;                                       // restLocal（枢轴系）
       actionCard.position.set(sx + (ex - sx) * k, CARD_T / 2 + 0.06 * (1 - k) + Math.sin(Math.PI * k) * 0.5, sz + (ez - sz) * k);
-      actionCard.rotation.y = Math.sin(Math.PI * k) * 2.6;
+      actionCard.rotation.y = Math.sin(Math.PI * k) * 2.6 - cardPlace.phi * (1 - k);   // 起飞帧 −φ（对齐牌堆朝向）平滑过渡到 0（落定后世界 yaw=φ，题面对抽卡者正读）
       if (k >= 1) { st.phase = 'pulse'; st.t0 = now; actionCard.position.set(0, 0, CARD_L / 2); actionCard.rotation.y = 0; shadowDirty(); }
     }
     if (st.phase === 'pulse') {
@@ -1039,6 +1284,7 @@
     let flippedNow = false;
     try { flippedNow = document.getElementById('flip-card').classList.contains('flipped'); } catch (e) {}
     if (stage === 'revealed' && flippedNow && st.phase !== 'flip' && st.phase !== 'shown' && st.phase !== 'reback' && st.phase !== 'refly' && st.phase !== 'fly' && st.phase !== 'waitfly') {   // fly/waitfly 也排除：免答重抽交棒 fly 的下一帧 flippedNow 仍为 true（DOM .flipped 未摘），不排会把飞行中的卡当场劫持成原地翻面（代码终审 P0）
+      try { ensurePlacement(S.turn.chooserId || activePlayerId()); } catch (e) {}   // revealed 期刷新从未经过 drawing 边沿：翻面入口兜底算落点（REDUCED 同享）
       if (!qDrawn) {   // 翻面前一次性画题面（回合级豁免逐帧红线）
         qDrawn = true;
         try {
@@ -1051,7 +1297,7 @@
       actionCard.visible = true;
       frame.qSig = (S.turn.punishment || '') + '#' + (S.turn.choice || '') + '#' + (S.turn.chooserId || '');
       if (IS_REDUCED) { flipG.rotation.x = -Math.PI; revealK = revealTarget = 1; }
-      else revealTarget = 1;
+      else revealTarget = document.body.classList.contains('egg-aim') ? 0 : 1;   // 🥚 瞄准中翻牌不推近（瞄准态全员要可见可点）
       shadowDirty();
     }
     if (st.phase === 'flip') {   // 650ms 三段：立起→拍下→回弹（远边枢轴 −180°，翻给全桌看）
@@ -1067,9 +1313,9 @@
     }
     if (st.phase === 'refly') {   // 重抽②：牌收回牌堆顶（倒放飞卡弧线），洗一遍牌后无缝交给既有飞卡段重新发出
       const k = Math.min(1, (now - st.t0) / 420);
-      const sx = DECK_POS.x - PIVOT.x, sz = DECK_POS.z - PIVOT.z;
+      const sx = cardPlace.deckL.x, sz = cardPlace.deckL.z;
       actionCard.position.set(sx * k, CARD_T / 2 + 0.06 * k + Math.sin(Math.PI * k) * 0.35, CARD_L / 2 + (sz - CARD_L / 2) * k);
-      actionCard.rotation.y = Math.sin(Math.PI * k) * 2.2;
+      actionCard.rotation.y = Math.sin(Math.PI * k) * 2.2 - cardPlace.phi * k;   // 离开 shown 姿态（本地 0）→ 落回堆顶（本地 −φ，世界对齐牌堆），与 fly 起点连续
       if (k >= 1) { st.phase = 'fly'; st.t0 = now + startDeckShuffle(now); shadowDirty(); }
     }
     if (st.phase === 'shown') actionCard.scale.set(1, 1, 1);   // 题面躺定
@@ -1083,11 +1329,13 @@
             drawQuestion(S.turn.choice !== 'dare', ch && ch.name, S.turn.punishment, avCanvasOf(ch));
           } catch (e) {}
         } else {   // 正常路径：收牌重抽——翻回背面→收回牌堆→重新飞出→重新翻面（翻面入口 qDrawn=false 会拿新题重画）
+          try { ensurePlacement(S.turn.chooserId || activePlayerId()); } catch (e) {}   // revealed 期换人（host 转移/强跳）：落点与近景跟新 chooser，别把新人的题翻在旧人面前
           qDrawn = false;
           st.phase = 'reback'; st.t0 = now;
         }
       }
     }
+    if (st.phase === 'shown' && inRound) revealTarget = document.body.classList.contains('egg-aim') ? 0 : 1;   // 🥚 瞄准态暂时拉远：近景机位随卡到抽卡者一侧后全员贴脸/出画没得点人（⑮「任何阶段可扔」），收瞄准镜头滑回近景
     const rStep = dt / (revealTarget > revealK ? 0.9 : 0.7);   // 墙钟定长推镜：慢帧率设备节奏不漂
     revealK += Math.sign(revealTarget - revealK) * Math.min(Math.abs(revealTarget - revealK), rStep);
     if (IS_REDUCED) revealK = revealTarget;
@@ -1116,6 +1364,7 @@
     tickDeckShuffle(now);   // 🃏 牌堆洗牌（drawing 边沿/免答重抽各跑一遍）
     tickChoice(cTruth, dt, hovName === 'truth', pressCard === cTruth);
     tickChoice(cDare, dt, hovName === 'dare', pressCard === cDare);
+    tickChoiceFx(dt, sec, stage, stage === 'choosing' && iCanPick(), hovName);   // 浮动提示 + 卡下光池/自发光呼吸（邀请语义只在能点时脉动）
 
     // 人物：呼吸/摇摆/走位合成（transform 只由这里写）
     let walking = false;
@@ -1138,7 +1387,10 @@
         u.waveT += dt;
         if (u.waveT >= 0.55) { u.waveT = 0; voiceWave(pid, talk); }   // 0.55s 交错 → 恒 2 环在场，与 DOM w1/w2 同节奏
       } else u.waveT = 0;
-      const isGo = pid === goId;
+      // 走位等「入场/换座滑移/放大入场」放完再出发（终审 P1：drawing 期刷新时首见走入账刚记下、
+      // 同帧 isGo 就把人从 r3.86 钉到座位=单帧瞬移 1.15u）。走位是纯视觉，晚 ≤0.7s 无时序影响
+      // （牌的飞行/洗牌时钟全由 st.phase 驱动）；REDUCED 下 moveT0/scaleT0 恒 0，门自动失效。
+      const isGo = pid === goId && !(u.moveT0 && now - u.moveT0 < 700) && !(u.scaleT0 && now - u.scaleT0 < 500);
       const tgt = isGo ? 1 : 0;
       u.go += (tgt - u.go) * (1 - Math.exp(-dt * (isGo ? 2.6 : 3.2)));
       if (IS_REDUCED) u.go = tgt;
@@ -1165,8 +1417,35 @@
         ch.rotation.y = u.baseRotY + d * u.go;
         u.lean.rotation.x = LEAN_MAX * u.go;   // 正角=上身探向本地 +Z（面向牌堆）；曾写成负角把人旋成后仰（用户点名「弯腰方向错了」）——数值 0.38 与 WALK_R 的联算不变
       } else {
-        ch.position.copy(u.seat);
-        ch.rotation.y = u.baseRotY;
+        // 换座消费点：走位/揭晓期记账的 pending 在回到安全帧的此刻落地——moveFrom 恒取当下实际位置
+        // （走位停点/滑移中途都一样），从它向新座位启 0.7s 墙钟 smoothstep 滑移（重排不瞬移）。
+        // 消费侧同样要过揭晓门（终审 P2：与 syncPlayers 写侧对称，否则揭晓中途记账当帧就被消费）。
+        // 只写 x/z：y 归下方 cheer 蹦跳独占。滑移期间置 walking 让事件驱动阴影跟随。
+        if (u.pending && revealK <= 0.05 && revealTarget === 0) {
+          u.moveFrom.copy(ch.position); u.rotFrom = ch.rotation.y; u.moveT0 = now;
+          u.seat.set(u.pending.x, 0, u.pending.z); u.baseRotY = u.pending.ry;
+          u.pending = null;
+        }
+        const mk = u.moveT0 ? (now - u.moveT0) / 700 : 1;
+        if (mk >= 1 || IS_REDUCED) {
+          u.moveT0 = 0;
+          ch.position.x = u.seat.x; ch.position.z = u.seat.z;
+          ch.rotation.y = u.baseRotY;
+        } else {
+          const k = mk * mk * (3 - 2 * mk);
+          ch.position.x = u.moveFrom.x + (u.seat.x - u.moveFrom.x) * k;
+          ch.position.z = u.moveFrom.z + (u.seat.z - u.moveFrom.z) * k;
+          let d = u.baseRotY - u.rotFrom;
+          while (d > Math.PI) d -= Math.PI * 2;
+          while (d < -Math.PI) d += Math.PI * 2;
+          ch.rotation.y = u.rotFrom + d * k;
+          walking = true;
+        }
+        if (u.scaleT0) {   // 原地放大入场（近侧座出生点离相机太近的替代语言，0.42→1 与 DOM chr-in 同款）
+          const sk = (now - u.scaleT0) / 500;
+          if (sk >= 1) { u.scaleT0 = 0; ch.scale.set(1, 1, 1); }
+          else { const sc = 0.42 + 0.58 * sk; ch.scale.set(sc, sc, sc); }
+        }
         u.lean.rotation.x = 0;
       }
       if (u.cheer > 0) {   // 表情气泡触发的小蹦跳（1.1s 衰减；REDUCED 不跳，只留气泡）
@@ -1198,7 +1477,7 @@
         ringPid = S.turn.chooserId || activePlayerId();
     } catch (e) {}
     const ringCh = ringPid ? chars.get(ringPid) : null;
-    if (ringCh) {
+    if (ringCh && ringCh.visible) {   // 让镜被剔除的角色不画光环（自己抽卡近景里脚下悬空圈）
       turnRing.grp.visible = true;
       turnRing.grp.position.x = ringCh.position.x;
       turnRing.grp.position.z = ringCh.position.z;
@@ -1291,5 +1570,3 @@
 
   requestAnimationFrame(frame);
 })();
-
-

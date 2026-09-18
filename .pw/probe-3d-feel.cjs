@@ -92,6 +92,7 @@ const server = http.createServer((req, res) => {
       present: true, visible: found.visible,
       pos: [ +found.position.x.toFixed(2), +found.position.z.toFixed(2) ],
       chPos: ch ? [ +ch.position.x.toFixed(2), +ch.position.z.toFixed(2) ] : null,
+      chVis: ch ? ch.visible : null,
       opacity: +found.children[0].material.opacity.toFixed(2),
     };
   });
@@ -244,15 +245,16 @@ const server = http.createServer((req, res) => {
   await chooser.screenshot({ path: 'shots/feel-drawing-walk.png' });   // go≈1 当拍：桌缘站位+前倾可见（晚拍会进翻面/近景）
   await chooser.waitForTimeout(1600);
 
-  // 抽卡者屏幕距离检查：光环跟着走到牌堆旁
+  // 抽卡者屏幕距离检查：光环跟着走到牌堆旁。2026-09-18 起近景机位随题卡到抽卡者一侧，此拍常已进推镜
+  // （chooser 贴脸让镜被剔除）——环的正确语义=与角色同隐现（无身体的悬空圈不许入画），可见时必跟随
   const rs2 = await ringState();
-  ok(rs2.present && rs2.visible && rs2.chPos && Math.hypot(rs2.pos[0] - rs2.chPos[0], rs2.pos[1] - rs2.chPos[1]) < 0.05, 'turnRing follows walker', rs2);
+  ok(rs2.present && rs2.visible === rs2.chVis && (!rs2.visible || (rs2.chPos && Math.hypot(rs2.pos[0] - rs2.chPos[0], rs2.pos[1] - rs2.chPos[1]) < 0.05)), 'turnRing mirrors char visibility and follows walker', rs2);
 
-  // 等揭晓 → 光环仍在
+  // 等揭晓 → 近景里 chooser 让镜被剔除，环随身体一起收（一致性语义，不再断言「恒可见」）
   await chooser.waitForFunction(() => S.turn.stage === 'revealed' && document.getElementById('punishment-text').textContent.length > 5, null, { timeout: 25000 });
   await chooser.waitForTimeout(800);
   const rs3 = await ringState();
-  ok(rs3.present && rs3.visible, 'turnRing still visible in revealed', rs3);
+  ok(rs3.present && rs3.visible === rs3.chVis, 'turnRing consistency in revealed (hidden with culled char in close-up)', rs3);
   await chooser.screenshot({ path: 'shots/feel-revealed.png' });
   if (tabs[0]) {
     const betTab = [p, ...tabs].find(t => t !== chooser);   // 押注面板对抽卡者本人隐藏（正确行为）——要拿观战页验
