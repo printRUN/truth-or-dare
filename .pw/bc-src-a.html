@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>炸弹猫 · 在线多人</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Sans+SC:wght@400;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0a0a1a; --ember: #f97316; --danger: #ef4444; --amber: #fbbf24;
+  --safe: #22c55e; --cyan: #22d3ee; --violet: #a78bfa;
+  --glass: rgba(255,255,255,0.08); --glass-border: rgba(255,255,255,0.15);
+}
+html, body { height: 100%; }
+body { font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: var(--bg); color: #fff; min-height: 100vh; overflow-x: hidden; position: relative; }
+button { font-family: inherit; color: inherit; border: none; background: none; cursor: pointer; }
+button:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+input { font-family: inherit; }
+
+/* ── 背景：radial-gradient 光球（禁 filter:blur，todo 同红线）+ 纸屑 ── */
+#bg { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.orb { position: absolute; border-radius: 50%; opacity: 0.4; will-change: transform; }
+.o1 { width: 520px; height: 520px; left: -8%; top: -12%; background: radial-gradient(circle, rgba(249,115,22,0.5) 0%, rgba(249,115,22,0.28) 32%, rgba(249,115,22,0.12) 55%, transparent 80%); animation: drift1 26s ease-in-out infinite alternate; }
+.o2 { width: 420px; height: 420px; right: -10%; top: 30%; background: radial-gradient(circle, rgba(239,68,68,0.42) 0%, rgba(239,68,68,0.22) 34%, transparent 78%); animation: drift2 31s ease-in-out infinite alternate; }
+.o3 { width: 360px; height: 360px; left: 30%; bottom: -14%; background: radial-gradient(circle, rgba(251,191,36,0.34) 0%, rgba(251,191,36,0.16) 40%, transparent 75%); animation: drift3 22s ease-in-out infinite alternate; }
+@keyframes drift1 { to { transform: translate(9vw, 11vh) scale(1.15); } }
+@keyframes drift2 { to { transform: translate(-8vw, -10vh) scale(0.92); } }
+@keyframes drift3 { to { transform: translate(7vw, -9vh) scale(1.1); } }
+.confetti { position: absolute; width: 6px; height: 6px; border-radius: 2px; opacity: 0.6; animation: cfall linear infinite; }
+@keyframes cfall { 0% { transform: translateY(-8vh) rotate(0); opacity: 0; } 12% { opacity: 0.6; } 88% { opacity: 0.6; } 100% { transform: translateY(108vh) rotate(660deg); opacity: 0; } }
+
+/* ── GL 画布：body 层全屏，星空之上 UI 之下 ── */
+#gl-canvas { position: fixed; inset: 0; z-index: 0; width: 100%; height: 100%; display: none; pointer-events: auto; }
+body.three3d #gl-canvas { display: block; }
+body.three3d #bg { z-index: -1; }
+
+#app { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 14px 16px 30px; overflow-x: clip; }
+h1 { font-family: 'ZCOOL KuaiLe', cursive; font-size: clamp(1.7rem, 5vw, 2.7rem); text-align: center; background: linear-gradient(135deg, var(--ember), var(--danger), var(--amber)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; margin: 6px 0 4px; }
+
+.net-chip { display: flex; gap: 8px; align-items: center; justify-content: center; margin: 2px auto 8px; padding: 4px 13px; border-radius: 20px; background: var(--glass); border: 1px solid var(--glass-border); font-size: 0.76rem; color: rgba(255,255,255,0.65); }
+.net-chip b { color: var(--cyan); font-weight: 700; }
+.conn-dot { width: 8px; height: 8px; border-radius: 50%; background: #f87171; flex: none; }
+.conn-dot.online { background: #4ade80; box-shadow: 0 0 6px #4ade80; }
+.conn-dot.syncing { background: var(--amber); animation: blink 0.5s infinite alternate; }
+@keyframes blink { to { opacity: 0.3; } }
+
+.screen { display: none; width: 100%; max-width: 920px; margin-left: auto; margin-right: auto; }
+.screen.active { display: flex; flex-direction: column; align-items: center; animation: fade-in 0.4s ease both; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+/* ── 返回游戏中心（fixed 右上，避开一切交互元素）── */
+#lnk-arcade { position: fixed; top: 10px; right: 12px; z-index: 41; display: inline-flex; align-items: center; gap: 6px; padding: 7px 15px; border-radius: 999px; background: var(--glass); border: 1px solid var(--glass-border); color: rgba(255,255,255,0.85); font-size: 0.8rem; text-decoration: none; transition: background 0.2s; }
+#lnk-arcade:hover { background: rgba(255,255,255,0.16); }
+
+/* ── 加入页 ── */
+.join-box { width: 100%; max-width: 430px; margin-top: 18px; padding: 22px 20px 20px; border-radius: 20px; background: var(--glass); border: 1px solid var(--glass-border); backdrop-filter: blur(10px); display: flex; flex-direction: column; gap: 14px; }
+.join-box label { font-size: 0.82rem; color: rgba(255,255,255,0.72); display: flex; flex-direction: column; gap: 6px; }
+.join-box input { background: rgba(0,0,0,0.35); border: 1px solid var(--glass-border); border-radius: 12px; padding: 11px 13px; font-size: 1rem; color: #fff; }
+.join-box input:focus { border-color: var(--ember); box-shadow: 0 0 0 3px rgba(249,115,22,0.18); outline: none; }
+#cat-pick { display: grid; grid-template-columns: repeat(8, 1fr); gap: 7px; }
+#cat-pick .ctile { aspect-ratio: 1; border-radius: 12px; overflow: hidden; border: 2px solid transparent; background: rgba(0,0,0,0.3); padding: 0; transition: transform 0.2s, border-color 0.2s; }
+#cat-pick .ctile img { width: 100%; height: 100%; display: block; }
+#cat-pick .ctile.on { border-color: var(--ember); transform: scale(1.06); }
+#cat-pick .ctile.dice { font-size: 1.15rem; display: flex; align-items: center; justify-content: center; }
+details.adv { font-size: 0.82rem; color: rgba(255,255,255,0.72); }
+details.adv summary { cursor: pointer; user-select: none; }
+details.adv .adv-in { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.btn-primary { padding: 13px 18px; border-radius: 14px; font-size: 1.05rem; font-weight: 700; background: linear-gradient(135deg, var(--ember), var(--danger)); box-shadow: 0 6px 22px rgba(239,68,68,0.35); transition: transform 0.15s, box-shadow 0.2s; }
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 26px rgba(239,68,68,0.45); }
+.btn-primary:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+.ghost { padding: 8px 14px; border-radius: 999px; background: var(--glass); border: 1px solid var(--glass-border); font-size: 0.82rem; color: rgba(255,255,255,0.85); }
+.join-row { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+
+/* ── 大厅 ── */
+.room-head { margin: 14px 0 6px; display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; font-size: 1rem; }
+.room-head b { font-size: 1.7rem; letter-spacing: 0.35em; font-family: 'ZCOOL KuaiLe', cursive; color: var(--amber); }
+#lobby-players { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 16px 0; max-width: 640px; }
+.pchip { display: flex; align-items: center; gap: 8px; padding: 7px 12px 7px 7px; border-radius: 999px; background: var(--glass); border: 1px solid var(--glass-border); font-size: 0.9rem; }
+.pchip img { width: 34px; height: 34px; border-radius: 50%; }
+.pchip .cnt { font-size: 0.75rem; color: rgba(255,255,255,0.55); }
+.pchip.dead { opacity: 0.42; filter: grayscale(0.8); }
+.pchip.turn { border-color: var(--amber); box-shadow: 0 0 10px rgba(251,191,36,0.35); }
+.pchip .crown { font-size: 0.85rem; }
+.lobby-tip { font-size: 0.8rem; color: rgba(255,255,255,0.55); margin-bottom: 14px; }
+.lobby-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+/* ── 牌局屏 ── */
+#screen-game { max-width: none; }
+#bc-top { display: flex; gap: 14px; align-items: center; justify-content: center; flex-wrap: wrap; font-size: 0.85rem; color: rgba(255,255,255,0.8); background: var(--glass); border: 1px solid var(--glass-border); border-radius: 14px; padding: 7px 16px; margin-bottom: 8px; max-width: 680px; }
+#bc-top b { color: var(--amber); }
+#bc-hint { color: var(--cyan); }
+#bc-players { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 760px; margin-bottom: 6px; }
+body.three3d #bc-players { display: none; }
+#bc-board2d { position: relative; width: min(86vw, 560px); height: clamp(150px, 26vh, 230px); margin: 4px auto; border-radius: 18px; background: radial-gradient(ellipse at 50% 42%, #4a1512 0%, #33100e 55%, #220a09 100%); border: 1px solid rgba(251,191,36,0.18); box-shadow: inset 0 0 40px rgba(0,0,0,0.5); display: none; }
+body:not(.three3d) #bc-board2d { display: block; }
+.b2d-pile { position: absolute; top: 50%; transform: translateY(-50%); width: 64px; height: 90px; border-radius: 8px; }
+#b2d-deck { left: 18%; background: linear-gradient(160deg, #2b1a4a, #191030); border: 1px solid rgba(167,139,250,0.4); box-shadow: 2px 2px 0 #14101f, 4px 4px 0 #100c18; }
+#b2d-discard { right: 18%; border: 1px dashed rgba(255,255,255,0.25); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 4px; font-size: 0.68rem; color: rgba(255,255,255,0.55); text-align: center; overflow: hidden; }
+#b2d-discard img { width: 40px; border-radius: 4px; }
+.b2d-label { position: absolute; width: 100%; text-align: center; bottom: -22px; font-size: 0.7rem; color: rgba(255,255,255,0.5); }
+
+#bc-log { position: fixed; right: 10px; top: 64px; z-index: 20; width: min(46vw, 240px); max-height: 42vh; overflow-y: auto; font-size: 0.74rem; color: rgba(255,255,255,0.78); background: rgba(10,10,26,0.72); border: 1px solid var(--glass-border); border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
+#bc-log div { line-height: 1.45; border-bottom: 1px dashed rgba(255,255,255,0.07); padding-bottom: 3px; }
+#bc-log div:last-child { border-bottom: none; color: var(--amber); }
+@media (max-width: 720px) { #bc-log { position: static; width: 94%; max-height: 84px; margin: 2px auto 0; } }
+
+#bc-hand { display: flex; gap: 7px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); overflow-x: auto; max-width: 100vw; margin-top: auto; scrollbar-width: thin; }
+.hcard { flex: 0 0 auto; width: 78px; height: 110px; border-radius: 10px; overflow: hidden; border: 2px solid transparent; box-shadow: 0 4px 14px rgba(0,0,0,0.45); transition: transform 0.18s, border-color 0.18s; padding: 0; background: none; }
+.hcard img { width: 100%; height: 100%; display: block; pointer-events: none; }
+.hcard:hover { transform: translateY(-8px); }
+.hcard.sel { border-color: var(--amber); transform: translateY(-12px); box-shadow: 0 8px 18px rgba(251,191,36,0.35); }
+.hcard:disabled { opacity: 0.55; }
+#bc-empty-hand { color: rgba(255,255,255,0.5); font-size: 0.85rem; padding: 30px 0; }
+
+#bc-actions { display: flex; gap: 10px; justify-content: center; align-items: center; padding: 4px 0 8px; flex-wrap: wrap; }
+#btn-draw, #btn-endturn { padding: 12px 26px; border-radius: 14px; font-size: 1rem; font-weight: 700; background: linear-gradient(135deg, #a78bfa, #6d28d9); box-shadow: 0 5px 18px rgba(109,40,217,0.4); }
+#btn-endturn { background: linear-gradient(135deg, var(--ember), var(--danger)); box-shadow: 0 5px 18px rgba(239,68,68,0.4); }
+#btn-draw:disabled, #btn-endturn:disabled { opacity: 0.4; cursor: not-allowed; }
+#btn-play { padding: 12px 20px; border-radius: 14px; font-size: 0.95rem; font-weight: 700; background: linear-gradient(135deg, var(--amber), #d97706); box-shadow: 0 5px 18px rgba(217,119,6,0.4); }
+#btn-play:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* nope 横幅 */
+#bc-nope { position: fixed; left: 50%; top: max(10px, env(safe-area-inset-top)); transform: translateX(-50%); z-index: 46; display: flex; align-items: center; gap: 12px; background: rgba(20,10,12,0.92); border: 1px solid rgba(239,68,68,0.55); border-radius: 16px; padding: 10px 14px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); animation: nope-in 0.25s ease both; max-width: 94vw; }
+@keyframes nope-in { from { opacity: 0; transform: translateX(-50%) translateY(-12px); } }
+#bc-nope[hidden] { display: none; }
+#nope-txt { font-size: 0.9rem; line-height: 1.4; }
+#nope-txt b { color: var(--danger); }
+#nope-ring { width: 40px; height: 40px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; font-size: 0.78rem; font-weight: 700; background: conic-gradient(var(--danger) var(--p, 100%), rgba(255,255,255,0.12) 0); }
+#nope-ring i { background: #1a0d10; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-style: normal; }
+#btn-nope { padding: 10px 18px; border-radius: 12px; font-weight: 700; font-size: 1rem; background: linear-gradient(135deg, #64748b, #334155); border: 1px solid rgba(255,255,255,0.25); animation: nope-pulse 1s ease-in-out infinite alternate; }
+@keyframes nope-pulse { from { box-shadow: 0 0 0 rgba(100,116,139,0.5); } to { box-shadow: 0 0 16px rgba(100,116,139,0.75); } }
+
+/* 首回合速览条 */
+#bc-tipfirst { font-size: 0.78rem; color: rgba(255,255,255,0.75); background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.25); border-radius: 12px; padding: 7px 12px; margin: 0 auto 6px; max-width: 680px; text-align: center; }
+#bc-tipfirst button { color: var(--cyan); font-size: 0.75rem; margin-left: 8px; }
+
+/* ── 通用弹层（body 级 fixed，避开 #app 包含块红线）── */
+.ovl { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(4,4,12,0.66); padding: 18px; }
+.ovl[hidden] { display: none; }
+.ovl-box { background: #171226; border: 1px solid var(--glass-border); border-radius: 18px; padding: 20px; max-width: min(92vw, 470px); max-height: 86vh; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 14px 50px rgba(0,0,0,0.6); animation: pop-in 0.22s cubic-bezier(0.34,1.56,0.64,1) both; }
+@keyframes pop-in { from { opacity: 0; transform: scale(0.92); } }
+.ovl-box h3 { font-family: 'ZCOOL KuaiLe', cursive; font-size: 1.15rem; color: var(--amber); }
+.ovl-box p { font-size: 0.84rem; color: rgba(255,255,255,0.75); line-height: 1.55; }
+.ovl-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.tgt { display: flex; align-items: center; gap: 8px; padding: 8px 14px 8px 8px; border-radius: 999px; background: var(--glass); border: 1px solid var(--glass-border); font-size: 0.92rem; transition: border-color 0.15s, transform 0.15s; }
+.tgt:hover:not(:disabled) { border-color: var(--ember); transform: translateY(-2px); }
+.tgt:disabled { opacity: 0.4; cursor: not-allowed; }
+.tgt img { width: 32px; height: 32px; border-radius: 50%; }
+.pickcard { width: 74px; border-radius: 9px; overflow: hidden; border: 2px solid transparent; padding: 0; background: none; transition: transform 0.15s, border-color 0.15s; }
+.pickcard:hover { transform: translateY(-4px); border-color: var(--amber); }
+.pickcard img { width: 100%; display: block; }
+#ins-slider { width: 100%; accent-color: var(--ember); }
+#ins-vis { display: flex; gap: 3px; justify-content: center; flex-wrap: wrap; }
+#ins-vis i { width: 12px; height: 18px; border-radius: 3px; background: linear-gradient(160deg, #2b1a4a, #191030); border: 1px solid rgba(167,139,250,0.4); }
+#ins-vis i.bomb { background: linear-gradient(160deg, #ef4444, #7f1d1d); border-color: var(--danger); }
+
+/* 怎么玩 */
+.guide-table { font-size: 0.8rem; line-height: 1.6; color: rgba(255,255,255,0.82); }
+.guide-table div { display: flex; gap: 8px; padding: 3px 0; border-bottom: 1px dashed rgba(255,255,255,0.08); }
+.guide-table span:first-child { flex: none; width: 22px; text-align: center; }
+
+/* toast */
+#bc-toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60; display: flex; flex-direction: column; gap: 6px; align-items: center; pointer-events: none; }
+.toast-in { background: rgba(20,16,34,0.94); border: 1px solid var(--glass-border); border-radius: 12px; padding: 9px 16px; font-size: 0.85rem; animation: toast-in 0.25s ease both; max-width: 86vw; }
+.toast-in.err { border-color: rgba(239,68,68,0.5); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+
+/* 表情 dock */
+#react-dock { position: fixed; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 44; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+#react-dock .rd-main { width: 44px; height: 44px; border-radius: 50%; background: var(--glass); border: 1px solid var(--glass-border); font-size: 1.2rem; backdrop-filter: blur(8px); }
+#react-dock .rd-list { display: flex; flex-direction: column; gap: 6px; }
+#react-dock .rd-list button { width: 40px; height: 40px; border-radius: 50%; background: rgba(20,16,34,0.9); border: 1px solid var(--glass-border); font-size: 1.1rem; }
+#react-dock .rd-list[hidden] { display: none; }
+.react-fall { position: fixed; bottom: -50px; font-size: 1.9rem; z-index: 55; pointer-events: none; animation: rrise 2.5s ease-out both; }
+@keyframes rrise { 0% { transform: translateY(0) scale(0.7); opacity: 0; } 12% { opacity: 1; } 100% { transform: translateY(calc(-100vh - 60px)) scale(1.15); opacity: 0; } }
+
+/* 结算 */
+#res-box { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 6vh; padding: 26px 30px; border-radius: 20px; background: var(--glass); border: 1px solid var(--glass-border); text-align: center; }
+#res-box .win-face { width: 96px; height: 96px; border-radius: 50%; border: 3px solid var(--amber); box-shadow: 0 0 24px rgba(251,191,36,0.5); }
+#res-box h2 { font-family: 'ZCOOL KuaiLe', cursive; font-size: 1.6rem; color: var(--amber); }
+.res-line { font-size: 0.88rem; color: rgba(255,255,255,0.8); line-height: 1.7; }
+
+/* ── REDUCED / loperf 退路（SPEC 铁律：每个新动画都要有静态退路）── */
+@media (prefers-reduced-motion: reduce) {
+  .screen.active, .ovl-box, #bc-nope, .toast-in, .react-fall { animation: none !important; }
+  .orb, .confetti { animation: none !important; }
+  #btn-nope { animation: none !important; }
+  .hcard, .hcard:hover, .hcard.sel, .tgt:hover:not(:disabled), .pickcard:hover { transition: none; transform: none; }
+}
+body.loperf .orb, body.loperf .confetti { animation: none !important; }
+body.loperf .join-box, body.loperf #bc-nope, body.loperf .pchip { backdrop-filter: none; }
+body.loperf .confetti { display: none; }
+body.loperf .screen.active, body.loperf .ovl-box, body.loperf .toast-in { animation: none !important; }
+
+/* 窄屏 */
+@media (max-width: 560px) {
+  #cat-pick { grid-template-columns: repeat(6, 1fr); }
+  .hcard { width: 68px; height: 96px; }
+  #lnk-arcade { top: 6px; right: 8px; padding: 5px 11px; font-size: 0.74rem; }
+  #bc-log { font-size: 0.7rem; }
+}
+</style>
+</head>
+<body>
+<div id="bg"><i class="orb o1"></i><i class="orb o2"></i><i class="orb o3"></i></div>
+<canvas id="gl-canvas"></canvas>
+
+<a id="lnk-arcade" href="index.html">🎮 游戏中心</a>
+
+<main id="app">
+  <h1>💣 炸弹猫</h1>
+  <div class="net-chip"><i class="conn-dot"></i><span id="net-txt">未连接</span></div>
+
+  <!-- 加入 -->
+  <section id="screen-join" class="screen active">
+    <div class="join-box">
+      <label>昵称<input id="in-name" maxlength="12" placeholder="起个响亮的名字"></label>
+      <label>猫头像<div id="cat-pick"></div></label>
+      <label>房号<input id="in-room" maxlength="8" placeholder="留空 = 新建房间" autocapitalize="characters"></label>
+      <details class="adv"><summary>高级选项</summary><div class="adv-in">
+        <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="chk-local"> 本地模式（仅同浏览器多标签）</label>
+      </div></details>
+      <button id="btn-join" class="btn-primary">进入房间</button>
+      <div class="join-row"><button id="btn-guide" class="ghost">📖 怎么玩</button><span style="font-size:0.72rem;color:rgba(255,255,255,0.5)">2-8 人 · 6 人以上自动 2 副牌</span></div>
+    </div>
+  </section>
+
+  <!-- 大厅 -->
+  <section id="screen-lobby" class="screen">
+    <div class="room-head">房号 <b id="share-room"></b> <button id="btn-copy" class="ghost">复制邀请</button></div>
+    <div id="lobby-players"></div>
+    <div class="lobby-tip" id="lobby-tip">人齐后房主点「开始游戏」· 每人开局 1 拆除 + 4 张手牌</div>
+    <div class="lobby-actions">
+      <button id="btn-start" class="btn-primary">开始游戏</button>
+      <button id="btn-leave" class="ghost">离开房间</button>
+      <button id="btn-guide2" class="ghost">📖 怎么玩</button>
+    </div>
+  </section>
+
+  <!-- 牌局 -->
+  <section id="screen-game" class="screen">
+    <div id="bc-top"><span>牌库 <b id="st-deck">-</b></span><span>弃牌 <b id="st-disc">-</b></span><span id="bc-hint"></span></div>
+    <div id="bc-tipfirst" hidden>轮流出牌 → 最后必须<b>抽一张牌</b>结束回合；抽到💣炸弹猫就出局，除非有✂️拆除。活到最后！<button id="tip-x">知道了</button></div>
+    <div id="bc-players"></div>
+    <div id="bc-board2d">
+      <div class="b2d-pile" id="b2d-deck"><span class="b2d-label">牌库</span></div>
+      <div class="b2d-pile" id="b2d-discard"></div>
+    </div>
+    <div id="bc-log"></div>
+    <div id="bc-actions">
+      <button id="btn-play" disabled>打出选中</button>
+      <button id="btn-draw" disabled>🎴 抽牌</button>
+      <button id="btn-endturn" hidden>结束回合</button>
+    </div>
+    <div id="bc-hand"></div>
+  </section>
+
+  <!-- 结算 -->
+  <section id="screen-result" class="screen">
+    <div id="res-box"></div>
+    <div class="lobby-actions" style="margin-top:16px">
+      <button id="btn-again" class="btn-primary">再来一局</button>
+      <a id="res-home" class="ghost" href="index.html" style="text-decoration:none;display:inline-flex;align-items:center">回游戏中心</a>
+    </div>
+  </section>
+</main>
+
+<div id="bc-nope" hidden>
+  <div id="nope-ring"><i id="nope-sec">3</i></div>
+  <div id="nope-txt"></div>
+  <button id="btn-nope">🚫 休想！</button>
+</div>
+
+<div id="ovl-guide" class="ovl" hidden><div class="ovl-box">
+  <h3>💣 炸弹猫怎么玩</h3>
+  <div class="guide-table">
+    <div><span>🎯</span><span>活到最后就赢。轮到你时可以出任意张牌，最后必须<b>抽一张牌</b>结束回合</span></div>
+    <div><span>💥</span><span>炸弹猫：抽到就爆炸出局——除非你有拆除</span></div>
+    <div><span>✂️</span><span>拆除：拆掉炸弹，把它<b>秘密</b>塞回牌库任意位置，立即结束回合</span></div>
+    <div><span>🚫</span><span>休想：随时打出，阻止任何行动（炸弹猫/拆除除外）。休想也能被休想反制！</span></div>
+    <div><span>⚔️</span><span>攻击：本回合不抽牌，下家多做 1 次回合（连出 2 张 → 下家连打 3 回合）</span></div>
+    <div><span>⏭️</span><span>略过：本回合不抽牌，直接过</span></div>
+    <div><span>🎁</span><span>恩惠：指定一名玩家，他选一张牌给你</span></div>
+    <div><span>🔀</span><span>洗混：重新洗牌库</span></div>
+    <div><span>🔮</span><span>预见未来：偷看牌库顶 3 张</span></div>
+    <div><span>🐱</span><span>组合（任意同名牌）：2 张=随机偷他 1 张 · 3 张=点名一张他有的牌必须给 · 5 张不同名=从弃牌堆挑 1 张</span></div>
+  </div>
+  <button class="btn-primary" data-close>开玩！</button>
+</div></div>
+
+<div id="ovl-target" class="ovl" hidden><div class="ovl-box">
+  <h3 id="tgt-title">选择目标</h3><p id="tgt-sub"></p>
+  <div class="ovl-row" id="tgt-list"></div>
+  <button class="ghost" data-close>取消</button>
+</div></div>
+
+<div id="ovl-name" class="ovl" hidden><div class="ovl-box">
+  <h3>点一张牌的名字</h3><p>若他有这张牌，必须交给你</p>
+  <div class="ovl-row" id="name-list"></div>
+  <button class="ghost" data-close>取消</button>
+</div></div>
+
+<div id="ovl-discard" class="ovl" hidden><div class="ovl-box">
+  <h3>从弃牌堆挑一张</h3><p id="disc-sub"></p>
+  <div class="ovl-row" id="disc-list"></div>
+  <button class="ghost" data-close>放弃</button>
+</div></div>
+
+<div id="ovl-give" class="ovl" hidden><div class="ovl-box">
+  <h3 id="give-title">选一张给出去</h3><p id="give-sub"></p>
+  <div class="ovl-row" id="give-list"></div>
+</div></div>
+
+<div id="ovl-stf" class="ovl" hidden><div class="ovl-box">
+  <h3>🔮 牌库顶端的三张</h3><p>只有你能看到 · 从左到右是接下来被抽的顺序</p>
+  <div class="ovl-row" id="stf-list"></div>
+  <button class="btn-primary" data-close>记住了</button>
+</div></div>
+
+<div id="ovl-insert" class="ovl" hidden><div class="ovl-box">
+  <h3>✂️ 炸弹已拆除！</h3>
+  <p>把💣炸弹猫<b>秘密</b>塞回牌库：0 = 最顶（下家就倒霉了）。位置只有你自己知道。</p>
+  <div id="ins-vis"></div>
+  <input type="range" id="ins-slider" min="0" value="0">
+  <p style="text-align:center">放到第 <b id="ins-pos" style="color:var(--ember)">0</b> 张 / 共 <b id="ins-n">-</b> 张之上</p>
+  <button id="ins-ok" class="btn-primary">确认塞入</button>
+</div></div>
+
+<div id="bc-toast"></div>
+<div id="react-dock"></div>
+
+<script>
+/*__THREE_UMD__*/
+</script>
+<script>
+/*__BC_MAIN__*/
+</script>
+</body>
+</html>
