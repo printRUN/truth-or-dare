@@ -318,7 +318,7 @@ const server = http.createServer((req, res) => {
   const watchdog = await page.evaluate(() => {
     const e = CAT.create({ room: 'W', hostId: 'A', selfPid: 'A', seed: 18 });
     ['A', 'B'].forEach(id => e.join(id, id, ''));
-    e.start(); Object.assign(e._T, { quick: 20, turn: 60, afk: 20, turn60000: 0 });
+    e.start(); Object.assign(e._T, { quick: 20, turn: 60, afk: 20 });
     e.G.turn.pid = 'A';
     e.G.turn.acted = Date.now() - 500;
     e._H.deck.unshift('taco:7');
@@ -423,6 +423,35 @@ const server = http.createServer((req, res) => {
     return { rejected: !r.ok };
   });
   ok(noDrawInWindow.rejected, 'nope 窗口期间禁抽牌（先等当前行动结算）');
+
+  const leaveInDefuse = await page.evaluate(() => {
+    const e = CAT.create({ room: 'LD', hostId: 'A', selfPid: 'A', seed: 34 });
+    ['A', 'B', 'C'].forEach(id => e.join(id, id, ''));
+    e.start(); Object.assign(e._T, { quick: 20, defuse: 40, turn: 60000 });
+    e.G.turn.pid = 'A';
+    e._H.deck.unshift('ek:6');
+    e.draw('A');
+    e.act({ from: 'A', mid: 'ld1', a: { t: 'leave' } });   // 拆牌 pending 期间离场
+    const cleared = !e.G.turn.pending;
+    e.tick(Date.now() + 500);                               // tick 不再重试失败的 insert
+    const ekBack = e._H.deck.some(c => CAT.kindOf(c) === 'ek') || e.G.discard.some(c => CAT.kindOf(c) === 'ek');
+    const alive2 = e.G.players.filter(x => x.alive && !x.left).length === 2;
+    return { cleared, ekBack, alive2 };
+  });
+  ok(leaveInDefuse.cleared && leaveInDefuse.ekBack && leaveInDefuse.alive2, '拆牌 pending 期间离场 → 炸弹随机回库、不悬挂 pending（P0 死锁回归锁）');
+  const badIdx = await page.evaluate(() => {
+    const e = CAT.create({ room: 'BI', hostId: 'A', selfPid: 'A', seed: 35 });
+    ['A', 'B'].forEach(id => e.join(id, id, ''));
+    e.start(); Object.assign(e._T, { quick: 20, nopeMs: 20, turn: 60000 });
+    e.G.turn.pid = 'A';
+    e._H.hands.A = ['attack:2', 'skip:5'];
+    const r1 = e.play('A', ['abc']);
+    const r2 = e.play('A', [1.5]);
+    const clean = e.G.discard.every(c => typeof c === 'string' && c.indexOf('undefined') < 0);
+    return { r1: !r1.ok, r2: !r2.ok, clean };
+  });
+  ok(badIdx.r1 && badIdx.r2 && badIdx.clean, '畸形下标（字符串/小数）被拒，公共态不被污染');
+
   console.log(`\n═══ 规则探针：${pass} 过 / ${fail} 挂，pageerror=${errors.length} ═══`);
   for (const e of errors) console.log('  pageerror: ' + e);
   await browser.close();

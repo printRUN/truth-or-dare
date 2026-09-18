@@ -424,7 +424,7 @@ big bank never inflates per-turn sync traffic. 旧版纯字符串题库按 `{x: 
 ### 4.1 架构
 - **主机权威**：只有 host 跑规则引擎 `CAT`（纯逻辑单例，`G` 公共态永不含手牌内容/牌库顺序，手牌只在主机内存 `H`）。非主机一切动作走 `act` 主题（重试闭环：4s 未进 seq → 同 (from,mid) 重发 ≤3 次），敏感载荷（拆除插位/恩惠给牌）走 `p/<pid>/up` 私密上行主题。
 - **传输**：MiniMqtt/LocalTransport/RoomLink 移植自 index.html，topic 族 `cat/v1/<room>/{state,act,react,p/<pid>,p/<pid>/up}`；'tod' 硬编码全部改名 'cat'（channel `cat-<room>`、key `cat:room:<room>:*`、clientId `cat-*`）。**LocalTransport 的 key 懒分配**支持动态私密主题；p/<pid> 的 `.pop()` 天然去重不许重构。
-- **私密包**：主机对每个 state 变更向全部活人补发 `{hand, peek?}`；hello 3s 重试直到收到；qos1。
+- **私密包**：主机对每个 state 变更向全部活人补发 `{hand, peek?}`；hello 由 15s presence 循环承担（大厅 presence + 局中补手牌）；qos1。
 - **发牌公式**（probe 钉死）：副数 d=n≤5?1:2；放回拆除 6d−n、爆炸猫 **n−1**（用户原文准据，不随副数翻倍）；牌库 52d−4n−1；n=4→35张3猫 / n=5→31张4猫 / n=6→79张5猫 / n=8→71张7猫。种子 RNG mulberry32，`__cat.setSeed/forceDeck/setTiming` 测试钩子。
 - **回合转结**：攻击不结束回合（attackQueued 累计，抽牌禁用+「结束回合」按钮）；收尾时 `下家.extra += attackQueued + 我方剩余 extra`。nope 窗 2.5s 起（无人持 nope 快结算 0.8s）、每 nope +2s cap 9s；奇数张=取消。出牌/窗口结算时刷新 `turn.acted`（等待他人不占决策时钟）。
 - **看门狗**（主机 1s tick 唯一时钟）：nope 窗/拆牌 15s/恩惠 10s/弃牌挑 15s 超时兜底（种子 RNG）；回合 30s 无动作代抽，afk≥2 后 8s；**tick 后 dirty→必须 hostPublish**（引擎被 tick 改过而没广播 = P0，吃过亏）。
@@ -436,7 +436,7 @@ big bank never inflates per-turn sync traffic. 旧版纯字符串题库按 `{x: 
 
 ### 4.3 E2E 门禁与踩过的雷（改前必读）
 - `.pw/check-syntax-bc.cjs`（独立命名，勿动 arcade 会话的 check-syntax.cjs）；`node .pw/build-bombcat.cjs` 从 `.pw/bc-src-a.html + bc-main-{1..4}.js + three-r128.blob.js` 组装 bombcat.html——**改源件后必须重建**。
-- `probe-bombcat-rules.cjs`(8931) 31 断言：发牌四组数值/种子确定性/攻击叠加三例/nope 奇偶反制/拆牌/爆炸/恩惠/组合三式/负例/stf/看门狗/牌库空/离开/over 唤醒/mid 幂等。
+- `probe-bombcat-rules.cjs`(8931) 37 断言：发牌四组数值/种子确定性/攻击叠加三例/nope 奇偶反制/拆牌/爆炸/恩惠/组合三式/负例/stf/看门狗/牌库空/离开/over 唤醒/mid 幂等。
 - `probe-bombcat-ui.cjs`(8933) 25 断言：三人本地局全流程+观战+无 WebGL 退路；**稳定四连绿**（flake 治理史：act 重复投递曾引发「dup→hostPublish→storage 事件→再发布」风暴——`hostOnAct` 对 dup 必须 early-return；over 态残留自动 hostRestart 曾把结算屏 0ms 顶掉）。
 - 探针纪律：本地模式同 context 多 page；注入手牌后给**每人**发 hello 补私密包；**清掉牌库原生 ek**（爆炸只由探针注入触发，剧本才确定）；等「按钮解禁」而非引擎态（渲染晚于 publish ≤1s）；GL 页截图 3-10s，nope/defuse 窗要放宽；3D 下点击用 evaluate 级 click（仓库既有契约）；page.evaluate 闭包**不能引用 Node 变量**（ids 用参数传）。
 

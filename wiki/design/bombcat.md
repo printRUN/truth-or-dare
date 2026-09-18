@@ -14,4 +14,4 @@
 6. **猫脸头像**：程序化 canvas（8 色系+种子花纹），join 预览与 3D 球面脸共用 dataURL，零外部依赖。
 
 ## 工作流档案
-设计 `.pw/design-bombcat-lobby.md`（含双挑刺专家 SHIP WITH FIXES 全部修订 + 与 arcade 并行会话的共存裁决 §8/§9）。实施中探针逮到并修复 7 个真 bug：GL 类漏挂、draw 作用域 ReferenceError、爆炸后回合卡死、tick 结算不发布、dup 发布风暴、hostLost 误判弹回大厅、over 自动重启顶掉结算屏。门禁：check-syntax-bc + 规则 31/31 + UI 25/25 四连绿。
+设计 `.pw/design-bombcat-lobby.md`（含双挑刺专家 SHIP WITH FIXES 全部修订 + 与 arcade 并行会话的共存裁决 §8/§9）。实施中探针逮到并修复 7 个真 bug：GL 类漏挂、draw 作用域 ReferenceError、爆炸后回合卡死、tick 结算不发布、dup 发布风暴、hostLost 误判弹回大厅、over 自动重启顶掉结算屏。门禁：check-syntax-bc + 规则 37/37 + UI 25/25 多轮连绿。

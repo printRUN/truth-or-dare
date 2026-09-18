@@ -115,6 +115,7 @@ const CAT = (() => {
 
     /* ── 房间成员 ── */
     function join(id, name, av) {
+      if (!/^[A-Za-z0-9_-]{1,32}$/.test(String(id || ''))) return { ok: false, err: '非法身份' };   // id 进 DOM data 属性，先验形
       if (G.stage === 'over') {   // 上局已结束：唤醒房间回大厅，老玩家重新可用
         G.stage = 'lobby'; G.winner = null; G.turn = null; G.discard = []; G.deckN = 0;
         for (const p of G.players) { p.alive = true; p.left = false; p.afk = 0; }
@@ -146,12 +147,16 @@ const CAT = (() => {
       G.deckN = H.deck.length;
       log(`👋 ${p.name} 离开了，手牌进弃牌堆`);
       ev('boom', id);
-      // 正在等待 TA 的 pending（defuse/give/pick）→ 立即兜底结算
-      if (G.turn && G.turn.pending && G.turn.pending.pid === id) resolvePendingTimeout();
+      // 正在等待 TA 的 pending → 兜底：pick 由死者持有会凭空收牌 → 取消；defuse 走 insert 兜底；
       // 恩惠的接收方（出牌者）离开：交出的牌会进已清空的手牌凭空蒸发 → 直接取消
-      if (G.turn && G.turn.pending && G.turn.pending.kind === 'give' && G.turn.pending.to === id) {
-        G.turn.pending = null;
-        log(`🎁 ${p.name} 离开，恩惠取消`);
+      if (G.turn && G.turn.pending) {
+        const pd0 = G.turn.pending;
+        if (pd0.pid === id && pd0.kind === 'pick') { G.turn.pending = null; log(`👋 ${p.name} 离场，弃牌挑选取消`); }
+        else if (pd0.pid === id) resolvePendingTimeout();
+        if (G.turn && G.turn.pending && G.turn.pending.kind === 'give' && G.turn.pending.to === id) {
+          G.turn.pending = null;
+          log(`🎁 ${p.name} 离开，恩惠取消`);
+        }
       }
       if (G.turn && G.turn.pid === id && !G.turn.pending) endTurn();
       checkWin();
@@ -166,7 +171,7 @@ const CAT = (() => {
       const hand = H.hands[pid] || [];
       if (!Array.isArray(idxs) || !idxs.length) return { ok: false, err: '没选牌' };
       const set = [...new Set(idxs)];
-      if (set.some(i => i < 0 || i >= hand.length)) return { ok: false, err: '手牌不存在' };
+      if (set.some(i => !Number.isInteger(i) || i < 0 || i >= hand.length)) return { ok: false, err: '手牌不存在' };
       const cards = set.map(i => hand[i]);
       const titles = cards.map(titleOf);
       let eff = null;
@@ -304,7 +309,7 @@ const CAT = (() => {
       const receiver = P(pd.to);
       if (!receiver || !receiver.alive || receiver.left) { G.turn.pending = null; log('🎁 恩惠接收方已离场，取消'); return { ok: true }; }
       const hand = H.hands[pid] || [];
-      if (idx < 0 || idx >= hand.length) return { ok: false, err: '没有这张牌' };
+      if (!Number.isInteger(idx) || idx < 0 || idx >= hand.length) return { ok: false, err: '没有这张牌' };
       const card = hand.splice(idx, 1)[0];
       (H.hands[pd.to] || []).push(card);
       log(`🤝 ${P(pid).name} 交出了一张牌`);
@@ -381,7 +386,15 @@ const CAT = (() => {
       const pd = G.turn && G.turn.pending;
       if (!pd) return;
       if (pd.kind === 'nope') closeNopeWindow();
-      else if (pd.kind === 'defuse') insert(pd.pid, Math.floor(rnd() * (H.deck.length + 1)));
+      else if (pd.kind === 'defuse') {
+        const r = insert(pd.pid, Math.floor(rnd() * (H.deck.length + 1)));
+        if (!r.ok) {   // 手牌已被清空（离场）等异常：炸弹随机回库并收尾，绝不悬挂 pending（P0 死锁回归锁）
+          H.deck.splice(Math.floor(rnd() * (H.deck.length + 1)), 0, H.ekPending || 'ek:auto');
+          H.ekPending = null; G.deckN = H.deck.length;
+          G.turn.pending = null; log('✂️ 拆牌异常，炸弹已随机放回牌库');
+          endTurn();
+        }
+      }
       else if (pd.kind === 'give') {
         const hand = H.hands[pd.pid] || [];
         if (hand.length) { const i = Math.floor(rnd() * hand.length); give(pd.pid, i); }

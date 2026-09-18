@@ -120,8 +120,9 @@ function initScene() {
   }
   function syncPiles() {
     const n = S ? S.deckN : 0, dn = Math.max(1, Math.min(10, Math.ceil(n / 6)));
-    while (deckVisual.length < dn) { const c = mkCard(); c.position.y = deckVisual.length * CARD_T + CARD_T / 2; deckGroup.add(c); deckVisual.push(c); }
-    while (deckVisual.length > dn) { deckGroup.remove(deckVisual.pop()); }
+    let changed = false;
+    while (deckVisual.length < dn) { const c = mkCard(); c.position.y = deckVisual.length * CARD_T + CARD_T / 2; deckGroup.add(c); deckVisual.push(c); changed = true; }
+    while (deckVisual.length > dn) { const m = deckVisual.pop(); m.material.forEach(mt => mt.dispose()); deckGroup.remove(m); changed = true; }
     const dn2 = Math.min(8, S ? S.discard.length : 0);
     while (discVisual.length < dn2) {
       const idx = discVisual.length;
@@ -130,10 +131,10 @@ function initScene() {
       const c = mkCard(texForCard(id), idx === 0);
       c.rotation.y = (idx % 2 ? 0.14 : -0.1);
       c.position.y = (dn2 - 1 - idx) * CARD_T + CARD_T / 2;
-      discGroup.add(c); discVisual.push(c);
+      discGroup.add(c); discVisual.push(c); changed = true;
     }
-    while (discVisual.length > dn2) { discGroup.remove(discVisual.pop()); }
-    markShadow();
+    while (discVisual.length > dn2) { const m = discVisual.pop(); m.material.forEach(mt => mt.dispose()); discGroup.remove(m); changed = true; }
+    if (changed) markShadow();   // 数量没变就不标（syncPiles 每帧被调，恒真会让事件驱动阴影失效）
   }
   const texCache = new Map();
   function texForCard(id) {
@@ -224,8 +225,10 @@ function initScene() {
       const key = p.av || '';
       if (u.avKey !== key) {
         u.avKey = key;
+        const oldTex = u.face.material.map;
         const tex = avatarTexture(p.id, key);
         u.face.material.map = tex; u.face.material.color.set(0xffffff); u.face.material.needsUpdate = true;
+        if (oldTex && oldTex !== tex) oldTex.dispose();
       }
       const dead = !p.alive || p.left;
       if (dead && !u.dead) { u.dead = true; u.deadT = performance.now(); markShadow(); }

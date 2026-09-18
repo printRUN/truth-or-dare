@@ -554,7 +554,8 @@ class LocalTransport {
       if (d.payload != null) { const cb = this.subs.get(d.topic); if (cb) cb(enc.encode(d.payload)); }   // 非 retained：载荷随 channel 直达
       else this._emit(d.topic);                                                                          // retained：从 localStorage 读
     };
-    window.addEventListener('storage', e => { if (e.key && e.key.indexOf('cat:room:' + room) === 0) this._emit(); });
+    this._onStorage = e => { if (e.key && e.key.indexOf('cat:room:' + room) === 0) this._emit(); };      // close() 必须摘除，防幽灵实例复活
+    window.addEventListener('storage', this._onStorage);
   }
   _key(topic) {
     if (!this.keys.has(topic)) {
@@ -582,7 +583,7 @@ class LocalTransport {
     if (this.channel) this.channel.postMessage({ tab: this.tab, topic, payload: bytes && bytes.length ? dec.decode(bytes) : null });
     return Promise.resolve(true);
   }
-  close() { this.channel && this.channel.close(); }
+  close() { this.channel && this.channel.close(); window.removeEventListener('storage', this._onStorage); this.subs.clear(); }
 }
 
 /* ── RoomLink：三 broker 同连 fan-out + 动态私密主题 + 本地兜底 ── */
@@ -596,6 +597,7 @@ class RoomLink {
     this.pfx = `cat/v1/${room}/p/`;       // p/<pid> 下行私密 · p/<pid>/up 上行私密（仅主机订阅）
     this.cbs = { state: null, act: null, react: null, priv: null, up: null };
     this.slots = []; this.kind = 'online';
+    this.localOnly = false;   // 用户点名本地模式：open() 不拨公网 broker，keeper 不补连
     this.statusCb = () => {};
     this._privTopics = new Set();
     this._dialing = new Set(); this._keeper = null; this._closing = false; this._reconnecting = false; this._emptyRounds = 0;
@@ -620,6 +622,7 @@ class RoomLink {
   _retire(slot) { slot.dead = true; this.slots = this.slots.filter(x => x !== slot); try { slot.t.close(); } catch {} }
   async open() {
     this.statusCb('connecting', '');
+    if (this.localOnly) { this.useLocal(); return 'local'; }   // 本地模式承诺：流量不出浏览器
     const allSettled = Promise.all(BROKERS.map(url => this._dial(url)));
     await Promise.race([
       (async () => { while (!this.alive && !this._closing) await sleep(50); })(),
@@ -657,7 +660,7 @@ class RoomLink {
     if (this._keeper) return;
     this._keeper = setInterval(async () => {
       if (this._closing) return;
-      for (const url of BROKERS) if (!this.slots.some(s => s.url === url)) await this._dial(url);
+      for (const url of BROKERS) if (!this.localOnly && !this.slots.some(s => s.url === url)) await this._dial(url);
       if (!this.alive && this.kind === 'mqtt') {
         if (++this._emptyRounds >= 3 && !this.slots.some(s => s.url === '')) this._fallbackLocal('与所有同步服务器的连接都断了，已临时切到本地模式');
         else this._status();
@@ -830,6 +833,7 @@ const CAT = (() => {
 
     /* ── 房间成员 ── */
     function join(id, name, av) {
+      if (!/^[A-Za-z0-9_-]{1,32}$/.test(String(id || ''))) return { ok: false, err: '非法身份' };   // id 进 DOM data 属性，先验形
       if (G.stage === 'over') {   // 上局已结束：唤醒房间回大厅，老玩家重新可用
         G.stage = 'lobby'; G.winner = null; G.turn = null; G.discard = []; G.deckN = 0;
         for (const p of G.players) { p.alive = true; p.left = false; p.afk = 0; }
@@ -861,12 +865,16 @@ const CAT = (() => {
       G.deckN = H.deck.length;
       log(`👋 ${p.name} 离开了，手牌进弃牌堆`);
       ev('boom', id);
-      // 正在等待 TA 的 pending（defuse/give/pick）→ 立即兜底结算
-      if (G.turn && G.turn.pending && G.turn.pending.pid === id) resolvePendingTimeout();
+      // 正在等待 TA 的 pending → 兜底：pick 由死者持有会凭空收牌 → 取消；defuse 走 insert 兜底；
       // 恩惠的接收方（出牌者）离开：交出的牌会进已清空的手牌凭空蒸发 → 直接取消
-      if (G.turn && G.turn.pending && G.turn.pending.kind === 'give' && G.turn.pending.to === id) {
-        G.turn.pending = null;
-        log(`🎁 ${p.name} 离开，恩惠取消`);
+      if (G.turn && G.turn.pending) {
+        const pd0 = G.turn.pending;
+        if (pd0.pid === id && pd0.kind === 'pick') { G.turn.pending = null; log(`👋 ${p.name} 离场，弃牌挑选取消`); }
+        else if (pd0.pid === id) resolvePendingTimeout();
+        if (G.turn && G.turn.pending && G.turn.pending.kind === 'give' && G.turn.pending.to === id) {
+          G.turn.pending = null;
+          log(`🎁 ${p.name} 离开，恩惠取消`);
+        }
       }
       if (G.turn && G.turn.pid === id && !G.turn.pending) endTurn();
       checkWin();
@@ -881,7 +889,7 @@ const CAT = (() => {
       const hand = H.hands[pid] || [];
       if (!Array.isArray(idxs) || !idxs.length) return { ok: false, err: '没选牌' };
       const set = [...new Set(idxs)];
-      if (set.some(i => i < 0 || i >= hand.length)) return { ok: false, err: '手牌不存在' };
+      if (set.some(i => !Number.isInteger(i) || i < 0 || i >= hand.length)) return { ok: false, err: '手牌不存在' };
       const cards = set.map(i => hand[i]);
       const titles = cards.map(titleOf);
       let eff = null;
@@ -1019,7 +1027,7 @@ const CAT = (() => {
       const receiver = P(pd.to);
       if (!receiver || !receiver.alive || receiver.left) { G.turn.pending = null; log('🎁 恩惠接收方已离场，取消'); return { ok: true }; }
       const hand = H.hands[pid] || [];
-      if (idx < 0 || idx >= hand.length) return { ok: false, err: '没有这张牌' };
+      if (!Number.isInteger(idx) || idx < 0 || idx >= hand.length) return { ok: false, err: '没有这张牌' };
       const card = hand.splice(idx, 1)[0];
       (H.hands[pd.to] || []).push(card);
       log(`🤝 ${P(pid).name} 交出了一张牌`);
@@ -1096,7 +1104,15 @@ const CAT = (() => {
       const pd = G.turn && G.turn.pending;
       if (!pd) return;
       if (pd.kind === 'nope') closeNopeWindow();
-      else if (pd.kind === 'defuse') insert(pd.pid, Math.floor(rnd() * (H.deck.length + 1)));
+      else if (pd.kind === 'defuse') {
+        const r = insert(pd.pid, Math.floor(rnd() * (H.deck.length + 1)));
+        if (!r.ok) {   // 手牌已被清空（离场）等异常：炸弹随机回库并收尾，绝不悬挂 pending（P0 死锁回归锁）
+          H.deck.splice(Math.floor(rnd() * (H.deck.length + 1)), 0, H.ekPending || 'ek:auto');
+          H.ekPending = null; G.deckN = H.deck.length;
+          G.turn.pending = null; log('✂️ 拆牌异常，炸弹已随机放回牌库');
+          endTurn();
+        }
+      }
       else if (pd.kind === 'give') {
         const hand = H.hands[pd.pid] || [];
         if (hand.length) { const i = Math.floor(rnd() * hand.length); give(pd.pid, i); }
@@ -1270,7 +1286,7 @@ async function doJoin() {
     link.on('priv', onPrivMsg);
     link.on('up', onUpMsg);
     link.on('react', onReactMsg);
-    if ($('#chk-local').checked) link.useLocal();
+    if ($('#chk-local').checked) { link.localOnly = true; link.useLocal(); }
     await link.open();
     link.addPrivTopic(link.pfx + myId);
     await sleep(300);                      // 等 retained state
@@ -1281,15 +1297,7 @@ async function doJoin() {
       hostPublish('创建房间');
     } else {
       sendAct({ t: 'join', name, av });
-      // hello 重试闭环：开局后靠它拿手牌
-      let tries = 0;
-      clearInterval(helloTimer);
-      helloTimer = setInterval(() => {
-        tries++;
-        const inRoom = S && S.players && S.players.some(p => p.id === myId);
-        if (inRoom && S.stage !== 'lobby') sendAct({ t: 'hello' });
-        if ((inRoom && S.stage === 'lobby') || tries > 10) clearInterval(helloTimer);
-      }, 1500);
+      // 手牌补发/在场心跳统一由 startTimers 的 15s hello 循环接管（此前这里的 1.5s 循环会被 startTimers 当场清掉）
     }
     startTimers();
     if (S && S.stage === 'turn') { showScreen('game'); renderGame(); }   // 局中进入 → 观战视图
@@ -1297,9 +1305,13 @@ async function doJoin() {
   } finally { btn.disabled = false; }
 }
 
+function deliverPriv(pid, obj) {
+  if (pid === myId) onPrivMsg(obj);            // 本地模式：非 retained 私密包不过传输（channel 自滤、storage 不落盘）
+  else link.publishPriv(pid, obj);
+}
 function becomeHost(room) {
   engine = CAT.create({ room, hostId: myId, selfPid: myId });
-  engine._sendPriv = (pid, extra) => { link.publishPriv(pid, Object.assign(engine.privateFor(pid), extra || {})); };
+  engine._sendPriv = (pid, extra) => { deliverPriv(pid, Object.assign(engine.privateFor(pid), extra || {})); };
   isHost = true;
   hostWatchUpTopics();
 }
@@ -1363,7 +1375,7 @@ function hostOnAct(msg) {
   if (!engine) return;
   const from = msg.from;
   const r = engine.act(msg);
-  if (r && r.priv) { link.publishPriv(from, r.priv); return; }
+  if (r && r.priv) { deliverPriv(from, r.priv); return; }
   if (r && r.dup) return;   // 幂等命中：storage 重放/3 broker 重复投递——绝不重发布（否则发布风暴）
   if (r && !r.ok) { link.publishPriv(from, { err: r.err }); if (from === myId) toast(r.err, 'error'); return; }
   if (!r || !r.ok) return;
@@ -1396,6 +1408,7 @@ function applyState(next, selfSrc) {
   for (const e of (S.events || [])) {
     if (seenEv.has(e.id)) continue;
     seenEv.add(e.id);
+    if (seenEv.size > 512) { const it = seenEv.values(); for (let i = 0; i < 128; i++) seenEv.delete(it.next().value); }
     onGameEvent(e);
   }
   if (S.hostLost && screenName !== 'join') { showScreen('lobby'); renderLobby(); toast('主持人离开了，本局作废', 'error', 4000); return; }
@@ -1732,6 +1745,12 @@ document.addEventListener('click', e => {
 });
 
 /* ── 通用按钮绑定 ── */
+$('#btn-copy').onclick = async () => {
+  const room = $('#share-room').textContent || '';
+  const url = location.origin + location.pathname + '?room=' + room;
+  try { await navigator.clipboard.writeText(url); toast('邀请链接已复制'); }
+  catch (e) { toast('复制失败，房号：' + room, 'error', 4000); }
+};
 $('#btn-join').onclick = doJoin;
 $('#in-name').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
 $('#in-room').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
@@ -1783,6 +1802,7 @@ const reactSeen = new Set();
 function onReactMsg(m) {
   if (!m || !m.e || reactSeen.has(m.mid) || Date.now() - (m.ts || 0) > 6000) return;
   reactSeen.add(m.mid);
+  if (reactSeen.size > 256) { const it = reactSeen.values(); for (let i = 0; i < 64; i++) reactSeen.delete(it.next().value); }
   reactFall(m.e);
 }
 function reactFall(e) {
@@ -2022,8 +2042,9 @@ function initScene() {
   }
   function syncPiles() {
     const n = S ? S.deckN : 0, dn = Math.max(1, Math.min(10, Math.ceil(n / 6)));
-    while (deckVisual.length < dn) { const c = mkCard(); c.position.y = deckVisual.length * CARD_T + CARD_T / 2; deckGroup.add(c); deckVisual.push(c); }
-    while (deckVisual.length > dn) { deckGroup.remove(deckVisual.pop()); }
+    let changed = false;
+    while (deckVisual.length < dn) { const c = mkCard(); c.position.y = deckVisual.length * CARD_T + CARD_T / 2; deckGroup.add(c); deckVisual.push(c); changed = true; }
+    while (deckVisual.length > dn) { const m = deckVisual.pop(); m.material.forEach(mt => mt.dispose()); deckGroup.remove(m); changed = true; }
     const dn2 = Math.min(8, S ? S.discard.length : 0);
     while (discVisual.length < dn2) {
       const idx = discVisual.length;
@@ -2032,10 +2053,10 @@ function initScene() {
       const c = mkCard(texForCard(id), idx === 0);
       c.rotation.y = (idx % 2 ? 0.14 : -0.1);
       c.position.y = (dn2 - 1 - idx) * CARD_T + CARD_T / 2;
-      discGroup.add(c); discVisual.push(c);
+      discGroup.add(c); discVisual.push(c); changed = true;
     }
-    while (discVisual.length > dn2) { discGroup.remove(discVisual.pop()); }
-    markShadow();
+    while (discVisual.length > dn2) { const m = discVisual.pop(); m.material.forEach(mt => mt.dispose()); discGroup.remove(m); changed = true; }
+    if (changed) markShadow();   // 数量没变就不标（syncPiles 每帧被调，恒真会让事件驱动阴影失效）
   }
   const texCache = new Map();
   function texForCard(id) {
@@ -2126,8 +2147,10 @@ function initScene() {
       const key = p.av || '';
       if (u.avKey !== key) {
         u.avKey = key;
+        const oldTex = u.face.material.map;
         const tex = avatarTexture(p.id, key);
         u.face.material.map = tex; u.face.material.color.set(0xffffff); u.face.material.needsUpdate = true;
+        if (oldTex && oldTex !== tex) oldTex.dispose();
       }
       const dead = !p.alive || p.left;
       if (dead && !u.dead) { u.dead = true; u.deadT = performance.now(); markShadow(); }

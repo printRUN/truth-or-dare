@@ -217,7 +217,8 @@ class LocalTransport {
       if (d.payload != null) { const cb = this.subs.get(d.topic); if (cb) cb(enc.encode(d.payload)); }   // 非 retained：载荷随 channel 直达
       else this._emit(d.topic);                                                                          // retained：从 localStorage 读
     };
-    window.addEventListener('storage', e => { if (e.key && e.key.indexOf('cat:room:' + room) === 0) this._emit(); });
+    this._onStorage = e => { if (e.key && e.key.indexOf('cat:room:' + room) === 0) this._emit(); };      // close() 必须摘除，防幽灵实例复活
+    window.addEventListener('storage', this._onStorage);
   }
   _key(topic) {
     if (!this.keys.has(topic)) {
@@ -245,7 +246,7 @@ class LocalTransport {
     if (this.channel) this.channel.postMessage({ tab: this.tab, topic, payload: bytes && bytes.length ? dec.decode(bytes) : null });
     return Promise.resolve(true);
   }
-  close() { this.channel && this.channel.close(); }
+  close() { this.channel && this.channel.close(); window.removeEventListener('storage', this._onStorage); this.subs.clear(); }
 }
 
 /* ── RoomLink：三 broker 同连 fan-out + 动态私密主题 + 本地兜底 ── */
@@ -259,6 +260,7 @@ class RoomLink {
     this.pfx = `cat/v1/${room}/p/`;       // p/<pid> 下行私密 · p/<pid>/up 上行私密（仅主机订阅）
     this.cbs = { state: null, act: null, react: null, priv: null, up: null };
     this.slots = []; this.kind = 'online';
+    this.localOnly = false;   // 用户点名本地模式：open() 不拨公网 broker，keeper 不补连
     this.statusCb = () => {};
     this._privTopics = new Set();
     this._dialing = new Set(); this._keeper = null; this._closing = false; this._reconnecting = false; this._emptyRounds = 0;
@@ -283,6 +285,7 @@ class RoomLink {
   _retire(slot) { slot.dead = true; this.slots = this.slots.filter(x => x !== slot); try { slot.t.close(); } catch {} }
   async open() {
     this.statusCb('connecting', '');
+    if (this.localOnly) { this.useLocal(); return 'local'; }   // 本地模式承诺：流量不出浏览器
     const allSettled = Promise.all(BROKERS.map(url => this._dial(url)));
     await Promise.race([
       (async () => { while (!this.alive && !this._closing) await sleep(50); })(),
@@ -320,7 +323,7 @@ class RoomLink {
     if (this._keeper) return;
     this._keeper = setInterval(async () => {
       if (this._closing) return;
-      for (const url of BROKERS) if (!this.slots.some(s => s.url === url)) await this._dial(url);
+      for (const url of BROKERS) if (!this.localOnly && !this.slots.some(s => s.url === url)) await this._dial(url);
       if (!this.alive && this.kind === 'mqtt') {
         if (++this._emptyRounds >= 3 && !this.slots.some(s => s.url === '')) this._fallbackLocal('与所有同步服务器的连接都断了，已临时切到本地模式');
         else this._status();

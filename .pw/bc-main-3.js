@@ -52,7 +52,7 @@ async function doJoin() {
     link.on('priv', onPrivMsg);
     link.on('up', onUpMsg);
     link.on('react', onReactMsg);
-    if ($('#chk-local').checked) link.useLocal();
+    if ($('#chk-local').checked) { link.localOnly = true; link.useLocal(); }
     await link.open();
     link.addPrivTopic(link.pfx + myId);
     await sleep(300);                      // 等 retained state
@@ -63,15 +63,7 @@ async function doJoin() {
       hostPublish('创建房间');
     } else {
       sendAct({ t: 'join', name, av });
-      // hello 重试闭环：开局后靠它拿手牌
-      let tries = 0;
-      clearInterval(helloTimer);
-      helloTimer = setInterval(() => {
-        tries++;
-        const inRoom = S && S.players && S.players.some(p => p.id === myId);
-        if (inRoom && S.stage !== 'lobby') sendAct({ t: 'hello' });
-        if ((inRoom && S.stage === 'lobby') || tries > 10) clearInterval(helloTimer);
-      }, 1500);
+      // 手牌补发/在场心跳统一由 startTimers 的 15s hello 循环接管（此前这里的 1.5s 循环会被 startTimers 当场清掉）
     }
     startTimers();
     if (S && S.stage === 'turn') { showScreen('game'); renderGame(); }   // 局中进入 → 观战视图
@@ -79,9 +71,13 @@ async function doJoin() {
   } finally { btn.disabled = false; }
 }
 
+function deliverPriv(pid, obj) {
+  if (pid === myId) onPrivMsg(obj);            // 本地模式：非 retained 私密包不过传输（channel 自滤、storage 不落盘）
+  else link.publishPriv(pid, obj);
+}
 function becomeHost(room) {
   engine = CAT.create({ room, hostId: myId, selfPid: myId });
-  engine._sendPriv = (pid, extra) => { link.publishPriv(pid, Object.assign(engine.privateFor(pid), extra || {})); };
+  engine._sendPriv = (pid, extra) => { deliverPriv(pid, Object.assign(engine.privateFor(pid), extra || {})); };
   isHost = true;
   hostWatchUpTopics();
 }
@@ -145,7 +141,7 @@ function hostOnAct(msg) {
   if (!engine) return;
   const from = msg.from;
   const r = engine.act(msg);
-  if (r && r.priv) { link.publishPriv(from, r.priv); return; }
+  if (r && r.priv) { deliverPriv(from, r.priv); return; }
   if (r && r.dup) return;   // 幂等命中：storage 重放/3 broker 重复投递——绝不重发布（否则发布风暴）
   if (r && !r.ok) { link.publishPriv(from, { err: r.err }); if (from === myId) toast(r.err, 'error'); return; }
   if (!r || !r.ok) return;
@@ -178,6 +174,7 @@ function applyState(next, selfSrc) {
   for (const e of (S.events || [])) {
     if (seenEv.has(e.id)) continue;
     seenEv.add(e.id);
+    if (seenEv.size > 512) { const it = seenEv.values(); for (let i = 0; i < 128; i++) seenEv.delete(it.next().value); }
     onGameEvent(e);
   }
   if (S.hostLost && screenName !== 'join') { showScreen('lobby'); renderLobby(); toast('主持人离开了，本局作废', 'error', 4000); return; }
@@ -514,6 +511,12 @@ document.addEventListener('click', e => {
 });
 
 /* ── 通用按钮绑定 ── */
+$('#btn-copy').onclick = async () => {
+  const room = $('#share-room').textContent || '';
+  const url = location.origin + location.pathname + '?room=' + room;
+  try { await navigator.clipboard.writeText(url); toast('邀请链接已复制'); }
+  catch (e) { toast('复制失败，房号：' + room, 'error', 4000); }
+};
 $('#btn-join').onclick = doJoin;
 $('#in-name').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
 $('#in-room').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
@@ -565,6 +568,7 @@ const reactSeen = new Set();
 function onReactMsg(m) {
   if (!m || !m.e || reactSeen.has(m.mid) || Date.now() - (m.ts || 0) > 6000) return;
   reactSeen.add(m.mid);
+  if (reactSeen.size > 256) { const it = reactSeen.values(); for (let i = 0; i < 64; i++) reactSeen.delete(it.next().value); }
   reactFall(m.e);
 }
 function reactFall(e) {
