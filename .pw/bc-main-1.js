@@ -212,7 +212,11 @@ class LocalTransport {
     this.tab = genId(); this.room = room;
     this.subs = new Map(); this.keys = new Map();
     this.channel = ('BroadcastChannel' in window) ? new BroadcastChannel('cat-' + room) : null;
-    if (this.channel) this.channel.onmessage = e => { const d = e.data; if (d && d.tab !== this.tab) this._emit(d.topic); };
+    if (this.channel) this.channel.onmessage = e => {
+      const d = e.data; if (!d || d.tab === this.tab) return;
+      if (d.payload != null) { const cb = this.subs.get(d.topic); if (cb) cb(enc.encode(d.payload)); }   // 非 retained：载荷随 channel 直达
+      else this._emit(d.topic);                                                                          // retained：从 localStorage 读
+    };
     window.addEventListener('storage', e => { if (e.key && e.key.indexOf('cat:room:' + room) === 0) this._emit(); });
   }
   _key(topic) {
@@ -232,9 +236,13 @@ class LocalTransport {
   connect() { this._emit(); return Promise.resolve(true); }
   subscribe(topic, cb) { this.subs.set(topic, cb); const s = localStorage.getItem(this._key(topic)); if (s) cb(enc.encode(s)); }
   publish(topic, bytes, opts) {
-    const key = this._key(topic);
-    if (bytes && bytes.length) localStorage.setItem(key, dec.decode(bytes)); else localStorage.removeItem(key);
-    if (this.channel) this.channel.postMessage({ tab: this.tab, topic });
+    // retained 语义只给 state；act/priv/up/react 非 retained 不落盘（防 storage 重放风暴 + 手牌明文滞留），
+    // 载荷随 BroadcastChannel 直达（storage 事件不带 payload，读盘会丢包）
+    if (!(opts && opts.retain === false)) {
+      const key = this._key(topic);
+      if (bytes && bytes.length) localStorage.setItem(key, dec.decode(bytes)); else localStorage.removeItem(key);
+    }
+    if (this.channel) this.channel.postMessage({ tab: this.tab, topic, payload: bytes && bytes.length ? dec.decode(bytes) : null });
     return Promise.resolve(true);
   }
   close() { this.channel && this.channel.close(); }

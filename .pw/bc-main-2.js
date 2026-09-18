@@ -99,6 +99,7 @@ const CAT = (() => {
       if (G.stage !== 'lobby') return { ok: false, err: '游戏已开始' };
       const n = G.players.length;
       if (n < 2) return { ok: false, err: '至少 2 人才能开局' };
+      if (n > 8) return { ok: false, err: '最多 8 人（6 人以上自动用 2 副牌）' };
       const { d, deck, hands } = buildDeck(n, rnd);
       if (forcedDeck) { deck.length = 0; deck.push(...forcedDeck); }
       G.decks = d; H.deck = deck; H.hands = {};
@@ -147,6 +148,11 @@ const CAT = (() => {
       ev('boom', id);
       // 正在等待 TA 的 pending（defuse/give/pick）→ 立即兜底结算
       if (G.turn && G.turn.pending && G.turn.pending.pid === id) resolvePendingTimeout();
+      // 恩惠的接收方（出牌者）离开：交出的牌会进已清空的手牌凭空蒸发 → 直接取消
+      if (G.turn && G.turn.pending && G.turn.pending.kind === 'give' && G.turn.pending.to === id) {
+        G.turn.pending = null;
+        log(`🎁 ${p.name} 离开，恩惠取消`);
+      }
       if (G.turn && G.turn.pid === id && !G.turn.pending) endTurn();
       checkWin();
       return { ok: true };
@@ -173,6 +179,7 @@ const CAT = (() => {
         if (k === 'favor') {
           const tp = target && P(target);
           if (!tp || !tp.alive || tp.left || tp.id === pid) return { ok: false, err: '选一个存活的其他玩家' };
+          if (!(H.hands[target] || []).length) return { ok: false, err: '对方没有手牌' };
           eff.target = target;
         }
       } else if (cards.length === 2) {
@@ -185,6 +192,7 @@ const CAT = (() => {
         if (!(titles[0] === titles[1] && titles[1] === titles[2])) return { ok: false, err: '组合：3 张同名牌' };
         const tp = target && P(target);
         if (!tp || !tp.alive || tp.left || tp.id === pid) return { ok: false, err: '选一个存活的其他玩家' };
+        if (!(H.hands[target] || []).length) return { ok: false, err: '对方没有手牌' };
         if (!NAMEABLE.includes(namePick)) return { ok: false, err: '要点名一张牌' };
         eff = { k: 'combo3', target, namePick };
       } else if (cards.length === 5) {
@@ -254,7 +262,7 @@ const CAT = (() => {
         ev('drawcard', pid);
         endTurn();
       }
-      p.afk = 0;
+      if (!force) p.afk = 0;   // 代抽不清 afk（否则快进档永远到不了 2）
       return { ok: true };
     }
 
@@ -293,6 +301,8 @@ const CAT = (() => {
     function give(pid, idx) {
       const pd = G.turn && G.turn.pending;
       if (G.stage !== 'turn' || !pd || pd.kind !== 'give' || pd.pid !== pid) return { ok: false, err: '现在不用给牌' };
+      const receiver = P(pd.to);
+      if (!receiver || !receiver.alive || receiver.left) { G.turn.pending = null; log('🎁 恩惠接收方已离场，取消'); return { ok: true }; }
       const hand = H.hands[pid] || [];
       if (idx < 0 || idx >= hand.length) return { ok: false, err: '没有这张牌' };
       const card = hand.splice(idx, 1)[0];
@@ -418,9 +428,14 @@ const CAT = (() => {
       const limit = p.afk >= 2 ? T.afk : T.turn;
       if (now - G.turn.acted > limit) {
         p.afk++;
-        log(`⏰ 等 ${p.name} 超时，替 TA 抽牌（${p.afk} 次）`);
         ev('afk', p.id);
-        draw(G.turn.pid, true);
+        if (G.turn.attackQueued > 0 || G.turn.skipFlag) {
+          log(`⏰ 等 ${p.name} 超时，替 TA 结束回合（不抽牌）`);   // 攻击/略过回合不许代抽
+          endTurn();
+        } else {
+          log(`⏰ 等 ${p.name} 超时，替 TA 抽牌（${p.afk} 次）`);
+          draw(G.turn.pid, true);
+        }
       }
     }
 

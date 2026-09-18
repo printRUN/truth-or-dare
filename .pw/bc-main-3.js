@@ -14,7 +14,7 @@ let sel = new Set();                // 选中的手牌下标
 let pendActs = new Map();           // mid → {obj, n, t0, seq0}（act 重试闭环）
 let seenEv = new Set();
 let overShown = false, tipDismissed = localStorage.getItem('cat:tip') === '1';
-let helloTimer = null, tickTimer = null, retryTimer = null, nopeTimer = null;
+let helloTimer = null, tickTimer = null, retryTimer = null, nopeTimer = null, hintTimer = null;
 let lastSeq = 0;
 
 const urlRoom = extractRoom();
@@ -106,8 +106,8 @@ function startTimers() {
         if (engine.G.players.length !== before) { hostPublish(); }
       }
     }
-    // hostLost 看门狗（每端）：20s 无 state 更新且 pending 已过期 → 本地判死局
-    if (S && S.stage === 'turn' && !isHost && Date.now() - (S.ver || 0) > 20000) {
+    // hostLost 看门狗（每端）：12s 无 state 更新且 pending 已过期 → 本地判死局（心跳 5s 一发，12s 足够宽）
+    if (S && S.stage === 'turn' && !isHost && Date.now() - (S.ver || 0) > 12000) {
       const pd = S.turn && S.turn.pending;
       if (!pd || Date.now() > (pd.deadline || 0) + 4000) {
         toast('主持人失联，本局作废', 'error', 4000);
@@ -208,7 +208,10 @@ function syncPrivAfterState() {
 /* ── 私密包 ── */
 function onPrivMsg(obj) {
   if (!obj) return;
-  if (obj.err) { toast(obj.err, 'error'); return; }
+  if (obj.err) {
+    toast(obj.err === 'spectate' ? '对局进行中，已为你进入观战' : obj.err, obj.err === 'spectate' ? '' : 'error');
+    return;
+  }
   if (Array.isArray(obj.hand)) PRIV.hand = obj.hand;
   if (obj.peek) { PRIV.peek = obj.peek; openStf(obj.peek); }
   PRIV.gotHand = true;
@@ -242,12 +245,12 @@ function renderLobby() {
   const meIn = S && S.players && S.players.some(p => p.id === myId);
   if (S && S.hostLost) { $('#lobby-tip').textContent = '主持人离开了，本局作废 —— 可以重新开始'; }
   else if (!meIn && S) { $('#lobby-tip').textContent = '对局进行中或你未入座 — 稍候自动同步'; }
-  else $('#lobby-tip').textContent = '人齐后房主点「开始游戏」· 每人开局 1 拆除 + 4 张手牌';
+  else $('#lobby-tip').textContent = '人齐后房主点「开始游戏」· 2-8 人 · 每人开局 1 拆除 + 4 张手牌 · 房主离开=本局作废';
   box.innerHTML = (S ? S.players : []).map(p =>
     `<div class="pchip${p.id === (S && S.hostId) ? ' turn' : ''}">${avImgHtml(p.av)}<span>${esc(p.name)}${p.id === myId ? '（我）' : ''}</span>${p.id === (S && S.hostId) ? '<span class="crown">👑</span>' : ''}</div>`
   ).join('') || '<div class="pchip">等待玩家…</div>';
   $('#btn-start').style.display = (S && S.hostId === myId && S.stage === 'lobby') ? '' : 'none';
-  $('#btn-start').disabled = !S || !S.players || S.players.length < 2;
+  $('#btn-start').disabled = !S || !S.players || S.players.length < 2 || S.players.length > 8;
 }
 
 /* ── 牌局渲染 ── */
@@ -265,19 +268,30 @@ function renderGame() {
   $('#st-deck').textContent = S.deckN;
   $('#st-disc').textContent = S.discard.length;
   const tp = S.players.find(p => p.id === (S.turn && S.turn.pid));
-  $('#bc-hint').innerHTML = pd
+  clearInterval(hintTimer);
+  const hintBase = pd
     ? (pd.kind === 'nope' ? `🚫 等待休想…（${pd.nopeN} 张已打出）`
       : pd.kind === 'defuse' ? `✂️ ${esc(nameOfPid(pd.pid))} 正在安排炸弹…`
       : pd.kind === 'give' ? `🎁 等待 ${esc(nameOfPid(pd.pid))} 选牌…`
       : `🃏 等待 ${esc(nameOfPid(pd.pid))} 挑选…`)
     : `轮到 <b>${esc(tp ? tp.name : '?')}</b>${S.turn && S.turn.extra > 0 ? `（额外回合 ×${S.turn.extra + 1}）` : ''}`;
+  $('#bc-hint').innerHTML = hintBase;
+  if (pd && pd.deadline) {   // 等待类 pending 补倒计时（nope 横幅另有环形倒计时）
+    hintTimer = setInterval(() => {
+      const left = Math.max(0, Math.ceil(((pd.deadline || 0) - Date.now()) / 1000));
+      const el = $('#bc-hint');
+      if (!el || (S.turn && S.turn.pending) !== pd) { clearInterval(hintTimer); return; }
+      el.innerHTML = hintBase + ` · 剩 ${left}s`;
+      if (left <= 0) clearInterval(hintTimer);
+    }, 400);
+  }
   // 玩家 chips（DOM 退路 / 非 3D）
   $('#bc-players').innerHTML = S.players.map(p => {
     const dead = !p.alive || p.left;
     return `<div class="pchip${dead ? ' dead' : ''}${S.turn && S.turn.pid === p.id ? ' turn' : ''}">${avImgHtml(p.av)}<span>${esc(p.name)}</span><span class="cnt">${dead ? '💀 出局' : '🃏' + (handCountOf(p.id))}</span></div>`;
   }).join('');
-  // 首回合速览
-  $('#bc-tipfirst').hidden = tipDismissed || S.startedAt > Date.now() - 60000;
+  // 首回合速览（仅开局 60s 内显示，之后自动收起）
+  $('#bc-tipfirst').hidden = tipDismissed || S.startedAt < Date.now() - 60000;
   // 手牌
   renderHand();
   // 按钮
@@ -477,7 +491,7 @@ function renderResult() {
   const w = S.winner && S.players.find(p => p.id === S.winner);
   $('#res-box').innerHTML = w
     ? `${avImgHtml(w.av, 'win-face')}<h2>🏆 ${esc(w.name)} 活到了最后！</h2>
-       <div class="res-line">${S.players.map(p => `${(!p.alive || p.left) ? '💀' : '😺'} ${esc(p.name)}`).join(' · ')}<br>炸弹猫 ${CAT.PER_DECK.ek * (S.decks || 1)} 只埋伏 · 开局 ${S.players.length} 人 · 存活 1 猫</div>`
+       <div class="res-line">${S.players.map(p => `${(!p.alive || p.left) ? '💀' : '😺'} ${esc(p.name)}`).join(' · ')}<br>炸弹猫 ${Math.max(1, S.players.length - 1)} 只埋伏 · 开局 ${S.players.length} 人 · 存活 1 猫</div>`
     : '<h2>💥 全员爆炸</h2><div class="res-line">无人幸免，友谊还在</div>';
 }
 

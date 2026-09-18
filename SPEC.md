@@ -439,3 +439,9 @@ big bank never inflates per-turn sync traffic. 旧版纯字符串题库按 `{x: 
 - `probe-bombcat-rules.cjs`(8931) 31 断言：发牌四组数值/种子确定性/攻击叠加三例/nope 奇偶反制/拆牌/爆炸/恩惠/组合三式/负例/stf/看门狗/牌库空/离开/over 唤醒/mid 幂等。
 - `probe-bombcat-ui.cjs`(8933) 25 断言：三人本地局全流程+观战+无 WebGL 退路；**稳定四连绿**（flake 治理史：act 重复投递曾引发「dup→hostPublish→storage 事件→再发布」风暴——`hostOnAct` 对 dup 必须 early-return；over 态残留自动 hostRestart 曾把结算屏 0ms 顶掉）。
 - 探针纪律：本地模式同 context 多 page；注入手牌后给**每人**发 hello 补私密包；**清掉牌库原生 ek**（爆炸只由探针注入触发，剧本才确定）；等「按钮解禁」而非引擎态（渲染晚于 publish ≤1s）；GL 页截图 3-10s，nope/defuse 窗要放宽；3D 下点击用 evaluate 级 click（仓库既有契约）；page.evaluate 闭包**不能引用 Node 变量**（ids 用参数传）。
+
+### 4.4 终审修订（双检查官，2026-09-19）
+- **弃牌堆公开为准据修订**：用户原文「打出的牌面朝下进弃牌堆」与「5 张不同名从弃牌堆选 1 张」在数字实现下取官方实物语义——打出的牌名随出牌横幅公开（nope 决策必需），弃牌堆全量 cardId 进公共态供 5 异名挑选；GL 演出保留「飞行面朝下、落定翻明」。
+- afk 快进修复：代抽不再清 afk；挂机玩家的攻击/略过回合被代**结束**（不代抽），extra 转结照常。
+- 8 人硬上限（start 拒绝 + 大厅开局键禁用）；结算屏炸弹猫数=人数−1；局中进入观战提示中文化；恩惠接收方离场→恩惠取消（牌不再蒸发）；目标空手牌校验引擎与 UI 对齐；hostLost 判死 20s→12s；等待类 pending 补倒计时。
+- LocalTransport 非 retained 主题（act/priv/up/react）不再落 localStorage——杜绝 storage 重放风暴，手牌明文不滞留。

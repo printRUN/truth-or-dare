@@ -373,6 +373,56 @@ const server = http.createServer((req, res) => {
   });
   ok(midDup.dup && midDup.r1ok, 'act mid 幂等：重复消息只结算一次');
 
+  console.log('— 终审补充（双检查官发现回归锁）—');
+  const defuseTimeout = await page.evaluate(() => {
+    const e = CAT.create({ room: 'DT', hostId: 'A', selfPid: 'A', seed: 30 });
+    ['A', 'B'].forEach(id => e.join(id, id, ''));
+    e.start(); Object.assign(e._T, { quick: 20, defuse: 40, turn: 60000 });
+    e.G.turn.pid = 'A';
+    e._H.deck.unshift('ek:5');
+    e.draw('A');
+    const before = e._H.deck.length;
+    e.tick(Date.now() + 500);
+    return { done: !e.G.turn.pending, grew: e._H.deck.length === before + 1, nextB: e.G.turn.pid === 'B' };
+  });
+  ok(defuseTimeout.done && defuseTimeout.grew && defuseTimeout.nextB, '拆牌超时 → 种子随机插位（牌库 +1）并结束回合');
+  const afkFlow = await page.evaluate(() => {
+    const e = CAT.create({ room: 'AF', hostId: 'A', selfPid: 'A', seed: 31 });
+    ['A', 'B'].forEach(id => e.join(id, id, ''));
+    e.start(); Object.assign(e._T, { quick: 20, turn: 60, afk: 20 });
+    e._H.deck.unshift('taco:10', 'taco:11', 'taco:12', 'taco:13');
+    e.G.turn.pid = 'A'; e.G.turn.acted = Date.now() - 100;
+    e.tick(Date.now());
+    const afk1 = e.G.players[0].afk === 1;
+    e.G.turn.pid = 'A'; e.G.turn.acted = Date.now() - 100;
+    e.tick(Date.now());
+    const afk2 = e.G.players[0].afk === 2;
+    e.G.turn.pid = 'A'; e.G.turn.acted = Date.now() - 100;
+    e.tick(Date.now());
+    return { afk1, afk2, fastThird: e.G.players[0].afk === 3 };
+  });
+  ok(afkFlow.afk1 && afkFlow.afk2 && afkFlow.fastThird, 'afk 计数跨回合累计：2 次后进入快进档');
+  const afkAttack = await page.evaluate(() => {
+    const e = CAT.create({ room: 'AA', hostId: 'A', selfPid: 'A', seed: 32 });
+    ['A', 'B', 'C'].forEach(id => e.join(id, id, ''));
+    e.start(); Object.assign(e._T, { quick: 20, turn: 50, afk: 20 });
+    e.G.turn.pid = 'A'; e.G.turn.attackQueued = 1; e.G.turn.acted = Date.now() - 100;
+    const handBefore = e._H.hands.A.length;
+    e.tick(Date.now());
+    return { noDraw: e._H.hands.A.length === handBefore, moved: e.G.turn.pid === 'B', extra: e.G.turn.extra };
+  });
+  ok(afkAttack.noDraw && afkAttack.moved && afkAttack.extra === 1, '挂机的攻击玩家被代结束回合：不代抽、extra 转结照常');
+  const noDrawInWindow = await page.evaluate(() => {
+    const e = CAT.create({ room: 'NW', hostId: 'A', selfPid: 'A', seed: 33 });
+    ['A', 'B'].forEach(id => e.join(id, id, ''));
+    e.start(); Object.assign(e._T, { quick: 300, nopeMs: 300, turn: 60000 });
+    e.G.turn.pid = 'A';
+    e._H.hands.A = ['skip:4', 'taco:14'];
+    e.play('A', [0]);
+    const r = e.draw('A');
+    return { rejected: !r.ok };
+  });
+  ok(noDrawInWindow.rejected, 'nope 窗口期间禁抽牌（先等当前行动结算）');
   console.log(`\n═══ 规则探针：${pass} 过 / ${fail} 挂，pageerror=${errors.length} ═══`);
   for (const e of errors) console.log('  pageerror: ' + e);
   await browser.close();
