@@ -18,7 +18,7 @@ const path = require('path');
 
 const ROOT = 'D:/myidea/truth-or-dare';
 const PORT = parseInt(process.env.PORT3P || '8813', 10);   // 端口被残留句柄占住时可用 PORT3P=xxxx 换口重跑
-const URL = `http://127.0.0.1:${PORT}/index.html`;
+const URL = `http://127.0.0.1:${PORT}/index.html?game=tod`;
 const SHOTS = 'shots';
 fs.mkdirSync(SHOTS, { recursive: true });
 

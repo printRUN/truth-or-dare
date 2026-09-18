@@ -8,7 +8,7 @@ const path = require('path');
 
 const ROOT = 'D:/myidea/truth-or-dare';
 const PORT = 8802;
-const URL = `http://127.0.0.1:${PORT}/index.html`;
+const URL = `http://127.0.0.1:${PORT}/index.html?game=tod`;
 
 let fails = 0;
 const log = (...a) => console.log('[fun]', ...a);

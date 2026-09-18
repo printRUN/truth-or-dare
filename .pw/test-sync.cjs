@@ -57,7 +57,7 @@ async function join(page, { name, room, tag, offsetMs, local }) {
       window.__skew = ms;
     }, offsetMs);
   }
-  await page.goto(`http://localhost:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`http://localhost:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#loading-overlay', { state: 'detached', timeout: 15000 }).catch(() => {});
   await page.fill('#input-name', name);
   if (local) { await page.click('details.adv summary'); await page.click('#chk-local'); }
@@ -152,7 +152,7 @@ const cardOf = (page, name) =>
   const c = await ctxC.newPage();
   watch(c, 'C-file');
   log('微信下载版等价场景：file:// 打开');
-  await c.goto('file:///' + ROOT.replace(/\\/g, '/') + '/index.html', { waitUntil: 'domcontentloaded' });
+  await c.goto('file:///' + ROOT.replace(/\\/g, '/') + '/index.html?game=tod', { waitUntil: 'domcontentloaded' });
   await c.waitForSelector('#loading-overlay', { state: 'detached', timeout: 20000 }).catch(() => {});
   await c.click('details.adv summary');
   await c.click('#chk-local');
@@ -177,7 +177,7 @@ const cardOf = (page, name) =>
   ok(c1.label.includes('已复制') || c1.dialog, `复制按钮不再静默失败（按钮「${c1.label}」/ 手动弹窗 ${c1.dialog}）`);
   if (c1.dialog) ok(c1.clip.includes(cRoom), '手动弹窗文本含房间号');
   // 记住过在线地址后，本地页也能给出可转发的在线链接
-  const seeded = await c.evaluate(() => { try { localStorage.setItem('tod:home', 'https://example.com/tod/index.html'); return true; } catch { return false; } });
+  const seeded = await c.evaluate(() => { try { localStorage.setItem('tod:home', 'https://example.com/tod/index.html?game=tod'); return true; } catch { return false; } });
   if (seeded) {
     const inv1 = await c.evaluate(() => ({ url: shareUrl(), text: inviteText() }));
     ok(inv1.url === `https://example.com/tod/index.html?room=${cRoom}`, `用记下的在线地址拼邀请链接：${inv1.url}`);
@@ -186,11 +186,11 @@ const cardOf = (page, name) =>
 
   let d = null;
   if (ip) {
-    log(`非安全上下文验证：http://${ip}:${PORT_LAN}/index.html`);
+    log(`非安全上下文验证：http://${ip}:${PORT_LAN}/index.html?game=tod`);
     const ctxD = await browser.newContext();
     d = await ctxD.newPage();
     watch(d, 'D-lan');
-    await d.goto(`http://${ip}:${PORT_LAN}/index.html?room=${room}`, { waitUntil: 'domcontentloaded' });
+    await d.goto(`http://${ip}:${PORT_LAN}/index.html?game=tod&room=${room}`, { waitUntil: 'domcontentloaded' });
     await d.waitForSelector('#loading-overlay', { state: 'detached', timeout: 20000 }).catch(() => {});
     const env = await d.evaluate(() => ({ sec: window.isSecureContext, hasCb: !!navigator.clipboard, room: (new URLSearchParams(location.search).get('room') || '').toUpperCase() }));
     ok(!env.sec && !env.hasCb, `该环境确实没有 navigator.clipboard（isSecureContext=${env.sec}, clipboard=${env.hasCb}）`);
@@ -236,7 +236,7 @@ const cardOf = (page, name) =>
     ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'].forEach((k, i) => { window.WebSocket[k] = i; });
   });
   log('全 broker 不可达场景：加入后应降级本地模式，解禁后 keeper 自动补连');
-  await e.goto(`http://localhost:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+  await e.goto(`http://localhost:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
   await e.waitForSelector('#loading-overlay', { state: 'detached', timeout: 15000 }).catch(() => {});
   await e.fill('#input-name', 'Eveoff');
   await e.click('.avatar-option >> nth=0');

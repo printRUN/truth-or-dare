@@ -13,7 +13,7 @@ const path = require('path');
 
 const ROOT = 'D:/myidea/truth-or-dare';
 const PORT = 8797;
-const URL = `http://127.0.0.1:${PORT}/index.html`;
+const URL = `http://127.0.0.1:${PORT}/index.html?game=tod`;
 const S = 'shots/';
 let fails = 0;
 const log = (...a) => console.log('[depth]', ...a);

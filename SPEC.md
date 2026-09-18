@@ -6,6 +6,33 @@
 **Summary**: A real-time "Truth or Dare" game where players join with custom avatars, select truth or dare, and draw punishment cards with cinematic animations.
 **Target**: Party settings, friends gathering, online multiplayer
 
+### 1.5 游戏中心（arcade）与多游戏收录（2026-09-19，feat/arcade-monopoly）
+
+index.html 的首屏是**游戏中心**：三张游戏卡（🎭 真心话大冒险 / 🎲 大富翁 → `monopoly.html` / 🃏 UNO 占位）。设计定稿见 `.pw/design-plan-arcade-monopoly.md` v3（工程红线/视觉/玩家价值三专家评审）。
+
+**接入机制（状态驱动，不是 DOM 硬切）**：
+- `window.__ARCADE__` 由 early 内联脚本（`.world3d` 闭合后、主脚本前）定案，失败退纯 join 语义（禁半态）。skip 条件：`?game=tod`、hash `#tod`、`?room=`、30 分钟内 `tod:tab` 回房票（**谓词与主脚本逐字一致**）、本会话 `tod:picked`。`?game=arcade` 强制回游戏中心（探针用）。
+- `currentScreen()`：`!joined` 时按 `__ARCADE__` 返回 `'arcade'` 或 `'join'`；`SCENE_ORDER` 五屏环 `{arcade:0, join:1, lobby:2, game:3, result:4}`，`sceneTurn` 两个数字同改（`+5 % 5`）。**game→join、result→lobby 方向因插入点翻转为回扫（已接受，probe-leave/sim-* 回归锁）**。
+- `Cam.base/spawn` 各加 `arcade` 档（z-52/rx5；spawn z190）；`Cam.init()` 四处（curScreen/jump/enter/to）按落地屏取，**漏 curScreen 会在 landforce realign 时镜头飞向 join 机位**。
+- 点 tod 卡 = `__ARCADE__=false` + `renderScreen()`（复用既有扫视，含 pendingSceneEnter 攒屏链）；`tod:picked` 让 join 屏刷新不弹回大厅；`arcade-nav` 会话级常驻 = join 屏「← 游戏中心」显隐依据。
+- **剪贴板回流守卫**：两处 `pasteRoom(true)`（boot 1500ms + visibilitychange）在 arcade 屏跳过（防 iOS 授权弹窗凭空弹出），点 tod 卡后补触发一次。
+- h1 由 `applyTitle()` 唯一写入（同值短路）；`body.on-arcade` 隐藏 net-chip（落地页不挂红点「未连接」）。
+- 卡片是 **div[role=button] 不是 button**——tapFx 的 `closest('button:…')` 守卫会吞掉按压动画；新 CSS 动画三挂点：REDUCED 块、`body.loperf` backdrop 清单、`:focus-visible` 组。
+
+**E2E 契约**：全部 `.pw` 脚本入口 goto 已补 `?game=tod`（六步 sed，审计 grep 必须为空；probe-join-latency 的 `/?room=` 故意保留测邀请路径）。`check-syntax.cjs` 同时解析 index.html + monopoly.html，并断言两边内联 three.js UMD sha256 一致（trim 后比对；防单边升级双版本漂移）。探针：`.pw/probe-arcade.cjs`（8905，28 断言）。
+
+### 1.6 大富翁（monopoly.html，独立自包含单文件）
+
+**为什么独立文件**：index.html 已 3.3MB 全门禁压身；大富翁是完全不同的游戏域。three.js r128 UMD 从 index.html 原样内联（含 SPDX 头），保持两边「单文件零外网双击即开」；返回大厅 `location.href='index.html'`（**禁 `'./'`**，file:// 下是目录列表）。
+
+**规则 v1**（参数来自玩家专家 P0-1 收敛包，目标一局 8-15 分钟）：2-4 人本地热座 + 🤖 机器人；起始 ¥10000；24 格环形棋盘（4 角 + 每边 4 地产/1 特殊）；过起点 +¥1000；地产 ¥1000-4000（4 色组×4：琥珀/红/绿/蓝，组条白点计数作色盲冗余）；**租金 = 价×40%，集齐同色 ×3**；所得税 ¥1000；机会/命运各 8 张；监狱三选一（赌双数 ×3 回合 / ¥500 / 免罚卡），三连双数入狱；**终局双条件**：最后存活 OR 局长上限（15/20 轮/不限，打满按现金+地价排名）；破产 = 付不起应付额，**全部现金给债主、地产归无主**（「向每位玩家收」不做链式追偿）。不做：房屋/抵押/拍卖/联机（v2 候选）。
+
+**热座三件套（玩家专家 P0）**：① 交接闸（「📱 请把手机交给 XX」单按钮，机器人不插闸，setup 可关）；② 自动存档 `mono:save:v1`（**只在 beginTurn 回合起点这个安全点写**，mulberry32 状态外置 rngBox.a 可逐字节续跑；恢复走 `_resumeSkipInc` 重放本回合不重复计回合）；③ 「再来一局」保留整套玩家配置（`mono:names`）。
+
+**视觉/工程纪律**（沿用 §2）：ACES+sRGB+FogExp2 0.035+dpr 封顶；阴影只挂 DirectionalLight；格面纹理 256×256 POT+sRGB+LinearFilter；卡牌揭晓 =「镜头去卡，卡不动」（0.9s 推近 → 远边枢轴 +180° 翻面 650ms → 持读 1400ms → 420ms 退场，全墙钟 smoothstep）；名牌 Sprite 径向外偏 + 交替抬高 + 投影 <22px 隐藏；HUD 全 body 级 fixed（禁进 transform 容器）；toast 在玩家条之下避让。三套降级：REDUCED（瞬移/DOM 玻璃卡/静态聚焦）、loperf-lite（中位帧间隔 >26ms → dpr1/关阴影/停环绕）、WebGL 不可用 → 2D 列表棋盘（同一状态机）。音效 WebAudio 合成零资源（`mono:sfx`）。
+
+**E2E 钩子**：`?autotest=1`（种子 20260919、动画 ×0.15、自动开局「测试员 vs 机器人甲」、`window.__mono` 访问器含 `step/buy/handoff/forcePos/forceMoney/forceJail/resolveAt/mc`）；`&turbo=1`（×0.01 + 跳过渲染与一切动画——**rAF 帧率钳制会让蒙特卡洛跑十几分钟，turbo 必须绕开**）。探针：`.pw/probe-monopoly.cjs`（8907：A 确定性对局 / B 2D 降级 / C 20 局蒙特卡洛验收线：全部终局 + 平均局长 ≤20 轮上限 + 有破产发生）。
+
 ## 2. Visual & Rendering Specification
 
 ### Scene Setup

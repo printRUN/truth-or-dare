@@ -19,7 +19,7 @@ const server = http.createServer((req, res) => {
   await ctx.addInitScript(() => { try { localStorage.setItem('tod:guide', '1'); localStorage.setItem('tod:perf', 'full'); } catch {} });
   const P = await ctx.newPage();
   P.on('pageerror', e => console.log('PERR', e.message));
-  await P.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+  await P.goto(`http://127.0.0.1:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
   await P.waitForSelector('#loading-overlay', { state: 'detached', timeout: 10000 }).catch(() => {});
   await P.fill('#input-name', '阿泽');
   await P.click('details.adv summary'); await P.click('#chk-local');

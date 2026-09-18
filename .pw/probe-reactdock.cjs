@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const ROOT = 'D:/myidea/truth-or-dare';
 const PORT = 8814;
-const URL = `http://127.0.0.1:${PORT}/index.html`;
+const URL = `http://127.0.0.1:${PORT}/index.html?game=tod`;
 
 function serve() {
   return new Promise(res => {

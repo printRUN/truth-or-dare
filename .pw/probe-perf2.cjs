@@ -33,7 +33,7 @@ const frameStats = d => new Promise(res => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3 });
   const page = await ctx.newPage();
   page.on('pageerror', e => log('PAGEERROR', String(e).slice(0, 200)));
-  await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`http://127.0.0.1:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#screen-join.active', { timeout: 60000 });
   await sleep(500);
   await page.evaluate(() => closeGuide());

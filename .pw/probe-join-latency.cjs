@@ -69,7 +69,7 @@ async function joinAndTime(p, { room, name }) {
     const ctx = await b.newContext({ viewport: { width: 1280, height: 800 } });
     const p = await ctx.newPage();
     p.on('pageerror', e => errs.push('1:' + String(e).slice(0, 150)));
-    await prep(p, `http://127.0.0.1:${PORT}/`);
+    await prep(p, `http://127.0.0.1:${PORT}/index.html?game=tod`);
     const r = await joinAndTime(p, { room: '', name: '甲' });
     console.log(`[${TAG}] 1-create: ${r.ms}ms kind=${r.kind} net="${r.net}"`);
     console.log(`[${TAG}]   dials:`, JSON.stringify(r.dialLog));
@@ -82,7 +82,7 @@ async function joinAndTime(p, { room, name }) {
     const ctx = await b.newContext({ viewport: { width: 1280, height: 800 } });
     const p = await ctx.newPage();
     p.on('pageerror', e => errs.push('1b:' + String(e).slice(0, 150)));
-    await prep(p, `http://127.0.0.1:${PORT}/`);
+    await prep(p, `http://127.0.0.1:${PORT}/index.html?game=tod`);
     await p.evaluate(() => { window._STALL_BROKER = 'mosquitto'; window._STALL_MS = 6000; });
     const r = await joinAndTime(p, { room: '', name: '甲' });
     console.log(`[${TAG}] 1b-create-stall: ${r.ms}ms kind=${r.kind} net="${r.net}"`);
@@ -95,7 +95,7 @@ async function joinAndTime(p, { room, name }) {
     const ctxA = await b.newContext({ viewport: { width: 1280, height: 800 } });
     const pa = await ctxA.newPage();
     pa.on('pageerror', e => errs.push('2a:' + String(e).slice(0, 150)));
-    await prep(pa, `http://127.0.0.1:${PORT}/`);
+    await prep(pa, `http://127.0.0.1:${PORT}/index.html?game=tod`);
     const ra = await joinAndTime(pa, { room: '', name: '房主' });
     const rc = await pa.evaluate(() => link.room);
     console.log(`[${TAG}] 2-host: ${ra.ms}ms room=${rc}`);
@@ -117,7 +117,7 @@ async function joinAndTime(p, { room, name }) {
     const ctx = await b.newContext({ viewport: { width: 1280, height: 800 } });
     const p = await ctx.newPage();
     p.on('pageerror', e => errs.push('3:' + String(e).slice(0, 150)));
-    await prep(p, `http://127.0.0.1:${PORT}/`);
+    await prep(p, `http://127.0.0.1:${PORT}/index.html?game=tod`);
     await ctx.setOffline(true);
     const r = await joinAndTime(p, { room: '', name: '丙' });
     console.log(`[${TAG}] 3-offline: ${r.ms}ms kind=${r.kind} net="${r.net}"`);

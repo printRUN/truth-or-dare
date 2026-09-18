@@ -25,7 +25,7 @@ const server = http.createServer((req, res) => {
   });
 });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const URL_ = `http://127.0.0.1:${PORT}/`;
+const URL_ = `http://127.0.0.1:${PORT}/index.html?game=tod`;
 let pass = 0, fail = 0;
 function chk(name, ok, detail) {
   if (ok) { pass++; console.log(`  ✅ ${name}${detail ? '  (' + detail + ')' : ''}`); }

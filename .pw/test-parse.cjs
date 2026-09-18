@@ -1,6 +1,6 @@
 // node .pw/test-parse.cjs  → 用真实 AI 输出样例校验 parsePools
 const fs = require('fs');
-const src = fs.readFileSync('D:/myidea/truth-or-dare/index.html', 'utf8');
+const src = fs.readFileSync('D:/myidea/truth-or-dare/index.html?game=tod', 'utf8');
 const code = src.slice(src.indexOf('// 分节标题判定'), src.indexOf('function updatePoolCount'));
 const { parsePools } = new Function(code + '\nreturn { parsePools };')();
 

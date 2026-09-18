@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const ROOT = 'D:/myidea/truth-or-dare';
 const PORT = 8875;
-const URL = `http://127.0.0.1:${PORT}/index.html`;
+const URL = `http://127.0.0.1:${PORT}/index.html?game=tod`;
 const server = http.createServer((req, res) => {
   const f = path.join(ROOT, req.url === '/' ? 'index.html' : decodeURIComponent(req.url.split('?')[0]));
   fs.readFile(f, (e, d) => { if (e) { res.writeHead(404); res.end(); } else { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(d); } });

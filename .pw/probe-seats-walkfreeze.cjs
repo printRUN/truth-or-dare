@@ -24,7 +24,7 @@ const check = (n, ok, d) => { if (ok) { pass++; console.log('  ✅ ' + n); } els
   const mkPage = async name => {
     const p = await ctx.newPage();
     p.on('pageerror', e => errs.push(e.message));
-    await p.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+    await p.goto(`http://127.0.0.1:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
     await p.waitForSelector('#loading-overlay', { state: 'detached', timeout: 15000 }).catch(() => {});
     await p.fill('#input-name', name);
     await p.click('details.adv summary'); await p.click('#chk-local'); await p.click('.avatar-option >> nth=0');

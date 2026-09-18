@@ -9,7 +9,7 @@ const path = require('path');
 
 const ROOT = 'D:/myidea/truth-or-dare';
 const PORT = 8764;
-const URL = `http://localhost:${PORT}/index.html`;
+const URL = `http://localhost:${PORT}/index.html?game=tod`;
 
 function serve() {
   return new Promise(resolve => {

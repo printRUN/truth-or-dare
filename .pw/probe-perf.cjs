@@ -27,13 +27,13 @@ function serve(port, host) {
   });
 }
 
-const URL = `http://127.0.0.1:${PORT}/index.html`;
+const URL = `http://127.0.0.1:${PORT}/index.html?game=tod`;
 
 async function newWorker(browser, tag, i, room) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await ctx.newPage();
   page.on('pageerror', e => log('PAGEERROR', tag, String(e).slice(0, 200)));
-  await page.goto(URL + (room ? '?room=' + room : ''), { waitUntil: 'domcontentloaded' });
+  await page.goto(URL + (room ? '&room=' + room : ''), { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#screen-join.active', { timeout: 60000 });
   await sleep(400);
   await page.evaluate(() => closeGuide());

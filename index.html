@@ -425,7 +425,7 @@
     .bgm-vol input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 2px solid var(--primary); box-shadow: 0 0 10px rgba(139,92,246,0.7); cursor: pointer; }
     .bgm-vol input[type="range"]:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 4px; }
 
-    .btn:focus-visible, .mode-opt:focus-visible, .copy-link-btn:focus-visible, .import-tab:focus-visible, .paste-btn:focus-visible, .btn-accept:focus-visible, .btn-skip:focus-visible, .mic-btn:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 3px; }
+    .btn:focus-visible, .mode-opt:focus-visible, .copy-link-btn:focus-visible, .import-tab:focus-visible, .paste-btn:focus-visible, .btn-accept:focus-visible, .btn-skip:focus-visible, .mic-btn:focus-visible, .arcade-card:focus-visible, .arcade-back:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 3px; }
 
     /* Toast */
     /* toast 挂顶部安全区下：底部是工具栏/选卡操作带，弹窗不能长在要按的地方（走查必须项）。
@@ -486,8 +486,9 @@
       .avatar-ring.active::after, .card-badges .type-badge.pop, .card-owner.pop { animation: none !important; }
       #result-veil { display: none !important; }
       .cam, .flip-card { transition: none !important; }
+      .arcade-card { transition: none !important; }   /* 游戏中心卡片：hover/按压位移全停（tap-ring 已在上面清单里） */
       .card-front.surprise::after { animation: none !important; }
-      .choice-card.tapped, .deck.tapped, .flip-card.tapped, .tap-ring, .flip-glint { animation: none !important; }
+      .choice-card.tapped, .deck.tapped, .flip-card.tapped, .tap-ring, .flip-glint, .arcade-card.tapped { animation: none !important; }
       .world { transform: none !important; }
       .screen.leaving { display: none !important; }
       .players-grid.ring3d .player-card { transform: translate(-50%, -50%) !important; transition: none !important; }
@@ -1173,11 +1174,46 @@
     /* 切到微信聊天窗口或后台：看不见的屏幕没必要继续烧电，冻结全部装饰动画 */
     body.paused *, body.paused *::before, body.paused *::after { animation-play-state: paused !important; }
 
+    /* ═══ 游戏中心（#screen-arcade）：默认落地屏 ═══ */
+    body.on-arcade .net-chip { display: none; }   /* 落地页不许挂红点「未连接」读成故障（视觉专家） */
+    .arcade-sub { font-size: 0.8rem; color: rgba(255,255,255,0.6); margin: -6px 0 18px; text-align: center; }
+    .arcade-grid { display: grid; gap: 14px; grid-template-columns: 1fr; max-width: 540px; width: 100%; padding: 0 20px; }
+    .arcade-card { position: relative; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; min-height: 112px; padding: 18px; border-radius: 18px; background: var(--glass); border: 1px solid var(--glass-border); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); cursor: pointer; transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.3s cubic-bezier(0.34,1.56,0.64,1); -webkit-tap-highlight-color: transparent; }
+    .arcade-card:hover { transform: translateY(-3px); box-shadow: 0 14px 34px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.18); }
+    .arcade-card .arc-ico { width: 56px; height: 56px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 28px; }
+    .arcade-card.tod .arc-ico { background: linear-gradient(135deg, #8b5cf6, #f472b6); box-shadow: 0 0 24px rgba(139,92,246,0.35); }
+    .arcade-card.monopoly .arc-ico { background: linear-gradient(135deg, #22d3ee, #8b5cf6); box-shadow: 0 0 24px rgba(34,211,238,0.35); }
+    .arcade-card h2 { margin: 0; font-size: 1.1rem; }
+    .arcade-card p { margin: 0; font-size: 0.78rem; color: rgba(255,255,255,0.62); }
+    .arcade-card .arc-badge { font-size: 0.72rem; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.06); }
+    .arcade-card .arc-arrow { position: absolute; right: 16px; top: 18px; font-size: 18px; color: rgba(255,255,255,0.5); transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1); }
+    .arcade-card:hover .arc-arrow { transform: translateX(3px); }
+    /* 按压大面收敛（tapFx 的 tapped 类；幅度比 choice-card 的 0.94 小一档） */
+    @keyframes arcade-pop { 32% { transform: translateY(2px) scale(0.965); } }
+    .arcade-card.tapped { animation: arcade-pop 0.42s cubic-bezier(0.34,1.56,0.64,1); }
+    .arcade-card.locked { border-style: dashed; border-color: rgba(255,255,255,0.14); cursor: default; }
+    .arcade-card.locked .arc-ico { background: rgba(255,255,255,0.08); box-shadow: none; filter: grayscale(0.45) opacity(0.75); }
+    .arcade-card.locked p, .arcade-card.locked .arc-badge { color: rgba(255,255,255,0.5); }
+    @media (hover: none) {
+      .arcade-card:hover { transform: none; box-shadow: none; }
+      .arcade-card:active { transform: scale(0.97); }
+    }
+    @media (min-width: 900px) {
+      .arcade-grid { grid-template-columns: repeat(3, 1fr); max-width: 920px; gap: 18px; }
+      .arcade-card { min-height: 168px; }
+    }
+    /* 矮横屏（landforce 兜底机型/真横屏矮视口）：三卡横排防大富翁卡出屏（玩家专家） */
+    body.landui .arcade-grid { display: flex; flex-direction: row; gap: 10px; overflow-x: auto; max-width: none; align-self: stretch; padding: 0 14px; }
+    body.landui .arcade-card { min-height: 120px; flex: 0 0 auto; width: 200px; }
+    /* join 屏「← 游戏中心」（ghost 药丸；仅 body.arcade-nav 会话显示） */
+    .arcade-back { display: none; margin: 14px auto 0; padding: 7px 15px; border-radius: 999px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.06); color: #fff; font-size: 0.85rem; cursor: pointer; }
+    body.arcade-nav .arcade-back { display: inline-block; }
+
     /* 低端设备降载：砍背景动效与毛玻璃（paint 大户） */
     body.loperf .orb { animation: none; opacity: 0.3; }
     body.loperf .confetti { display: none; }
     body.loperf h1 { animation: none; }
-    body.loperf .join-box, body.loperf .import-panel, body.loperf .choice-card, body.loperf .card-front, body.loperf .btn-secondary, body.loperf .modal-mask, body.loperf .result-box, body.loperf .toast { backdrop-filter: none; }
+    body.loperf .join-box, body.loperf .import-panel, body.loperf .choice-card, body.loperf .card-front, body.loperf .btn-secondary, body.loperf .modal-mask, body.loperf .result-box, body.loperf .toast, body.loperf .arcade-card { backdrop-filter: none; }
     body.loperf .avatar-ring::before, body.loperf .avatar-ring.active::before { animation: none; background: linear-gradient(135deg, var(--primary), var(--accent-pink)); }
     body.loperf .avatar-ring.active { animation: none; }
     body.loperf .avatar-ring.active::after { animation: none; opacity: 0.85; }   /* 座位聚光定格，不做脉动 */
@@ -1405,7 +1441,7 @@
 </div>
 
 <div id="app">
-  <h1>🎭 真心话大冒险</h1>
+  <h1 id="app-title">🎭 真心话大冒险</h1>
   <div class="net-chip">
     <span class="conn-dot" id="net-dot"></span>
     <span id="net-text">未连接</span>
@@ -1416,6 +1452,33 @@
 
   <!-- ═══ 3D 世界：所有屏住在同一台摄影机下（Cam 只动这一层） ═══ -->
   <div class="world" id="world3d">
+
+  <!-- ARCADE（游戏中心）：默认落地屏。early 脚本决定 active 归属——默认把 .active 从 join 挪到这里 -->
+  <div id="screen-arcade" class="screen">
+    <p class="arcade-sub">挑一个游戏开始 · 联机派对 / 本地同屏</p>
+    <div class="arcade-grid">
+      <div class="arcade-card tod" id="card-tod" role="button" tabindex="0" aria-label="玩真心话大冒险">
+        <div class="arc-ico">🎭</div>
+        <h2>真心话大冒险</h2>
+        <p>联机派对 · 3D 牌桌抽卡</p>
+        <span class="arc-badge">2-16 人 · 联机</span>
+        <span class="arc-arrow">→</span>
+      </div>
+      <div class="arcade-card monopoly" id="card-monopoly" role="button" tabindex="0" aria-label="玩大富翁">
+        <div class="arc-ico">🎲</div>
+        <h2>大富翁</h2>
+        <p>本地同屏 · 3D 棋盘</p>
+        <span class="arc-badge">2-4 人 · 人机同乐</span>
+        <span class="arc-arrow">→</span>
+      </div>
+      <div class="arcade-card locked" aria-disabled="true" title="🚧 UNO 正在建造中，敬请期待">
+        <div class="arc-ico">🃏</div>
+        <h2>UNO</h2>
+        <p>经典卡牌对决</p>
+        <span class="arc-badge">敬请期待</span>
+      </div>
+    </div>
+  </div>
 
   <!-- JOIN -->
   <div id="screen-join" class="screen active">
@@ -1486,6 +1549,7 @@
       <button class="howto-link" id="btn-donate" type="button" style="margin-top:-6px">☕ 喜欢的话，助力一下作者</button>
       <p class="hint">💡 朋友们各自打开这个游戏、输入同一个房间号，就能跨设备一起玩；每个人的抽卡动画全场同步。</p>
     </div>
+    <button class="arcade-back" id="btn-arcade-back" type="button">← 游戏中心</button>
 
     <details class="adv" style="width:100%;max-width:540px;margin-top:18px" id="import-join-wrap">
       <summary>🧰 自定义题库（进阶 · 可跳过，随时也能导入）</summary>
@@ -1665,6 +1729,36 @@
 
   </div><!-- /.world3d -->
 </div>
+
+<script>
+/* 游戏中心（arcade）落地判定 —— 必须在主脚本之前定案：currentScreen()/lastScreenName/Cam.init 开机就会读 __ARCADE__。
+   默认落游戏中心；?game=tod、#tod、?room=邀请、30 分钟内回房票、本会话已选过 tod → 直落加入页；
+   ?game=arcade 强制回游戏中心（探针用）。任何异常退回纯 join 语义（禁半态）。 */
+(function () {
+  var on = true;
+  try {
+    var q = new URLSearchParams(location.search), g = q.get('game');
+    if (g === 'tod' || location.hash === '#tod' || q.get('room')) on = false;
+    else if (g !== 'arcade') {
+      var t = null;
+      try { t = JSON.parse(sessionStorage.getItem('tod:tab') || 'null'); } catch (e) { t = null; }
+      if (t && t.id && t.room && Date.now() - (t.ts || 0) < 30 * 60 * 1000) on = false;   // 与主脚本回房票谓词保持逐字一致
+      else if (sessionStorage.getItem('tod:picked') === '1') on = false;
+    }
+  } catch (e) { on = false; }
+  window.__ARCADE__ = on;
+  if (!on) return;
+  try {
+    var j = document.getElementById('screen-join'), a = document.getElementById('screen-arcade');
+    if (!j || !a) throw 0;
+    j.classList.remove('active'); a.classList.add('active');
+    document.body.classList.add('on-arcade', 'arcade-nav');
+    var h = document.getElementById('app-title');
+    if (h) h.textContent = '🎮 游戏中心';
+    document.title = '游戏中心 · 真心话大冒险';
+  } catch (e) { window.__ARCADE__ = false; try { document.getElementById('screen-join').classList.add('active'); } catch (e2) {} }
+})();
+</script>
 
 <!-- 通用弹层（设置 / 战况） -->
 <div class="modal-mask" id="modal-mask" hidden>
@@ -2718,21 +2812,33 @@ let myName = '', myAvatar = '', myJoinedAt = 0;
 
 // ───────────────────────────── 渲染 ─────────────────────────────
 function currentScreen() {
-  if (!joined) return 'join';
+  if (!joined) return window.__ARCADE__ ? 'arcade' : 'join';   // 游戏中心：未加入时的新 0 号屏（early 脚本定案）
   if (S && S.finished) return 'result';
   return S && S.gameStarted ? 'game' : 'lobby';
+}
+// 顶部标题唯一写入口（arcade 屏换文案）。带同值短路：renderScreen 每次状态回包都会跑，不能裸写 textContent。
+function applyTitle(name) {
+  const el = $('app-title');
+  if (el) {
+    const t = name === 'arcade' ? '🎮 游戏中心' : '🎭 真心话大冒险';
+    if (el.textContent !== t) el.textContent = t;
+  }
+  const d = name === 'arcade' ? '游戏中心 · 真心话大冒险' : '真心话大冒险 · 在线多人';
+  if (document.title !== d) document.title = d;
 }
 // 换屏基线的初值 = 开机时屏上已经是的那一面（加入页）。**必须是初值而不是 null**：
 // 开机没有任何地方调 renderScreen()，若留 null，第一次换屏（每局必经的 join→lobby）就会走到
 // `txPrev === null` 那条分支——旧屏不挂 .leaving（瞬间消失），揭幕时画面中央什么都没有。
 let lastScreenName = currentScreen();   // 一镜到底：只在换屏那一刻开机位
 let pendingSceneEnter = null;   // 加载层还盖着时先攒着：等它收起那一刻再放新屏入场（加载层淡出本身就是过场的一段）
-const SCENE_ORDER = { join: 0, lobby: 1, game: 2, result: 3 };   // 屏序（四个房间首尾相接成环）
-// 换屏方向取环上的最短路：result(3)→join(0) 是 -1 步（往回扫），不是 +3 步。
-// 正对面那两对（join↔game、lobby↔result）步数是 2，按「前进一个房间」处理——
+const SCENE_ORDER = { arcade: 0, join: 1, lobby: 2, game: 3, result: 4 };   // 屏序（五个房间首尾相接成环，arcade 是游戏中心新 0 号位）
+// 换屏方向取环上的最短路：距离 2 按「前进一个房间」处理，距离 ≥3 回扫——
 // DOM 里换屏时只有两面存在，扫视语义下没人能分辨「对面」的房间该从哪边来。
+// 五屏化后 game→join、result→lobby 从旧距离 2 变距离 3 → 改回扫（方向翻转已评审接受，
+// probe-leave / sim-desktop / sim-mobile 的退房与回大厅段是回归锁）。
+// `?? 0` 的兜底语义随 0 号位从 join 漂到 arcade——未知屏名本就不该出现，仅记一笔。
 function sceneTurn(prev, next) {
-  const d = ((SCENE_ORDER[next] ?? 0) - (SCENE_ORDER[prev] ?? 0) + 4) % 4;
+  const d = ((SCENE_ORDER[next] ?? 0) - (SCENE_ORDER[prev] ?? 0) + 5) % 5;
   return d > 2 ? -1 : 1;
 }
 function playSceneEnter(name, back, delay = 0) {
@@ -2789,6 +2895,8 @@ function queueSceneEnter(name, back, prev) {
 }
 function renderScreen() {
   const name = currentScreen();
+  applyTitle(name);   // 顶部标题唯一写入口（arcade 屏换「游戏中心」；同值短路，状态回包高频重跑无害）
+  document.body.classList.toggle('on-arcade', name === 'arcade');   // 随屏驱动：离开 arcade 还 net-chip，深链回 arcade 再摘（early 脚本只管开机首帧）
   if (name === 'game') perfWatch();   // 牌桌才是真负载，大厅测不出来的手机在这里补测一次
   let changed = false, txPrev = null, txBack = false;
   if (name !== lastScreenName) {
@@ -3304,6 +3412,7 @@ const Cam = {
   // 每屏常态机位：镜头停在这。game = 第三人称过肩位——在「我」身后上方越过肩头看桌面：
   // rx19 拉出俯视与近大远小，z-56 拉远让背影入画；result = 从桌边靠回去看结果的后撤位
   base: {
+    arcade: { x: 0, y: 0, z: -52, rx: 5, ry: 0, rz: 0, s: 1 },   // 游戏中心：比 join 位净远 ~3.7%，给卡片呼吸
     join: { x: 0, y: 0, z: -40, rx: 2.2, ry: -3, rz: 0, s: 1 },
     lobby: { ...CAM_ID },
     game: { x: 0, y: 0, z: -56, rx: 19, ry: 0, rz: 0, s: 1 },
@@ -3311,6 +3420,7 @@ const Cam = {
   },
   // 每屏入场机位：镜头从哪推/拉到常态位（「一镜到底」的开场段）。game 行程保持旧的 356px（-412-(-56)）
   spawn: {
+    arcade: { z: 190, rx: -4, s: 1.04 },   // 推进 ~242px，与 join 档 190px 同量级
     join: { z: 150, rx: -5, s: 1.05 },
     lobby: { z: -240, rx: 10, s: 1.12 },
     game: { z: -412, rx: 20, s: 1.18 },
@@ -3318,13 +3428,15 @@ const Cam = {
   },
   baseOf(name) { return this.base[name] || CAM_ID; },
   init() {
-    this.el = $('world3d'); this.curScreen = 'join';
-    this.jump(this.spawn.join);
-    this.enter('join');   // 记账；正常路径下运动在首次换屏的 glance 里
-    // 开机落位：从 spawn（z+150 远景）推到加入页常态——这是「一镜到底的第一段」。
+    this.el = $('world3d');
+    const land = window.__ARCADE__ ? 'arcade' : 'join';   // 落地屏由 early 脚本定案；curScreen 必须同步（否则 landforce realign 会把镜头飞向 join 机位）
+    this.curScreen = land;
+    this.jump(this.spawn[land]);
+    this.enter(land);   // 记账；正常路径下运动在首次换屏的 glance 里
+    // 开机落位：从 spawn（远景）推到落地屏常态——这是「一镜到底的第一段」。
     // ⚠ 不能省：新版 enter() 正常路径不再动镜头（运动全在 glance），不补这段相机会永远停在
     // spawn 机位（probe-pan 实测逮到：join 屏基线 ry/z 全错、揭幕时旧屏位置漂移）。
-    if (!REDUCED && !LOWPERF && this.el) this.to(this.baseOf('join'), 900, 'dolly');
+    if (!REDUCED && !LOWPERF && this.el) this.to(this.baseOf(land), 900, 'dolly');
   },
   jump(p) { this.token++; cancelAnimationFrame(this.raf); this.raf = 0; this.busy = false; Object.assign(this.cur, CAM_ID, p || {}); this.apply(); },   // 瞬跳 = 当场接管，在跑的补间作废（否则下一帧又会被拖回旧轨迹）
   apply() {
@@ -6203,7 +6315,7 @@ $('input-room').addEventListener('paste', e => {   // 邀请文字直接粘进�
 document.addEventListener('visibilitychange', () => {
   // 切去聊天窗口/后台：背景动画继续跑只会白烧电→手机发烫，直接冻结
   document.body.classList.toggle('paused', document.hidden);
-  if (!document.hidden && !joined && !$('input-room').value.trim()) pasteRoom(true);
+  if (!document.hidden && !joined && !window.__ARCADE__ && !$('input-room').value.trim()) pasteRoom(true);   // 游戏中心屏上不读剪贴板（防 iOS 授权弹窗凭空弹出）
 });
 document.querySelectorAll('#mode-pick .mode-opt').forEach(b => b.addEventListener('click', () => {
   pickedMode = b.dataset.mode;
@@ -6395,6 +6507,32 @@ try {
 
 const urlRoom = (new URLSearchParams(location.search).get('room') || '').toUpperCase();
 
+// ═══ 游戏中心（arcade）卡片 ═══
+// 点「真心话大冒险」= 状态驱动换屏：__ARCADE__ 翻假 → currentScreen() 回 join → renderScreen 走既有扫视。
+// tod:picked 记入 sessionStorage：join 屏刷新不弹回大厅；arcade-nav 类会话级常驻（返回链接的显隐依据）。
+function enterTodFromArcade() {
+  if (!window.__ARCADE__) return;
+  window.__ARCADE__ = false;
+  try { sessionStorage.setItem('tod:picked', '1'); } catch (e) {}
+  renderScreen();   // applyTitle 由 renderScreen 统一接管
+  setTimeout(() => pasteRoom(true), 0);   // 从大厅进来也要能自动识别剪贴板邀请（boot 期在 arcade 屏被守卫跳过了）
+}
+$('card-tod').addEventListener('click', enterTodFromArcade);
+$('card-tod').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); enterTodFromArcade(); } });
+$('card-monopoly').addEventListener('click', () => { location.href = 'monopoly.html'; });
+$('card-monopoly').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); location.href = 'monopoly.html'; } });
+// tapFx 挂接（卡是 div，不是 button——tapFx 的 closest('button:…') 守卫拦不住，按压动画才能触发）
+['card-tod', 'card-monopoly'].forEach(id => {
+  const el = $(id);
+  if (el) el.addEventListener('pointerdown', ev => tapFx(el, ev, 'tap'));
+});
+$('btn-arcade-back').addEventListener('click', () => {   // join 屏 → 回游戏中心（仅 body.arcade-nav 会话可见）
+  if (joined) return;
+  window.__ARCADE__ = true;
+  try { sessionStorage.removeItem('tod:picked'); } catch (e) {}
+  renderScreen();
+});
+
 // 房间内刷新 → 自动回房：本标签页有回房凭据就直接重新加入（id/名字/头像均取自票，不会出现重复或串号的“自己”）
 let tabTicket = null;
 try { tabTicket = JSON.parse(sessionStorage.getItem('tod:tab') || 'null'); } catch {}
@@ -6410,11 +6548,11 @@ if (rejoinName) {
   $('input-room').value = urlRoom;
   setLoadingText(`发现房间 ${urlRoom}，输入名字即可加入...`);
 } else {
-  setTimeout(() => pasteRoom(true), 1500);   // 打开就带着邀请在剪贴板里：静默自动填入
+  setTimeout(() => { if (!window.__ARCADE__) pasteRoom(true); }, 1500);   // 打开就带着邀请在剪贴板里：静默自动填入（游戏中心屏上不做，点 tod 卡时补触发）
 }
 
 // 启动过场：分阶段文案 + 抽卡加载动画，给玩家一个“入场”的仪式感
-const bootSteps = (urlRoom || rejoinName) ? [] : ['🃏 洗混卡牌...', '✨ 点亮灯光...'];
+const bootSteps = (urlRoom || rejoinName) ? [] : (window.__ARCADE__ ? ['🎮 备好桌游...', '✨ 点亮游戏中心...'] : ['🃏 洗混卡牌...', '✨ 点亮灯光...']);
 let bootIdx = 0;
 const bootTimer = setInterval(() => {
   if (bootIdx >= bootSteps.length) { clearInterval(bootTimer); return; }

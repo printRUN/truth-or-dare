@@ -33,7 +33,7 @@ const server = http.createServer((req, res) => {
     const q = await ctx.newPage();
     q.on('pageerror', e => errors.push(nm + ' pageerror: ' + e.message));
     q.on('console', m => { if (m.type() === 'error') errors.push(nm + ' console: ' + m.text()); });
-    await q.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+    await q.goto(`http://127.0.0.1:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
     await q.waitForSelector('#loading-overlay', { state: 'detached', timeout: 10000 }).catch(() => {});
     await q.fill('#input-name', nm);
     await q.click('details.adv summary');

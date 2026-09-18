@@ -16,7 +16,7 @@ async function shot(mode, file) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
   const page = await ctx.newPage();
   if (mode !== 'auto') await page.addInitScript(m => localStorage.setItem('tod:perf', m), mode);
-  await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`http://127.0.0.1:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#loading-overlay', { state: 'detached', timeout: 30000 }).catch(() => {});
   await page.waitForSelector('#screen-join.active');
   await sleep(1200);

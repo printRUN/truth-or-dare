@@ -108,7 +108,7 @@ const server = http.createServer((req, res) => {
   }, tag).then(o => { log(o.tag, 'gl=' + JSON.stringify({ ph: o.phase, act: o.action, cam: o.cam })); return o; });
 
   // ── 开局 ──
-  await P.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+  await P.goto(`http://127.0.0.1:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
   await P.waitForSelector('#loading-overlay', { state: 'detached', timeout: 10000 }).catch(() => {});
   await P.fill('#input-name', '阿泽');
   await P.click('details.adv summary'); await P.click('#chk-local');
@@ -116,7 +116,7 @@ const server = http.createServer((req, res) => {
   await P.click('#btn-join');
   await P.waitForSelector('#screen-lobby.active', { timeout: 20000 });
   const room = (await P.textContent('#share-room')).trim();
-  await Q.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+  await Q.goto(`http://127.0.0.1:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
   await Q.waitForSelector('#loading-overlay', { state: 'detached', timeout: 10000 }).catch(() => {});
   await Q.fill('#input-name', '小雨');
   await Q.click('details.adv summary'); await Q.click('#chk-local');
