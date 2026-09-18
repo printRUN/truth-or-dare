@@ -128,14 +128,14 @@ async function openJoin(ctx, tag) {
     if (afterDel.n !== 1 || afterDel.first !== upRep) throw new Error('second tap did not delete recipe item: ' + JSON.stringify(afterDel));
     log('两连点删除 OK（配方项被删，上传项保留）');
 
-    // 8) 删掉正在用的头像 → 回落预设
+    // 8) 删掉正在用的头像 → 回落定制
     await A.hover('.mine-wrap:nth-child(1)');
     await A.click('.mine-wrap:nth-child(1) .av-del');
     await A.click('.mine-wrap:nth-child(1) .av-del');
     await sleep(300);
     const fallback = await A.evaluate(() => ({ rep: avatarSel.rep, n: avatarStore.mine.length }));
-    if (fallback.n !== 0 || fallback.rep !== 'av:P01') throw new Error('no fallback after deleting in-use avatar: ' + JSON.stringify(fallback));
-    log('删除使用中头像 → 回落 av:P01 ✓');
+    if (fallback.n !== 0 || !fallback.rep.startsWith('dcb:')) throw new Error('no fallback after deleting in-use avatar: ' + JSON.stringify(fallback));
+    log('删除使用中头像 → 回落定制 ✓（', fallback.rep.slice(0, 30) + '…）');
 
     await A.screenshot({ path: 'shots/av-mine.png' });
     if (errors.length) throw new Error('page errors:\n' + errors.join('\n'));

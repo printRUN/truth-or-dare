@@ -1,0 +1,20 @@
+[3d-feel]   ✅ three3d boot 
+[3d-feel]   ✅ turnRing visible in choosing {"present":true,"visible":true,"pos":[1.64,2.16],"chPos":[1.64,2.16],"opacity":0.4}
+[3d-feel]   ✅ turnRing follows active char {"present":true,"visible":true,"pos":[1.64,2.16],"chPos":[1.64,2.16],"opacity":0.4}
+[3d-feel]   ✅ hover cursor pointer on truth card {"cursor":"pointer"}
+[3d-feel]   ✅ spectator has NO hover affordance on cards {"cursor":"","feel":null,"turn":false}
+[3d-feel]   ✅ hover tilt applied (group leans to camera) {"groupRotX":-0.2}
+[3d-feel]   ✅ press squish applied while holding {"sx":0.95,"feel":{"hover":"truth","press":"truth","ripples":0},"pd":[{"x":327,"y":336,"d":0,"tgt":"game-players-grid"}]}
+[3d-feel]   ✅ raycast click chose truth → drawing {"flash":0.52,"ripple":1,"stage":"drawing","latch":false,"hit":"truth"}
+[3d-feel]   ✅ felt ripple alive after click {"flash":0.52,"ripple":1,"stage":"drawing","latch":false,"hit":"truth"}
+[3d-feel]   ✅ chosen card face flash survives reset (decays) {"flash":0.52,"ripple":1,"stage":"drawing","latch":false,"hit":"truth"}
+[3d-feel]   ✅ one walker (chooser) [{"pid":"ar3rvzdmu5pp3fu","go":0.99,"r":2.62,"lean":0.38}]
+[3d-feel]   ✅ walker stops OUTSIDE table rim (r>=2.42, rim outer=2.24) {"pid":"ar3rvzdmu5pp3fu","go":0.99,"r":2.62,"lean":0.38}
+[3d-feel]   ✅ hip-pivot lean applied (+0.38, forward toward deck -- sign was backwards, user bug) {"pid":"ar3rvzdmu5pp3fu","go":0.99,"r":2.62,"lean":0.38}
+[3d-feel]   ✅ turnRing follows walker {"present":true,"visible":true,"pos":[1.61,2.07],"chPos":[1.61,2.07],"opacity":0.44}
+[3d-feel]   ✅ turnRing still visible in revealed {"present":true,"visible":true,"pos":[1.61,2.07],"chPos":[1.61,2.07],"opacity":0.34}
+[3d-feel]   ✅ bet-box floats above tools row (spectator view) {"betTop":684,"betBottom":806,"toolsTop":816,"overlapTools":false,"visible":true,"w":460,"dbg":{"stage":"revealed","scoring":true,"chooserIsMe":false,"finished":false,"revealAnim":false}}
+[3d-feel]   ✅ post-turn state read {"present":true,"visible":true,"pos":[-1.64,2.16],"chPos":[-1.64,2.16],"opacity":0.8}
+[3d-feel]   ✅ next-turn walker also at rim (observed view) [{"r":2.62,"lean":0.37}]
+[3d-feel] no page errors ✅
+[3d-feel] ALL FEEL CHECKS PASSED ✅

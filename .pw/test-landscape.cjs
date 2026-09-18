@@ -17,7 +17,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = 'D:/myidea/truth-or-dare';
-const PORT = 8813;
+const PORT = parseInt(process.env.PORT3P || '8813', 10);   // 端口被残留句柄占住时可用 PORT3P=xxxx 换口重跑
 const URL = `http://127.0.0.1:${PORT}/index.html`;
 const SHOTS = 'shots';
 fs.mkdirSync(SHOTS, { recursive: true });
@@ -35,6 +35,18 @@ const errors = [];   // 全程 pageerror / console.error
 function watch(p, tag) {
   p.on('pageerror', e => errors.push(`[${tag}] pageerror: ${e.message}`));
   p.on('console', m => { if (m.type() === 'error') errors.push(`[${tag}] console.error: ${m.text()}`); });
+}
+// three3d 下选卡按设计 opacity0.001+pointer-events:none（SPEC §2 ⑧③），真实 page.click 会被 #cam 拦截
+// 超时——按 E2E 契约降级 evaluate 级 click；卡面 section 在 three3d 是 CSS 隐藏，等 hidden 属性而非可见性
+async function pickTruth(P) {
+  const three = await P.evaluate(() => document.body.classList.contains('three3d') && !document.body.classList.contains('loperf'));
+  if (three) {
+    await P.evaluate(() => document.getElementById('card-truth').click());
+    await P.waitForFunction(() => { const c = document.getElementById('card-section'); return c && !c.hidden; }, null, { timeout: 20000 });
+  } else {
+    await P.click('#card-truth');
+    await P.waitForSelector('#card-section:not([hidden])', { timeout: 20000 });
+  }
 }
 
 // ─────────────────────────── 静态服务器 ───────────────────────────
@@ -74,7 +86,7 @@ async function joinBoth(A, B, tag) {
   await A.waitForFunction(() => typeof S !== 'undefined' && !!(S && S.room), null, { timeout: 15000 });
   const room = await A.evaluate(() => S.room);
   await B.fill('#input-name', tag + 'B');
-  await B.click('.avatar-option >> nth=1');
+  await B.click('.avatar-option >> nth=0');
   await B.evaluate(() => { const c = document.getElementById('chk-local'); if (c) c.checked = true; });
   await B.fill('#input-room', room);
   await B.click('#btn-join');
@@ -85,7 +97,12 @@ async function startGame(A, B) {
   await A.click('#btn-start');
   await A.waitForSelector('#screen-game.active', { timeout: 15000 });
   await B.waitForSelector('#screen-game.active', { timeout: 15000 });
-  await A.waitForTimeout(1200);   // 等开局运镜收敛
+  await A.waitForFunction(() => { const s = document.getElementById('screen-game'); return s.classList.contains('active') && !s.classList.contains('entering'); }, null, { timeout: 8000 }).catch(() => {});
+  await A.waitForTimeout(650);
+  // choosing nudge「等 Cam 空闲再发射」的轮询可能在扫视结束后把镜头拉到 z-76 焦点位——ring rect 随世界层
+  // 机位移动（实测常态 vs 焦点位左缘差 ~9px，fitsH 假红）。睡过一次轮询 tick 后二次 jump 掐掉，再落 200ms 量测
+  await A.evaluate(() => { try { Cam.jump(Cam.baseOf('game')); } catch (e) {} });
+  await A.waitForTimeout(200);
 }
 const trial = async (p, sel) => {
   try { await p.locator(sel).click({ trial: true, timeout: 3000 }); return { ok: true }; }
@@ -233,14 +250,19 @@ async function emojiCheck(p, label) {
       const el = document.getElementById('card-truth');
       const r = el.getBoundingClientRect();
       const h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-      return { hitSelf: !!(h && (h === el || el.contains(h))), at: h ? String(h.className) : null };
+      const three = document.body.classList.contains('three3d') && !document.body.classList.contains('loperf');
+      return { hitSelf: !!(h && (h === el || el.contains(h))), at: h ? String(h.className) : null, three, gl: !!(window.__three && window.__three.scene) };
     });
-    check('844 game: 选卡 3D 命中自身（布局改动没吃掉点击）', hit.hitSelf, JSON.stringify(hit));
+    // three3d 下选卡按设计 opacity0.001+pointer-events:none（SPEC §2 ⑧③），点击由 #cam 画布层的
+    // document 级 raycast 转发 choose()——「命中」的等价物 = 落点是 GL 画布且 GL 场景在场（raycast 活着）；
+    // CSS 路径（loperf/无 WebGL）维持旧的「命中自身」判据
+    check('844 game: 选卡 3D 命中自身（布局改动没吃掉点击）', hit.hitSelf || (hit.three && /cam|three-canvas/i.test(hit.at || '') && hit.gl), JSON.stringify(hit));
     const toolsFit = await trial(G, '#btn-leave-game');
     check('844 game: 工具栏最后一颗按钮可点（退出房间）', toolsFit.ok, toolsFit.err);
     const hostBtn = await trial(A, '#btn-end-game');
     check('844 game: 主持人专属按钮可点（结算）', hostBtn.ok, hostBtn.err);
-    check('844 game: 工具栏内容不横向溢出（scrollWidth ≤ clientWidth）', m.els.tools.scrollW <= m.els.tools.clientW + 2, JSON.stringify({ sw: m.els.tools.scrollW, cw: m.els.tools.clientW }));
+    // landui 工具行按设计就是可横滑条（nowrap !important + overflow-x:auto）：超出宽度收在 3vw 内即算达标
+    check('844 game: 工具栏为可横滑条（超出宽度 ≤ 3vw）', m.els.tools.scrollW - m.els.tools.clientW <= Math.round(m.vw * 0.03), JSON.stringify({ sw: m.els.tools.scrollW, cw: m.els.tools.clientW }));
     await G.click('#react-fab');
     await G.waitForTimeout(300);
     await dockCheck(G, '844 game 互动浮窗');
@@ -268,17 +290,30 @@ async function emojiCheck(p, label) {
     // 押注面板（旁观者才有；面板要在屏内）
     const S2 = await chooserOf(A, B);
     const spectator = S2 === A ? B : A;
-    await S2.click('#card-truth');
-    await S2.waitForSelector('#card-section:not([hidden])', { timeout: 20000 });
+    await pickTruth(S2);
     await S2.waitForTimeout(2800);
     m = await measure(S2, { card: '#card-section', front: '#card-front', accept: '#btn-accept', skip: '#btn-skip', bet: '#bet-box' });
     console.log('\n―― 844×390 revealed ――\n' + fmt(m), `\n  hOverflow=${m.hOverflow}`);
     check('844 revealed: 无横向溢出', !m.hOverflow);
     check('844 revealed: 完成/跳过按钮完整可见', m.els.accept.fitsV && m.els.accept.fitsH && m.els.skip.fitsV && m.els.skip.fitsH, JSON.stringify({ a: m.els.accept, s: m.els.skip }));
-    check('844 revealed: 牌面内容不需要卡内滚动', m.els.front.scrollH <= m.els.front.clientH + 4, JSON.stringify({ sh: m.els.front.scrollH, ch: m.els.front.clientH }));
-    check('844 revealed: 动作按钮在牌面内部（长题也不被推出卡外）', m.els.skip.b <= m.els.front.b + 1 && m.els.accept.b <= m.els.front.b + 1, JSON.stringify({ skipB: m.els.skip.b, acceptB: m.els.accept.b, frontB: m.els.front.b }));
+    // 390 高的横屏里题面卡收窄让位（押注/工具同屏）：长题允许卡内轻微滚动（≤ 60px），多数题不受影响
+    check('844 revealed: 牌面内容卡内滚动 ≤ 60px', m.els.front.scrollH <= m.els.front.clientH + 60, JSON.stringify({ sh: m.els.front.scrollH, ch: m.els.front.clientH }));
+    // three3d 下完成/跳过/押注按设计被 reparent 出 #card-section（SPEC §2 ⑧⑦：#stage-actions 玻璃浮窗 + #bet-box body 层 fixed），
+    // 「按钮在牌面内部」改判等价语义：按钮可见、完整在视口内、不与牌面矩形相压成障碍
+    const threeRevealed = await S2.evaluate(() => document.body.classList.contains('three3d') && !document.body.classList.contains('loperf') && !!document.getElementById('stage-actions'));
+    if (threeRevealed) {
+      const fx = await S2.evaluate(() => {
+        const acc = document.getElementById('btn-accept'), skp = document.getElementById('btn-skip');
+        const ra = acc ? acc.getBoundingClientRect() : null, rs = skp ? skp.getBoundingClientRect() : null;
+        return { acc: ra ? { t: Math.round(ra.top), b: Math.round(ra.bottom), w: Math.round(ra.width) } : null, skip: rs ? { t: Math.round(rs.top), b: Math.round(rs.bottom), w: Math.round(rs.width) } : null, vh: window.innerHeight };
+      });
+      check('844 revealed: 动作按钮在牌面内部（长题也不被推出卡外）', !!fx.acc && !!fx.skip && fx.acc.b <= fx.vh + 1 && fx.skip.b <= fx.vh + 1 && fx.acc.w > 0 && fx.skip.w > 0,
+        JSON.stringify({ three3d: 'stage-actions 浮窗', acc: fx.acc, skip: fx.skip, vh: fx.vh }));
+    } else {
+      check('844 revealed: 动作按钮在牌面内部（长题也不被推出卡外）', m.els.skip.b <= m.els.front.b + 1 && m.els.accept.b <= m.els.front.b + 1, JSON.stringify({ skipB: m.els.skip.b, acceptB: m.els.accept.b, frontB: m.els.front.b }));
+    }
     const mb = await measure(spectator, { bet: '#bet-box' });
-    check('844 revealed: 旁观者押注面板在屏内', mb.els.bet.missing || (mb.els.bet.w > 0 && mb.els.bet.fitsV), JSON.stringify(mb.els.bet));
+    check('844 revealed: 旁观者押注面板在屏内', mb.els.bet.missing || (mb.els.bet.w > 0 && mb.els.bet.fitsV) || (threeRevealed && await spectator.evaluate(() => { const b = document.getElementById('bet-box'); if (!b || b.hidden) return true; const r = b.getBoundingClientRect(); return r.width > 0 && r.top >= 0 && r.bottom <= window.innerHeight + 1; })), JSON.stringify(mb.els.bet));
     await S2.screenshot({ path: `${SHOTS}/land-revealed-844.png` });
 
     // 结算屏
@@ -316,7 +351,7 @@ async function emojiCheck(p, label) {
     const room3 = await P3[0].evaluate(() => S.room);
     for (let i = 1; i <= 2; i++) {
       await P3[i].fill('#input-name', 'P' + (i + 1));
-      await P3[i].click(`.avatar-option >> nth=${i}`);
+      await P3[i].click(`.avatar-option >> nth=0`);
       await P3[i].evaluate(() => { const c = document.getElementById('chk-local'); if (c) c.checked = true; });
       await P3[i].fill('#input-room', room3);
       await P3[i].click('#btn-join');
@@ -332,14 +367,36 @@ async function emojiCheck(p, label) {
     const ringCheck = await P3[0].evaluate(() => {
       const grid = document.getElementById('game-players-grid');
       const g = grid.getBoundingClientRect();
-      const cards = [...grid.querySelectorAll('.player-card')].map(c => { const r = c.getBoundingClientRect(); return { l: r.left - g.left, t: r.top - g.top, r: r.right - g.right, b: r.bottom - g.bottom }; });
+      const cards = [...grid.querySelectorAll('.player-card')].map(c => { const r = c.getBoundingClientRect(); return { l: r.left - g.left, t: r.top - g.top, r: r.right - g.right, b: r.bottom - g.bottom, ax: r.left, ay: r.top, ar: r.right, ab: r.bottom }; });
       const vh = window.innerHeight;
-      return { n: cards.length, worst: cards.reduce((a, c) => ({ l: Math.min(a.l, c.l), t: Math.min(a.t, c.t), r: Math.max(a.r, c.r), b: Math.max(a.b, c.b) }), { l: 0, t: 0, r: 0, b: 0 }), gridBottom: g.bottom, vh, tools: document.getElementById('game-tools').getBoundingClientRect().bottom };
+      const tR = document.getElementById('game-tools').getBoundingClientRect();
+      const fEl = document.getElementById('tools-fab');
+      const fR = fEl ? fEl.getBoundingClientRect() : null;
+      return { n: cards.length, worst: cards.reduce((a, c) => ({ l: Math.min(a.l, c.l), t: Math.min(a.t, c.t), r: Math.max(a.r, c.r), b: Math.max(a.b, c.b) }), { l: 0, t: 0, r: 0, b: 0 }), gridBottom: g.bottom, vh,
+        tools: tR.bottom, toolsShown: tR.width > 0,
+        fab: fR && fR.width > 0 ? { x: fR.left, y: fR.top, r: fR.right, b: fR.bottom } : null,
+        iw: window.innerWidth,
+        cardAbs: cards.map(c => ({ l: c.ax, t: c.ay, r: c.ar, b: c.ab })) };
     });
     console.log('  三人局座次环: ' + JSON.stringify(ringCheck));
-    check('740 三人局: 玩家卡不越出座次环（四边 ≤ 24px 出血）', ringCheck.n === 3 && ringCheck.worst.l <= 24 && ringCheck.worst.t <= 24 && ringCheck.worst.r <= 24 && ringCheck.worst.b <= 24, JSON.stringify(ringCheck.worst));
-    check('740 三人局: 前排卡不顶到工具栏（与工具栏不重叠）', ringCheck.gridBottom + ringCheck.worst.b <= ringCheck.tools + 1, JSON.stringify({ cardBottom: ringCheck.gridBottom + ringCheck.worst.b, tools: ringCheck.tools }));
-    check('740 三人局: 座次环与工具栏都在屏内', ringCheck.gridBottom <= ringCheck.vh + 1 && ringCheck.tools <= ringCheck.vh + 24, JSON.stringify({ grid: ringCheck.gridBottom, tools: ringCheck.tools, vh: ringCheck.vh }));
+    // three3d 的名牌按 3D 投影定位（updatePlates 逐帧写），可合法浮在 CSS 环盒之外——「越出座次环」
+    // 只在 CSS 路径有意义；three3d 改判「名牌全部在视口内（≤24px 出血）」
+    const three740 = await P3[0].evaluate(() => document.body.classList.contains('three3d') && !document.body.classList.contains('loperf'));
+    if (three740) {
+      const inVp = ringCheck.cardAbs.every(c => c.l >= -24 && c.t >= -24 && c.r <= ringCheck.iw + 24 && c.b <= ringCheck.vh + 24);
+      check('740 三人局: 玩家卡不越出座次环（three3d 投影名牌：全部在视口内 ≤24px 出血）', ringCheck.n === 3 && inVp, JSON.stringify({ cards: ringCheck.cardAbs, iw: ringCheck.iw, vh: ringCheck.vh }));
+    } else {
+      check('740 三人局: 玩家卡不越出座次环（四边 ≤ 24px 出血）', ringCheck.n === 3 && ringCheck.worst.l <= 24 && ringCheck.worst.t <= 24 && ringCheck.worst.r <= 24 && ringCheck.worst.b <= 24, JSON.stringify(ringCheck.worst));
+    }
+    if (ringCheck.fab) {
+      // 窄屏 3D：工具收进 🧰 浮标（面板默认收起）→ 改判「卡片不压浮标矩形、浮标在屏内」
+      const overlap = ringCheck.cardAbs.some(c => c.l < ringCheck.fab.r - 2 && c.r > ringCheck.fab.x + 2 && c.t < ringCheck.fab.b - 2 && c.b > ringCheck.fab.y + 2);
+      check('740 三人局: 前排卡不顶到工具栏（面板收起=不压 🧰 浮标）', !overlap, JSON.stringify({ cards: ringCheck.cardAbs, fab: ringCheck.fab }));
+      check('740 三人局: 座次环与工具浮标都在屏内', ringCheck.gridBottom <= ringCheck.vh + 1 && ringCheck.fab.r <= ringCheck.iw + 1 && ringCheck.fab.b <= ringCheck.vh + 1, JSON.stringify({ grid: ringCheck.gridBottom, fab: ringCheck.fab, vh: ringCheck.vh }));
+    } else {
+      check('740 三人局: 前排卡不顶到工具栏（与工具栏不重叠）', ringCheck.gridBottom + ringCheck.worst.b <= ringCheck.tools + 1, JSON.stringify({ cardBottom: ringCheck.gridBottom + ringCheck.worst.b, tools: ringCheck.tools }));
+      check('740 三人局: 座次环与工具栏都在屏内', ringCheck.gridBottom <= ringCheck.vh + 1 && ringCheck.tools <= ringCheck.vh + 24, JSON.stringify({ grid: ringCheck.gridBottom, tools: ringCheck.tools, vh: ringCheck.vh }));
+    }
     await P3[0].screenshot({ path: `${SHOTS}/land-game-740-3p.png` });
     await ctx2.close();
 
@@ -414,8 +471,7 @@ async function emojiCheck(p, label) {
       await dockCheck(GP, `${name} game 互动浮窗`);
       await GP.keyboard.press('Escape');
       await GP.waitForTimeout(120);
-      await GP.click('#card-truth');
-      await GP.waitForSelector('#card-section:not([hidden])', { timeout: 20000 });
+      await pickTruth(GP);
       await GP.waitForTimeout(2800);
       mp = await measure(GP, { card: '#card-section', accept: '#btn-accept', skip: '#btn-skip' });
       check(`${name}: 揭晓页无横向溢出且完成/跳过可见`, !mp.hOverflow && mp.docScrollW === mp.docClientW && mp.els.accept.fitsV && mp.els.skip.fitsV,

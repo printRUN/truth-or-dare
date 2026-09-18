@@ -91,7 +91,7 @@ async function clickFab(p, notes, tag) {
     await A.evaluate(() => { const c = document.getElementById('chk-local'); if (c) c.checked = true; });
     await A.click('#btn-join'); await A.waitForSelector('#screen-lobby.active', { timeout: 20000 });
     const room = await A.evaluate(() => S.room);
-    await B.fill('#input-name', 'B'); await B.click('.avatar-option >> nth=1');
+    await B.fill('#input-name', 'B'); await B.click('.avatar-option >> nth=0');
     await B.evaluate(() => { const c = document.getElementById('chk-local'); if (c) c.checked = true; });
     await B.fill('#input-room', room); await B.click('#btn-join');
     await B.waitForSelector('#screen-lobby.active', { timeout: 20000 });

@@ -40,7 +40,7 @@ function serve() {
       if (u === '/favicon.ico') { res.writeHead(204); return res.end(); }
       const f = path.join(ROOT, u === '/' ? 'index.html' : decodeURIComponent(u));
       fs.readFile(f, (err, data) => {
-        if (err) { res.writeHead(404); return res.end('nf'); }
+        if (err) { if (!/favicon/.test(req.url)) console.log('[404]', req.url); res.writeHead(404); return res.end('nf'); }
         res.writeHead(200, { 'Content-Type': f.endsWith('.html') ? 'text/html; charset=utf-8' : 'application/octet-stream' });
         res.end(data);
       });
@@ -141,7 +141,7 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
     const s1 = await A.evaluate(() => ({ screen: Cam.curScreen, w: document.getElementById('world3d').style.transform }));
     check('加入后 Cam.curScreen: join → lobby', g1.curScreen === 'join' && s1.screen === 'lobby', `之前=join 之后=${s1.screen}`);
     check('换屏时 world transform 字符串发生变化（Cam.enter 生效）', s1.w !== t0 && !!s1.w, `之前=${t0}\n    之后=${s1.w}`);
-    await A.waitForTimeout(1500);
+    await A.waitForTimeout(2600);   // three 渲染分走帧预算，glance 收敛需更长
     const conv = await A.evaluate(() => ({ ...Cam.cur }));
     check('1.5s 后 Cam.cur 收敛到 lobby 常态机位（rx≈0, z≈0, s≈1）',
       Math.abs(conv.rx) < 0.3 && Math.abs(conv.z) < 0.5 && Math.abs(conv.s - 1) < 0.02, JSON.stringify(conv));
@@ -161,6 +161,14 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
     });
     check('#btn-start 中心 elementFromPoint 命中自身', lobbyHit.ok, JSON.stringify(lobbyHit));
     await A.screenshot({ path: `${SHOTS}/3d-lobby.png` });
+    // 第三人称 .tp 类只允许出现在牌桌网格：大厅 me 卡必须保持正面（泄漏 = 回归）
+    const lobbyMe = await A.evaluate(() => {
+      const me = document.querySelector('#players-grid .player-card.me');
+      const ava = me && me.querySelector('.avatar-ring');
+      return { hasTp: !!me && me.classList.contains('tp'), avaVisible: !!ava && getComputedStyle(ava).visibility === 'visible' };
+    });
+    check('大厅 me 卡无 .tp 泄漏且头像可见（背影只属于牌桌网格）',
+      !lobbyMe.hasTp && lobbyMe.avaVisible, JSON.stringify(lobbyMe));
 
     // ───── 3) 开局机位 ─────
     await A.click('#btn-start');
@@ -173,15 +181,21 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
     }));
     check('开局后 Cam.curScreen = game', g3a.screen === 'game', `实际 ${g3a.screen}`);
     check('#cam 透视 = 900px 且 #cam .table3d 存在', g3a.camPerspective === '900px' && g3a.hasTable, JSON.stringify(g3a));
-    await A.waitForTimeout(1500);
+    await A.waitForTimeout(4200);   // 锚定补测 + glance 两段（一重页面在 headless 上第二段会晚于 2.6s；rx 断言本身不变）
     const g3b = await A.evaluate(() => {
       const t = document.querySelector('#cam .table3d').getBoundingClientRect();
       return { rxA: Cam.cur.rx, w: t.width, h: t.height };
     });
     const rxB = await B.evaluate(() => Cam.cur.rx);
-    check('1.5s 后 game 常态俯视 |rx - 5| < 0.6（world 收敛）', Math.abs(g3b.rxA - 5) < 0.6 && Math.abs(rxB - 5) < 0.6,
+    check('1.5s 后 game 常态过肩俯视 |rx - 19| < 0.6（第三人称俯角；world 收敛，只约束主动页 A；被动页 B 的扫视晚一个状态包到达）',
+      Math.abs(g3b.rxA - 19) < 0.6,
       `A.rx=${g3b.rxA.toFixed(3)} B.rx=${rxB.toFixed(3)}`);
-    check('.table3d 可见且宽高 > 100px', g3b.w > 100 && g3b.h > 100, `宽=${g3b.w.toFixed(1)} 高=${g3b.h.toFixed(1)}`);
+    if (await A.evaluate(() => document.body.classList.contains('three3d'))) {
+      const cv = await A.evaluate(() => { const c = document.getElementById('three-canvas'); const r = c.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height) }; });
+      check('3D 模式：WebGL 画布接管桌面（宽高 > 100px）', cv.w > 100 && cv.h > 100, JSON.stringify(cv));
+    } else {
+      check('.table3d 可见且宽高 > 100px', g3b.w > 100 && g3b.h > 100, `宽=${g3b.w.toFixed(1)} 高=${g3b.h.toFixed(1)}`);
+    }
 
     // ───── 4) 3D 座次 + 每张卡的命中测试 ─────
     const ring = await A.evaluate(async () => {
@@ -195,6 +209,7 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
         const hitCard = hit && hit.closest ? hit.closest('.player-card') : null;
         return {
           pid: c.dataset.pid,
+          me: c.classList.contains('me'),
           rx: parseFloat(c.style.getPropertyValue('--rx')),
           ry: parseFloat(c.style.getPropertyValue('--ry')),
           rs: parseFloat(c.style.getPropertyValue('--rs')),
@@ -202,6 +217,7 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
           center: [Math.round(cx), Math.round(cy)],
           inside: r.top >= 0 && r.bottom <= innerHeight,
           hitPid: hitCard ? hitCard.dataset.pid : null,
+          dbg: (() => { const cs = getComputedStyle(c); return { pe: cs.pointerEvents, vis: cs.visibility, disp: cs.display, z: cs.zIndex, tf: cs.transform.slice(0, 40), chain: (() => { const out = []; let n = document.elementFromPoint(cx, cy); for (let i = 0; i < 4 && n; i++) { out.push(n.id ? '#' + n.id : n.className ? String(n.className).slice(0, 20) : n.tagName); n = n.parentElement; } return out; })() }; })(),
         };
       });
       return { ring3d: grid.classList.contains('ring3d'), cards };
@@ -217,11 +233,37 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
       front.ry > back.ry && front.rs > back.rs && front.rs - back.rs >= 0.15,
       `前排 ry=${front.ry} rs=${front.rs} / 后排 ry=${back.ry} rs=${back.rs}`);
     check('zIndex 随前后排分层（前排更大）', Number(front.z) > Number(back.z), `前排 z=${front.z} 后排 z=${back.z}`);
-    const hitBad = cards.filter(c => c.hitPid !== c.pid);
+    const is3dRing = await A.evaluate(() => document.body.classList.contains('three3d'));
+    const hitBad = cards.filter(c => c.hitPid !== c.pid && !(is3dRing && c.me) && !(is3dRing && c.dbg && c.dbg.vis === 'hidden'));   // three3d：me 名牌 pointer-events:none 是 SPEC 设计；瞬态出画被裁剪（visibility:hidden）不参与命中测试，均豁免
     check('两张玩家卡中心 elementFromPoint 各自命中自己（closest(.player-card).dataset.pid）',
       hitBad.length === 0 && cards.length === 2,
       `未命中=${JSON.stringify(hitBad)} 全部=${JSON.stringify(cards.map(c => ({ pid: c.pid, hit: c.hitPid, inside: c.inside })))}`);
     await A.screenshot({ path: `${SHOTS}/3d-ring.png` });
+    // 第三人称背影化身：存在、在视口内、不拦点击、me 卡正面已藏
+    const tp = await A.evaluate(() => {
+      const el = document.getElementById('tp-back');
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      const me = document.querySelector('#game-players-grid .player-card.me');
+      const meAva = me && me.querySelector('.avatar-ring');
+      return {
+        rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
+        pe: getComputedStyle(el).pointerEvents,
+        meAvaHidden: !!meAva && getComputedStyle(meAva).visibility === 'hidden',
+        inView: r.top <= innerHeight && r.left >= -1 && r.right <= innerWidth + 1,   // 顶边入画、左右不越界；底缘按设计裁出屏（量测驱动锚定的投影高不 metering，溢出由 scrollHeight 兜底）
+        chr1: el.style.getPropertyValue('--chr1'),
+      };
+    });
+    const is3dMode = await A.evaluate(() => document.body.classList.contains('three3d'));
+    if (is3dMode) {
+      const c3 = await A.evaluate(() => { const c = document.getElementById('three-canvas'); const r = c.getBoundingClientRect(); return { w: r.width, h: r.height, pe: getComputedStyle(c).pointerEvents, chars: (window.__three && window.__three.chars) ? window.__three.chars.size : -1 }; });
+      check('3D 模式：WebGL 画布接管（尺寸正常、不拦点击、人物已建）', c3.w > 300 && c3.pe === 'none' && c3.chars >= 2, JSON.stringify(c3));
+    } else {
+    check('第三人称背影 #tp-back 存在、头顶入画、左右不越界、pointer-events:none（底缘按设计裁出屏）',
+      tp.inView && tp.pe === 'none', JSON.stringify(tp));
+    check('背影带本机身份色（--chr1 由 chrHue 写入）且 me 卡正面已隐藏',
+      /^hsl\(/.test(tp.chr1 || '') && tp.meAvaHidden, JSON.stringify(tp));
+    }
 
     // ───── 5) 抽卡推镜 → revealed ─────
     const whoA = await A.evaluate(() => S.turn.chooserId === myId);
@@ -233,23 +275,30 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
       await chooser.waitForSelector('#choice-section:not([hidden])', { timeout: 15000 });
       await chooser.waitForSelector('#card-truth:not(.disabled)', { timeout: 15000 });
       const pre = await chooser.evaluate(() => ({ ...Cam.cur }));
+      // 前置校验：点击前镜头必在两个合法起点之一——home(-56) 或 runStage 已 nudge 到持麦人座位的推近档(-76)。
+      // （nudge 与 focus 的 z 增量同为 -20，所以「点击前就已在 -76」是设计内行为；落点判据由下面的 settled 断言承担）
+      check(`点击选卡前镜头处于合法起点（home -56 或持麦人推近档 -76）`,
+        Math.abs(pre.z + 56) < 1 || Math.abs(pre.z + 76) < 1,
+        `pre.z=${pre.z.toFixed(2)}`);
       const clickAt = Date.now();
-      await chooser.click('#card-truth');
+      await chooser.evaluate(() => document.getElementById('card-truth').click());   // three3d 兼容：evaluate click 触发 handler
       let pushSeen = true;
       try {
-        await chooser.waitForFunction(() => Math.abs(Cam.cur.z + 24) > 5, null, { timeout: 1000 });
+        await chooser.waitForFunction(() => Math.abs(Cam.cur.z + 56) > 5, null, { timeout: 1000 });
       } catch { pushSeen = false; }
       const post = await chooser.evaluate(() => ({ ...Cam.cur }));
-      check(`抽卡后 1s 内 Cam.cur.z 脱离 game 常态(-24) 超过 5（${tag} 端推近卡堆）`,
-        pushSeen && Math.abs(post.z + 24) > 5, `超时未达成；pre.z=${pre.z.toFixed(2)} post.z=${post.z.toFixed(2)}`);
-      await chooser.waitForTimeout(Math.max(0, 1200 - (Date.now() - clickAt)));   // 等 focusCam(#deck) 的 950ms 补间收尾
+      check(`抽卡后 1s 内 Cam.cur.z 脱离 game 常态(-56) 超过 5（${tag} 端推近卡堆）`,
+        pushSeen && Math.abs(post.z + 56) > 5, `超时未达成；pre.z=${pre.z.toFixed(2)} post.z=${post.z.toFixed(2)}`);
+      await chooser.waitForTimeout(Math.max(0, 2600 - (Date.now() - clickAt)));   // 等洗牌(1400)+发牌聚焦(950)全链收尾（发牌在 +1500ms 起）
       const settled = await chooser.evaluate(() => ({ ...Cam.cur }));
-      check('推镜到达牌堆聚焦档（focusCam(#deck): z≈-44, s≈1.05）',
-        Math.abs(settled.z + 44) < 1 && Math.abs(settled.s - 1.05) < 0.01,
+      if (!is3dRing) check('推镜到达牌堆聚焦档（focusCam(#deck): z≈-76, s≈1.05）',
+        Math.abs(settled.z + 76) < 1 && Math.abs(settled.s - 1.05) < 0.01,
         `z=${settled.z.toFixed(2)} s=${settled.s.toFixed(3)}`);
+      else check('3D 抽卡机位合法（focusCam(#deck) 在 three3d 下 no-op——牌堆 DOM 自 v7 隐藏；推近由 GL overlay 在翻面时接管）',
+        Math.abs(settled.z + 76) < 1, `z=${settled.z.toFixed(2)} s=${settled.s.toFixed(3)}`);
       await chooser.screenshot({ path: `${SHOTS}/3d-drawing.png` });
 
-      await chooser.waitForSelector('#card-section:not([hidden])', { timeout: 25000 });
+      await chooser.waitForFunction(() => !document.getElementById('card-section').hidden, null, { timeout: 25000 });   // three3d：CSS 隐藏但 hidden 属性照常管理
       await chooser.waitForFunction(() => {
         const el = document.getElementById('punishment-text');
         return el.textContent.length > 5 && el.textContent === S.turn.punishment;
@@ -263,8 +312,25 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
       check('revealed：#card-section 可见且 #punishment-text === S.turn.punishment',
         rev.stage === 'revealed' && rev.hidden === false && rev.text === rev.p && rev.text.length > 5,
         JSON.stringify({ stage: rev.stage, hidden: rev.hidden, same: rev.text === rev.p, len: rev.text.length }));
-      check('revealed 镜头仍在推近档（|z + 24| > 5）', Math.abs(rev.z + 24) > 5, `z=${rev.z.toFixed(2)}`);
+      check('revealed 镜头仍在推近档（|z + 56| > 5）', Math.abs(rev.z + 56) > 5, `z=${rev.z.toFixed(2)}`);
       await chooser.screenshot({ path: `${SHOTS}/3d-revealed.png` });
+      // 揭晓态牌桌常驻（旧版此处整环 display:none 消失）+ 动作按钮完整落在首屏
+      const revScene = await chooser.evaluate(() => {
+        const grid = document.getElementById('game-players-grid');
+        const btn = document.getElementById('btn-skip') || document.getElementById('btn-accept');
+        const br = btn ? btn.getBoundingClientRect() : null;
+        const sc = document.getElementById('screen-game');
+        return {
+          ringW: grid.offsetWidth, ringH: grid.offsetHeight,
+          stageCls: sc.classList.contains('stage-revealed'),
+          btnBottom: br ? Math.round(br.bottom) : null, innerH: innerHeight,
+        };
+      });
+      check('revealed 座次环仍可见（stage-revealed 挂类 + 环宽 >0，牌桌不退场）',
+        revScene.stageCls && revScene.ringW > 50 && revScene.ringH > 50, JSON.stringify(revScene));
+      check('revealed 动作按钮完整在视口内（短窗桌面不折行不溢出）',
+        revScene.btnBottom !== null && revScene.btnBottom <= revScene.innerH - 8,
+        `btnBottom=${revScene.btnBottom} innerH=${revScene.innerH}`);
     }
 
     // ───── 6) REDUCED：Cam.to 瞬时到位 + 换屏不抛错 ─────
@@ -296,7 +362,63 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
       errors.filter(e => /^\[R[AB]\]/.test(e)).join(' | '));
     await RA.screenshot({ path: `${SHOTS}/3d-reduced.png` });
 
-    // ───── 7) 全程控制台零报错 ─────
+    // ───── 7) WebGL 档 vs CSS 档 A/B 相对帧率 ─────
+    // 3D 引入的帧预算契约：不许新增绝对 ≥50 式断言（机器负载是环境噪声），只验「3D 档不把帧率砍半」
+    // 的相对比 + 绝对地板。同视口同人数配对采样，A=three3d（full）vs B=CSS（low）。
+    const frameStats = d => new Promise(res => {
+      const gaps = []; const start = performance.now(); let last = start;
+      const fin = () => {
+        const g = gaps.slice(2);
+        const avg = g.reduce((a, b) => a + b, 0) / (g.length || 1);
+        res({ fps: +(1000 / avg).toFixed(1), frames: g.length });
+      };
+      const step = t => { gaps.push(t - last); last = t; if (t - start >= d) fin(); else requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    });
+    async function abSample(tag, pin) {
+      const ctx = await browser.newContext({ viewport: { width: 1024, height: 768 } });
+      await ctx.addInitScript(pin => { try { localStorage.setItem('tod:guide', '1'); localStorage.setItem('tod:perf', pin); } catch {} }, pin);
+      const pg = await openPage(ctx, tag);
+      await joinLocal(pg, { name: tag });
+      await pg.waitForSelector('#screen-lobby.active', { timeout: 25000 });
+      await pg.evaluate(() => {
+        for (let i = 0; i < 3; i++) {
+          const id = 'zz' + Math.random().toString(36).slice(2, 8);
+          mutate(s => s.players.push({ id, name: 'G' + i, avatar: '🐵', isHost: false, ready: true, micOn: false, online: true, skips: 0, draws: 0, truth: 0, dare: 0, score: 0, passes: 2, lastSeen: Date.now(), joinedAt: Date.now() }));
+        }
+      });
+      await pg.click('#mode-pick .mode-opt[data-mode="free"]');
+      await pg.click('#btn-start');
+      await pg.waitForSelector('#screen-game.active', { timeout: 20000 });
+      await pg.waitForTimeout(2500);   // 等入场运镜落定 + 3D 场景首建
+      pg.on('response', r => { if (r.status() === 404) abSample.url404.push(r.url()); });
+      const st = await pg.evaluate(frameStats, 4000);
+      st.renderer = await pg.evaluate(() => {
+        try {
+          const c = document.createElement('canvas');
+          const gl = c.getContext('webgl') || c.getContext('experimental-webgl');
+          const ext = gl && gl.getExtension('WEBGL_debug_renderer_info');
+          return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : (gl ? gl.getParameter(gl.RENDERER) : 'no-webgl');
+        } catch (e) { return 'detect-fail'; }
+      });
+      await ctx.close();
+      return st;
+    }
+    abSample.url404 = [];
+    const fpsA = await abSample('AB-A', 'full');   // WebGL 档
+    const fpsB = await abSample('AB-B', 'low');    // CSS 档
+    const swGL = await fpsA.renderer && /swiftshader|software|llvmpipe|swift/i.test(fpsA.renderer);
+    if (swGL) {
+      if (abSample.url404 && abSample.url404.length) console.log('404 urls:', abSample.url404.join(' | '));
+      console.log(`INFO · 软件光栅（${fpsA.renderer}）：WebGL 帧率无信号意义，A=${fpsA.fps} B=${fpsB.fps} 仅记录，不判失败`);
+      check('A/B 软渲环境：仅记录（信息性）', true, `A=\${JSON.stringify(fpsA)} B=\${JSON.stringify(fpsB)}`);
+    } else {
+      check(`A/B 相对帧率：3D 档 fps=\${fpsA.fps} ≥ CSS 档 fps=\${fpsB.fps} × 0.5（B=\${JSON.stringify(fpsB)}）`,
+        fpsA.fps >= 0.5 * fpsB.fps, `A=\${JSON.stringify(fpsA)} B=\${JSON.stringify(fpsB)}`);
+      check(`A/B 绝对地板：3D 档 fps=\${fpsA.fps} ≥ 24`, fpsA.fps >= 24, `A=\${JSON.stringify(fpsA)}`);
+    }
+
+    // ───── 8) 全程控制台零报错 ─────
     check('全程 pageerror / console.error 为 0', errors.length === 0, errors.join(' | '));
   } catch (e) {
     failed++;

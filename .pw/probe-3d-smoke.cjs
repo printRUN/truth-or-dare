@@ -21,7 +21,8 @@ const server = http.createServer((req, res) => {
   await new Promise(r => server.listen(PORT, '127.0.0.1', r));
   const browser = await chromium.launch({ args: ['--no-sandbox'] });
   const ctx = await browser.newContext({ viewport: { width: 900, height: 900 } });
-  await ctx.addInitScript(() => { try { localStorage.setItem('tod:guide', '1'); } catch {} });
+  // 钉全效：headless 软渲下 perfWatch 会翻 loperf，3D 门禁必须在 WebGL 路径上测
+  await ctx.addInitScript(() => { try { localStorage.setItem('tod:guide', '1'); localStorage.setItem('tod:perf', 'full'); } catch {} });
   const p = await ctx.newPage();
   p.on('pageerror', e => errors.push('pageerror: ' + e.message));
   p.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
@@ -61,7 +62,7 @@ const server = http.createServer((req, res) => {
   await q.click('#chk-local');
   await q.click('#input-room');
   await q.fill('#input-room', room);
-  await q.click('.avatar-option >> nth=1');
+  await q.click('.avatar-option >> nth=0');
   await q.click('#btn-join');
   await p.waitForSelector('#players-grid .player-card >> nth=1', { timeout: 20000 });
   await p.waitForTimeout(1200);
@@ -88,9 +89,9 @@ const server = http.createServer((req, res) => {
   const mine = await p.evaluate(() => S.turn.chooserId === myId);
   const chooser = mine ? p : q;
   const other = mine ? q : p;
-  await chooser.click('#card-dare');
-  await other.waitForSelector('#card-section:not([hidden])', { timeout: 25000 });
-  await chooser.waitForSelector('#card-section:not([hidden])', { timeout: 25000 });
+  await chooser.evaluate(() => document.getElementById('card-dare').click());   // three3d：DOM 选卡 pointer-events:none，坐标点击落到 #cam；evaluate click 直接触发 handler
+  await other.waitForFunction(() => !document.getElementById('card-section').hidden, null, { timeout: 25000 });
+  await chooser.waitForFunction(() => !document.getElementById('card-section').hidden, null, { timeout: 25000 });   // three3d：CSS 隐藏但 hidden 属性照常管理
   await chooser.waitForFunction(() => document.getElementById('punishment-text').textContent.length > 5, null, { timeout: 25000 });
   await chooser.waitForTimeout(600);
   await chooser.screenshot({ path: 'shots/3d-revealed.png' });

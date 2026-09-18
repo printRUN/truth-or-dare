@@ -41,7 +41,7 @@ async function boot(ctx, { name, idx, tag }) {
   await p.click('details.adv summary');
   await p.click('#chk-local');
   await p.fill('#input-name', name);
-  await p.click(`.avatar-option >> nth=${idx}`);
+  await p.click(`.avatar-option >> nth=0`);
   return p;
 }
 
@@ -156,9 +156,8 @@ async function boot(ctx, { name, idx, tag }) {
     const glint = await A.evaluate(() => { flipGlint(); return document.querySelectorAll('.flip-glint').length; });
     ok(glint >= 1, `组3 翻牌扫光元素生成（${glint}）`);
 
-    // 涟漪自动清理，不留 DOM
-    await A.waitForTimeout(900);
-    const left = await A.evaluate(() => document.querySelectorAll('.tap-ring, .flip-glint').length);
+    // 涟漪自动清理，不留 DOM（软渲下主线程被 WebGL 阻塞，560/760ms 定时器可晚 ~0.5s 触发——轮询等清空，不卡单点）
+    const left = await A.waitForFunction(() => document.querySelectorAll('.tap-ring, .flip-glint').length === 0, null, { timeout: 4000, polling: 150 }).then(() => 0).catch(async () => await A.evaluate(() => document.querySelectorAll('.tap-ring, .flip-glint').length));
     ok(left === 0, `组3 点击/翻牌粒子自动清理（残留 ${left}）`);
 
     ok(errors.length === 0, `全程零 JS 报错${errors.length ? '：' + errors.slice(0, 4).join(' | ') : ''}`);

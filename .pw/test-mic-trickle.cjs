@@ -56,7 +56,7 @@ async function join(ctx, { name, room, tag }) {
   await page.waitForSelector('#loading-overlay', { state: 'detached', timeout: 10000 });
   await page.fill('#input-name', name);
   if (room) await page.fill('#input-room', room);
-  await page.click('.avatar-option >> nth=' + (tag === 'A' ? 0 : 1));
+  await page.click('.avatar-option >> nth=0');
   await page.click('details.adv summary');
   await page.click('#chk-local');
   await page.click('#btn-join');

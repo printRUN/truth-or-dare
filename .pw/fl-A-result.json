@@ -1,0 +1,420 @@
+{
+  "results": [
+    {
+      "id": "A1-boot-3d",
+      "op": "开局进入牌桌",
+      "expect": "双方 three3d=true chars=2 canvasRect=[0,0,1440,900]",
+      "actual": {
+        "P": [
+          true,
+          2,
+          [
+            0,
+            0,
+            1440,
+            900
+          ]
+        ],
+        "Q": [
+          true,
+          2,
+          [
+            0,
+            0,
+            1440,
+            900
+          ]
+        ]
+      },
+      "pass": true
+    },
+    {
+      "id": "A1b-park",
+      "op": "选卡阶段 3D 状态",
+      "expect": "行动卡不可见(park)，选卡双卡在桌 op=1",
+      "actual": {
+        "act": {
+          "vis": false,
+          "pos": [
+            0,
+            0.976,
+            -0.64
+          ],
+          "flipRotX": 0,
+          "parentZ": -0.96,
+          "texLit": 0,
+          "texVer": 1
+        },
+        "choice": [
+          {
+            "x": -0.78,
+            "rotX": 0,
+            "op": 1
+          },
+          {
+            "x": 0.78,
+            "rotX": 0,
+            "op": 1
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "id": "A3-choose-dom",
+      "op": "DOM 兼容路径选大冒险",
+      "expect": "双方 stage=drawing choice=dare seq+1 rounds=1",
+      "actual": {
+        "C": [
+          "drawing",
+          "dare"
+        ],
+        "O": [
+          "drawing",
+          "dare"
+        ],
+        "seqEq": true,
+        "rounds": 1
+      },
+      "pass": true
+    },
+    {
+      "id": "A3b-choice-ui",
+      "op": "选后 UI",
+      "expect": "choice-section 隐藏 / turn-info 起身文案 / 双卡复位 op=1",
+      "actual": {
+        "hiddenC": true,
+        "info": "「小雨」起身去卡堆抽卡了…"
+      },
+      "pass": true
+    },
+    {
+      "id": "A4-draw-anim",
+      "op": "抽卡动画（卡有起飞→飞行位移过程）",
+      "expect": "3 个采样中至少 2 个位置不同且卡可见",
+      "actual": {
+        "poses": [
+          "0.719,1.433,0.156",
+          "0,0.976,-0.64",
+          "0,0.976,-0.64"
+        ],
+        "vis": [
+          true,
+          true,
+          true
+        ]
+      },
+      "pass": true
+    },
+    {
+      "id": "A4b-choice-cards-hidden",
+      "op": "抽卡中选卡双卡是否让位（发现项：3D 双卡整局留在桌上）",
+      "expect": "op/rotX 状态记录",
+      "actual": [
+        {
+          "x": -0.78,
+          "rotX": 0,
+          "op": 1
+        },
+        {
+          "x": 0.78,
+          "rotX": 0,
+          "op": 1
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "A4c-no-compress",
+      "op": "抽卡中画布不压缩（P0-4）",
+      "expect": "canvasRect 恒 [0,0,1440,900]",
+      "actual": [
+        0,
+        0,
+        1440,
+        900
+      ],
+      "pass": true
+    },
+    {
+      "id": "A4d-other-view",
+      "op": "非选择者视角同步",
+      "expect": "对方 card visible + stage=drawing + 画布全屏",
+      "actual": {
+        "vis": true,
+        "stage": "revealed",
+        "rect": [
+          0,
+          0,
+          1440,
+          900
+        ]
+      },
+      "pass": false
+    },
+    {
+      "id": "A5-flip-anim",
+      "op": "3D 翻面动画（flip 中段角度 ∈ (−π,0)）",
+      "expect": "0 > flipRotX > −π",
+      "actual": -3.1416,
+      "pass": false
+    },
+    {
+      "id": "A6-shown",
+      "op": "翻面终态：题卡躺桌心",
+      "expect": "phase=shown，卡位于桌心(0,·,−0.64)",
+      "actual": {
+        "ph": "shown",
+        "act": {
+          "vis": true,
+          "pos": [
+            0,
+            0.976,
+            -1.28
+          ],
+          "flipRotX": -3.1416,
+          "parentZ": -0.96,
+          "texLit": 102400,
+          "texVer": 2
+        }
+      },
+      "pass": false
+    },
+    {
+      "id": "A7-question-match",
+      "op": "题面内容与 S.turn 一致（DOM 层；3D 题面纹理另目检）",
+      "expect": "punishment-text === S.turn.punishment",
+      "actual": {
+        "dom": "对你的手机语音助手说\"我爱你\"并展示反应",
+        "state": "对你的手机语音助手说\"我爱你\"并展示反应",
+        "choice": "dare"
+      },
+      "pass": true
+    },
+    {
+      "id": "A7b-dual-tab",
+      "op": "双标签回合状态一致",
+      "expect": "stage/choice/seq/flipped 全等",
+      "actual": {
+        "C": [
+          "revealed",
+          "dare",
+          3,
+          true
+        ],
+        "O": [
+          "revealed",
+          "dare",
+          3,
+          true
+        ]
+      },
+      "pass": true
+    },
+    {
+      "id": "A7c-dual-tab-card",
+      "op": "双标签桌面卡同态",
+      "expect": "对方 tab 也 shown",
+      "actual": "shown",
+      "pass": true
+    },
+    {
+      "id": "A8-stage-actions",
+      "op": "动作按钮 reparent 到 #stage-actions",
+      "expect": "父=stage-actions 且按钮有实矩形",
+      "actual": {
+        "parent": "stage-actions",
+        "rect": [
+          627,
+          755,
+          84,
+          35
+        ]
+      },
+      "pass": true
+    },
+    {
+      "id": "A9-reveal-cam",
+      "op": "揭晓近景落幅（REVEAL_POS≈[−1.2,2.82,0.46]）",
+      "expect": "相机到位",
+      "actual": [
+        -0.9,
+        3.1,
+        0.5
+      ],
+      "pass": true
+    },
+    {
+      "id": "A9b-reveal-veil",
+      "op": "揭晓 stage-revealed 暗幕(::after) 叠在 3D 近景上（发现项记录）",
+      "expect": "记录 gridRect",
+      "actual": [
+        258,
+        199,
+        924,
+        224
+      ],
+      "pass": true
+    },
+    {
+      "id": "A10-accept",
+      "op": "完成啦结算（+10）",
+      "expect": "choosing，完成者 +10，rounds=1，skips=0",
+      "actual": {
+        "stage": "choosing",
+        "players": [
+          {
+            "n": "阿泽",
+            "score": 0,
+            "passes": 2,
+            "draws": 0,
+            "skips": 0
+          },
+          {
+            "n": "小雨",
+            "score": 10,
+            "passes": 2,
+            "draws": 1,
+            "skips": 0
+          }
+        ],
+        "rounds": 1,
+        "tStat": {
+          "truth": 0,
+          "dare": 1,
+          "skips": 0
+        }
+      },
+      "pass": true
+    },
+    {
+      "id": "A11-rotate",
+      "op": "交接轮转",
+      "expect": "chooser 换人且双方一致",
+      "actual": {
+        "C": "i5e441tmu48isgw",
+        "O": "i5e441tmu48isgw",
+        "prev": "snqcyzimu48j1e8"
+      },
+      "pass": true
+    },
+    {
+      "id": "A12-restore",
+      "op": "回合结束：按钮归位+3D 卡回 park+双卡复位",
+      "expect": "card-actions 回 card-front；行动卡不可见；双卡 op=1 rotX=0",
+      "actual": {
+        "parent": "card-front",
+        "saHidden": true,
+        "act": {
+          "vis": false,
+          "pos": [
+            0,
+            0.976,
+            -0.64
+          ],
+          "flipRotX": 0,
+          "parentZ": -0.96,
+          "texLit": 102400,
+          "texVer": 2
+        },
+        "choice": [
+          {
+            "x": -0.78,
+            "rotX": 0,
+            "op": 1
+          },
+          {
+            "x": 0.78,
+            "rotX": 0,
+            "op": 1
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "id": "A12b-dual-restore",
+      "op": "对方 tab 同步复位",
+      "expect": "card-actions 归位；stage-actions 无残留按钮（下一chooser 的押注条除外）",
+      "actual": {
+        "parent": "stage-actions",
+        "saHidden": false,
+        "accVisible": false
+      },
+      "pass": false
+    },
+    {
+      "id": "A13-raycast",
+      "op": "3D raycast 路径选卡（真鼠标点桌面选卡）",
+      "expect": "drawing + __rayDbg.hit=card",
+      "actual": {
+        "ok": true,
+        "choice": "truth",
+        "dbg": {
+          "t": 1789571350119,
+          "target": "game-players-grid",
+          "detail": 1,
+          "stage": "choosing",
+          "latch": false,
+          "hit": "card"
+        }
+      },
+      "pass": true
+    },
+    {
+      "id": "A14-round2",
+      "op": "回合 2 揭晓内容一致",
+      "expect": "双方 punishText=S.turn.punishment，seq 相等",
+      "actual": {
+        "C": [
+          "truth",
+          "你偷偷喜欢过"
+        ],
+        "O": [
+          "truth",
+          "你偷偷喜欢过谁很久？"
+        ],
+        "seqEq": true
+      },
+      "pass": false
+    },
+    {
+      "id": "A15-skip",
+      "op": "跳过结算（−5）+ 连续 2 回合无卡死",
+      "expect": "choosing，跳过者 −5，skips=1，rounds=2，轮转继续",
+      "actual": {
+        "stage": "choosing",
+        "players": [
+          {
+            "n": "阿泽",
+            "score": -5,
+            "passes": 2,
+            "draws": 1,
+            "skips": 1
+          },
+          {
+            "n": "小雨",
+            "score": 10,
+            "passes": 2,
+            "draws": 1,
+            "skips": 0
+          }
+        ],
+        "rounds": 2,
+        "skips": 1,
+        "chooser": "snqcyzimu48j1e8"
+      },
+      "pass": true
+    },
+    {
+      "id": "A16-round3",
+      "op": "第 3 回合选卡恢复可点",
+      "expect": "raycast 再入 drawing",
+      "actual": {
+        "ok": true
+      },
+      "pass": true
+    }
+  ],
+  "errs": []
+}

@@ -52,7 +52,7 @@ async function joinTab(ctx, { name, room, tag }) {
 await page.click('#chk-local');
   await page.fill('#input-name', name);
   if (room) await page.fill('#input-room', room);
-  await page.click('.avatar-option >> nth=' + (tag === 'A' ? 2 : 5));
+  await page.click('.avatar-option >> nth=0');
   await page.click('#btn-join');
   await page.waitForSelector('#screen-lobby.active', { timeout: 30000 });
   return page;
@@ -75,10 +75,10 @@ await page.click('#chk-local');
       bytes: JSON.stringify(S).length,
       host: S.hostId === myId,
     }));
-    if (!avCheck.avs.every(a => /^av:P\d{2}$/.test(a))) throw new Error('avatar not indexed: ' + avCheck.avs);
+    if (!avCheck.avs.every(a => /^(av:P\d{2}|dcb:\{)/.test(a))) throw new Error('avatar not indexed: ' + avCheck.avs);
     if (avCheck.bytes > 2500) throw new Error('state doc too fat: ' + avCheck.bytes);
     if (!avCheck.host) throw new Error('creator not host');
-    log('av:P## 索引入状态，整帧文档', avCheck.bytes, 'B，主持人=建房者');
+    log('头像短表示入状态（av:遗留|dcb:配方），整帧文档', avCheck.bytes, 'B，主持人=建房者');
 
     // 头像渲染端能展开成可显示图
     await A.waitForSelector('#players-grid .player-card .avatar-inner img[src^="data:image/svg"]', { timeout: 5000 });

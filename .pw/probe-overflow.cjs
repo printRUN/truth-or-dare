@@ -41,7 +41,7 @@ const OVER = () => {
       await p.goto(URL, { waitUntil: 'domcontentloaded' });
       await p.waitForSelector('#screen-join.active', { timeout: 30000 });
       await p.waitForSelector('#loading-overlay', { state: 'detached', timeout: 30000 }).catch(() => {});
-      await p.fill('#input-name', name); await p.click('.avatar-option >> nth=' + i);
+      await p.fill('#input-name', name); await p.click('.avatar-option >> nth=0');
       await p.evaluate(() => { const c = document.getElementById('chk-local'); if (c) c.checked = true; });
     };
     await boot(A, 'PC-A', 0); await A.click('#btn-join'); await A.waitForSelector('#screen-lobby.active', { timeout: 20000 });

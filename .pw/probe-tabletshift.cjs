@@ -45,7 +45,7 @@ async function joinBoth(A, B, tag) {
   await A.waitForFunction(() => typeof S !== 'undefined' && !!(S && S.room), null, { timeout: 15000 });
   const room = await A.evaluate(() => S.room);
   await B.fill('#input-name', tag + 'B');
-  await B.click('.avatar-option >> nth=1');
+  await B.click('.avatar-option >> nth=0');
   await B.evaluate(() => { const c = document.getElementById('chk-local'); if (c) c.checked = true; });
   await B.fill('#input-room', room);
   await B.click('#btn-join');

@@ -41,7 +41,7 @@ async function boot(ctx, { name, idx, tag }) {
   await p.click('details.adv summary');
   await p.click('#chk-local');
   await p.fill('#input-name', name);
-  await p.click(`.avatar-option >> nth=${idx}`);
+  await p.click(`.avatar-option >> nth=0`);
   return p;
 }
 const revealReady = async p => {
@@ -53,7 +53,13 @@ const revealReady = async p => {
   await p.waitForFunction(() => revealAnim === false, null, { timeout: 10000 });
   await p.waitForTimeout(120);
 };
-const clickWhenHittable = async (p, sel) => { await p.click(sel, { timeout: 20000 }); };   // 语义保留：可见/可点/稳定交给 Playwright 的 actionability 与自动滚动
+const clickWhenHittable = async (p, sel) => {
+  // three3d 下选卡 opacity0.001+pointer-events:none（SPEC §2 ⑮③），真实点击被 #cam 拦截超时——
+  // 按 E2E 契约降级 evaluate 级 click（click handler 仍挂在 DOM 卡上）；其余真实按钮保留 Playwright actionability 语义
+  const three = /card-(truth|dare)/.test(sel) && await p.evaluate(() => document.body.classList.contains('three3d') && !document.body.classList.contains('loperf'));
+  if (three) await p.evaluate(s => document.querySelector(s).click(), sel);
+  else await p.click(sel, { timeout: 20000 });
+};
 
 (async () => {
   const server = await serve();

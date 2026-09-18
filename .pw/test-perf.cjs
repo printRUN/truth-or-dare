@@ -60,7 +60,9 @@ async function boot(browser, tag, init) {
   const browser = await chromium.launch({ args: ['--no-sandbox', '--disable-gpu'] });
 
   // ── 1. 背景层不再有每帧重光栅化的模糊滤镜
-  const { ctx: c1, page: a } = await boot(browser, 'PerfA');
+  // 钉 full：本节断言光球 drift 动画存在，loperf 下 orb animation:none 会误杀；只看背景层与档位无关
+  const { ctx: c1, page: a } = await boot(browser, 'PerfA',
+    () => { try { localStorage.setItem('tod:perf', 'full'); } catch {} });
   const orb = await a.evaluate(() => {
     const o = [...document.querySelectorAll('.orb')];
     return { n: o.length, filters: o.map(e => getComputedStyle(e).filter), anims: o.map(e => getComputedStyle(e).animationName) };
@@ -69,25 +71,28 @@ async function boot(browser, tag, init) {
   ok(orb.anims.every(x => /^drift-/.test(x)), '光球仍保留缓慢飘动（观感没丢）');
   const conf = await a.evaluate(() => document.querySelectorAll('#bg-canvas .confetti').length);
   ok(conf === 26, `背景纸屑 ${conf} 片（buildBg 只在启动时调用一次，不会逐轮累积）`);
+  await c1.close();
 
-  // ── 2. 大厅帧率：16 人满员 + 全部动效开着
-  await a.evaluate(() => {
+  // ── 2. 大厅帧率：16 人满员（钉 low = CSS 路径；2D 档的帧率契约不因 WebGL 档引入而作废）
+  const { ctx: c1b, page: a2 } = await boot(browser, 'PerfA2',
+    () => { try { localStorage.setItem('tod:perf', 'low'); } catch {} });
+  await a2.evaluate(() => {
     for (let i = 0; i < 15; i++) {
       const id = 'zz' + Math.random().toString(36).slice(2, 8);
       mutate(s => s.players.push({ id, name: 'G' + i, avatar: '🐵', isHost: false, ready: true, micOn: false, online: true, skips: 0, draws: 0, truth: 0, dare: 0, score: 0, passes: 2, lastSeen: Date.now(), joinedAt: Date.now() }));
     }
   });
   await sleep(1200);
-  const lobby = await a.evaluate(frameStats, 4000);
+  const lobby = await a2.evaluate(frameStats, 4000);
   log('大厅 16 人', JSON.stringify(lobby));
   ok(lobby.fps >= 50 && lobby.p95 <= 25, `大厅满员帧率达标（fps=${lobby.fps}, p95=${lobby.p95}ms）`);
 
   // ── 3. 牌桌帧率 + 连续抽卡后 DOM/粒子不累积
-  await a.click('#mode-pick .mode-opt[data-mode="free"]');
-  await a.click('#btn-start');
-  await a.waitForSelector('#screen-game.active', { timeout: 20000 });
+  await a2.click('#mode-pick .mode-opt[data-mode="free"]');
+  await a2.click('#btn-start');
+  await a2.waitForSelector('#screen-game.active', { timeout: 20000 });
   await sleep(1000);
-  const game = await a.evaluate(frameStats, 4000);
+  const game = await a2.evaluate(frameStats, 4000);
   log('牌桌 16 人', JSON.stringify(game));
   ok(game.fps >= 50 && game.p95 <= 25, `牌桌帧率达标（fps=${game.fps}, p95=${game.p95}ms）`);
 
@@ -95,18 +100,18 @@ async function boot(browser, tag, init) {
   let before = null;
   for (let r = 0; r < 6; r++) {
     try {
-      await a.waitForSelector('#choice-section:not([hidden]) >> #card-truth:not(.disabled)', { timeout: 10000 });
-      await a.click('#card-truth');
-      await a.waitForSelector('#card-section:not([hidden])', { timeout: 25000 });
+      await a2.waitForSelector('#choice-section:not([hidden]) >> #card-truth:not(.disabled)', { timeout: 10000 });
+      await a2.click('#card-truth');
+      await a2.waitForSelector('#card-section:not([hidden])', { timeout: 25000 });
       await sleep(2000);                       // 翻牌 + 打字机 + 揭晓爆彩
-      if (await a.locator('#btn-accept').isVisible()) await a.click('#btn-accept');
+      if (await a2.locator('#btn-accept').isVisible()) await a2.click('#btn-accept');
       rounds++;
-      if (rounds === 2) before = await a.evaluate(() => ({ nodes: document.getElementsByTagName('*').length, anims: document.getAnimations().length }));
+      if (rounds === 2) before = await a2.evaluate(() => ({ nodes: document.getElementsByTagName('*').length, anims: document.getAnimations().length }));
     } catch (e) { log('round', r, '跳过', String(e).slice(0, 60)); }
     await sleep(900);
   }
   await sleep(2500);
-  const after = await a.evaluate(() => ({
+  const after = await a2.evaluate(() => ({
     nodes: document.getElementsByTagName('*').length,
     anims: document.getAnimations().length,
     burst: document.querySelectorAll('.burst-particle').length,
@@ -117,7 +122,7 @@ async function boot(browser, tag, init) {
   ok(after.recent <= 20, `防重复清单有上限（${after.recent} 条 ≤ 2×10）`);
   ok(before && after.nodes - before.nodes < 60, `牌桌内连抽后 DOM 节点不累积（${before && before.nodes} → ${after.nodes}）`);
   ok(before && after.anims <= before.anims + 6, `运行中动画数不随轮数增长（第2轮 ${before && before.anims} → 结束 ${after.anims}）`);
-  await c1.close();
+  await c1b.close();
 
   // ── 4. 切后台/切聊天窗口：动画冻结，回来恢复
   const { ctx: c2, page: b } = await boot(browser, 'PerfB');
