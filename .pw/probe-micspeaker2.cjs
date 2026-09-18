@@ -34,7 +34,7 @@ async function join(ctx, { name, room, tag }) {
   await page.click('#chk-local');
   await page.fill('#input-name', name);
   if (room) await page.fill('#input-room', room);
-  await page.click('.avatar-option >> nth=' + (tag === 'A' ? 0 : 1));
+  await page.click('.avatar-option >> nth=0');
   await page.click('#btn-join');
   await page.waitForSelector('#screen-lobby.active', { timeout: 25000 });
   return page;

@@ -8,6 +8,7 @@
 
 - [design/one-take-motion-system](design/one-take-motion-system.md) —— 一镜到底动效系统的设计语言、全部运动常数与红线（实施依据 design-plan v3）
 - [design/third-person-table](design/third-person-table.md) —— 骗子酒馆式第三人称牌桌（背影/远弧座次/揭晓常驻）：画面语法、红线与全部档案链接（2026-09 v6）
+- [design/default-custom-avatar](design/default-custom-avatar.md) —— 默认头像退役→默认定制头像：决策理由、live-follow 边界、老玩家迁移、悬空引用红线与测试口径（2026-09-18）
 - [research/player-walkthrough-2026-09](research/player-walkthrough-2026-09.md) —— 双 persona 玩家走查（手机竖屏/桌面主持）的发现清单与「发现 → 工作包」映射
 
 ## 实体图谱

@@ -38,7 +38,7 @@ async function newWorker(browser, tag, i, room) {
   await sleep(400);
   await page.evaluate(() => closeGuide());
   await page.fill('#input-name', tag);
-  await page.click('.avatar-option >> nth=' + (i % 12));
+  await page.click('.avatar-option >> nth=0');
   await page.click('#btn-join');
   try {
     await page.waitForSelector('#screen-lobby.active', { timeout: 60000 });

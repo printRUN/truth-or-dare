@@ -41,7 +41,7 @@ async function boot(ctx, { name, idx, tag }) {
   await p.click('details.adv summary');
   await p.click('#chk-local');
   await p.fill('#input-name', name);
-  await p.click(`.avatar-option >> nth=${idx}`);
+  await p.click(`.avatar-option >> nth=0`);
   return p;
 }
 const revealReady = async p => {

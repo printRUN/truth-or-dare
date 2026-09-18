@@ -195,7 +195,7 @@ async function runViewport(browser, W, H) {
   try {
     const A = await openPage(ctx, `${tag}/A`);
     out.join = await measure(A, {
-      joinBox: '.join-box', nameInput: '#input-name', avatarSelector: '#avatar-selector',
+      joinBox: '.join-box', nameInput: '#input-name', avatarSelector: '#cz-preview-tile',
       btnJoin: '#btn-join', btnHowto: '#btn-howto-join', btnDonate: '#btn-donate',
     });
     await A.screenshot({ path: `${SHOTS}/landscape-join-${tag}.png` });

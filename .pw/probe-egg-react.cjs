@@ -38,7 +38,7 @@ const server = http.createServer((req, res) => {
     await q.fill('#input-name', nm);
     await q.click('details.adv summary');
     await q.click('#chk-local');
-    await q.click(`.avatar-option >> nth=${av}`);
+    await q.click(`.avatar-option >> nth=0`);
     return q;
   };
   const A = await mk('阿泽', 0);

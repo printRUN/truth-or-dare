@@ -33,7 +33,7 @@ const server = http.createServer((req, res) => {
   await q.click('#chk-local');
   await q.click('#input-room');
   await q.fill('#input-room', room);
-  await q.click('.avatar-option >> nth=1');
+  await q.click('.avatar-option >> nth=0');
   await q.click('#btn-join');
   await p.waitForFunction(() => S.players.length >= 2, null, { timeout: 15000 });
   // 换成高对比 emoji 头像

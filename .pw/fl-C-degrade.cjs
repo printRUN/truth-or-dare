@@ -40,7 +40,7 @@ const BOOT = (perf) => `try { localStorage.setItem('tod:guide', '1'); localStora
     await Q.fill('#input-name', '小雨');
     await Q.click('details.adv summary'); await Q.click('#chk-local');
     await Q.fill('#input-room', room);
-    await Q.click('.avatar-option >> nth=1'); await Q.click('#btn-join');
+    await Q.click('.avatar-option >> nth=0'); await Q.click('#btn-join');
     await P.waitForSelector('#players-grid .player-card >> nth=1', { timeout: 20000 });
     await Q.waitForTimeout(800);
     await P.click('#btn-start');
@@ -110,7 +110,7 @@ const BOOT = (perf) => `try { localStorage.setItem('tod:guide', '1'); localStora
     await Q.fill('#input-name', '小雨');
     await Q.click('details.adv summary'); await Q.click('#chk-local');
     await Q.fill('#input-room', room);
-    await Q.click('.avatar-option >> nth=1'); await Q.click('#btn-join');
+    await Q.click('.avatar-option >> nth=0'); await Q.click('#btn-join');
     await P.waitForSelector('#players-grid .player-card >> nth=1', { timeout: 20000 });
     await Q.waitForTimeout(800);
     await P.click('#btn-start');
@@ -177,7 +177,7 @@ const BOOT = (perf) => `try { localStorage.setItem('tod:guide', '1'); localStora
     await Q.fill('#input-name', '小雨');
     await Q.click('details.adv summary'); await Q.click('#chk-local');
     await Q.fill('#input-room', room);
-    await Q.click('.avatar-option >> nth=1'); await Q.click('#btn-join');
+    await Q.click('.avatar-option >> nth=0'); await Q.click('#btn-join');
     await P.waitForSelector('#players-grid .player-card >> nth=1', { timeout: 20000 });
     await Q.waitForTimeout(800);
     await P.click('#btn-start');

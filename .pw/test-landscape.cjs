@@ -86,7 +86,7 @@ async function joinBoth(A, B, tag) {
   await A.waitForFunction(() => typeof S !== 'undefined' && !!(S && S.room), null, { timeout: 15000 });
   const room = await A.evaluate(() => S.room);
   await B.fill('#input-name', tag + 'B');
-  await B.click('.avatar-option >> nth=1');
+  await B.click('.avatar-option >> nth=0');
   await B.evaluate(() => { const c = document.getElementById('chk-local'); if (c) c.checked = true; });
   await B.fill('#input-room', room);
   await B.click('#btn-join');
@@ -351,7 +351,7 @@ async function emojiCheck(p, label) {
     const room3 = await P3[0].evaluate(() => S.room);
     for (let i = 1; i <= 2; i++) {
       await P3[i].fill('#input-name', 'P' + (i + 1));
-      await P3[i].click(`.avatar-option >> nth=${i}`);
+      await P3[i].click(`.avatar-option >> nth=0`);
       await P3[i].evaluate(() => { const c = document.getElementById('chk-local'); if (c) c.checked = true; });
       await P3[i].fill('#input-room', room3);
       await P3[i].click('#btn-join');

@@ -48,7 +48,7 @@ async function join(o, name, room = '') {
   await p.click('#chk-local');
   await p.fill('#input-name', name);
   await p.fill('#input-room', room);
-  await p.click('.avatar-option >> nth=' + Math.floor(Math.random() * 20));
+  await p.click('.avatar-option >> nth=0');
   await p.click('#btn-join');
   await p.waitForSelector('#screen-lobby.active', { timeout: 25000 });
 }

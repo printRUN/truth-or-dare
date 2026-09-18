@@ -8,7 +8,7 @@
 
 ## 组成
 1. **背影 `#tp-back`**（#cam 子元素，z35，pointer-events:none）：逆光剪影——chrHue 身份色压暗做体、1px 亮缘做形、青色氛灯做魂。深色星空底上纯剪影不可见、原亮度身份色又亮过中景，这是视觉评审算出来的唯一可行区间。
-2. **远弧座次**：我从角度分配中排除，对手只坐 [PI+GAP, PI+2π−GAP]（宽 0.65/窄 0.95）；n=2 对手锚正对面；纵深系数 0.08；n≥9/横屏/窄环侧座阶梯。
+2. **全环 n 等分座次（2026-09-18 改，用户点名「围绕桌子平均分布，有人加入自动重新分布」）**：我锚 a=PI，其余 `a_rel = PI + rel·2π/n`（rel=相对我的入座次序，加入/离开全员平移补位=真实圆桌语义，不是 bug）；n=2 对手锚正对面（逐字节基线）；纵深系数 0.08；n≥9/横屏/窄环侧座阶梯（全环下同侧 ≤3 排）。旧「远弧 [PI+GAP, PI+2π−GAP]」公式退役——小人数把对手全堆在我弧端两侧、远半桌全空，且 3p 对手背对镜头（面向向量与视线夹角 116°）。GL 人物换座由 syncPlayers 记账 + 帧循环 0.7s 墙钟滑移（走位/揭晓期 pending 冻结），详见 SPEC v7 ⑥。
 3. **机位** base.game `{z:-56, rx:19}`：所有运镜相对 base 计算，改 base = 整条时间轴平移，一镜到底语义保形。
 4. **揭晓常驻**：JS 挂 `stage-revealed`（弃 ：has）→ ring 压 210 + 静态罩 + 卡 .85（.active 豁免）+ 桌面卡叠进环（-100px margin）+ 竖屏卡面收 260。height 无 transition，挂/摘同 tick layoutRing。
 
@@ -29,7 +29,7 @@
 - persona 需求：`.pw/report-persona-akai.md` / `report-persona-tingting.md`
 - 专家评审：`.pw/review-3p-eng.md` / `review-3p-player.md` / `review-3p-visual.md`
 - 终审：`.pw/final-review-code.md` / `final-review-logic.md`（均【修复后可合入】，P0/P1 已修）
-- 验收门禁：`.pw/probe-3p-verify.cjs`（5 视口 × 4 阶段 70 断言，连续三遍全绿）
+- 验收门禁：`.pw/probe-3p-verify.cjs`（5 视口 × 4 阶段，WebGL 可用时为 3D 轮 43 断言，!is3d 断言仅在无 WebGL 环境激活；无 WebGL 回退层另有 `.pw/probe-seats-fallback.cjs` 专测点名牌命中）
 
 ## v8（2026-09-16，Three.js 真 3D 优化轮）
 v6 的「画面语法」在 3D 语义下转译后继续成立：**暗房间 + 一池亮桌 / 近景剪影 + 缘光 / 躺在毡心的题 / 自亮头像盘恒为最亮 identity 层**。明度硬序（截图直方图验收）：UI 玻璃卡 > 头像脸盘 > 光池毡心 > 人物体色 > 地板。

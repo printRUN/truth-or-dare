@@ -34,7 +34,7 @@ const server = http.createServer((req, res) => {
   await q.fill('#input-name', '小雨');
   await q.click('details.adv summary'); await q.click('#chk-local');
   await q.fill('#input-room', room);
-  await q.click('.avatar-option >> nth=1'); await q.click('#btn-join');
+  await q.click('.avatar-option >> nth=0'); await q.click('#btn-join');
   await p.waitForSelector('#players-grid .player-card >> nth=1', { timeout: 20000 });
   await q.waitForTimeout(800);
   await p.click('#btn-start');

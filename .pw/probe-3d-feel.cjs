@@ -57,7 +57,7 @@ const server = http.createServer((req, res) => {
     await q.click('#chk-local');
     await q.click('#input-room');
     await q.fill('#input-room', room);
-    await q.click(`.avatar-option >> nth=${i}`);
+    await q.click(`.avatar-option >> nth=0`);
     await q.click('#btn-join');
     await p.waitForTimeout(900);
   }

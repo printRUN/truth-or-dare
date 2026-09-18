@@ -62,7 +62,7 @@ async function join(page, { name, room, tag, offsetMs, local }) {
   await page.fill('#input-name', name);
   if (local) { await page.click('details.adv summary'); await page.click('#chk-local'); }
   if (room) await page.fill('#input-room', room);
-  await page.click('.avatar-option >> nth=' + (tag.startsWith('A') ? 0 : 1));
+  await page.click('.avatar-option >> nth=0');
   await page.click('#btn-join');
   await page.waitForSelector('#screen-lobby.active', { timeout: 60000 });
   await page.evaluate(dismissGuide);
@@ -157,7 +157,7 @@ const cardOf = (page, name) =>
   await c.click('details.adv summary');
   await c.click('#chk-local');
   await c.fill('#input-name', 'Carol');
-  await c.click('.avatar-option >> nth=2');
+  await c.click('.avatar-option >> nth=0');
   await c.click('#btn-join');
   await c.waitForSelector('#screen-lobby.active', { timeout: 60000 });
   await c.evaluate(dismissGuide);
@@ -196,7 +196,7 @@ const cardOf = (page, name) =>
     ok(!env.sec && !env.hasCb, `该环境确实没有 navigator.clipboard（isSecureContext=${env.sec}, clipboard=${env.hasCb}）`);
     ok(env.room === room, '?room= 参数在邀请链接里仍被识别');
     await d.fill('#input-name', 'Dave');
-    await d.click('.avatar-option >> nth=3');
+    await d.click('.avatar-option >> nth=0');
     await d.click('#btn-join');
     await d.waitForSelector('#screen-lobby.active', { timeout: 60000 });
     await d.evaluate(dismissGuide);
@@ -239,7 +239,7 @@ const cardOf = (page, name) =>
   await e.goto(`http://localhost:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
   await e.waitForSelector('#loading-overlay', { state: 'detached', timeout: 15000 }).catch(() => {});
   await e.fill('#input-name', 'Eveoff');
-  await e.click('.avatar-option >> nth=4');
+  await e.click('.avatar-option >> nth=0');
   await e.click('#btn-join');
   await e.waitForSelector('#screen-lobby.active', { timeout: 60000 });
   await e.evaluate(dismissGuide);

@@ -25,7 +25,7 @@ const PORT = 8736;
   await b.goto(`http://localhost:${PORT}/index.html`);
   await b.click('#chk-local');
   await b.fill('#input-name', 'B');
-  await b.click('.avatar-option >> nth=1');
+  await b.click('.avatar-option >> nth=0');
   const room = (await a.textContent('#share-room')).trim();
   await b.fill('#input-room', room);
   await b.click('#btn-join');

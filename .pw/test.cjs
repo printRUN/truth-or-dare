@@ -42,7 +42,7 @@ async function joinTab(ctx, { name, room, local, tag }) {
   }
   await page.fill('#input-name', name);
   if (room) await page.fill('#input-room', room);
-  await page.click('.avatar-option >> nth=' + (tag === 'A' ? 0 : 1));
+  await page.click('.avatar-option >> nth=0');
   await page.click('#btn-join');
   return page;
 }
@@ -58,6 +58,17 @@ const expectToast = (p, s) => p.waitForFunction(t => {
   const el = document.getElementById('toast');
   return el && el.classList.contains('show') && el.textContent.includes(t);
 }, s, { timeout: 8000 });
+
+
+// three3d 下 #card-section 常驻 display:none（题面在 GL 毡面上）——DOM 可见断言只对 CSS 降档路径成立；
+// 3D 路径改等回合阶段到位（与 probe-3p-verify 的 three3d 语义改写同款）
+const waitDeckShown = p => p.evaluate(() => document.body.classList.contains('three3d') && !document.body.classList.contains('loperf'))
+  .then(is3d => is3d ? p.waitForFunction(() => S.turn && S.turn.stage === 'drawing', null, { timeout: 15000 })
+                      : p.waitForSelector('#deck-section:not([hidden])', { timeout: 15000 }));
+const domClick = (p, sel) => p.evaluate(x => document.getElementById(x).click(), sel.slice(1));   // three3d：选卡/动作按钮 pointer-events:none 落到画布，evaluate click 双路径通用
+const waitCardShown = p => p.evaluate(() => document.body.classList.contains('three3d') && !document.body.classList.contains('loperf'))
+  .then(is3d => is3d ? p.waitForFunction(() => S.turn && S.turn.stage === 'revealed', null, { timeout: 25000 })
+                      : p.waitForSelector('#card-section:not([hidden])', { timeout: 25000 }));
 
 const waitPunishmentReady = p => p.waitForFunction(
   () => document.getElementById('punishment-text').textContent.length > 5 &&
@@ -105,12 +116,12 @@ async function runTurnRound(local, ctx) {
   log('turn-mode guard: non-chooser blocked');
 
   // === 回合1: 真心话 → 全体同步看到抽卡与惩罚 ===
-  await first.click('#card-truth');
-  await first.waitForSelector('#deck-section:not([hidden])', { timeout: 15000 });
-  await other.waitForSelector('#deck-section:not([hidden])', { timeout: 15000 });
+  await domClick(first, '#card-truth');
+  await waitDeckShown(first);
+  await waitDeckShown(other);
   await first.screenshot({ path: `shots/${label}-drawing.png` });
-  await first.waitForSelector('#card-section:not([hidden])', { timeout: 25000 });
-  await other.waitForSelector('#card-section:not([hidden])', { timeout: 25000 });
+  await waitCardShown(first);
+  await waitCardShown(other);
   await waitPunishmentReady(first);
   await waitPunishmentReady(other);
   const pa = await first.textContent('#punishment-text');
@@ -122,7 +133,7 @@ async function runTurnRound(local, ctx) {
   if (await other.locator('#btn-accept').isVisible()) throw new Error(`${label}: non-chooser sees accept button`);
   if (!(await first.locator('#btn-accept').isVisible())) throw new Error(`${label}: chooser missing accept button`);
 
-  await first.click('#btn-accept');
+  await domClick(first, '#btn-accept');
   await first.waitForSelector('#choice-section:not([hidden])', { timeout: 15000 });
   await other.waitForSelector('#choice-section:not([hidden])', { timeout: 15000 });
   log('turn 1 passed');
@@ -133,11 +144,11 @@ async function runTurnRound(local, ctx) {
     throw new Error(`${label}: turn did not rotate: ${JSON.stringify(cid)}`);
   }
   await other.waitForSelector('#card-dare:not(.disabled)', { timeout: 15000 });
-  await other.click('#card-dare');
-  await other.waitForSelector('#card-section:not([hidden])', { timeout: 25000 });
-  await first.waitForSelector('#card-section:not([hidden])', { timeout: 25000 });
+  await domClick(other, '#card-dare');
+  await waitCardShown(other);
+  await waitCardShown(first);
   await waitPunishmentReady(other);
-  await other.click('#btn-skip');
+  await domClick(other, '#btn-skip');
   await first.waitForFunction(() => (S.stats.skips || 0) === 1, null, { timeout: 15000 });
   await other.waitForFunction(() => (S.stats.skips || 0) === 1 && S.turn.stage === 'choosing', null, { timeout: 15000 });
   log('skip recorded & turn rotated');
@@ -184,11 +195,11 @@ async function runFreeRound(local, ctx) {
   log('mic open: BOTH players can grab & choose');
 
   // === A 抢麦抽真心话 ===
-  await a.click('#card-truth');
-  await b.waitForSelector('#deck-section:not([hidden])', { timeout: 15000 });
+  await domClick(a, '#card-truth');
+  await waitDeckShown(b);
   await b.waitForSelector('#turn-info:text("小A")', { timeout: 15000 });
-  await a.waitForSelector('#card-section:not([hidden])', { timeout: 25000 });
-  await b.waitForSelector('#card-section:not([hidden])', { timeout: 25000 });
+  await waitCardShown(a);
+  await waitCardShown(b);
   await waitPunishmentReady(a);
   await waitPunishmentReady(b);
   const holder = await b.evaluate(() => S.turn.chooserId === myId);
@@ -199,7 +210,7 @@ async function runFreeRound(local, ctx) {
   if (!pa || pa !== pb) throw new Error(`${label}: punishment mismatch "${pa}" vs "${pb}"`);
   if (await b.locator('#btn-accept').isVisible()) throw new Error(`${label}: non-holder sees accept button`);
   log('A grabbed mic & punishment synced:', pa.slice(0, 24) + '…');
-  await a.click('#btn-accept');
+  await domClick(a, '#btn-accept');
 
   // 释放麦克风：双方重新可抢
   for (const p of [a, b]) {
@@ -209,13 +220,13 @@ async function runFreeRound(local, ctx) {
   log('mic released, open again');
 
   // === B 抢麦抽大冒险 → 跳过 ===
-  await b.click('#card-dare');
-  await a.waitForSelector('#deck-section:not([hidden])', { timeout: 15000 });
+  await domClick(b, '#card-dare');
+  await waitDeckShown(a);
   await a.waitForSelector('#turn-info:text("小B")', { timeout: 15000 });
-  await a.waitForSelector('#card-section:not([hidden])', { timeout: 25000 });
-  await b.waitForSelector('#card-section:not([hidden])', { timeout: 25000 });
+  await waitCardShown(a);
+  await waitCardShown(b);
   await waitPunishmentReady(b);
-  await b.click('#btn-skip');
+  await domClick(b, '#btn-skip');
 
   for (const p of [a, b]) {
     await p.waitForFunction(() => S.stats.rounds === 2 && (S.stats.skips || 0) === 1 &&

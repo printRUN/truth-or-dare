@@ -34,7 +34,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     await q.fill('#input-name', nm);
     await q.click('details.adv summary');
     await q.click('#chk-local');
-    await q.click(`.avatar-option >> nth=${av}`);
+    await q.click(`.avatar-option >> nth=0`);
     return q;
   };
 

@@ -25,7 +25,7 @@ const server = http.createServer((req, res) => {
     await p.click('details.adv summary');
     await p.click('#chk-local');
     if (i > 0) { await p.click('#input-room'); await p.fill('#input-room', await (await pages[0].textContent('#share-room')).trim()); }
-    await p.click(`.avatar-option >> nth=${i % 6}`);
+    await p.click(`.avatar-option >> nth=0`);
     await p.click('#btn-join');
     await pages[0].waitForTimeout(700);
   }

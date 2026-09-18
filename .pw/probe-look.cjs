@@ -24,7 +24,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await page.screenshot({ path: 'shots/guide-perf.png' });
   await page.evaluate(() => closeGuide());
   await page.fill('#input-name', 'Look');
-  await page.click('.avatar-option >> nth=3');
+  await page.click('.avatar-option >> nth=0');
   await page.click('#btn-join');
   await page.waitForSelector('#screen-lobby.active');
   await sleep(1500);

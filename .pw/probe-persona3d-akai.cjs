@@ -54,7 +54,7 @@ async function join(p, name, room = '', avatarIdx = 0) {
   await p.click('#chk-local');
   await p.fill('#input-name', name);
   if (room) { await p.click('#input-room'); await p.fill('#input-room', room); }
-  await p.click(`.avatar-option >> nth=${avatarIdx}`);
+  await p.click(`.avatar-option >> nth=0`);
   await p.click('#btn-join');
   await p.waitForSelector('#screen-lobby.active', { timeout: 25000 });
 }

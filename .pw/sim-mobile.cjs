@@ -86,8 +86,8 @@ async function openPage(ctx, tag) {
   return p;
 }
 async function prepJoin(p, { name, room, avatarNth }) {
-  await p.tap('#avtab-preset');
-  await p.locator('.avatar-option:visible').nth(avatarNth).tap();
+  // 默认即定制头像（预设已退役，无 #avtab-preset 可点）；avatarNth>0 时点首个可见头像格（=定制预览，等效采用当前定制）
+  if (avatarNth > 0) await p.locator('.avatar-option:visible').first().tap();
   if (!(await p.evaluate(() => !!(document.querySelector('details.adv') || {}).open))) await p.tap('details.adv summary');
   await p.check('#chk-local');
   await p.fill('#input-name', name);
@@ -120,7 +120,7 @@ const waitReady = (p, t) => p.waitForFunction(() => {
   await p1.waitForSelector('#loading-overlay', { state: 'detached', timeout: 20000 });
   digest.timings.bootToJoin = Date.now() - t0; log(`加载层揭开，耗时 ${digest.timings.bootToJoin}ms`);
   await sleep(600); await shot(p1, '02-join');
-  digest.audits.join = await audit(p1, ['input-name', 'avatar-selector', 'btn-avatar-random', 'input-room', 'btn-join', 'btn-howto-join']);
+  digest.audits.join = await audit(p1, ['input-name', 'avtab-custom', 'cz-preview-tile', 'input-room', 'btn-join', 'btn-howto-join']);
 
   // ── 2. 填名字选头像 ──
   await prepJoin(p1, { name: '小雨', room: '', avatarNth: 0 });
