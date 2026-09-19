@@ -448,3 +448,34 @@ big bank never inflates per-turn sync traffic. 旧版纯字符串题库按 `{x: 
 - [x] 互动浮窗不挡操作（`.pw/test-landscape.cjs`）：844×390 / 390×844 / 1280×800 / 1024×768 下浮标与展开的 6 颗 emoji 均落在屏内且与所有 `button/input/.player-card/.choice-card` 零重叠、浮标可真实点击（Playwright 点击，非 DOM 兜底）；Esc 可收起；旧版「底栏常驻」在 390×844 会压住选卡/工具栏、横屏左中会压住玩法切换的问题已消除
 - [x] PC / 平板兼容（`.pw/test-landscape.cjs` 的 1280×800 与 1024×768 分段）：大厅/牌桌/揭晓页文档宽 = 视口宽（3D 牌桌透视投影不再撑宽，移动仿真下 fixed 浮窗不再被推出屏）；矮屏桌面/平板的选卡与「完成/跳过」落在首屏内；互动浮窗不压控件；`.pw/probe-overflow.cjs` 留证
 - [x] PC / 平板版式（`.pw/probe-pcwidths.cjs`、`.pw/probe-pcfit.cjs`）：1920×1000 / 1440×900 / 1280×800 / 1024×768 / 900×900 / 820×1180 六档下 join/lobby 内容列水平居中（偏移 0~8px，8px 是经典滚动条的一半）、文档宽恒等于视口宽、浮标在屏内；加入按钮在 720~1080 各高度全部落在首屏内（旧版 ≤900 高全部需要滚动）；`.pw/probe-tabletshift.cjs` 留了「居中不改变纵向位置」的 A/B 取证
+
+---
+
+## 4. 炸弹猫（bombcat.html）— 第二款游戏（2026-09-19，分支 feat/bombcat-lobby）
+
+单文件自包含卡牌游戏（three.js r128 UMD 内联，双击即开，无 CDN 依赖）。**与 arcade 会话（feat/arcade-monopoly）的分工契约**：index.html 的游戏中心屏由 arcade 会话实现（`?game=` 门控），炸弹猫以 `.arcade-card` 卡片接入（粘贴片段见 `.pw/design-bombcat-lobby.md` §9），`bombcat.html?room=X` 与跳转契约一致；本分支**零改动 index.html**。
+
+### 4.1 架构
+- **主机权威**：只有 host 跑规则引擎 `CAT`（纯逻辑单例，`G` 公共态永不含手牌内容/牌库顺序，手牌只在主机内存 `H`）。非主机一切动作走 `act` 主题（重试闭环：4s 未进 seq → 同 (from,mid) 重发 ≤3 次），敏感载荷（拆除插位/恩惠给牌）走 `p/<pid>/up` 私密上行主题。
+- **传输**：MiniMqtt/LocalTransport/RoomLink 移植自 index.html，topic 族 `cat/v1/<room>/{state,act,react,p/<pid>,p/<pid>/up}`；'tod' 硬编码全部改名 'cat'（channel `cat-<room>`、key `cat:room:<room>:*`、clientId `cat-*`）。**LocalTransport 的 key 懒分配**支持动态私密主题；p/<pid> 的 `.pop()` 天然去重不许重构。
+- **私密包**：主机对每个 state 变更向全部活人补发 `{hand, peek?}`；hello 由 15s presence 循环承担（大厅 presence + 局中补手牌）；qos1。
+- **发牌公式**（probe 钉死）：副数 d=n≤5?1:2；放回拆除 6d−n、爆炸猫 **n−1**（用户原文准据，不随副数翻倍）；牌库 52d−4n−1；n=4→35张3猫 / n=5→31张4猫 / n=6→79张5猫 / n=8→71张7猫。种子 RNG mulberry32，`__cat.setSeed/forceDeck/setTiming` 测试钩子。
+- **回合转结**：攻击不结束回合（attackQueued 累计，抽牌禁用+「结束回合」按钮）；收尾时 `下家.extra += attackQueued + 我方剩余 extra`。nope 窗 2.5s 起（无人持 nope 快结算 0.8s）、每 nope +2s cap 9s；奇数张=取消。出牌/窗口结算时刷新 `turn.acted`（等待他人不占决策时钟）。
+- **看门狗**（主机 1s tick 唯一时钟）：nope 窗/拆牌 15s/恩惠 10s/弃牌挑 15s 超时兜底（种子 RNG）；回合 30s 无动作代抽，afk≥2 后 8s；**tick 后 dirty→必须 hostPublish**（引擎被 tick 改过而没广播 = P0，吃过亏）。
+- **hostLost**：主机每 5s 心跳刷 ver；客户端 20s 无 ver 更新且 pending 过期 → 判死局回大厅（心跳不刷 ver = 全端误判弹回大厅，吃过亏）。over 局有人 join → 唤醒回大厅。
+
+### 4.2 3D 与退路
+- 借 tod DNA：FogExp2(0x0a0a1a,0.042)、ACES+sRGB、dpr 封顶、事件驱动阴影、球面脸贴片（r0.215，`color` 必须随 map 归白）、turnRing。**initScene 成功后必须挂 `body.three3d`**（忘挂=画布永远 display:none，吃过亏）。名牌=DOM 投影（本文件无嵌套 transform，直接写视口坐标）+ **签名边沿 innerHTML**（禁每帧重绘）。
+- 无 WebGL/loperf/REDUCED → 纯 DOM 可玩：`#bc-board2d` + `#bc-players` 玩家状态栏承担全部信息。头像=程序化猫脸（`bc:h:s`，makeCatFace 种子 canvas）。
+
+### 4.3 E2E 门禁与踩过的雷（改前必读）
+- `.pw/check-syntax-bc.cjs`（独立命名，勿动 arcade 会话的 check-syntax.cjs）；`node .pw/build-bombcat.cjs` 从 `.pw/bc-src-a.html + bc-main-{1..4}.js + three-r128.blob.js` 组装 bombcat.html——**改源件后必须重建**。
+- `probe-bombcat-rules.cjs`(8931) 37 断言：发牌四组数值/种子确定性/攻击叠加三例/nope 奇偶反制/拆牌/爆炸/恩惠/组合三式/负例/stf/看门狗/牌库空/离开/over 唤醒/mid 幂等。
+- `probe-bombcat-ui.cjs`(8933) 25 断言：三人本地局全流程+观战+无 WebGL 退路；**稳定四连绿**（flake 治理史：act 重复投递曾引发「dup→hostPublish→storage 事件→再发布」风暴——`hostOnAct` 对 dup 必须 early-return；over 态残留自动 hostRestart 曾把结算屏 0ms 顶掉）。
+- 探针纪律：本地模式同 context 多 page；注入手牌后给**每人**发 hello 补私密包；**清掉牌库原生 ek**（爆炸只由探针注入触发，剧本才确定）；等「按钮解禁」而非引擎态（渲染晚于 publish ≤1s）；GL 页截图 3-10s，nope/defuse 窗要放宽；3D 下点击用 evaluate 级 click（仓库既有契约）；page.evaluate 闭包**不能引用 Node 变量**（ids 用参数传）。
+
+### 4.4 终审修订（双检查官，2026-09-19）
+- **弃牌堆公开为准据修订**：用户原文「打出的牌面朝下进弃牌堆」与「5 张不同名从弃牌堆选 1 张」在数字实现下取官方实物语义——打出的牌名随出牌横幅公开（nope 决策必需），弃牌堆全量 cardId 进公共态供 5 异名挑选；GL 演出保留「飞行面朝下、落定翻明」。
+- afk 快进修复：代抽不再清 afk；挂机玩家的攻击/略过回合被代**结束**（不代抽），extra 转结照常。
+- 8 人硬上限（start 拒绝 + 大厅开局键禁用）；结算屏炸弹猫数=人数−1；局中进入观战提示中文化；恩惠接收方离场→恩惠取消（牌不再蒸发）；目标空手牌校验引擎与 UI 对齐；hostLost 判死 20s→12s；等待类 pending 补倒计时。
+- LocalTransport 非 retained 主题（act/priv/up/react）不再落 localStorage——杜绝 storage 重放风暴，手牌明文不滞留。
