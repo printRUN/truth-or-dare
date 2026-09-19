@@ -3,7 +3,8 @@
 // 用法: node check-syntax.cjs   (from .pw/)
 const fs = require('fs');
 const crypto = require('crypto');
-const FILES = ['D:/myidea/truth-or-dare/index.html', 'D:/myidea/truth-or-dare/monopoly.html'];
+// 硬编码白名单（禁改成读目录）：bombcat.html 在别的分支，合入后再议扩四方
+const FILES = ['D:/myidea/truth-or-dare/index.html', 'D:/myidea/truth-or-dare/monopoly.html', 'D:/myidea/truth-or-dare/uno.html'];
 const re = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi;
 let bad = 0, total = 0;
 const threeHashes = {};
@@ -25,12 +26,12 @@ for (const file of FILES) {
   }
   console.log(`${short}: ${i} script block(s) scanned`);
 }
-if (Object.keys(threeHashes).length >= 2) {
+if (Object.keys(threeHashes).length === 3) {
   const hs = Object.values(threeHashes);
   if (new Set(hs).size === 1) console.log(`three.js 内联段 sha256 一致 ✅ ${hs[0].slice(0, 16)}…`);
   else { bad++; console.log(`three.js 内联段 sha256 不一致！${JSON.stringify(threeHashes).slice(0, 200)}`); }
 } else {
-  console.log(`three.js 内联段检出 ${Object.keys(threeHashes).length} 份（必须 index+monopoly 两份）`);
+  console.log(`three.js 内联段检出 ${Object.keys(threeHashes).length} 份（必须 index+monopoly+uno 三份）`);
   bad++;
 }
 console.log(bad ? `FAILED: ${bad} problem(s)` : `ALL ${total} SCRIPT BLOCKS PARSE ✅`);

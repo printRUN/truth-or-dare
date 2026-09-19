@@ -1198,10 +1198,14 @@
       .arcade-card:hover { transform: none; box-shadow: none; }
       .arcade-card:active { transform: scale(0.97); }
     }
-    @media (min-width: 900px) {
-      .arcade-grid { grid-template-columns: repeat(3, 1fr); max-width: 920px; gap: 18px; }
-      .arcade-card { min-height: 168px; }
+    @media (min-width: 700px) {
+      .arcade-grid { grid-template-columns: repeat(2, 1fr); max-width: 680px; gap: 16px; }
+      .arcade-card { min-height: 148px; }
     }
+    /* 跨分支游戏：探测失败态（灰角标 + 降饱和，仍可点留个念想） */
+    .arc-badge-soon { border-style: dashed; color: rgba(255,255,255,0.55) !important; background: rgba(255,255,255,0.04) !important; }
+    .arcade-card.desat .arc-ico { filter: grayscale(0.45) opacity(0.75); }
+    .arcade-card.desat h2 { color: rgba(255,255,255,0.85); }
     /* 矮横屏（landforce 兜底机型/真横屏矮视口）：三卡横排防大富翁卡出屏（玩家专家） */
     body.landui .arcade-grid { display: flex; flex-direction: row; gap: 10px; overflow-x: auto; max-width: none; align-self: stretch; padding: 0 14px; }
     body.landui .arcade-card { min-height: 120px; flex: 0 0 auto; width: 200px; }
@@ -1471,11 +1475,20 @@
         <span class="arc-badge">2-4 人 · 人机同乐</span>
         <span class="arc-arrow">→</span>
       </div>
-      <div class="arcade-card locked" aria-disabled="true" title="🚧 UNO 正在建造中，敬请期待">
+      <div class="arcade-card uno" id="card-uno" role="button" tabindex="0" aria-label="玩 UNO">
         <div class="arc-ico">🃏</div>
         <h2>UNO</h2>
-        <p>经典卡牌对决</p>
-        <span class="arc-badge">敬请期待</span>
+        <p>经典卡牌对决 · 传机暗牌</p>
+        <span class="arc-badge">2-4 人 · 本地同屏</span>
+        <span class="arc-arrow">→</span>
+      </div>
+      <div class="arcade-card ext" id="card-bombcat" role="button" tabindex="0" aria-label="玩炸弹猫" data-href="bombcat.html" data-name="炸弹猫" title="💣 炸弹猫 · 联机对战（暂未开放，合入后自动点亮）">
+        <div class="arc-ico">💣</div>
+        <h2>炸弹猫</h2>
+        <p>联机对战 · 抽到炸弹就跑</p>
+        <span class="arc-badge">2-8 人 · 联机对战</span>
+        <span class="arc-badge arc-badge-soon" hidden>🚧 未开放</span>
+        <span class="arc-arrow">→</span>
       </div>
     </div>
   </div>
@@ -6522,10 +6535,50 @@ $('card-tod').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key 
 $('card-monopoly').addEventListener('click', () => { location.href = 'monopoly.html'; });
 $('card-monopoly').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); location.href = 'monopoly.html'; } });
 // tapFx 挂接（卡是 div，不是 button——tapFx 的 closest('button:…') 守卫拦不住，按压动画才能触发）
-['card-tod', 'card-monopoly'].forEach(id => {
+['card-tod', 'card-monopoly', 'card-uno', 'card-bombcat'].forEach(id => {
   const el = $(id);
   if (el) el.addEventListener('pointerdown', ev => tapFx(el, ev, 'tap'));
 });
+$('card-uno').addEventListener('click', () => { location.href = 'uno.html'; });
+$('card-uno').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); location.href = 'uno.html'; } });
+// ═══ 跨分支游戏（graceful jump）═══
+// file:// 下 fetch 必死（本项目卖点双击即开）→ fail-open 直跳；http(s) 才 HEAD 探测（1500ms 超时，405/501 按存在算，
+// 失败再 GET 兜底）。结果只存页面级 memo（禁 localStorage 负缓存——合入后不能被旧结果锁死）。渲染期已后台预探测。
+const jumpMemo = {};
+let jumpPending = false;
+function probeExternal(href) {
+  const sig = (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(1500) : undefined;   // 老浏览器无 timeout：undefined=不限时（一次探不到就当没有，不炸主脚本）
+  return fetch(href, { method: 'HEAD', cache: 'no-store', signal: sig })
+    .then(r => r.ok || r.status === 405 || r.status === 501)
+    .catch(() => fetch(href, { method: 'GET', cache: 'no-store', signal: sig }).then(r => r.ok).catch(() => false));
+}
+function markExtAvailable(card, ok) {
+  jumpMemo[card.dataset.href] = ok;
+  const soon = card.querySelector('.arc-badge-soon');
+  if (soon) soon.hidden = ok;
+  card.classList.toggle('desat', !ok);
+}
+if (location.protocol !== 'file:') {
+  const bcCard = $('card-bombcat');
+  try { if (bcCard) probeExternal(bcCard.dataset.href).then(ok => markExtAvailable(bcCard, ok)); } catch (e) {}   // 预探测绝不打断主脚本后续顶层语句
+}
+function jumpExternal(card) {
+  const href = card.dataset.href, name = card.dataset.name;
+  if (location.protocol === 'file:' || typeof AbortSignal === 'undefined' || !AbortSignal.timeout) { location.href = href; return; }   // fail-open：file:// 与老浏览器直跳
+  if (jumpMemo[href] === true) { location.href = href; return; }
+  if (jumpPending) return;
+  jumpPending = true;
+  toast('🚧 正在确认 ' + name + ' 能不能开门…');
+  probeExternal(href).then(ok => {
+    jumpPending = false;
+    markExtAvailable(card, ok);
+    if (ok) { location.href = href; return; }
+    toast('💥 ' + name + ' 还在筹备中，敬请期待 🚧（先来一局 UNO / 大富翁吧）', 'error');   // 玩家语言，分支黑话只进 console
+    console.info('[arcade] ' + name + ' 不可用：' + href + ' 尚未合入当前分支（合并后自动直连）');
+  });
+}
+$('card-bombcat').addEventListener('click', () => jumpExternal($('card-bombcat')));
+$('card-bombcat').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); jumpExternal($('card-bombcat')); } });
 $('btn-arcade-back').addEventListener('click', () => {   // join 屏 → 回游戏中心（仅 body.arcade-nav 会话可见）
   if (joined) return;
   window.__ARCADE__ = true;

@@ -49,7 +49,9 @@ const ok = (name, cond, extra) => { results.push([cond ? 'PASS' : 'FAIL', name +
     ok('① h1=游戏中心', st.title === '🎮 游戏中心', st.title);
     ok('① document.title 联动', st.docTitle === '游戏中心 · 真心话大冒险', st.docTitle);
     ok('① net-chip 隐藏（不挂红点）', st.netChip === 'none');
-    ok('① 三张游戏卡', st.cards === 3);
+    ok('① 四张游戏卡', st.cards === 4, st.cards);
+    ok('① UNO 卡已转正（无 locked/aria-disabled、有箭头）', await p.evaluate(() => { const c = document.getElementById('card-uno'); return !!c && !c.classList.contains('locked') && !c.hasAttribute('aria-disabled') && !!c.querySelector('.arc-arrow'); }));
+    ok('① 炸弹猫卡存在（角标状态与可用性一致）', await p.evaluate(async () => { const c = document.getElementById('card-bombcat'); if (!c || c.dataset.href !== 'bombcat.html') return false; const avail = await fetch('bombcat.html', { method: 'HEAD', cache: 'no-store' }).then(r => r.ok || r.status === 405 || r.status === 501).catch(() => fetch('bombcat.html', { method: 'GET', cache: 'no-store' }).then(r2 => r2.ok).catch(() => false)); const soon = c.querySelector('.arc-badge-soon'); return avail ? soon.hidden : !soon.hidden; }));
     ok('① body.on-arcade + arcade-nav', st.onArcade && st.nav);
     ok('① 相机落位 arcade（z-52/rx5）', st.world.includes('-52px') && st.world.includes('rotateX(5deg)'), st.world.slice(0, 80));
     ok('① 零 pageerror', errs.length === 0, errs.join(';'));
@@ -155,6 +157,57 @@ const ok = (name, cond, extra) => { results.push([cond ? 'PASS' : 'FAIL', name +
     ok('⑦ 跳转 monopoly.html', p.url().includes('monopoly.html'), p.url());
     await p.waitForSelector('#setup:not([hidden])', { timeout: 25000 });
     ok('⑦ 大富翁 setup 屏出现', true);
+    await ctx.close();
+  }
+
+  // ── ⑧ UNO 跳转 ──
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1100, height: 800 } });
+    const p = await ctx.newPage();
+    await p.goto('http://127.0.0.1:' + PORT + '/', { waitUntil: 'domcontentloaded' });
+    await p.waitForSelector('#loading-overlay', { state: 'detached', timeout: 20000 }).catch(() => {});
+    await p.click('#card-uno');
+    await p.waitForURL('**/uno.html', { timeout: 10000 });
+    ok('⑧ 跳转 uno.html', p.url().includes('uno.html'), p.url());
+    await p.waitForSelector('#setup:not([hidden])', { timeout: 25000 });
+    ok('⑧ UNO setup 屏出现', true);
+    await ctx.close();
+  }
+
+  // ── ⑨ 炸弹猫探测跳转（与运行时共用 HEAD 谓词，合入后自动转绿）──
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1100, height: 800 } });
+    const p = await ctx.newPage();
+    await p.goto('http://127.0.0.1:' + PORT + '/', { waitUntil: 'domcontentloaded' });
+    await p.waitForSelector('#loading-overlay', { state: 'detached', timeout: 20000 }).catch(() => {});
+    const avail = await p.evaluate(() => fetch('bombcat.html', { method: 'HEAD', cache: 'no-store' }).then(r => r.ok || r.status === 405 || r.status === 501).catch(() => fetch('bombcat.html', { method: 'GET', cache: 'no-store' }).then(r2 => r2.ok).catch(() => false)));   // 与运行时 probeExternal 同谓词（含 GET 兜底）
+    await p.click('#card-bombcat');
+    if (avail) {
+      await p.waitForURL('**/bombcat.html', { timeout: 10000 });
+      ok('⑨ 炸弹猫已合入 → 直连跳转', p.url().includes('bombcat.html'), p.url());
+    } else {
+      await p.waitForFunction(() => document.getElementById('toast').classList.contains('show') && document.getElementById('toast').textContent.includes('筹备中'), { timeout: 8000 });
+      const urlSame = !p.url().includes('bombcat');
+      ok('⑨ 炸弹猫未合入 → toast 拦截不跳转', urlSame, p.url());
+    }
+    await ctx.close();
+  }
+
+  // ── ⑩ 矮屏欠账（历史 ⑧）：667×375 + landui → 4 卡全部 ≤ 视口高且横排可滚 ──
+  {
+    const ctx = await browser.newContext({ viewport: { width: 667, height: 375 } });
+    const p = await ctx.newPage();
+    await p.goto('http://127.0.0.1:' + PORT + '/', { waitUntil: 'domcontentloaded' });
+    await p.waitForSelector('#loading-overlay', { state: 'detached', timeout: 20000 }).catch(() => {});
+    await p.evaluate(() => document.body.classList.add('landui'));
+    await p.waitForTimeout(300);
+    const geo = await p.evaluate(() => {
+      const vh = innerHeight;
+      const cards = [...document.querySelectorAll('.arcade-card')].map(c => { const r = c.getBoundingClientRect(); return { b: r.bottom, t: r.top }; });
+      const grid = document.querySelector('.arcade-grid');
+      return { vh, maxBottom: Math.max(...cards.map(c => c.b)), n: cards.length, scrollable: grid.scrollWidth >= grid.clientWidth - 2, cols: getComputedStyle(grid).display };
+    });
+    ok('⑩ landui 矮屏：4 卡横排且不越出视口高', geo.n === 4 && geo.maxBottom <= geo.vh && geo.cols === 'flex' && geo.scrollable, geo);
     await ctx.close();
   }
 

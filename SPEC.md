@@ -33,6 +33,13 @@ index.html 的首屏是**游戏中心**：三张游戏卡（🎭 真心话大冒
 
 **E2E 钩子**：`?autotest=1`（种子 20260919、动画 ×0.15、自动开局「测试员 vs 机器人甲」、`window.__mono` 访问器含 `step/buy/handoff/forcePos/forceMoney/forceJail/resolveAt/mc`）；`&turbo=1`（×0.01 + 跳过渲染与一切动画——**rAF 帧率钳制会让蒙特卡洛跑十几分钟，turbo 必须绕开**）。探针：`.pw/probe-monopoly.cjs`（8907：A 确定性对局 / B 2D 降级 / C 20 局蒙特卡洛验收线：全部终局 + 平均局长 ≤20 轮上限 + 有破产发生）。
 
+### 1.7 UNO（uno.html，第三款游戏）与跨分支跳转（2026-09-19，UNO 轮）
+
+**游戏中心扩到 4 卡**（≥700px 2×2，max-width 680）：🎭 tod / 🎲 monopoly / 🃏 uno / 💣 炸弹猫（feat/bombcat-lobby 分支的 bombcat.html，自带「回游戏中心」链接）。**graceful jump**：file:// 直跳 fail-open（双击即开卖点）；http(s) HEAD 探测 1500ms（405/501 按存在算 + GET 兜底），失败挂「🚧 未开放」角标 + 降饱和仍可点；结果只存页面级 memo；**AbortSignal.timeout 缺席的老浏览器直跳 + 预探测 try/catch（防炸整个主脚本块）**。
+
+**UNO 规则 v1**：108 张标准牌；首翻只收数字牌（非数字塞回牌库底）；+4 强限「手中无当前色」（无质疑制的替代）；摸牌随时可点，摸到可出→打出/保留二选，保留后本回合仍可出任意手牌，**摸到不可出自动过**；**最后一张是 +2/+4 仍结算罚摸**；洗回顶牌除外、选色独立；僵局 200 连过→和局按罚分排名。**热座暗牌**：交接闸 gateNeeded=下一个行动者是真人且与上一位真人不同（连续出牌不开闸）；明牌模式全真人手牌常开、机器人永不公开（南位动画期也算）；**换手必须 buildHands 全量重摆**（座位随当前玩家轮转，只摆新玩家=上家手牌残留在南位泄漏——终审 P0）。**UNO 喊名 6s**：只在持窗者的 AWAIT_ACTION 计时（他人回合/HANDOFF/ANIMATING 暂停），REDUCED 数字倒计时；有 bot=窗口到期即抓罚 2；全真人=下一位真人的交接闸出「抓包」按钮（点=罚 2，非本人可见；done 后不复活）。压缩模式（>12 张或小屏 >9 张）→ DOM 手牌浮层（卡宽 64px scroll-snap）。存档 uno:save:v1 字段含 hands/deck/discard/dir/cur/drawnThisTurn/unoWin{remain}；RESOLVE 过渡期不落档。E2E：probe-uno.cjs（8909，21 断言：规则链/抓包/洗回/僵局/恢复/2D/20 局 MC）+ probe-arcade 35 断言（含 UNO 跳转、炸弹猫双分支、landui 矮屏 4 卡）。check-syntax sha 断言扩为 **index+monopoly+uno 三方一致**（硬编码白名单，不含 bombcat.html）。合并顺序约定：bombcat-lobby rebase 到 feat/arcade-monopoly 之上，门禁冲突由 arcade 侧解决。
+
+
 ## 2. Visual & Rendering Specification
 
 ### Scene Setup
