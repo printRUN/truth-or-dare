@@ -9,7 +9,7 @@ const path = require('path');
 
 const ROOT = 'D:/myidea/truth-or-dare';
 const PORT = 8811;
-const URL = `http://127.0.0.1:${PORT}/index.html`;
+const URL = `http://127.0.0.1:${PORT}/index.html?game=tod`;
 const SHOTS = 'shots';
 const VIEWPORTS = [[844, 390], [740, 360], [667, 375]];
 

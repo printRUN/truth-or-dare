@@ -9,7 +9,7 @@ const path = require('path');
 
 const ROOT = 'D:/myidea/truth-or-dare';
 const PORT = 8834;
-const URL = `http://127.0.0.1:${PORT}/index.html`;
+const URL = `http://127.0.0.1:${PORT}/index.html?game=tod`;
 const SHOTS = path.join(ROOT, '.pw', 'shots');
 
 const T0 = Date.now();

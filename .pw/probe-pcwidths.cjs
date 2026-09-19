@@ -8,7 +8,7 @@ const path = require('path');
 
 const ROOT = 'D:/myidea/truth-or-dare';
 const PORT = parseInt(process.argv[2] || '8818', 10);
-const URLBASE = `http://127.0.0.1:${PORT}/index.html`;
+const URLBASE = `http://127.0.0.1:${PORT}/index.html?game=tod`;
 const OUT = path.join(__dirname, 'shots', 'pcwidths.json');
 const SIZES = [[1920, 1000], [1440, 900], [1280, 800], [1024, 768], [900, 900], [820, 1180]];
 const rows = [];

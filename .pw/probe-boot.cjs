@@ -19,7 +19,7 @@ const server = http.createServer((req, res) => {
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 } });
   const p = await ctx.newPage();
   p.on('pageerror', e => console.log('PAGEERROR', String(e).slice(0, 300)));
-  await p.goto(`http://127.0.0.1:${PORT}/index.html?room=PERF01`, { waitUntil: 'domcontentloaded' });
+  await p.goto(`http://127.0.0.1:${PORT}/index.html?game=tod&room=PERF01`, { waitUntil: 'domcontentloaded' });
   await p.waitForSelector('#screen-join.active');
   await p.waitForTimeout(500);
   await p.evaluate(() => closeGuide());

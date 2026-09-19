@@ -16,7 +16,7 @@ const server = http.createServer((req, res) => {
   const ctx = await browser.newContext({ viewport: { width: 900, height: 900 } });
   await ctx.addInitScript(() => { try { localStorage.setItem('tod:guide', '1'); localStorage.setItem('tod:perf', 'full'); } catch {} });
   const p = await ctx.newPage();
-  await p.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+  await p.goto(`http://127.0.0.1:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
   await p.waitForSelector('#loading-overlay', { state: 'detached', timeout: 10000 }).catch(() => {});
   await p.fill('#input-name', '阿泽');
   await p.click('details.adv summary');
@@ -26,7 +26,7 @@ const server = http.createServer((req, res) => {
   await p.waitForSelector('#screen-lobby.active', { timeout: 20000 });
   const room = (await p.textContent('#share-room')).trim();
   const q = await ctx.newPage();
-  await q.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+  await q.goto(`http://127.0.0.1:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
   await q.waitForSelector('#loading-overlay', { state: 'detached', timeout: 10000 }).catch(() => {});
   await q.fill('#input-name', '小雨');
   await q.click('details.adv summary');

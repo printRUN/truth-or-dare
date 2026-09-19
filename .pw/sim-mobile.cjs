@@ -9,7 +9,7 @@ const path = require('path');
 
 const ROOT = 'D:/myidea/truth-or-dare';
 const PORT = 8801;
-const URL = `http://127.0.0.1:${PORT}/index.html`;
+const URL = `http://127.0.0.1:${PORT}/index.html?game=tod`;
 const SHOTS = path.join(ROOT, '.pw', 'shots');
 if (!fs.existsSync(SHOTS)) fs.mkdirSync(SHOTS, { recursive: true });
 
@@ -23,7 +23,7 @@ const shot = (p, name) => NO_SHOTS ? Promise.resolve() : p.screenshot({ path: pa
 let server = null, reused = false;
 function probeOurs() {
   return new Promise(res => {
-    http.get(`http://127.0.0.1:${PORT}/index.html`, r => {
+    http.get(`http://127.0.0.1:${PORT}/index.html?game=tod`, r => {
       let n = 0; r.on('data', c => { n += c.length; if (n > 100000) { r.destroy(); res(true); } });
       r.on('end', () => res(n > 100000)); r.on('error', () => res(false));
     }).on('error', () => res(false));

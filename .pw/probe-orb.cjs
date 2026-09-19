@@ -42,7 +42,7 @@ const soft = {
   for (const [key, css] of Object.entries(soft)) {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3 });
     const page = await ctx.newPage();
-    await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`http://127.0.0.1:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#screen-join.active', { timeout: 60000 });
     await page.addStyleTag({ content: css });
     await sleep(1500);
@@ -53,7 +53,7 @@ const soft = {
   // 原版（带 blur）作为观感/帧率对照
   const ctx0 = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3 });
   const p0 = await ctx0.newPage();
-  await p0.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+  await p0.goto(`http://127.0.0.1:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
   await p0.waitForSelector('#screen-join.active', { timeout: 60000 });
   await sleep(1500);
   log('BLUR原版的观感与帧率见 shots/orb-blur.png');

@@ -14,7 +14,7 @@ const path = require('path');
 
 const ROOT = 'D:/myidea/truth-or-dare';
 const PORT = 8801;
-const URL = `http://127.0.0.1:${PORT}/index.html`;
+const URL = `http://127.0.0.1:${PORT}/index.html?game=tod`;
 const SHOTS = 'shots';
 
 // ─────────────────────────── 断言收集 ───────────────────────────

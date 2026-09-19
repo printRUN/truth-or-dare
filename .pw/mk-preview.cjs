@@ -1,7 +1,7 @@
 // 从 index.html 里抽出头像生成函数（纯字符串逻辑，无 DOM 依赖），生成预览页
 // 用法: node .pw/mk-preview.cjs
 const fs = require('fs');
-const src = fs.readFileSync('D:/myidea/truth-or-dare/index.html', 'utf8');
+const src = fs.readFileSync('D:/myidea/truth-or-dare/index.html?game=tod', 'utf8');
 
 const grab = (from, to) => {
   const a = src.indexOf(from), b = src.indexOf(to);

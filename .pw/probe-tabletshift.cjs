@@ -8,7 +8,7 @@ const path = require('path');
 
 const ROOT = 'D:/myidea/truth-or-dare';
 const PORT = parseInt(process.argv[2] || '8820', 10);
-const URL = `http://127.0.0.1:${PORT}/index.html`;
+const URL = `http://127.0.0.1:${PORT}/index.html?game=tod`;
 const OUT = path.join(__dirname, 'shots', 'tabletshift.json');
 const rows = [];
 const emit = o => { rows.push(o); fs.writeFileSync(OUT, JSON.stringify(rows, null, 1)); };

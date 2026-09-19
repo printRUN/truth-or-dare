@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const ROOT = 'D:/myidea/truth-or-dare';
 const PORT = 8877;
-const URL = `http://127.0.0.1:${PORT}/index.html`;
+const URL = `http://127.0.0.1:${PORT}/index.html?game=tod`;
 const SHOTS = path.join(ROOT, '.pw', 'shots');
 let pass = 0, fail = 0;
 const check = (n, ok, d = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} · ${n}${ok ? '' : '  ↳ ' + d}`); ok ? pass++ : fail++; };

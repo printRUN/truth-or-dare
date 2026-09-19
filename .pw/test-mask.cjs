@@ -4,7 +4,7 @@ const path = require('path');
 const { chromium } = require('C:/Users/Admin/AppData/Local/npm-cache/_npx/705bc6b22212b352/node_modules/playwright');
 
 (async () => {
-  const url = 'file:///' + path.resolve(__dirname, '..', 'index.html').replace(/\\/g, '/');
+  const url = 'file:///' + path.resolve(__dirname, '..', 'index.html?game=tod').replace(/\\/g, '/');
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const errs = [];

@@ -26,7 +26,7 @@ const server = http.createServer((req, res) => {
     await p.setViewportSize(viewport);
     const errs = [];
     p.on('pageerror', e => errs.push(String(e).slice(0, 200)));
-    await p.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+    await p.goto(`http://127.0.0.1:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
     await p.evaluate(() => { try { localStorage.setItem('tod:guide', '1'); } catch {} });   // 模拟老用户：首进大厅不自动弹玩法说明
     await p.waitForSelector('#loading-overlay', { state: 'detached', timeout: 15000 }).catch(() => {});
     await p.waitForSelector('#screen-join.active');

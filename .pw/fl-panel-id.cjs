@@ -22,14 +22,14 @@ const server = http.createServer((req, res) => {
   const errs = [];
   p.on('pageerror', e => errs.push('P:' + e.message));
   q.on('pageerror', e => errs.push('Q:' + e.message));
-  await p.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+  await p.goto(`http://127.0.0.1:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
   await p.waitForSelector('#loading-overlay', { state: 'detached', timeout: 10000 }).catch(() => {});
   await p.fill('#input-name', '阿泽');
   await p.click('details.adv summary'); await p.click('#chk-local');
   await p.click('.avatar-option >> nth=0'); await p.click('#btn-join');
   await p.waitForSelector('#screen-lobby.active', { timeout: 20000 });
   const room = (await p.textContent('#share-room')).trim();
-  await q.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+  await q.goto(`http://127.0.0.1:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
   await q.waitForSelector('#loading-overlay', { state: 'detached', timeout: 10000 }).catch(() => {});
   await q.fill('#input-name', '小雨');
   await q.click('details.adv summary'); await q.click('#chk-local');
