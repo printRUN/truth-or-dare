@@ -19,7 +19,22 @@ index.html 的首屏是**游戏中心**：三张游戏卡（🎭 真心话大冒
 - h1 由 `applyTitle()` 唯一写入（同值短路）；`body.on-arcade` 隐藏 net-chip（落地页不挂红点「未连接」）。
 - 卡片是 **div[role=button] 不是 button**——tapFx 的 `closest('button:…')` 守卫会吞掉按压动画；新 CSS 动画三挂点：REDUCED 块、`body.loperf` backdrop 清单、`:focus-visible` 组。
 
-**E2E 契约**：全部 `.pw` 脚本入口 goto 已补 `?game=tod`（六步 sed，审计 grep 必须为空；probe-join-latency 的 `/?room=` 故意保留测邀请路径）。`check-syntax.cjs` 同时解析 index.html + monopoly.html，并断言两边内联 three.js UMD sha256 一致（trim 后比对；防单边升级双版本漂移）。探针：`.pw/probe-arcade.cjs`（8905，28 断言）。
+**E2E 契约**：全部 `.pw` 脚本入口 goto 已补 `?game=tod`（六步 sed，审计 grep 必须为空；probe-join-latency 的 `/?room=` 故意保留测邀请路径）。`check-syntax.cjs` 同时解析 index/tod/monopoly/uno/bombcat 五文件，并断言 index/tod/monopoly/uno 四方内联 three.js UMD sha256 一致（trim 后比对；防单边升级双版本漂移；bombcat 只做语法扫描不入 sha——其 three 装配在 bc 树自成一体）。探针：`.pw/probe-arcade.cjs`（8905，32 断言）。
+
+### 1.5b 单页拆分：tod.html 独立 + 炸弹猫合入（2026-09-20）
+
+- **tod.html = 纯游戏单页**（从 index.html 派生，three blob 与主脚本同源）：early 门控恒 `__ARCADE__=false`；`#screen-arcade` DOM、arcade 卡片 JS（enterTodFromArcade/jumpExternal/probeExternal/btn-arcade-back）整体拆除。`?room=` 回填、回房票自动重join、剪贴板识别全沿用主脚本既有逻辑。改 tod 游戏本体 = 改 tod.html（index 里的同名代码已不再可达，勿双改）。
+- **index.html = 纯游戏中心**：early 门控只做一件事——显式 tod 意图（`?game=tod` / `#tod` / `?room=` 邀请）`location.replace('tod.html'+search+hash)` 原样转发；**回房票/tod:picked 不再劫持落地屏**（防「返回被弹回 tod」死循环，票的回房语义整体归 tod.html）。主脚本 `rejoinName` 分支加 `!window.__ARCADE__` 守卫（页内休眠引擎不许自动重join=防双活）。tod 卡 `location.href='tod.html'` 真导航。
+- **bombcat.html 从 bc worktree（feat/bombcat-lobby 0657c26）字节级拷入**——自包含单文件（无本地依赖），卡片 HEAD 探测自动转绿直连。bc 树后续演进按共存契约同步拷贝。
+- 深链入口兼容：30+ 存量探针 `index.html?game=tod` → 重定向 → tod.html（Playwright goto 自动跟随），test-3d 37/37、probe-persona-full 20/20 实证。probe-arcade ②③⑥ 已按「真导航+无返回劫持」契约改写（32 断言全绿）。
+
+### 1.5c 随机惩罚模式（S.challenge，2026-09-20）
+
+- **语义**：开关在主持人设置面板（大厅/对局内同一面板），开启后「大冒险」抽题替换为 10 形式随机小游戏池（67 条：成语接龙/古诗接句/脑筋急转弯/绕口令/三连快答/24 点/模仿秀/故事接龙/猜谜语/反口令，28 条带参考答案）；真心话不受影响；中途切换下一张牌生效；`n.challenge === true` 才算开（读侧禁真值判断）。
+- **答案协议**：题串 = `『形式』题面` + 可选 `参考答案`；punParts() 在 textContent/fillText 渲染前拆分（REDUCED/打字机/终态三路 + drawQuestion 两处），**禁入 innerHTML**；surpriseOf/qSig 吃整串保持确定性。
+- **揭底**：answer-row 兄弟块全员可点（不受 chooser 门禁），three3d 经 bridgeSync 上 #stage-actions；重置只由 `lastAnsSig=seq+'|'+punishment` 边沿驱动（心跳免疫），applyState 首帧清零防换房残留；CSS 必须补 `.answer-row[hidden]{display:none}`（flex 压过 [hidden] UA 规则）。
+- **契约**：『形式』+题面 ≤40 全角字（drawQuestion wrap 5 行悬崖，fs 安全带 40→30 已加）；形式级防重复（lastForm 过滤+条目级回退，cap 10）；挑战池不进题库编辑器（schema 迁移留后续）。
+- **探针**：`.pw/probe-challenge.cjs`(8951) + `.pw/probe-chal-reduced.cjs`（REDUCED 全流程）；门禁 test-3d 37/persona-full/feel/egg-react 全绿。
 
 ### 1.6 大富翁（monopoly.html，独立自包含单文件）
 

@@ -342,6 +342,13 @@
     .btn-pass:hover { background: rgba(139,92,246,0.38); transform: scale(1.04); }
     .btn-reroll { background: rgba(34,211,238,0.14); color: var(--accent-cyan); padding: 9px 14px; border-radius: 12px; border: 1px dashed rgba(34,211,238,0.55); font-family: inherit; font-weight: 700; cursor: pointer; transition: all 0.3s; font-size: 0.9rem; }
     .btn-reroll:hover { background: rgba(34,211,238,0.28); }
+    .answer-row { display: flex; flex-direction: column; gap: 6px; align-items: center; flex: none; }
+    .answer-row[hidden] { display: none; }   /* author display:flex 会压过 [hidden] 的 UA 规则，必须显式收回 */
+    .btn-ans { background: rgba(251,191,36,0.12); color: #fbbf24; border: 1px solid rgba(251,191,36,0.45); padding: 8px 16px; border-radius: 12px; font-family: inherit; font-weight: 700; cursor: pointer; font-size: 0.88rem; }
+    .btn-ans:hover { background: rgba(251,191,36,0.24); }
+    .answer-text { color: #fcd34d; font-size: 0.95rem; font-weight: 700; line-height: 1.5; text-align: center; }
+    body.landui .answer-row { gap: 4px; }
+    body.landui .btn-ans { min-height: 36px; padding: 6px 14px; font-size: 0.84rem; }
     [hidden] { display: none !important; }
 
     /* Flight clones：飞行的是「虚拟角色」——圆头像 + 名牌（walk 的感觉，不再只是一个圆脸） */
@@ -858,7 +865,8 @@
     body.three3d:not(.loperf) #game-players-grid .player-card .player-name { font-size: 15px; max-width: 128px; }   /* min-width：远座名牌可辨识下限（远座卡宽 ≥64px 契约） */   /* 15px：躺着可读（落地后截图实测防媒体查询压回） */
     @media (min-width: 768px) { body.three3d:not(.loperf) #game-players-grid .player-card .player-name { min-width: calc(96px / var(--rs)); } }   /* 缩放补偿：渲染宽恒 96px 不随座位 --rs 缩（远座卡宽 ≥64 契约）；竖屏不启用防互压 */
     #stage-actions { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 64px); width: max-content; max-width: 96vw; z-index: 40; pointer-events: auto; text-align: center; padding: 14px 18px 16px; border-radius: 18px; display: flex; flex-direction: column; align-items: center; gap: 10px; background: rgba(23,15,44,0.78); border: 1px solid rgba(139,92,246,0.42); box-shadow: 0 14px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }   /* 初始隐藏由模块内联 style 控制（CSS 写 display:none 会吃掉 JS 的 display:''）；玻璃浮窗与押注面板同族，替代旧渐变贴条 */
-    #stage-actions .card-actions button { padding: 10px 20px; font-size: 0.92rem; border-radius: 13px; min-height: 42px; }   /* 承接 .card-front .card-actions button 尺寸（祖先链在 body 层失配）；浮窗里放大到主操作级 */
+    #stage-actions .card-actions button { padding: 10px 20px; font-size: 0.92rem; border-radius: 13px; min-height: 42px; }
+    #stage-actions .answer-row button { padding: 10px 20px; font-size: 0.92rem; border-radius: 13px; min-height: 42px; }   /* 承接 .card-front .card-actions button 尺寸（祖先链在 body 层失配）；浮窗里放大到主操作级 */
     #stage-actions .btn-accept { box-shadow: 0 4px 18px rgba(34,197,94,0.35); }   /* 主操作微光，与 hover 呼应 */
     #stage-actions .btn-reroll { border-style: solid; border-color: rgba(34,211,238,0.4); background: rgba(34,211,238,0.1); padding: 8px 16px; font-size: 0.85rem; border-radius: 12px; margin: 0; }   /* 换一题：虚线改实边幽灵键，与同排按钮同族 */
 
@@ -1457,43 +1465,6 @@
   <!-- ═══ 3D 世界：所有屏住在同一台摄影机下（Cam 只动这一层） ═══ -->
   <div class="world" id="world3d">
 
-  <!-- ARCADE（游戏中心）：默认落地屏。early 脚本决定 active 归属——默认把 .active 从 join 挪到这里 -->
-  <div id="screen-arcade" class="screen">
-    <p class="arcade-sub">挑一个游戏开始 · 联机派对 / 本地同屏</p>
-    <div class="arcade-grid">
-      <div class="arcade-card tod" id="card-tod" role="button" tabindex="0" aria-label="玩真心话大冒险">
-        <div class="arc-ico">🎭</div>
-        <h2>真心话大冒险</h2>
-        <p>联机派对 · 3D 牌桌抽卡</p>
-        <span class="arc-badge">2-16 人 · 联机</span>
-        <span class="arc-arrow">→</span>
-      </div>
-      <div class="arcade-card monopoly" id="card-monopoly" role="button" tabindex="0" aria-label="玩大富翁">
-        <div class="arc-ico">🎲</div>
-        <h2>大富翁</h2>
-        <p>本地同屏 · 3D 棋盘</p>
-        <span class="arc-badge">2-4 人 · 人机同乐</span>
-        <span class="arc-arrow">→</span>
-      </div>
-      <div class="arcade-card uno" id="card-uno" role="button" tabindex="0" aria-label="玩 UNO">
-        <div class="arc-ico">🃏</div>
-        <h2>UNO</h2>
-        <p>经典卡牌对决 · 传机暗牌</p>
-        <span class="arc-badge">2-4 人 · 本地同屏</span>
-        <span class="arc-arrow">→</span>
-      </div>
-      <div class="arcade-card ext" id="card-bombcat" role="button" tabindex="0" aria-label="玩炸弹猫" data-href="bombcat.html" data-name="炸弹猫" title="💣 炸弹猫 · 联机对战（暂未开放，合入后自动点亮）">
-        <div class="arc-ico">💣</div>
-        <h2>炸弹猫</h2>
-        <p>联机对战 · 抽到炸弹就跑</p>
-        <span class="arc-badge">2-8 人 · 联机对战</span>
-        <span class="arc-badge arc-badge-soon" hidden>🚧 未开放</span>
-        <span class="arc-arrow">→</span>
-      </div>
-
-    </div>
-  </div>
-
   <!-- JOIN -->
   <div id="screen-join" class="screen active">
     <div class="join-box">
@@ -1696,6 +1667,10 @@
               <button class="btn-pass" id="btn-pass" hidden>🃏 免答牌 <span id="pass-left"></span></button>
               <button class="btn-skip" id="btn-skip">这题先跳过</button>
             </div>
+            <div class="answer-row" id="answer-row" hidden>
+              <button class="btn-ans" id="btn-answer" type="button" title="答案全场公证 · 答题者慎点">💡 揭底</button>
+              <div class="answer-text" id="answer-text" hidden></div>
+            </div>
             <div class="wait-note" id="reveal-wait" style="display:none"></div>
             <button class="btn-reroll" id="btn-reroll" hidden style="display:none">🎲 换一题（主持人）</button>
           </div>
@@ -1745,28 +1720,10 @@
 </div>
 
 <script>
-/* 游戏中心（arcade）落地判定 —— 必须在主脚本之前定案：currentScreen()/lastScreenName/Cam.init 开机就会读 __ARCADE__。
-   单页拆分（2026-09-20）：tod 已拆到 tod.html，index.html = 纯游戏中心。显式 tod 意图
-   （?game=tod 深链 / #tod / ?room= 邀请）一律 location.replace 到 tod.html 并原样携带 query+hash；
-   回房票/会话记忆不再劫持落地屏（防浏览器返回被弹回 tod 的死循环），回房由 tod.html 的既有票逻辑接管。
-   ?game=arcade 与裸开恒落游戏中心。任何异常退回纯 join 语义（禁半态）。 */
+/* tod.html 单页版：游戏中心（arcade）已拆出到 index.html，本页恒为纯游戏语义（join 直落）。
+   ?room= 邀请回填、回房票自动重join、剪贴板识别全部沿用主脚本既有逻辑。 */
 (function () {
-  var wantsTod = false;
-  try {
-    var q = new URLSearchParams(location.search);
-    wantsTod = q.get('game') === 'tod' || location.hash === '#tod' || !!q.get('room');
-  } catch (e) { wantsTod = false; }
-  if (wantsTod) { try { location.replace('tod.html' + location.search + location.hash); } catch (e2) {} return; }
-  window.__ARCADE__ = true;
-  try {
-    var j = document.getElementById('screen-join'), a = document.getElementById('screen-arcade');
-    if (!j || !a) throw 0;
-    j.classList.remove('active'); a.classList.add('active');
-    document.body.classList.add('on-arcade', 'arcade-nav');
-    var h = document.getElementById('app-title');
-    if (h) h.textContent = '🎮 游戏中心';
-    document.title = '游戏中心 · 真心话大冒险';
-  } catch (e) { window.__ARCADE__ = false; try { document.getElementById('screen-join').classList.add('active'); } catch (e2) {} }
+  window.__ARCADE__ = false;
 })();
 </script>
 
@@ -2036,6 +1993,44 @@ const PACKS = {
   },
 };
 const DEFAULT_PUNISHMENTS = JSON.parse(JSON.stringify(PACKS.party));
+// 🎲 随机惩罚模式题库（S.challenge 开启时替换「大冒险」抽题）：[形式, 题面, 参考答案?]
+// 红线：『形式』+题面 全角 ≤40 字（3D 牌面 5 行容量悬崖，probe-challenge 有断言）；条目本轮不可编辑（题库编辑器只管 truth/dare）
+const CHALLENGE_POOL = [
+  ['成语接龙', '以「一心一意」开头，接力 3 个成语'], ['成语接龙', '以「守株待兔」开头，接力 3 个成语'],
+  ['成语接龙', '以「马到成功」开头，接力 3 个成语'], ['成语接龙', '以「井底之蛙」开头，接力 3 个成语'],
+  ['成语接龙', '以「画蛇添足」开头，接力 3 个成语'], ['成语接龙', '以「亡羊补牢」开头，接力 3 个成语'],
+  ['成语接龙', '以「雪中送炭」开头，接力 3 个成语'], ['成语接龙', '以「九牛一毛」开头，接力 3 个成语'],
+  ['成语接龙', '以「天长地久」开头，接力 3 个成语'], ['成语接龙', '以「走马观花」开头，接力 3 个成语'],
+  ['成语接龙', '以「水滴石穿」开头，接力 3 个成语'], ['成语接龙', '以「出人头地」开头，接力 3 个成语'],
+  ['古诗接句', '「床前明月光」的下一句是？', '疑是地上霜'], ['古诗接句', '「春眠不觉晓」的下一句是？', '处处闻啼鸟'],
+  ['古诗接句', '「谁知盘中餐」的下一句是？', '粒粒皆辛苦'], ['古诗接句', '「欲穷千里目」的下一句是？', '更上一层楼'],
+  ['古诗接句', '「海内存知己」的下一句是？', '天涯若比邻'], ['古诗接句', '「野火烧不尽」的下一句是？', '春风吹又生'],
+  ['古诗接句', '「但愿人长久」的下一句是？', '千里共婵娟'], ['古诗接句', '「会当凌绝顶」的下一句是？', '一览众山小'],
+  ['脑筋急转弯', '什么东西越洗越脏？', '水'], ['脑筋急转弯', '小明的妈妈有三个孩子，大毛、二毛，第三个叫什么？', '小明'],
+  ['脑筋急转弯', '什么车寸步难行？', '风车'], ['脑筋急转弯', '什么门永远关不上？', '球门'],
+  ['脑筋急转弯', '什么布剪不断？', '瀑布'], ['脑筋急转弯', '一年四季都盛开的花是什么花？', '塑料花'],
+  ['脑筋急转弯', '什么东西越热越爱出来？', '汗'], ['脑筋急转弯', '什么鸡没有翅膀？', '田鸡'],
+  ['绕口令', '吃葡萄不吐葡萄皮，不吃葡萄倒吐葡萄皮，连念三遍'], ['绕口令', '四是四，十是十，十四是十四，四十是四十，连念三遍'],
+  ['绕口令', '红凤凰，粉凤凰，红粉凤凰花凤凰，连念三遍'], ['绕口令', '黑化肥发灰，灰化肥发黑，连念三遍'],
+  ['绕口令', '八百标兵奔北坡，炮兵并排北边跑，连念三遍'], ['绕口令', '牛郎恋刘娘，刘娘念牛郎，连念三遍'],
+  ['三连快答', '10 秒内说出 3 个带「马」字的成语'], ['三连快答', '10 秒内说出 3 个带「州」字的城市'],
+  ['三连快答', '10 秒内说出 3 种水果'], ['三连快答', '10 秒内说出 3 个三国人物'],
+  ['三连快答', '10 秒内说出 3 种乐器'], ['三连快答', '10 秒内说出 3 种运动'],
+  ['三连快答', '10 秒内说出 3 个《西游记》人物'], ['三连快答', '10 秒内说出 3 个带「花」字的成语'],
+  ['24 点', '用 2、3、4、6 凑出 24，四个数都要用', '4×6×(3−2)=24'], ['24 点', '用 1、5、5、5 凑出 24', '5×(5−1÷5)=24'],
+  ['24 点', '用 3、3、7、7 凑出 24', '(3+3÷7)×7=24'], ['24 点', '用 4、4、10、10 凑出 24', '(10×10−4)÷4=24'],
+  ['24 点', '用 2、4、6、8 凑出 24，四个数都要用', '6×8÷(4−2)=24'], ['24 点', '用 1、2、3、4 凑出 24', '1×2×3×4=24'],
+  ['模仿秀', '模仿一种动物叫声，让大伙 30 秒内猜出来'], ['模仿秀', '模仿一位在场玩家的口头禅或招牌动作，被模仿者猜中才算过'],
+  ['模仿秀', '模仿古装剧里的告老还乡式哭戏，坚持 15 秒'], ['模仿秀', '用哑剧表演「早上闹钟响了又赖床」，不许出声'],
+  ['模仿秀', '模仿一位明星唱歌，大伙猜出是谁才算过'], ['模仿秀', '扮演导游，用一段话把客厅介绍成 5A 景区'],
+  ['故事接龙', '以「那天深夜，门铃突然响了…」开头，即兴讲 30 秒'], ['故事接龙', '以「我捡到一个会说话的钱包…」开头，编 30 秒'],
+  ['故事接龙', '把今天在场三个人的名字编进一个 30 秒故事里'], ['故事接龙', '以「外星人降落在我家阳台…」开头即兴发挥 30 秒'],
+  ['故事接龙', '悬疑开头+喜剧结尾，讲一个 30 秒小故事'],
+  ['猜谜语', '五个兄弟，住在一起，名字不同，高矮不齐。（打一人体部位）', '手指'], ['猜谜语', '千条线，万条线，掉到水里看不见。（打一自然现象）', '雨'],
+  ['猜谜语', '一个小姑娘，坐在水中央，身穿粉红袄，阵阵放清香。（打一植物）', '荷花'], ['猜谜语', '小小诸葛亮，独坐军中帐，摆下八卦阵，专捉飞来将。（打一动物）', '蜘蛛'],
+  ['猜谜语', '有面没有口，有脚没有手，虽有四只脚，自己不会走。（打一家具）', '桌子'], ['猜谜语', '白白一身裘，爱往水里游，憋气憋得久，转身吐泡泡。（打一动物）', '鸭子'],
+  ['反口令', '和任意一人玩 15 秒反口令：喊举左手必须举右手，错三次算输'], ['反口令', '15 秒反口令：喊「蹲下」必须站直，喊「起立」必须蹲下'],
+].map(function (t) { return { f: t[0], x: t[1], a: t[2] || '' }; });
 
 // ───────────────────────────── utils ─────────────────────────────
 const $ = id => document.getElementById(id);
@@ -2498,6 +2493,7 @@ let stageTimers = [];
 let hbTimer = null, pruneTimer = null, watchTimer = null;
 let pendingRevealTimer = null, drawingEnterTs = 0;
 let cardDealt = false, revealAnim = false;   // 动画锁：落牌后心跳重渲染不回退卡堆；翻牌/打字期间禁止提前绘制答案（防“闪出”）
+let lastAnsSig = '';   // 揭底三件套只在「回合签名」变化时重置：心跳全量重渲染不得抹掉已点开的答案（评审 R2）
 let surpriseTagHold = false;   // 揭晓仪式进行中按住🎁角标：内容先于镀铬——打字机完成后 120ms 才入列
 let drawingArrivalLocal = 0;   // drawing 阶段的「本端到达时刻」（perf.now()）：迟到补偿只用本端钟，与发布方时钟脱钩
 
@@ -2746,8 +2742,10 @@ function applyState(s) {
   const sameDoc = S && S.ver === s.ver;
   const prevIds = sameDoc ? S.players.map(p => p.id) : [];
   const prevSeq = sameDoc ? S.turn.seq : -1;
+  const prevChallenge = sameDoc ? (S.challenge === true) : null;
   S = s;
   document.body.classList.toggle('is-host', isHost());
+  if (firstApply) lastAnsSig = '';   // 换房/重连首帧：上一房的揭底态不带走
 
   // 我仍在房间？（发布竞争导致丢失时自愈重加）；顺手留存我的战绩快照
   if (joined && myId) {
@@ -2759,6 +2757,9 @@ function applyState(s) {
   // 新玩家加入提示（排除自己 & 首次加载）
   if (!firstApply) {
     for (const p of S.players) if (!prevIds.includes(p.id) && p.id !== myId) toast(`🎉 ${p.name} 加入了！`, 'success');
+    if (S.gameStarted && prevChallenge !== null && (S.challenge === true) !== prevChallenge) {
+      toast((S.challenge === true ? '🎲 主持人开启了随机惩罚：大冒险变成随机小游戏' : '🎲 随机惩罚已关闭，大冒险恢复普通题库'), 'success');
+    }
   }
 
   // seq 变化 → 播放对应阶段动画；首次加载 → 静态呈现。
@@ -3331,7 +3332,16 @@ function renderGameStatic() {
     front.className = 'card-face card-front ' + (t.choice === 'truth' ? 'truth' : 'dare') + '-type';
     $('type-badge').textContent = t.choice === 'truth' ? '💬 真心话' : '🎯 大冒险';
     $('card-owner').innerHTML = ownerHtml(chooser);
-    $('punishment-text').textContent = t.punishment || '';
+    const pp = punParts(t.punishment);
+    $('punishment-text').textContent = pp.text || '';
+    const ansSig = (t.seq || 0) + '|' + (t.punishment || '');
+    if (ansSig !== lastAnsSig) {
+      lastAnsSig = ansSig;
+      $('answer-row').hidden = !pp.ans;
+      $('btn-answer').hidden = !pp.ans;
+      $('answer-text').textContent = pp.ans || '';
+      $('answer-text').hidden = true;
+    }
     $('stake-badge').hidden = t.stake !== 2;
     $('btn-accept').textContent = t.stake === 2 ? '完成啦 ✅ +20' : '完成啦 ✅';
     $('btn-skip').textContent = t.stake === 2 ? '这题先跳过 −10' : '这题先跳过';
@@ -3771,7 +3781,7 @@ async function playReveal() {
     $('flip-card').classList.add('flipped');
     $('type-badge').textContent = t.choice === 'truth' ? '💬 真心话' : '🎯 大冒险';
     $('card-owner').innerHTML = ownerHtml(chooser);
-    $('punishment-text').textContent = t.punishment || '（空）';
+    $('punishment-text').textContent = punParts(t.punishment).text || '（空）';
     chromeEls.forEach(el => { el.style.opacity = ''; el.style.transition = ''; });
     surpriseTagHold = false;
     revealAnim = false;
@@ -3821,7 +3831,7 @@ async function playReveal() {
       owner.innerHTML = ownerHtml(chooser);
       owner.classList.add('pop');
       SFX.play('reveal');
-      typewriter($('punishment-text'), t.punishment || '（空）', 32, () => {
+      typewriter($('punishment-text'), punParts(t.punishment).text || '（空）', 32, () => {
         revealAnim = false;   // 动画谢幕，后续心跳重渲染直接画终态即可
         renderGameStatic();   // 补一次同步绘制：turn-info/按钮状态不能等到下一次心跳才更新
         playSurpriseFx();     // 🎁 1/5 概率开出惊喜卡（确定性：同题同 seq 全场同结论）
@@ -4577,7 +4587,27 @@ function tierAllowed(it, level) {
   const t = it.t || 'normal';
   return level === 'hot' ? true : level === 'mild' ? t === 'mild' : t !== 'hot';
 }
+// 随机惩罚串格式：『形式』题面[\u0001参考答案]——\u0001 只在 textContent/fillText 渲染前拆分，禁入 innerHTML
+function punParts(p) {
+  const str = String(p || '');
+  const i = str.indexOf('\u0001');
+  return i < 0 ? { text: str, ans: '' } : { text: str.slice(0, i), ans: str.slice(i + 1) };
+}
+function drawChallenge(n) {   // 镜像 drawPunishment 的近期防重复；去重键带形式名防跨形式撞文本
+  if (!n.recent) n.recent = { truth: [], dare: [] };
+  n.recent.chal = n.recent.chal || [];
+  const lastForm = n.recent.chal.length ? n.recent.chal[n.recent.chal.length - 1].split('|')[0] : '';
+  let fresh = CHALLENGE_POOL.filter(function (it) { return !n.recent.chal.includes(it.f + '|' + it.x) && it.f !== lastForm; });
+  if (!fresh.length) fresh = CHALLENGE_POOL.filter(function (it) { return !n.recent.chal.includes(it.f + '|' + it.x); });   // 末条形式独苗时退回条目级（防小形式自锁）
+  if (!fresh.length) { n.recent.chal.length = 0; fresh = CHALLENGE_POOL; }
+  const it = pick(fresh);
+  n.recent.chal.push(it.f + '|' + it.x);
+  const cap = Math.max(1, Math.min(10, Math.floor(CHALLENGE_POOL.length * 0.6)));
+  while (n.recent.chal.length > cap) n.recent.chal.shift();
+  return '『' + it.f + '』' + it.x + (it.a ? '\u0001' + it.a : '');
+}
 function drawPunishment(n, type) {
+  if (type === 'dare' && n.challenge === true) return drawChallenge(n);   // 🎲 随机惩罚模式：大冒险位换成随机小游戏，真心话不受影响
   const pool = (SPool || localPunishments)[type] || [];
   if (!pool.length) return type === 'truth' ? '运气真好！这局没有真心话，免罚～' : '运气真好！这局没有大冒险，免罚～';
   const lv = n.level || 'normal';
@@ -6287,7 +6317,7 @@ function openSettingsModal() {
     <div class="set-group"><label>题目尺度（温和=零隐私零社死 · 刺激=全场放开）</label>
       <div class="mini-row">${Object.keys(LEVELS).map(k => `<button type="button" class="mini-opt${lv === k ? ' sel' : ''}" data-lv="${k}">${LEVELS[k]}</button>`).join('')}</div></div>
     <div class="set-group"><label>节奏与计分</label>
-      <div class="mini-row"><button type="button" class="mini-opt${sc ? ' sel' : ''}" id="st-scoring">🏆 计分竞技：${sc ? '开' : '关'}</button></div>
+      <div class="mini-row"><button type="button" class="mini-opt${sc ? ' sel' : ''}" id="st-scoring">🏆 计分竞技：${sc ? '开' : '关'}</button><button type="button" class="mini-opt${S.challenge === true ? ' sel' : ''}" id="st-challenge">🎲 随机惩罚：${S.challenge === true ? '开' : '关'}</button></div>
       <label style="margin-top:10px">轮数上限（打满自动结算颁奖）</label>
       <select class="mini-sel" id="st-rounds">${[0, 6, 10, 15, 20].map(v => `<option value="${v}"${rl === v ? ' selected' : ''}>${v === 0 ? '不限轮数' : v + ' 轮'}</option>`).join('')}</select>
     </div>
@@ -6315,6 +6345,11 @@ function openSettingsModal() {
   $('st-scoring').addEventListener('click', async () => {
     await mutate(n => { n.scoring = n.scoring === false; });
     openSettingsModal();
+  });
+  $('st-challenge').addEventListener('click', async () => {
+    await mutate(n => { n.challenge = n.challenge !== true; });
+    openSettingsModal();
+    toast(S.challenge === true ? '🎲 随机惩罚已开启：大冒险将换成随机小游戏（成语接龙、古诗接句、脑筋急转弯…），真心话不变' : '🎲 随机惩罚已关闭：大冒险恢复普通题库', 'success');
   });
   $('st-rounds').addEventListener('change', async e => {
     const v = parseInt(e.target.value, 10) || 0;
@@ -6424,6 +6459,11 @@ document.querySelectorAll('.js-mic-btn').forEach(b => b.addEventListener('click'
 document.querySelectorAll('.js-listen-btn').forEach(b => b.addEventListener('click', toggleListen));
 $('btn-accept').addEventListener('click', () => finishTurn(false));
 $('btn-skip').addEventListener('click', () => finishTurn(true));
+$('btn-answer').addEventListener('click', () => {   // 💡 揭底：全员可点（答案=全场公证人）；本端 DOM 态，签名不变则不被心跳重置
+  try { SFX.play('tap'); } catch (err) {}
+  $('btn-answer').hidden = true;
+  $('answer-text').hidden = false;
+});
 $('btn-pass').addEventListener('click', usePass);
 $('btn-egg').addEventListener('click', () => setEggAim(!eggAim));
 $('btn-reroll').addEventListener('click', hostReroll);
@@ -6595,67 +6635,7 @@ try {
 
 const urlRoom = (new URLSearchParams(location.search).get('room') || '').toUpperCase();
 
-// ═══ 游戏中心（arcade）卡片 ═══
-// 点「真心话大冒险」= 状态驱动换屏：__ARCADE__ 翻假 → currentScreen() 回 join → renderScreen 走既有扫视。
-// tod:picked 记入 sessionStorage：join 屏刷新不弹回大厅；arcade-nav 类会话级常驻（返回链接的显隐依据）。
-function enterTodFromArcade() {
-  location.href = 'tod.html';   // 单页拆分：tod 卡=真导航（原页内换屏语义随拆分移除；返回靠浏览器返回，tod.html 自己会认剪贴板邀请与回房票）
-}
-$('card-tod').addEventListener('click', enterTodFromArcade);
-$('card-tod').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); enterTodFromArcade(); } });
-$('card-monopoly').addEventListener('click', () => { location.href = 'monopoly.html'; });
-$('card-monopoly').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); location.href = 'monopoly.html'; } });
-// tapFx 挂接（卡是 div，不是 button——tapFx 的 closest('button:…') 守卫拦不住，按压动画才能触发）
-['card-tod', 'card-monopoly', 'card-uno', 'card-bombcat'].forEach(id => {
-  const el = $(id);
-  if (el) el.addEventListener('pointerdown', ev => tapFx(el, ev, 'tap'));
-});
-$('card-uno').addEventListener('click', () => { location.href = 'uno.html'; });
-$('card-uno').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); location.href = 'uno.html'; } });
-// ═══ 跨分支游戏（graceful jump）═══
-// file:// 下 fetch 必死（本项目卖点双击即开）→ fail-open 直跳；http(s) 才 HEAD 探测（1500ms 超时，405/501 按存在算，
-// 失败再 GET 兜底）。结果只存页面级 memo（禁 localStorage 负缓存——合入后不能被旧结果锁死）。渲染期已后台预探测。
-const jumpMemo = {};
-let jumpPending = false;
-function probeExternal(href) {
-  const sig = (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(1500) : undefined;   // 老浏览器无 timeout：undefined=不限时（一次探不到就当没有，不炸主脚本）
-  return fetch(href, { method: 'HEAD', cache: 'no-store', signal: sig })
-    .then(r => r.ok || r.status === 405 || r.status === 501)
-    .catch(() => fetch(href, { method: 'GET', cache: 'no-store', signal: sig }).then(r => r.ok).catch(() => false));
-}
-function markExtAvailable(card, ok) {
-  jumpMemo[card.dataset.href] = ok;
-  const soon = card.querySelector('.arc-badge-soon');
-  if (soon) soon.hidden = ok;
-  card.classList.toggle('desat', !ok);
-}
-if (location.protocol !== 'file:') {
-  const bcCard = $('card-bombcat');
-  try { if (bcCard) probeExternal(bcCard.dataset.href).then(ok => markExtAvailable(bcCard, ok)); } catch (e) {}   // 预探测绝不打断主脚本后续顶层语句
-}
-function jumpExternal(card) {
-  const href = card.dataset.href, name = card.dataset.name;
-  if (location.protocol === 'file:' || typeof AbortSignal === 'undefined' || !AbortSignal.timeout) { location.href = href; return; }   // fail-open：file:// 与老浏览器直跳（404 也比永远点不开/炸脚本好）
-  if (jumpPending) return;
-  jumpPending = true;
-  toast('🚧 正在确认 ' + name + ' 能不能开门…');
-  probeExternal(href).then(ok => {
-    jumpPending = false;
-    markExtAvailable(card, ok);
-    if (ok) { location.href = href; return; }
-    toast('💥 ' + name + ' 还在筹备中，敬请期待 🚧（先来一局 UNO / 大富翁吧）', 'error');   // 玩家语言，分支黑话只进 console
-    console.info('[arcade] ' + name + ' 不可用：' + href + ' 尚未合入当前分支（合并后自动直连）');
-  });
-}
-$('card-bombcat').addEventListener('click', () => jumpExternal($('card-bombcat')));
-$('card-bombcat').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); jumpExternal($('card-bombcat')); } });
-$('btn-arcade-back').addEventListener('click', () => {   // join 屏 → 回游戏中心（仅 body.arcade-nav 会话可见）
-  if (joined) return;
-  window.__ARCADE__ = true;
-  try { sessionStorage.removeItem('tod:picked'); } catch (e) {}
-  renderScreen();
-});
-
+// 游戏中心（arcade）卡片与跨分支跳转已随单页拆分移至 index.html（tod.html 是纯游戏页）。
 // 房间内刷新 → 自动回房：本标签页有回房凭据就直接重新加入（id/名字/头像均取自票，不会出现重复或串号的“自己”）
 let tabTicket = null;
 try { tabTicket = JSON.parse(sessionStorage.getItem('tod:tab') || 'null'); } catch {}
@@ -6965,7 +6945,7 @@ setTimeout(() => {
       return lines;
     };
     let lines = wrap(fs);
-    while (lines === null && fs > 40) { fs -= 6; lines = wrap(fs); }
+    while (lines === null && fs > 30) { fs -= 6; lines = wrap(fs); }   // 40 字题面（随机惩罚上限）在 fs30 有 5 行×14 字容量，空白卡不可能
     g.fillStyle = '#fff';
     g.font = '700 ' + fs + 'px "ZCOOL KuaiLe", sans-serif';
     const lh = Math.round(fs * 1.42);
@@ -7547,7 +7527,7 @@ setTimeout(() => {
     try { stageNow = S.turn.stage; } catch (e) {}
     const csOut = !!(cs && !cs.hidden && stageNow === 'revealed');   // dealFlyingCard 会提前取消 hidden：完成啦组只在 revealed 上桌
     const srOut = !!(sr && !sr.hidden && stageNow === 'choosing');   // 押注只属于选卡期，别一路挂到揭晓
-    if (csOut) { bridgeMove(document.getElementById('card-actions')); bridgeMove(document.getElementById('btn-reroll')); }
+    if (csOut) { bridgeMove(document.getElementById('card-actions')); bridgeMove(document.getElementById('answer-row')); bridgeMove(document.getElementById('btn-reroll')); }
     if (srOut) bridgeMove(sr);
     if (!csOut && !srOut) bridgeRestore();
   }
@@ -7990,7 +7970,7 @@ setTimeout(() => {
         try {
           const t2 = S.turn;
           const ch = (S.players || []).find(p => p.id === t2.chooserId);
-          drawQuestion(t2.choice !== 'dare', ch && ch.name, t2.punishment, avCanvasOf(ch));
+          drawQuestion(t2.choice !== 'dare', ch && ch.name, punParts(t2.punishment).text, avCanvasOf(ch));
         } catch (e) { try { drawQuestion(true, '', '真心话大冒险', ''); } catch (e2) {} }
       }
       st.phase = IS_REDUCED ? 'shown' : 'flip'; st.t0 = now;
@@ -8026,7 +8006,7 @@ setTimeout(() => {
         if (IS_REDUCED) {   // 降噪：题面瞬换（原行为）
           try {
             const ch = (S.players || []).find(p => p.id === S.turn.chooserId);
-            drawQuestion(S.turn.choice !== 'dare', ch && ch.name, S.turn.punishment, avCanvasOf(ch));
+            drawQuestion(S.turn.choice !== 'dare', ch && ch.name, punParts(S.turn.punishment).text, avCanvasOf(ch));
           } catch (e) {}
         } else {   // 正常路径：收牌重抽——翻回背面→收回牌堆→重新飞出→重新翻面（翻面入口 qDrawn=false 会拿新题重画）
           try { ensurePlacement(S.turn.chooserId || activePlayerId()); } catch (e) {}   // revealed 期换人（host 转移/强跳）：落点与近景跟新 chooser，别把新人的题翻在旧人面前

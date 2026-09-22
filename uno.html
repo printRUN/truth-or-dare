@@ -417,6 +417,7 @@ function gameSnapshot() {
 function applyGameSnapshot(g, doc) {
   if (TURBO || !g || !Array.isArray(g.players)) return;
   const prevPhase = G.phase, prevTurn = G.turn;
+  const prevDiscard = G.discard, prevHands = G.players.map(p => p ? p.hand.length : -1);
   G.phase = g.phase;
   G.players = JSON.parse(JSON.stringify(g.players));
   G.deck = JSON.parse(JSON.stringify(g.deck)); G.discard = JSON.parse(JSON.stringify(g.discard));
@@ -429,6 +430,11 @@ function applyGameSnapshot(g, doc) {
   if (g.phase !== 'OVER') $('result-overlay').hidden = true;   // 新局快照要收起上一局的结算屏
   $('gen-modal').hidden = true; closeHandOverlay();
   if (G.gl) buildHands();
+  // 旁观端出牌补演：弃牌堆变长=有人出了牌；手牌变短的那个座位就是出牌者（G.turn 已轮到下家）
+  if (G.gl && g.discard.length > prevDiscard.length && prevDiscard.length >= 1) {
+    const pi = G.players.findIndex((p, i) => p.hand.length === prevHands[i] - 1);
+    if (pi >= 0) { flyToPile(pi, seatPos(pi)); glanceAside(pi); }
+  }
   setColor(G.cur); render2D(); updateHUD();
   // 结算屏补演：只要快照到 OVER 且本端还没显示就补演（本地模拟可能先行/滞后，不能只看 prevPhase）
   if (g.phase === 'OVER' && $('result-overlay').hidden) showResult();
@@ -548,12 +554,35 @@ let backTex = null;
 let bodyLo = false;
 
 function dprCap(w, h) { return Math.min(window.devicePixelRatio || 1, 1.6, Math.sqrt(2.3e6 / (w * h))); }
+const rig = { az: 0, elev: 46 * D2R, focusK: 1, token: 0, raf: 0, tgt: { x: 0, y: 0, z: -0.2 } };   // 默认位形与旧静态机位等价
+const smooth = k => k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
 function camApply() {
   const halfV = Math.tan(camera.fov * D2R / 2);
   const aspect = innerWidth / innerHeight;
-  const d = Math.max(6.4, 4.6 / (halfV * aspect), (5.4 * Math.sin(46 * D2R)) / halfV * 0.92);
-  camera.position.set(0, d * Math.sin(46 * D2R), d * Math.cos(46 * D2R));
-  camera.lookAt(0, 0, -0.2);
+  const d = Math.max(6.4, 4.6 / (halfV * aspect), (5.4 * Math.sin(46 * D2R)) / halfV * 0.92) * rig.focusK;
+  camera.position.set(d * Math.cos(rig.elev) * Math.sin(rig.az), d * Math.sin(rig.elev), d * Math.cos(rig.elev) * Math.cos(rig.az));
+  camera.lookAt(rig.tgt.x, rig.tgt.y, rig.tgt.z);
+}
+function camTo(opts, ms, done) {   // 墙钟 smoothstep 补间（token 作废）；REDUCED/bodyLo/TURBO 直接落定
+  rig.token++; const my = rig.token;
+  const from = { az: rig.az, elev: rig.elev, focusK: rig.focusK, tgt: Object.assign({}, rig.tgt) };
+  const to = Object.assign({}, from, opts, { tgt: opts.tgt ? Object.assign({}, opts.tgt) : Object.assign({}, rig.tgt) });
+  if (REDUCED || bodyLo || TURBO) { Object.assign(rig, to, { tgt: Object.assign({}, to.tgt) }); camApply(); if (done) done(); return; }
+  const t0 = performance.now();
+  const step = now => {
+    if (rig.token !== my) return;
+    const s = smooth(Math.min(1, (now - t0) / ms));
+    rig.az = from.az + (to.az - from.az) * s;
+    rig.elev = from.elev + (to.elev - from.elev) * s;
+    rig.focusK = from.focusK + (to.focusK - from.focusK) * s;
+    rig.tgt.x = from.tgt.x + (to.tgt.x - from.tgt.x) * s;
+    rig.tgt.y = from.tgt.y + (to.tgt.y - from.tgt.y) * s;
+    rig.tgt.z = from.tgt.z + (to.tgt.z - from.tgt.z) * s;
+    camApply();
+    if (s < 1) rig.raf = requestAnimationFrame(step);
+    else if (done) done();
+  };
+  rig.raf = requestAnimationFrame(step);
 }
 function initScene() {
   const canvas = $('uno-canvas');
@@ -590,7 +619,7 @@ function initScene() {
 }
 function sizeScene() {
   if (!renderer) return;
-  renderer.setPixelRatio(bodyLo ? 1 : dprCap(innerWidth, innerHeight));
+  renderer.setPixelRatio((bodyLo || loDegrade) ? 1 : dprCap(innerWidth, innerHeight));
   renderer.setSize(innerWidth, innerHeight);
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
@@ -979,7 +1008,7 @@ async function playCard(pi, k, chosenColor) {
   G.phase = 'ANIMATING'; hideActions(); updateHUD();
   p.hand.splice(k, 1);
   G.discard.push(cd);
-  if (G.gl) { layoutHand(pi, true); flyToPile(); }
+  if (G.gl) { layoutHand(pi, true); flyToPile(pi); glanceAside(pi); }
   SFX.play();
   if (G.gl) await sleep(420); else await sleep(60);
   G.phase = 'RESOLVE';
@@ -1224,11 +1253,41 @@ function botColor(p) {
   const best = Object.entries(colors).sort((a, b) => b[1] - a[1]);
   return best.length ? best[0][0] : ['r', 'y', 'g', 'b'][rint(4)];
 }
-function flyToPile() {
+function flyToPile(pi, seat) {
   const cd = topCard();
-  pileMesh.children[1].material.map = cardFaceTex(cd);
-  pileMesh.children[1].material.needsUpdate = true;
-  pileMesh.rotation.z = (rnd() - 0.5) * 0.5;
+  const land = () => {
+    pileMesh.children[1].material.map = cardFaceTex(cd);
+    pileMesh.children[1].material.needsUpdate = true;
+    pileMesh.rotation.z = (rnd() - 0.5) * 0.5;
+  };
+  if (REDUCED || bodyLo || TURBO) { land(); return; }
+  const g = mkCard(cd);
+  const south = pi === G.turn;   // 行动路径 pi===G.turn 恒南位；快照补演时行动者已被轮转到别座（seat=其实际座位）
+  const from = south ? { x: 0, z: 2.3 } : { x: seat.x * 0.55, z: seat.z * 0.55 };
+  const tilt0 = south ? 0.98 : 0.35;
+  g.position.set(from.x, 0.42, from.z);
+  g.rotation.x = -Math.PI / 2 + tilt0;
+  scene.add(g);
+  const p0 = g.position.clone(), p1 = pileMesh.position.clone();
+  const t0 = performance.now(), dur = 380;   // 生产 SPEED=1 时落在 playCard 的 420ms 窗口内；快照补演不依赖该窗口
+  const step = now => {
+    const k = Math.min(1, (now - t0) / dur);
+    const kk = k * k * (3 - 2 * k);
+    g.position.lerpVectors(p0, p1, kk);
+    g.position.y = p0.y + (p1.y - p0.y) * kk + Math.sin(kk * Math.PI) * 1.05;
+    g.rotation.x = -Math.PI / 2 + tilt0 + (0.42 - tilt0) * kk;   // 收平到牌堆俯角
+    if (k < 1) requestAnimationFrame(step);
+    else { disposeCard(g); land(); }
+  };
+  requestAnimationFrame(step);
+}
+function glanceAside(pi) {   // 别人出牌：镜头向牌堆轻推再回（行动者恒在南位，无需转 az）
+  if (REDUCED || bodyLo || TURBO) return;
+  const mine = NETMODE ? pi === netSeatOf(myId) : !G.players[pi].bot;
+  if (mine) return;   // 本端真人自己的动作：镜头保持稳定取景不干扰点牌
+  if (rig._glT) clearTimeout(rig._glT);
+  camTo({ focusK: 0.86 }, 480);
+  rig._glT = setTimeout(() => camTo({ az: 0, focusK: 1 }, 520), 780);
 }
 
 /* ═══════════════ 9. 2D 降级 ═══════════════ */
@@ -1250,20 +1309,32 @@ function render2D() {
 }
 
 /* ═══════════════ 10. loperf-lite ═══════════════ */
+let loDegrade = false;   // 一旦降过级，shadow/dpr 永久保持低配（恢复动画但不回画质，防阈值上下抖动）
 const frameTimes = [];
+function setBodyLo(on) {
+  bodyLo = on;
+  document.body.classList.toggle('loperf', on);
+  if (on && renderer) { renderer.shadowMap.enabled = false; dirLight.castShadow = false; }
+  sizeScene();
+}
 function perfWatch(now) {
-  if (bodyLo) return;
+  if (AUTOTEST) {              // 探针档：保持旧单窗判定（软渲探针依赖固定翻转节奏跳帧提速）
+    if (bodyLo) { perfWatch.last = now; return; }
+  } else {
+    if (perfWatch.t0 == null) { perfWatch.t0 = now; perfWatch.last = now; return; }
+    if (now - perfWatch.t0 <= 2600) { perfWatch.last = now; return; }   // 预热豁免：loader/shader 编译抖动不算数
+    if (!perfWatch.warm) { perfWatch.warm = true; frameTimes.length = 0; }   // 到期清空重采
+  }
   if (perfWatch.last) {
     frameTimes.push(now - perfWatch.last);
-    if (frameTimes.length > 60) {
-      frameTimes.shift();
-      if (frameTimes.length === 60) {
-        const med = [...frameTimes].sort((a, b) => a - b)[30];
-        if (med > 26) {
-          bodyLo = true;
-          document.body.classList.add('loperf');
-          if (renderer) { renderer.shadowMap.enabled = false; dirLight.castShadow = false; sizeScene(); }
-        }
+    if (frameTimes.length >= 60) {
+      const med = [...frameTimes].sort((a, b) => a - b)[30];
+      frameTimes.length = 0;   // 不相交窗口
+      if (!bodyLo) {
+        if (med > 26) { perfWatch.bad = (perfWatch.bad || 0) + 1; if (AUTOTEST || perfWatch.bad >= 2) setBodyLo(true); }   // 正式局连续两慢窗才降级（bad 惰性初始化防 NaN）
+        else perfWatch.bad = 0;
+      } else if (!AUTOTEST && med < 18 && !perfWatch.recovered) {
+        perfWatch.recovered = true; loDegrade = true; setBodyLo(false);   // 一次性恢复：动画回来，画质保持低配
       }
     }
   }
@@ -1469,9 +1540,10 @@ requestAnimationFrame(tick);
 boot();
 
 /* ═══════════════ 12. E2E 钩子 ═══════════════ */
-if (AUTOTEST) {
+if (AUTOTEST || qs.get('inspect') === '1') {   // inspect=1：真机路径（SPEED/渲染/perfWatch 全真）下只读取证访问器
   window.__uno = {
     state: G,
+    camInfo: () => ({ pos: camera.position.toArray(), az: rig.az, elev: rig.elev, focusK: rig.focusK, tgt: { x: rig.tgt.x, y: rig.tgt.y, z: rig.tgt.z }, gl: G.gl, lo: document.body.classList.contains('loperf') }),
     deckN: () => G.deck.length,
     discardTop: () => topCard(),
     forceHand: (i, cards) => { G.players[i].hand = cards.map(cd => ({ ...cd })); if (G.gl) layoutHand(i, true); render2D(); updateHUD(); },

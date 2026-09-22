@@ -330,6 +330,7 @@ const qs = new URLSearchParams(location.search);
 const AUTOTEST = qs.get('autotest') === '1';
 const SPEED = AUTOTEST ? (qs.get('turbo') ? 0.01 : 0.15) : 1;   // autotest：动画 ×0.15；turbo=蒙特卡洛 ×0.01
 const TURBO = AUTOTEST && qs.get('turbo') === '1';      // turbo：跳过渲染与动画，纯状态机跑蒙特卡洛
+const LOPERF_FORCED = AUTOTEST && qs.get('loperf') === '1';   // E2E 强制跳帧档（perfWatch 不再判定/恢复）
 let SEED = AUTOTEST ? 20260919 : (Math.random() * 0xffffffff) >>> 0;
 function mulberry32(box) {
   return function () {
@@ -607,16 +608,22 @@ let renderer, scene, camera, dirLight;
 let tileMeshes = [], ownerMarks = [], pawnObjs = [], plateSprites = [], diceObjs = [];
 let cardMesh = null, cardPivot = null;
 const D2R = Math.PI / 180;
-const rig = { az: 0, elev: 42 * D2R, dist: 7.2, focusK: 1, token: 0, raf: 0, tgt: { x: 0, y: 0.3, z: 0 } };
+const rig = { az: 0, elev: 42 * D2R, dist: 7.2, focusK: 1, token: 0, raf: 0, tgt: { x: 0, y: 0.3, z: 0 }, autoDist: true };
 const TGT = { x: 0, y: 0.3, z: 0 };
+const REF_ELEV = 42 * D2R;          // 距离反推的参考仰角：不读 rig.elev（近景抬角后会把 dist 越算越大）
+const NEAR_HALF_W = 1.6, NEAR_DIST_FLOOR = 4.8;   // 近景水平半宽目标（1.6 容下东西侧格的骰子横移）/ 距离下限
 
 function dprCap(w, h) { return Math.min(window.devicePixelRatio || 1, 1.6, Math.sqrt(2.3e6 / (w * h))); }
 function baseDist() {   // 依视口纵横比反推距离：横竖屏都保证 7 单位棋盘完整入画（竖屏 375 下投影 ≥320px）
   const halfV = Math.tan(camera.fov * D2R / 2);
   const aspect = innerWidth / innerHeight;
   const dH = 4.0 / (halfV * aspect);          // 横向容下 ±4
-  const dV = (7 * Math.sin(rig.elev) / 2 + 0.6) / halfV;
+  const dV = (7 * Math.sin(REF_ELEV) / 2 + 0.6) / halfV;
   return Math.max(7.2, dH, dV);
+}
+function nearDist() {   // 近景绝对距离：竖屏不再被全景距离（18.7）连带，按「棋子+邻格」半宽 1.35 反推
+  const halfV = Math.tan(camera.fov * D2R / 2);
+  return Math.max(NEAR_DIST_FLOOR, NEAR_HALF_W / (halfV * innerWidth / innerHeight));
 }
 function camPos() {
   const e = rig.elev, d = rig.dist * rig.focusK;
@@ -628,6 +635,7 @@ function camApply() {
   camera.lookAt(rig.tgt.x, rig.tgt.y, rig.tgt.z);
 }
 const smooth = k => k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+const shortestArc = a => Math.atan2(Math.sin(a), Math.cos(a));
 function camTo(opts, ms, done) {   // 墙钟 smoothstep 补间；token 作废机制照抄 tod Cam
   rig.token++; const my = rig.token;
   const from = { az: rig.az, elev: rig.elev, dist: rig.dist, focusK: rig.focusK, tgt: Object.assign({}, rig.tgt) };
@@ -654,9 +662,9 @@ function camTo(opts, ms, done) {   // 墙钟 smoothstep 补间；token 作废机
 function focusPawn(pi, back, done) {
   const p = pawnObjs[pi]; if (!p || !G.gl) { if (done) done(); return; }
   const az = Math.atan2(p.position.x - TGT.x, p.position.z - TGT.z);
-  if (back) camTo({ az, elev: 42 * D2R, focusK: 1 }, 700, done);
-  // 近景：lookAt 向棋子方向偏 35%，把棋子抬到画面中上安全区（原构图棋子贴下缘被掷骰按钮/名牌压住）
-  else camTo({ az, elev: 55 * D2R, focusK: 0.667, tgt: { x: p.position.x * 0.35, y: TGT.y, z: p.position.z * 0.35 } }, 900, done);
+  if (back) { rig.autoDist = true; camTo({ az, elev: REF_ELEV, dist: baseDist(), focusK: 1, tgt: { x: TGT.x, y: TGT.y, z: TGT.z } }, 700, done); }
+  // 近景：dist 用绝对距离（竖屏不再被全景距离连带），lookAt 向棋子偏 35% 把棋子抬到画面中上安全区
+  else { rig.autoDist = false; camTo({ az, elev: 55 * D2R, dist: nearDist(), focusK: 1, tgt: { x: p.position.x * 0.35, y: TGT.y, z: p.position.z * 0.35 } }, 900, done); }
 }
 
 function initScene() {
@@ -698,11 +706,11 @@ function initScene() {
 }
 function sizeScene() {
   if (!renderer) return;
-  renderer.setPixelRatio(bodyLo ? 1 : dprCap(innerWidth, innerHeight));
+  renderer.setPixelRatio((bodyLo || loDegrade) ? 1 : dprCap(innerWidth, innerHeight));
   renderer.setSize(innerWidth, innerHeight);
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
-  rig.dist = baseDist();
+  if (rig.autoDist) rig.dist = baseDist();   // 近景期间不覆写（否则 resize/降级瞬间把 dist 打回全景）
   camApply();
 }
 function mkTex(w, h, draw) {
@@ -1174,6 +1182,8 @@ function movePawn(steps) {
   }
   return new Promise(res => {
     let left = steps;
+    rig.token++;   // 整段镜头跟随：取消在飞补间；走完不回中（tgt≈棋子×0.8 正好给买地弹窗取景，下回合 focusPawn 重设）
+    const mv = { last: 0 };
     const hop = () => {
       const from = p.pos;
       p.pos = (p.pos + 1) % 24;
@@ -1184,12 +1194,18 @@ function movePawn(steps) {
       const [x1, z1] = [TILES[to].x, TILES[to].z];
       const [sx, sz] = pawnSlot(G.turn, from);
       const [ex, ez] = pawnSlot(G.turn, to);
-      camTo({ az: Math.atan2((sx + ex) / 2 - TGT.x, (sz + ez) / 2 - TGT.z) }, 240);   // 镜头逐跳跟随，长步数棋子不出画
       const t0 = performance.now(), dur = 260;
       const step = now => {
         const k = Math.min(1, (now - t0) / (dur * SPEED));
         const kk = k * k * (3 - 2 * k);
         grp.position.set(sx + (ex - sx) * kk, 0.34 + Math.sin(k * Math.PI) * 0.35, sz + (ez - sz) * kk);
+        // 镜头连续跟随棋子（dt 归一阻尼，帧率无关；12 步长步数不再逐跳甩镜）
+        const dz = 1 - Math.pow(0.90, Math.min(100, now - (mv.last || now)) / 16.7);
+        mv.last = now;
+        rig.az += shortestArc(Math.atan2(grp.position.x - TGT.x, grp.position.z - TGT.z) - rig.az) * dz;
+        rig.tgt.x += (grp.position.x * 0.8 - rig.tgt.x) * dz;
+        rig.tgt.z += (grp.position.z * 0.8 - rig.tgt.z) * dz;
+        camApply();
         if (k < 1) requestAnimationFrame(step);
         else {
           left--;
@@ -1424,8 +1440,7 @@ function revealCard(kind, text) {
     setCardFace(kind, text);
     cardPivot.visible = true;
     cardPivot.rotation.x = 0;
-    focusPawn(G.turn, false);
-    camTo({ elev: 30 * D2R, focusK: 0.5 }, 900, () => {
+    rig.autoDist = false; camTo({ elev: 32 * D2R, dist: nearDist() * 0.92, focusK: 1 }, 900, () => {
       const t0 = performance.now(), flipDur = 650;
       const flip = now => {
         const k = Math.min(1, (now - t0) / (flipDur * SPEED));
@@ -1437,7 +1452,7 @@ function revealCard(kind, text) {
             const k2 = Math.min(1, (now2 - t1) / (outDur * SPEED));
             cardMesh.material.opacity = 1 - k2;
             if (k2 < 1) requestAnimationFrame(out);
-            else { cardPivot.visible = false; cardMesh.material.opacity = 1; camTo({ elev: 42 * D2R, focusK: 1 }, 500); res(); }
+            else { cardPivot.visible = false; cardMesh.material.opacity = 1; rig.autoDist = true; camTo({ elev: REF_ELEV, dist: baseDist(), focusK: 1 }, 500); res(); }
           };
           requestAnimationFrame(out);
         }, 1400 * SPEED);
@@ -1596,21 +1611,33 @@ function render2D() {
 
 /* ═════════════════════════ 14. loperf-lite（中位帧间隔 >26ms 触发） ═════════════════════════ */
 let bodyLo = false;
+let loDegrade = false;   // 一旦降过级，shadow/dpr 永久保持低配（恢复动画但不回画质，防阈值上下抖动）
 const frameTimes = [];
+function setBodyLo(on) {
+  bodyLo = on;
+  document.body.classList.toggle('loperf', on);
+  if (on && renderer) { renderer.shadowMap.enabled = false; dirLight.castShadow = false; }
+  sizeScene();
+}
 function perfWatch(now) {
-  if (bodyLo) return;
+  if (LOPERF_FORCED) return;   // E2E 强制档：boot 已 setBodyLo(true)，判定/恢复全不参与
+  if (AUTOTEST) {              // 探针档：保持旧单窗判定（软渲探针依赖固定翻转节奏跳帧提速）
+    if (bodyLo) { perfWatch.last = now; return; }
+  } else {
+    if (perfWatch.t0 == null) { perfWatch.t0 = now; perfWatch.last = now; return; }
+    if (now - perfWatch.t0 <= 2600) { perfWatch.last = now; return; }   // 预热豁免：loader/shader 编译抖动不算数
+    if (!perfWatch.warm) { perfWatch.warm = true; frameTimes.length = 0; }   // 到期清空重采
+  }
   if (perfWatch.last) {
     frameTimes.push(now - perfWatch.last);
-    if (frameTimes.length > 60) {
-      frameTimes.shift();
-      if (frameTimes.length === 60) {
-        const sorted = [...frameTimes].sort((a, b) => a - b);
-        const med = sorted[30];
-        if (med > 26) {
-          bodyLo = true;
-          document.body.classList.add('loperf');
-          if (renderer) { renderer.shadowMap.enabled = false; dirLight.castShadow = false; sizeScene(); }
-        }
+    if (frameTimes.length >= 60) {
+      const med = [...frameTimes].sort((a, b) => a - b)[30];
+      frameTimes.length = 0;   // 不相交窗口
+      if (!bodyLo) {
+        if (med > 26) { perfWatch.bad = (perfWatch.bad || 0) + 1; if (AUTOTEST || perfWatch.bad >= 2) setBodyLo(true); }   // 正式局连续两慢窗才降级（bad 惰性初始化防 NaN）
+        else perfWatch.bad = 0;
+      } else if (!AUTOTEST && med < 18 && !perfWatch.recovered) {
+        perfWatch.recovered = true; loDegrade = true; setBodyLo(false);   // 一次性恢复：动画回来，画质保持低配
       }
     }
   }
@@ -1620,10 +1647,11 @@ function perfWatch(now) {
 /* ═════════════════════════ 15. 主循环 & boot ═════════════════════════ */
 function tick(now) {
   perfWatch(now);
-  // idle 环绕只在该端「等别人行动」时转：本人回合（操作条展开）/弹窗开着时镜头保持取景不漂移
+  // idle 环绕只在该端「等别人行动」且处于全景（tgt 回桌心）时转：近景保持注视当前行动者不漂移
   if (G.gl && !bodyLo && !REDUCED && G.phase === 'AWAIT_ROLL' && Date.now() - lastInteract > 3000
       && !$('action-bar').classList.contains('show') && $('buy-modal').hidden && $('gen-modal').hidden
-      && (!$('handoff').hidden || !NETMODE || !netIsMyTurn())) {
+      && (!$('handoff').hidden || !NETMODE || !netIsMyTurn())
+      && Math.hypot(rig.tgt.x - TGT.x, rig.tgt.z - TGT.z) < 0.05) {
     rig.az += (4 * D2R) * (now - (tick.last || now)) / 1000;   // idle 环绕 +4°/s
     camApply();
   }
@@ -1640,7 +1668,7 @@ function hideLoader() {
   setTimeout(() => l.remove(), 300);
 }
 async function boot() {
-  if (AUTOTEST && qs.get('loperf') === '1') { bodyLo = true; document.body.classList.add('loperf'); }   // E2E：跳帧渲染，纯状态机+UI 断言（软渲真渲染既慢又脆，见 SPEC 1.6）
+  if (LOPERF_FORCED) setBodyLo(true);   // E2E：跳帧渲染，纯状态机+UI 断言（软渲真渲染既慢又脆，见 SPEC 1.6）
   const t0 = performance.now();
   setLoader(20, '搭建棋盘...');
   const ok = initScene();
@@ -1703,7 +1731,7 @@ requestAnimationFrame(tick);
 boot();
 
 /* ═════════════════════════ 16. E2E 钩子 ═════════════════════════ */
-if (AUTOTEST) {
+if (AUTOTEST || qs.get('inspect') === '1') {   // inspect=1：真机路径（SPEED/渲染/perfWatch 全真）下只读取证访问器
   window.__mono = {
     state: G,
     step: () => { const p = currentPlayer(); if (p && !p.bot && G.phase === 'AWAIT_ROLL') doRoll(!!p.jailed); },
