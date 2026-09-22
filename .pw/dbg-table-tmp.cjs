@@ -13,7 +13,7 @@ const server = http.createServer((req, res) => { const f = path.join(ROOT, req.u
     const p = await ctx.newPage();
     await p.route('**://fonts.googleapis.com/**', r => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
     await p.route('**://fonts.gstatic.com/**', r => r.fulfill({ status: 200, contentType: 'font/woff2', body: '' }));
-    await p.goto('http://127.0.0.1:8855/index.html', { waitUntil: 'domcontentloaded' });
+    await p.goto('http://127.0.0.1:8855/index.html?game=tod', { waitUntil: 'domcontentloaded' });
     await p.waitForFunction(() => { const o = document.getElementById('loading-overlay'); return !o || o.classList.contains('hide'); }, null, { timeout: 20000 });
     await p.click('details.adv summary'); await p.check('#chk-local');
     await p.fill('#input-name', '玩家' + (i + 1));

@@ -28,7 +28,7 @@ const check = (name, ok, info) => { console.log(`${ok ? '✅' : '❌'} ${name}${
     await p.setViewportSize(viewport);
     const errs = [];
     p.on('pageerror', e => errs.push(String(e).slice(0, 200)));
-    await p.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+    await p.goto(`http://127.0.0.1:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
     await p.waitForSelector('#screen-join.active');
     await p.click('details.adv summary');
     await p.click('#chk-local');

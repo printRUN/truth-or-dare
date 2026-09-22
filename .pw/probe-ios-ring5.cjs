@@ -11,7 +11,7 @@ const zlib = require('zlib');
 
 const ROOT = 'D:/myidea/truth-or-dare';
 const PORT = 8801;
-const URL = `http://127.0.0.1:${PORT}/index.html`;
+const URL = `http://127.0.0.1:${PORT}/index.html?game=tod`;
 const server = http.createServer((req, res) => {
   const u = req.url.split('?')[0];
   const f = path.join(ROOT, u === '/' ? 'index.html' : decodeURIComponent(u));

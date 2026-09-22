@@ -1,0 +1,1503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>UNO · 游戏中心</title>
+<!--
+  🃏 UNO —— 游戏中心第三款游戏（feat/arcade-monopoly UNO 轮）
+  设计方案：.pw/design-plan-arcade-uno.md v2（工程红线/玩家价值两专家评审定稿）
+  · 独立自包含单文件：three.js r128 与 index/monopoly 同源（check-syntax.cjs 三方 sha256 断言）
+  · 热座暗牌：交接闸（连续出牌不开闸）+ 明牌模式平级；UNO 喊名 6s 累计窗口（AWAIT_ACTION 计时防交接互锁）
+  · 家规明确化：+4 强限无同色、摸后仍可出任意手牌、首翻只收数字牌、洗回顶牌除外
+-->
+<style>
+  :root {
+    --bg: #0a0a1a; --primary: #8b5cf6; --accent-pink: #f472b6;
+    --accent-cyan: #22d3ee; --gold: #fbbf24;
+    --glass: rgba(255,255,255,0.08); --glass-border: rgba(255,255,255,0.15);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg); color: #fff; overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button { font-family: inherit; }
+  .tabnum { font-variant-numeric: tabular-nums; }
+
+  #loader { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; background: var(--bg); transition: opacity 0.26s ease, transform 0.26s ease; }
+  #loader.reveal-done { pointer-events: none; }
+  .loader-box { text-align: center; }
+  .loader-ico { font-size: 52px; animation: loader-bob 1.2s ease-in-out infinite alternate; }
+  @keyframes loader-bob { from { transform: translateY(0) rotate(-6deg); } to { transform: translateY(-10px) rotate(6deg); } }
+  .loader-box h2 { font-size: 1.3rem; margin: 8px 0 4px; }
+  .loader-box p { font-size: 0.82rem; color: rgba(255,255,255,0.6); min-height: 1.2em; }
+  .loader-bar { width: 180px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.12); margin: 14px auto 0; overflow: hidden; }
+  .loader-bar i { display: block; height: 100%; width: 0; border-radius: 2px; background: linear-gradient(90deg, var(--accent-cyan), var(--primary)); transition: width 0.3s ease; }
+
+  #uno-canvas { position: fixed; inset: 0; z-index: 0; display: block; width: 100%; height: 100%; touch-action: none; }
+  body.gl-off #uno-canvas { display: none; }
+
+  #players-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 30; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: max(8px, env(safe-area-inset-top)) 10px 0; pointer-events: none; }
+  .pchip { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 6px 9px; border-radius: 12px; background: rgba(10,10,26,0.72); border: 1px solid var(--glass-border); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); font-size: 0.82rem; transition: box-shadow 0.3s, opacity 0.3s; }
+  .pchip .dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+  .pchip .pname { max-width: 5.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pchip .cnt { margin-left: auto; font-weight: 700; }
+  .pchip .badges { display: flex; gap: 2px; font-size: 0.72rem; }
+  .pchip.active { box-shadow: 0 0 0 1.5px var(--accent-cyan), 0 0 14px rgba(34,211,238,0.35); animation: chip-breath 1.2s ease-in-out infinite alternate; }
+  @keyframes chip-breath { from { box-shadow: 0 0 0 1.5px rgba(34,211,238,1), 0 0 16px rgba(34,211,238,0.45); } to { box-shadow: 0 0 0 1.5px rgba(34,211,238,0.45), 0 0 6px rgba(34,211,238,0.15); } }
+
+  #color-chip { position: fixed; left: 10px; top: calc(max(8px, env(safe-area-inset-top)) + 56px); z-index: 31; display: none; align-items: center; gap: 7px; padding: 5px 12px 5px 7px; border-radius: 999px; background: rgba(10,10,26,0.72); border: 1px solid var(--glass-border); font-size: 0.78rem; }
+  #color-chip.show { display: inline-flex; }
+  #color-chip .cdot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.6); }
+  #dir-chip { position: fixed; left: 10px; top: calc(max(8px, env(safe-area-inset-top)) + 96px); z-index: 31; display: none; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; background: rgba(10,10,26,0.72); border: 1px solid var(--glass-border); font-size: 0.76rem; color: rgba(255,255,255,0.8); }
+  #dir-chip.show { display: inline-flex; }
+  #dir-chip .dico { display: inline-block; transition: transform 0.4s; }
+  #dir-chip.rev .dico { transform: scaleX(-1); }
+
+  #hud-tools { position: fixed; right: 10px; top: calc(max(8px, env(safe-area-inset-top)) + 8px); z-index: 31; display: flex; flex-direction: column; gap: 6px; }
+  #hud-tools[hidden] { display: none; }
+  #hud-tools button { width: 38px; height: 38px; border-radius: 12px; border: 1px solid var(--glass-border); background: rgba(10,10,26,0.72); color: #fff; font-size: 1rem; cursor: pointer; }
+  #hud-tools button:active { transform: scale(0.94); }
+
+  #toast { position: fixed; top: calc(max(8px, env(safe-area-inset-top)) + 140px); left: 50%; transform: translateX(-50%); z-index: 40; max-width: min(86vw, 420px); padding: 8px 16px; border-radius: 12px; background: rgba(10,10,26,0.82); border: 1px solid var(--glass-border); font-size: 0.86rem; text-align: center; opacity: 0; transition: opacity 0.25s; pointer-events: none; white-space: pre-line; }
+  #toast.show { opacity: 1; }
+  #toast.gain { border-color: rgba(34,211,238,0.5); color: var(--accent-cyan); }
+  #toast.loss { border-color: rgba(244,114,182,0.5); color: var(--accent-pink); }
+  #toast.error { border-color: rgba(239,68,68,0.55); color: #f87171; }
+
+  #action-bar { position: fixed; left: 0; right: 0; bottom: max(12px, env(safe-area-inset-bottom)); z-index: 30; display: none; flex-direction: column; align-items: center; gap: 8px; padding: 0 14px; }
+  #action-bar.show { display: flex; }
+  .btn-main { min-height: 52px; width: min(60vw, 280px); border: none; border-radius: 16px; background: linear-gradient(135deg, var(--primary), var(--accent-pink)); color: #fff; font-size: 1.05rem; font-weight: 800; cursor: pointer; box-shadow: 0 6px 24px rgba(139,92,246,0.4); }
+  .btn-main:active { transform: scale(0.97); }
+  .btn-sub { min-height: 44px; padding: 8px 18px; border-radius: 14px; border: 1px solid var(--glass-border); background: rgba(10,10,26,0.72); color: #fff; font-size: 0.9rem; cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  .btn-sub:disabled { opacity: 0.4; cursor: default; }
+  #btn-uno { display: none; min-height: 64px; width: min(64vw, 300px); border: none; border-radius: 18px; background: linear-gradient(135deg, #ef4444, #f59e0b); color: #fff; font-size: 1.35rem; font-weight: 900; letter-spacing: 0.12em; cursor: pointer; box-shadow: 0 0 26px rgba(239,68,68,0.55); position: relative; }
+  #btn-uno.show { display: block; animation: uno-pulse 0.9s ease-in-out infinite alternate; }
+  @keyframes uno-pulse { from { transform: scale(1); } to { transform: scale(1.05); } }
+  #btn-uno .ring { position: absolute; inset: -6px; border-radius: 22px; pointer-events: none; }
+  #action-who { font-size: 0.78rem; color: rgba(255,255,255,0.6); }
+  .jail-hint { font-size: 0.74rem; color: rgba(255,255,255,0.55); text-align: center; }
+
+  #hand-ovl { position: fixed; inset: 0; z-index: 70; display: none; align-items: flex-end; justify-content: center; background: rgba(4,4,12,0.66); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); padding-bottom: max(96px, env(safe-area-inset-bottom)); }
+  #hand-ovl.show { display: flex; }
+  #hand-strip { display: flex; gap: 8px; overflow-x: auto; max-width: 94vw; padding: 14px 18px; border-radius: 18px; background: rgba(16,14,34,0.94); border: 1px solid var(--glass-border); scroll-snap-type: x proximity; }
+  .hcard { flex: 0 0 auto; width: 64px; height: 90px; border-radius: 9px; border: 2px solid rgba(255,255,255,0.35); scroll-snap-align: center; cursor: pointer; position: relative; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 900; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,0.6); }
+  .hcard small { position: absolute; bottom: 3px; left: 0; right: 0; font-size: 0.58rem; font-weight: 700; letter-spacing: 0.05em; }
+  .hcard.playable { box-shadow: 0 0 12px rgba(255,255,255,0.5); border-color: #fff; }
+  .hcard.dim { filter: brightness(0.55); }
+  .hcard.sel { outline: 3px solid var(--accent-cyan); outline-offset: 2px; }
+  #hand-ovl .close-hint { position: absolute; top: max(14px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); font-size: 0.8rem; color: rgba(255,255,255,0.65); }
+
+  .ovl { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(4,4,12,0.6); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); overflow-y: auto; }
+  .ovl[hidden] { display: none; }
+  .panel { width: 100%; max-width: 420px; max-height: calc(100vh - 32px); overflow-y: auto; background: rgba(16,14,34,0.92); border: 1px solid var(--glass-border); border-radius: 20px; padding: 22px; box-shadow: 0 18px 60px rgba(0,0,0,0.55); }
+  .panel h2 { font-size: 1.25rem; margin-bottom: 4px; }
+  .panel .sub { font-size: 0.8rem; color: rgba(255,255,255,0.6); margin-bottom: 16px; }
+  .panel.center { text-align: center; }
+  .btn-primary { display: block; width: 100%; min-height: 52px; border: none; border-radius: 16px; background: linear-gradient(135deg, var(--primary), var(--accent-pink)); color: #fff; font-size: 1.02rem; font-weight: 800; cursor: pointer; }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-ghost { display: block; width: 100%; min-height: 44px; margin-top: 10px; border-radius: 14px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.06); color: #fff; font-size: 0.9rem; cursor: pointer; }
+  .btn-primary:focus-visible, .btn-ghost:focus-visible, .btn-sub:focus-visible, .btn-main:focus-visible, #btn-uno:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 3px; }
+
+  .seat-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .seat-row .dot { width: 14px; height: 14px; border-radius: 50%; flex: 0 0 auto; }
+  .seat-row input[type="text"] { flex: 1; min-height: 42px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.06); color: #fff; font-size: 0.95rem; }
+  .seat-row input[type="text"]:focus { outline: none; border-color: var(--accent-cyan); }
+  .bot-toggle { display: flex; align-items: center; gap: 5px; font-size: 0.8rem; color: rgba(255,255,255,0.75); cursor: pointer; user-select: none; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--glass-border); }
+  .bot-toggle.on { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+  .seat-add { display: flex; gap: 8px; margin: 10px 0 14px; }
+  .seat-add button { flex: 1; min-height: 40px; border-radius: 12px; border: 1px dashed var(--glass-border); background: transparent; color: rgba(255,255,255,0.7); font-size: 0.88rem; cursor: pointer; }
+  .opt-row { display: flex; align-items: center; gap: 8px; font-size: 0.88rem; margin: 10px 0; }
+  .opt-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary); }
+  .opt-row.dimmed { opacity: 0.45; }
+  #rules-box { margin: 12px 0; border: 1px solid var(--glass-border); border-radius: 12px; overflow: hidden; }
+  #rules-box summary { padding: 9px 12px; font-size: 0.86rem; cursor: pointer; list-style: none; }
+  #rules-box[open] summary { border-bottom: 1px solid var(--glass-border); }
+  #rules-box ul { padding: 8px 12px 10px 26px; font-size: 0.8rem; color: rgba(255,255,255,0.75); line-height: 1.75; }
+  .rule-diff { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--glass-border); }
+
+  #wild-modal .wrow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
+  .wbtn { min-height: 64px; border-radius: 14px; border: 2px solid rgba(255,255,255,0.4); font-size: 1rem; font-weight: 800; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,0.5); cursor: pointer; }
+
+  #handoff .panel { max-width: 340px; text-align: center; }
+  #handoff .hand-emoji { font-size: 46px; margin-bottom: 6px; }
+  #btn-handoff-go { min-height: 56px; font-size: 1.08rem; }
+  #btn-catch { margin-top: 10px; min-height: 46px; width: 100%; border-radius: 14px; border: 2px solid #f87171; background: rgba(239,68,68,0.15); color: #f87171; font-weight: 800; cursor: pointer; }
+
+  #result-overlay { flex-direction: column; }
+  #result-veil { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 42%, transparent 0%, rgba(4,4,12,0.85) 78%); opacity: 0; animation: veil-in 1s cubic-bezier(0.4,0,0.2,1) forwards; pointer-events: none; }
+  @keyframes veil-in { 0% { opacity: 0; } 45% { opacity: 0.7; } 75% { opacity: 0.92; } 100% { opacity: 1; } }
+  #result-box { position: relative; width: 100%; max-width: 400px; text-align: center; }
+  #result-box h2 { font-size: 1.5rem; margin: 10px 0 2px; }
+  #result-winner { font-size: 2rem; margin: 8px 0; display: inline-block; padding: 10px 26px; border-radius: 20px; border: 2px solid var(--gold); text-shadow: 0 0 18px rgba(251,191,36,0.4); animation: crown-pulse 1.1s ease-in-out 3 alternate; }
+  @keyframes crown-pulse { from { box-shadow: 0 0 8px rgba(251,191,36,0.3); } to { box-shadow: 0 0 30px rgba(251,191,36,0.65); } }
+  .pod { display: flex; align-items: center; gap: 10px; padding: 9px 14px; margin: 6px 0; border-radius: 14px; background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border); opacity: 0; transform: translateY(14px); animation: pod-rise 0.24s ease-out forwards; font-size: 0.92rem; }
+  .pod .rank { font-weight: 900; color: var(--gold); width: 1.4em; }
+  .pod .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .pod .pts { margin-left: auto; font-weight: 700; }
+  #result-box .pod:nth-child(1) { animation-delay: 0.25s; } #result-box .pod:nth-child(2) { animation-delay: 0.41s; } #result-box .pod:nth-child(3) { animation-delay: 0.57s; } #result-box .pod:nth-child(4) { animation-delay: 0.73s; }
+  @keyframes pod-rise { to { opacity: 1; transform: none; } }
+  #result-actions { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+
+  #board2d { position: fixed; inset: 0; z-index: 10; display: none; padding: 108px 14px 150px; overflow-y: auto; }
+  body.gl-off #board2d { display: block; }
+  .d2-table { display: flex; align-items: center; justify-content: center; gap: 22px; padding: 18px; margin-bottom: 14px; border-radius: 16px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); }
+  .d2-card { width: 74px; height: 104px; border-radius: 10px; border: 2px solid rgba(255,255,255,0.4); display: flex; align-items: center; justify-content: center; flex-direction: column; font-size: 1.3rem; font-weight: 900; text-shadow: 0 1px 4px rgba(0,0,0,0.6); }
+  .d2-card small { font-size: 0.6rem; font-weight: 700; }
+  .d2-pile { font-size: 0.76rem; color: rgba(255,255,255,0.65); text-align: center; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .loader-ico, .pchip.active, #result-veil, #result-winner, .pod, #btn-uno.show, #dir-chip .dico { animation: none !important; transition: none !important; }
+    .pchip.active { box-shadow: 0 0 0 1.5px var(--accent-cyan); }
+    .pod { opacity: 1; transform: none; }
+    #loader { transition: none; }
+  }
+  body.loperf .pchip.active { animation: none; box-shadow: 0 0 0 1.5px var(--accent-cyan); }
+  body.loperf #result-veil { display: none; }
+  body.loperf .pchip, body.loperf .btn-sub, body.loperf .btn-main, body.loperf .ovl, body.loperf #toast, body.loperf #hand-ovl { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  body.loperf .pod { opacity: 1; transform: none; animation: none; }
+
+  /* ═══ 联机（v1：组件 UI 在 party-net.js；这里只留 HUD 侧） ═══ */
+  .pchip.off { opacity: 0.45; }
+  .pchip.speaking { box-shadow: 0 0 0 2px rgba(52,211,153,0.8) !important; }
+  .pav { width: 22px; height: 22px; border-radius: 50%; flex: 0 0 auto; }
+  #btn-mic.live { background: linear-gradient(135deg, #34d399, #10b981); color: #06281c; }
+  #btn-listen.off { opacity: 0.5; }
+  @media (max-width: 767px) {
+    #players-bar { grid-template-columns: repeat(2, 1fr); }
+    .pchip { min-height: 40px; font-size: 0.78rem; padding: 5px 8px; }
+    .pchip .cnt { overflow: hidden; text-overflow: ellipsis; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loader">
+  <div class="loader-box">
+    <div class="loader-ico">🃏</div>
+    <h2>UNO</h2>
+    <p id="loader-text">洗牌中...</p>
+    <div class="loader-bar"><i id="loader-bar"></i></div>
+  </div>
+</div>
+
+<canvas id="uno-canvas"></canvas>
+<div id="board2d"></div>
+
+<div id="players-bar"></div>
+<div id="color-chip"><span class="cdot"></span><span id="color-name">当前：红</span></div>
+<div id="dir-chip"><span class="dico">⟳</span><span id="dir-name">顺时针</span></div>
+<div id="hud-tools" hidden>
+  <button id="btn-rules-top" type="button" title="规则速览">❓</button>
+  <button id="btn-sfx" type="button" title="音效开关">🔊</button>
+  <button id="btn-mic" class="js-mic-btn" type="button" title="连麦（WebRTC）" hidden>🎙️</button>
+  <button id="btn-listen" class="js-listen-btn" type="button" title="收听开关" hidden>🔊</button>
+  <button id="btn-quit" type="button" title="返回游戏中心">🏠</button>
+</div>
+<div id="toast"></div>
+<div id="action-bar"></div>
+
+<div id="hand-ovl">
+  <div class="close-hint">点牌打出 · 空白处收起</div>
+  <div id="hand-strip"></div>
+</div>
+
+<div id="setup" class="ovl" hidden>
+  <div class="panel">
+    <h2>🃏 UNO</h2>
+    <p class="sub">🌐 联机房间是默认玩法 · 2-4 人 · 房号邀请</p>
+    <div id="party-net"></div>
+    <details id="adv-box" class="pn-adv">
+    <summary>⚙️ 高级选项 · 本地热座（同屏传机暗牌）</summary>
+    <div id="hot-opts">
+    <div id="seat-rows"></div>
+    <div class="seat-add" id="seat-add">
+      <button id="seat-minus" type="button">－ 减一人</button>
+      <button id="seat-plus" type="button">＋ 加一人</button>
+    </div>
+    <label class="opt-row"><input type="checkbox" id="opt-light"> 明牌模式（大家都看得见 · 适合客厅投屏）</label>
+    <label class="opt-row" id="row-skip"><input type="checkbox" id="skip-handoff"> 跳过交接确认（大家都盯着屏幕）</label>
+    </div>
+    <button id="btn-start" class="btn-primary" type="button">开始本地热座 🪑</button>
+    </details>
+    <details id="rules-box">
+      <summary>📜 规则速览</summary>
+      <ul>
+        <li>出牌跟颜色或数字/符号；万能随时出</li>
+        <li>🚫跳过 · 🔁反转 · +2/+4 罚摸并轮空</li>
+        <li>只剩 1 张要喊「UNO!」，忘了被抓罚 2 张</li>
+        <li>先出完手牌者胜 🏆（最后一张的效果仍结算）</li>
+        <li class="rule-diff"><b>本作差异</b>：+4 须手中无当前色才能出</li>
+        <li>摸牌后想留，本回合仍可出任意手牌</li>
+        <li>+2 不能叠加；无 7-0 家规</li>
+      </ul>
+    </details>
+        <button id="btn-back-arcade" class="btn-ghost" type="button">← 返回游戏中心</button>
+  </div>
+</div>
+
+<div id="handoff" class="ovl" hidden>
+  <div class="panel">
+    <p class="hand-emoji">📱</p>
+    <h2 id="handoff-name">请把手机交给 XX</h2>
+    <p class="sub">其他人先移开视线 😉</p>
+    <button id="btn-handoff-go" class="btn-primary" type="button">我是 XX，开始回合</button>
+    <button id="btn-catch" type="button" hidden></button>
+  </div>
+</div>
+
+<div id="wild-modal" class="ovl" hidden>
+  <div class="panel center">
+    <h2>🌈 选个颜色</h2>
+    <div class="wrow">
+      <button class="wbtn" data-c="r" style="background:#ef4444" type="button">红色</button>
+      <button class="wbtn" data-c="y" style="background:#eab308" type="button">黄色</button>
+      <button class="wbtn" data-c="g" style="background:#22c55e" type="button">绿色</button>
+      <button class="wbtn" data-c="b" style="background:#3b82f6" type="button">蓝色</button>
+    </div>
+  </div>
+</div>
+
+<div id="gen-modal" class="ovl" hidden>
+  <div class="panel center">
+    <div id="gen-body"></div>
+    <div id="gen-actions"></div>
+  </div>
+</div>
+
+<div id="result-overlay" class="ovl" hidden>
+  <div id="result-veil"></div>
+  <div id="result-box">
+    <h2>🏁 本局结算</h2>
+    <div id="result-winner"></div>
+    <div id="result-pods"></div>
+    <div id="result-actions">
+      <button id="btn-rematch" class="btn-primary" type="button">🔄 同班人马再来一局</button>
+      <button id="btn-result-home" class="btn-ghost" type="button">🏠 返回游戏中心</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/**
+ * @license
+ * Copyright 2010-2021 Three.js Authors
+ * SPDX-License-Identifier: MIT
+ */
+
+</script>
+
+<script src="dicebear-local.js"></script>
+<script src="party-net.js"></script>
+<script>
+'use strict';
+/* ═══════════════ 0. 基础 ═══════════════ */
+const $ = id => document.getElementById(id);
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const qs = new URLSearchParams(location.search);
+const AUTOTEST = qs.get('autotest') === '1';
+const SPEED = AUTOTEST ? (qs.get('turbo') ? 0.01 : 0.15) : 1;
+const TURBO = AUTOTEST && qs.get('turbo') === '1';
+const UNO_WIN_MS = AUTOTEST ? (+qs.get('unowin') || 600) : 6000;   // 喊名窗口：真局 6s、autotest 600ms（&unowin 可覆盖）
+const PASS_STALL_LIMIT = 200;
+let SEED = AUTOTEST ? 20260919 : (Math.random() * 0xffffffff) >>> 0;
+function mulberry32(box) {
+  return function () {
+    box.a |= 0; box.a = box.a + 0x6D2B79F5 | 0;
+    let t = Math.imul(box.a ^ box.a >>> 15, 1 | box.a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const rngBox = { a: SEED };
+let rng = mulberry32(rngBox);
+const rnd = () => rng();
+function reseed(a) { rngBox.a = a | 0; rng = mulberry32(rngBox); }
+const rint = n => Math.floor(rnd() * n);
+const sleep = ms => new Promise(r => setTimeout(r, ms * SPEED));
+const esc = s => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ═══════════════ 1. 音效 ═══════════════ */
+const SFX = (() => {
+  let ctx = null, on = true, master = null;
+  try { on = localStorage.getItem('uno:sfx') !== '0'; } catch (e) {}
+  const ensure = () => { if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); master = ctx.createGain(); master.gain.value = 1; master.connect(ctx.destination); } catch (e) {} } return ctx; };
+  const env = (g, t0, a, d, v) => { g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(v, t0 + a); g.gain.exponentialRampToValueAtTime(0.001, t0 + a + d); };
+  const tone = (f0, f1, dur, type, vol, when = 0) => {
+    const c = ensure(); if (!c || !on) return;
+    const o = c.createOscillator(), g = c.createGain(), t0 = c.currentTime + when;
+    o.type = type; o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t0 + dur);
+    env(g, t0, 0.01, dur, vol); o.connect(g).connect(master || c.destination); o.start(t0); o.stop(t0 + dur + 0.1);
+  };
+  const noise = (dur, vol, fc) => {
+    const c = ensure(); if (!c || !on) return;
+    const n = c.sampleRate * dur, buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const s = c.createBufferSource(), g = c.createGain(), f = c.createBiquadFilter();
+    s.buffer = buf; f.type = 'lowpass'; f.frequency.value = fc; env(g, c.currentTime, 0.005, dur, vol);
+    s.connect(f).connect(g).connect(master || c.destination); s.start();
+  };
+  return {
+    get on() { return on; },
+    toggle() { on = !on; try { localStorage.setItem('uno:sfx', on ? '1' : '0'); } catch (e) {} return on; },
+    unlock() { ensure(); },
+    tap() { tone(660, 520, 0.05, 'sine', 0.12); },
+    play() { tone(500, 760, 0.07, 'triangle', 0.16); },
+    draw() { noise(0.09, 0.14, 2200); },
+    warn() { tone(300, 180, 0.2, 'sawtooth', 0.14); },
+    uno() { tone(660, 660, 0.08, 'square', 0.12); tone(990, 990, 0.12, 'square', 0.12, 0.08); },
+    catchU() { tone(500, 240, 0.16, 'square', 0.14); tone(240, 500, 0.14, 'square', 0.12, 0.16); },
+    win() { [523, 659, 784, 1046].forEach((f, i) => tone(f, f, 0.12, 'triangle', 0.18, i * 0.11)); },
+    card() { tone(500, 900, 0.09, 'sine', 0.1); },
+    // 连麦压低（duck）：连麦模块在开麦/收听时调用
+    duckMusic(f, ms = 300) {
+      const c = ensure(); if (!c || !master) return;
+      try { master.gain.cancelScheduledValues(c.currentTime); master.gain.setValueAtTime(master.gain.value, c.currentTime); master.gain.linearRampToValueAtTime(f, c.currentTime + ms / 1000); } catch (e) {}
+    },
+    // 连麦压低（duck）：连麦模块在开麦/收听时调用
+    duckMusic(f, ms = 300) {
+      const c = ensure(); if (!c || !master) return;
+      try { master.gain.cancelScheduledValues(c.currentTime); master.gain.setValueAtTime(master.gain.value, c.currentTime); master.gain.linearRampToValueAtTime(f, c.currentTime + ms / 1000); } catch (e) {}
+    },
+  };
+})();
+document.addEventListener('pointerdown', () => SFX.unlock(), { once: true, passive: true });
+
+// ═══════════════════════════════════════════════════════════════
+// 13. 联机（公共组件 party-net.js 的宿主适配层；组件契约见 SPEC §1.9）
+// ═══════════════════════════════════════════════════════════════
+let NETMODE = false, NDOC = null, myId = null, joined = false, link = null;   // 组件全局常量 NET_STALE_* 可直接引用
+const P = PartyNet.create({
+  key: 'uno', prefix: 'uno/v1', maxPlayers: 4, allowBots: true,
+  localOnly: AUTOTEST && qs.get('localnet') === '1',   // E2E：同浏览器多标签走 BroadcastChannel，不碰外网
+  toast, sleep, sfx: SFX,
+  snapshot: () => gameSnapshot(),
+  onGame: (g, d) => applyGameSnapshot(g, d),
+  onState: () => { NETMODE = P.mode(); NDOC = P.doc(); myId = P.myId; joined = P.joined(); link = P.link(); syncNetHUD(); },
+  kick: () => netHostKick(),
+  // 开局后座位不删：掉线者按座位号代管为机器人
+  prune: (n, now) => {
+    if (!n.game) return;
+    n.game.players.forEach((gp, i) => {
+      const np = n.players[i];
+      if (!np || np.bot) return;
+      if (now - (np.lastSeen || 0) > 90000) { gp.bot = true; gp.name = gp.name + '🤖'; if (n.players[i]) n.players[i].bot = true; }
+    });
+  },
+  onStart: () => netStartGame({}),
+  avSeedPrefix: 'UNO',
+});
+P.mount('party-net');
+$('btn-mic').addEventListener('click', () => P.mic.toggle());
+$('btn-listen').addEventListener('click', () => P.mic.toggleListen());
+
+const isHost = () => P.isHost();
+function netSeatOf(pid) { return P.seatOf(pid); }
+function netIsMyTurn() {
+  return NETMODE && NDOC && NDOC.started && NDOC.game && NDOC.players[G.turn] && NDOC.players[G.turn].id === myId;
+}
+function mutate(fn, mode) { return P.mutate(fn, mode); }
+function netCkpt() { if (NETMODE && joined && NDOC && NDOC.started) return P.mutate(() => {}, 'ck'); }
+function netEnter(room, name, asHost) { return P.enter(room, name, asHost); }
+function netLeave(silent) { P.leave(silent); }
+// 棋局快照（retained 文档的 game 字段；含全部手牌——房间号即门禁，已知限制见 SPEC §1.8）
+function gameSnapshot() {
+  return JSON.parse(JSON.stringify({
+    phase: G.phase, players: G.players, deck: G.deck, discard: G.discard,
+    dir: G.dir, cur: G.cur, turn: G.turn, drawnThisTurn: G.drawnThisTurn,
+    mode: G.mode, skipHandoff: G.skipHandoff, lastHumanActor: G.lastHumanActor, passStreak: G.passStreak,
+    seed: G.seed, winner: G.winner,
+  }));
+}
+// 远端棋局快照 → 本地 G（静态重绘，不播动画；喊名窗口是本地计时态不随快照走）
+function applyGameSnapshot(g, doc) {
+  if (TURBO || !g || !Array.isArray(g.players)) return;
+  const prevPhase = G.phase, prevTurn = G.turn;
+  G.phase = g.phase;
+  G.players = JSON.parse(JSON.stringify(g.players));
+  G.deck = JSON.parse(JSON.stringify(g.deck)); G.discard = JSON.parse(JSON.stringify(g.discard));
+  G.dir = g.dir; G.cur = g.cur; G.turn = g.turn; G.drawnThisTurn = g.drawnThisTurn;
+  G.mode = g.mode; G.skipHandoff = !!g.skipHandoff; G.lastHumanActor = g.lastHumanActor; G.passStreak = g.passStreak;
+  G.seed = g.seed; G.winner = g.winner;
+  // 喊名窗口是窗口主人的本地计时态不随快照走；仅在主人手牌数不再是 1（罚摸/赢局/新局）时作废
+  if (G.unoWin && G.players[G.unoWin.who] && G.players[G.unoWin.who].hand.length !== 1) G.unoWin = null;
+  $('setup').hidden = true; $('handoff').hidden = true; hideActions();
+  if (g.phase !== 'OVER') $('result-overlay').hidden = true;   // 新局快照要收起上一局的结算屏
+  $('gen-modal').hidden = true; closeHandOverlay();
+  if (G.gl) buildHands();
+  setColor(G.cur); render2D(); updateHUD();
+  // 结算屏补演：只要快照到 OVER 且本端还没显示就补演（本地模拟可能先行/滞后，不能只看 prevPhase）
+  if (g.phase === 'OVER' && $('result-overlay').hidden) showResult();
+  // 接管/自愈：快照显示轮到本端真人且本端操作条不在 → 开/恢复自己的回合
+  //（HANDOFF=上家刚交棒；AWAIT_ACTION=本端稳定等待期操作条被某次快照误收起）
+  if (NETMODE && netIsMyTurn() && !$('action-bar').classList.contains('show')
+      && (g.phase === 'HANDOFF' || (g.phase === 'AWAIT_ACTION' && prevPhase === 'AWAIT_ACTION'))) enterHumanTurn();
+  // 窗口主人自愈：非本端回合但本端握着 UNO 喊名窗口 → 恢复操作条让主人能按
+  if (NETMODE && !netIsMyTurn() && G.unoWin && !G.unoWin.penalized && G.unoWin.who === netSeatOf(myId)
+      && !$('action-bar').classList.contains('show')) showActions();
+}
+function netStartGame(cfg) {
+  const doc = P.doc();
+  if (!NETMODE || !doc || doc.started) return;
+  const players = doc.players.map(p => ({ name: p.name, bot: !!p.bot }));
+  P.setStarted();   // 先落开局标志并发布，startGame 内的检查点会携带首份棋局快照
+  clearSave();      // 联机局不落本地热座存档
+  startGame({ players, mode: 'dark', skipHandoff: true, firstPlayer: cfg.firstPlayer || 0 });
+}
+// 房主接管补跑（组件已按 isHost/bot/seq 守卫并延迟调度）
+function netHostKick() {
+  if (!(NETMODE && NDOC && NDOC.started && G.phase !== 'OVER')) return;
+  const cp = G.players[G.turn];
+  if (cp && cp.bot && !cp.out) beginTurn();
+}
+// 即发即忘事件（UNO 喊名 / 抓包）：迟到的旧事件按时间戳丢弃
+function netReact(kind, who) {
+  if (!NETMODE || !link) return;
+  try { link.publishReact({ kind, who, name: G.players[who] ? G.players[who].name : '', mid: genId(), t: Date.now() }); } catch (e) {}
+}
+function onNetReact(m) {
+  if (!m || !m.kind || !NETMODE) return;
+  if (typeof m.t === 'number' && Date.now() - m.t > 8000) return;
+  if (m.who === P.seatOf(myId)) return;   // 自己发的不回放
+  if (m.kind === 'uno') { SFX.uno(); toast(`🙌 ${m.name}：UNO！！`, 'gain'); }
+  else if (m.kind === 'catch') { SFX.catchU(); toast(`🫵 ${m.name} 被抓包：忘喊 UNO，罚 2 张`, 'loss'); }
+}
+// HUD 侧联机同步（大厅/表单由组件自渲染）
+function syncNetHUD() {
+  const onNet = NETMODE && joined && NDOC;
+  $('btn-mic').hidden = !onNet;
+  $('btn-listen').hidden = !onNet;
+  if (onNet && NDOC.started) {
+    NDOC.players.forEach((p, i) => {
+      const chip = $('pchip-' + i);
+      if (chip) chip.classList.toggle('off', Date.now() - (p.lastSeen || 0) > 40000);
+    });
+    $('setup').hidden = true;
+  }
+}
+function netAvatarHtml(i) {
+  const rep = NETMODE && NDOC && NDOC.players[i] && NDOC.players[i].av;
+  if (!rep) return '';
+  const uri = P.avatarUri(rep);
+  return uri ? `<img class="pav" src="${uri.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" alt="" onerror="this.style.visibility='hidden'">` : '';   // 转义纵深：组件侧已有 dataURL 白名单；onerror=双故障时隐藏而非裂图
+}
+async function netBootAutotest() {
+  const room = qs.get('room') || '88888';
+  const name = qs.get('name') || (qs.get('role') === 'host' ? '测试房主' : '测试员');
+  const ok2 = await netEnter(room, name, qs.get('role') === 'host');
+  if (!ok2) return;
+  if (qs.get('role') === 'host' && qs.get('autostart') === '1') {
+    if (qs.get('bot') !== '0') await P.addBot();   // 组件入口：自带随机人物向配方 + isHost/started 守卫
+    setTimeout(() => netStartGame({}), 500);
+  }
+}
+
+
+
+/* ═══════════════ 2. 牌与规则数据 ═══════════════ */
+const COLORS = { r: '#ef4444', y: '#eab308', g: '#22c55e', b: '#3b82f6' };
+const CNAME = { r: '红', y: '黄', g: '绿', b: '蓝' };
+const PLAYER_COLORS = ['#22d3ee', '#f472b6', '#8b5cf6', '#4ade80'];
+const SYM = { S: ['🚫', '跳过'], R: ['🔁', '反转'], D2: ['+2', '摸2'], W: ['🌈', '换色'], W4: ['+4', '摸4'] };
+function buildDeck() {
+  const d = [];
+  for (const c of ['r', 'y', 'g', 'b']) {
+    d.push({ c, v: '0' });
+    for (let v = 1; v <= 9; v++) { d.push({ c, v: '' + v }); d.push({ c, v: '' + v }); }
+    for (const v of ['S', 'R', 'D2']) { d.push({ c, v }); d.push({ c, v }); }
+  }
+  for (let i = 0; i < 4; i++) { d.push({ c: 'w', v: 'W' }); d.push({ c: 'w', v: 'W4' }); }
+  return d;
+}
+const isWild = cd => cd.c === 'w';
+const handPoints = hand => hand.reduce((s, cd) => s + (isWild(cd) ? 50 : ['S', 'R', 'D2'].includes(cd.v) ? 20 : +cd.v), 0);
+
+const BOT_QUOTES = {
+  catch: ['🤖：抓到！忘喊 UNO 了吧～', '🤖：嘻嘻，UNO 警察上线。', '🤖：耳朵放亮点，摸两张。'],
+  hit: ['🤖：好家伙，四张……记仇了。', '🤖：谢谢投喂～', '🤖：手气真好（假笑）。'],
+  win: ['🤖：承让承让～', '🤖：下把我还来！', '🤖：轮空？刚好歇会儿。'],
+};
+
+/* ═══════════════ 3. 对局状态 ═══════════════ */
+const G = {
+  phase: 'BOOT',           // BOOT/SETUP/HANDOFF/AWAIT_ACTION/ANIMATING/RESOLVE/OVER
+  players: [],             // {name,bot,colorIdx,hand[]}
+  deck: [], discard: [],
+  dir: 1, cur: 'r', turn: 0, drawnThisTurn: false,
+  mode: 'dark', skipHandoff: false, lastHumanActor: -1,
+  unoWin: null,            // {who, remain, penalized, lastTs}（只在 AWAIT_ACTION 计时）
+  unoCatch: null,          // {who, whoName, until, done}（全真人局：交接闸上的抓包按钮）
+  passStreak: 0,
+  seed: SEED, quoteTurn: -1, winner: null,
+  gl: true,
+};
+let lastInteract = Date.now();
+
+/* ═══════════════ 4. Three.js 场景 ═══════════════ */
+let renderer, scene, camera, dirLight;
+const D2R = Math.PI / 180;
+const CARD_W = 0.52, CARD_H = 0.72;
+let pileMesh = null, drawMesh = null, dirRing = null, colorRings = {};
+let cardGroups = [];
+const texCache = {};
+let backTex = null;
+let bodyLo = false;
+
+function dprCap(w, h) { return Math.min(window.devicePixelRatio || 1, 1.6, Math.sqrt(2.3e6 / (w * h))); }
+function camApply() {
+  const halfV = Math.tan(camera.fov * D2R / 2);
+  const aspect = innerWidth / innerHeight;
+  const d = Math.max(6.4, 4.6 / (halfV * aspect), (5.4 * Math.sin(46 * D2R)) / halfV * 0.92);
+  camera.position.set(0, d * Math.sin(46 * D2R), d * Math.cos(46 * D2R));
+  camera.lookAt(0, 0, -0.2);
+}
+function initScene() {
+  const canvas = $('uno-canvas');
+  try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true }); }
+  catch (e) { G.gl = false; document.body.classList.add('gl-off'); return false; }
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.12;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0a1a);
+  scene.fog = new THREE.FogExp2(0x0a0a1a, 0.03);
+  camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 60);
+  scene.add(new THREE.HemisphereLight(0x8899ff, 0x1a1030, 0.55));
+  const warm = new THREE.PointLight(0xffb46b, 1.05, 26, 2); warm.position.set(0, 5.4, 0); scene.add(warm);
+  const cool = new THREE.DirectionalLight(0x7aa0ff, 0.22); cool.position.set(-4, 3, 2); scene.add(cool);
+  dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+  dirLight.position.set(-3, 7, 2); dirLight.castShadow = true;
+  dirLight.shadow.mapSize.set(1024, 1024);
+  dirLight.shadow.camera.left = -5.5; dirLight.shadow.camera.right = 5.5;
+  dirLight.shadow.camera.top = 5.5; dirLight.shadow.camera.bottom = -5.5;
+  scene.add(dirLight);
+  const table = new THREE.Mesh(
+    new THREE.CylinderGeometry(6.4, 6.8, 0.5, 48),
+    new THREE.MeshStandardMaterial({ color: 0x1d1523, roughness: 0.95 })
+  );
+  table.position.y = -0.05; table.receiveShadow = true; scene.add(table);
+  buildPiles();
+  buildRings();
+  sizeScene();
+  addEventListener('resize', sizeScene);
+  return true;
+}
+function sizeScene() {
+  if (!renderer) return;
+  renderer.setPixelRatio(bodyLo ? 1 : dprCap(innerWidth, innerHeight));
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  camApply();
+}
+function mkTex(w, h, draw) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.encoding = THREE.sRGBEncoding;
+  t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
+  return t;
+}
+function shade(hex, k) {
+  const n = parseInt(hex.slice(1), 16);
+  const f = v => Math.max(0, Math.min(255, Math.round(v * (1 + k))));
+  return 'rgb(' + f(n >> 16) + ',' + f((n >> 8) & 255) + ',' + f(n & 255) + ')';
+}
+function cardFaceTex(cd) {
+  const key = cd.c + cd.v;
+  if (texCache[key]) return texCache[key];
+  texCache[key] = mkTex(256, 512, (ctx, w, h) => {
+    if (isWild(cd)) {
+      const q = [['#ef4444', 0, 0], ['#eab308', w / 2, 0], ['#22c55e', 0, h / 2], ['#3b82f6', w / 2, h / 2]];
+      q.forEach(qi => { ctx.fillStyle = qi[0]; ctx.fillRect(qi[1], qi[2], w / 2, h / 2); });
+    } else {
+      const gd = ctx.createLinearGradient(0, 0, 0, h);
+      gd.addColorStop(0, COLORS[cd.c]); gd.addColorStop(1, shade(COLORS[cd.c], -0.35));
+      ctx.fillStyle = gd; ctx.fillRect(0, 0, w, h);
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 10;
+    ctx.strokeRect(12, 12, w - 24, h - 24);
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 10;
+    const pair = isWild(cd) ? SYM[cd.v] : (cd.v in SYM ? SYM[cd.v] : [cd.v, CNAME[cd.c]]);
+    ctx.font = '900 150px "Noto Sans SC","Microsoft YaHei",sans-serif';
+    ctx.fillText(pair[0], w / 2, h / 2 - 50);
+    ctx.font = '700 52px "Noto Sans SC","Microsoft YaHei",sans-serif';
+    ctx.fillText(pair[1], w / 2, h / 2 + 90);
+    ctx.font = '900 56px sans-serif';
+    ctx.fillText(isWild(cd) ? '★' : pair[0], 44, 60);
+    ctx.save(); ctx.translate(w - 44, h - 60); ctx.rotate(Math.PI); ctx.fillText(isWild(cd) ? '★' : pair[0], 0, 0); ctx.restore();
+  });
+  return texCache[key];
+}
+function getBackTex() {
+  if (backTex) return backTex;
+  backTex = mkTex(256, 512, (ctx, w, h) => {
+    const gd = ctx.createLinearGradient(0, 0, 0, h);
+    gd.addColorStop(0, '#241b44'); gd.addColorStop(1, '#120e24');
+    ctx.fillStyle = gd; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = '#f472b6'; ctx.lineWidth = 12; ctx.beginPath(); ctx.arc(w / 2, h / 2, 92, 0, 7); ctx.stroke();
+    ctx.strokeStyle = '#22d3ee'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(w / 2, h / 2, 118, 0, 7); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '900 92px "Noto Sans SC","Microsoft YaHei",sans-serif';
+    ctx.fillText('UNO', w / 2, h / 2);
+  });
+  return backTex;
+}
+function mkCard(cd) {
+  const front = new THREE.Mesh(
+    new THREE.PlaneGeometry(CARD_W, CARD_H),
+    new THREE.MeshStandardMaterial({ map: cardFaceTex(cd), roughness: 0.55, transparent: true })
+  );
+  const back = new THREE.Mesh(
+    new THREE.PlaneGeometry(CARD_W, CARD_H),
+    new THREE.MeshStandardMaterial({ map: getBackTex(), roughness: 0.6 })
+  );
+  back.rotation.y = Math.PI;
+  const g = new THREE.Group(); g.add(back, front);
+  return g;
+}
+function buildPiles() {
+  pileMesh = mkCard({ c: 'r', v: '3' });
+  pileMesh.position.set(0.35, 0.34, 0); pileMesh.rotation.x = -Math.PI / 2 + 0.42; scene.add(pileMesh);
+  drawMesh = mkCard({ c: 'r', v: '0' });
+  drawMesh.position.set(-1.15, 0.34, 0); drawMesh.rotation.x = -Math.PI / 2 + 0.42;
+  drawMesh.rotation.z = 0.1; scene.add(drawMesh);
+}
+function buildRings() {
+  dirRing = new THREE.Mesh(
+    new THREE.TorusGeometry(1.5, 0.035, 12, 64),
+    new THREE.MeshBasicMaterial({ color: 0x8b5cf6, transparent: true, opacity: 0.7 })
+  );
+  dirRing.rotation.x = Math.PI / 2; dirRing.position.y = 0.32; scene.add(dirRing);
+  const segs = [['r', -0.9], ['y', -0.3], ['g', 0.3], ['b', 0.9]];
+  segs.forEach(sg => {
+    const mm = new THREE.Mesh(
+      new THREE.CircleGeometry(0.16, 24),
+      new THREE.MeshBasicMaterial({ color: COLORS[sg[0]], transparent: true, opacity: 0.35 })
+    );
+    mm.rotation.x = -Math.PI / 2; mm.position.set(1.9, 0.33, sg[1]);
+    scene.add(mm); colorRings[sg[0]] = mm;
+  });
+}
+function setColor(c) {
+  G.cur = c;
+  Object.entries(colorRings).forEach(kv => { mmSet(kv[1], kv[0] === c); });
+  const chip = $('color-chip');
+  chip.classList.add('show');
+  chip.querySelector('.cdot').style.background = COLORS[c];
+  $('color-name').textContent = '当前：' + CNAME[c];
+  if (G.players.length === 2) $('dir-chip').classList.remove('show');
+  else {
+    $('dir-chip').classList.add('show');
+    $('dir-chip').classList.toggle('rev', G.dir === -1);
+    $('dir-name').textContent = G.dir === 1 ? '顺时针' : '逆时针';
+  }
+}
+function mmSet(mm, on) { mm.material.opacity = on ? 0.95 : 0.3; mm.position.y = on ? 0.36 : 0.33; }
+function seatPos(i) {   // 南位固定留给「当前玩家」；其余按剩余弧线均分
+  const n = G.players.length;
+  if (i === G.turn) return { x: 0, z: 2.3 };
+  const slot = ((i - G.turn) % n + n) % n;
+  const ang = slot * (2 * Math.PI) / n;
+  return { x: Math.sin(ang) * 3.1, z: Math.cos(ang) * 2.35 };
+}
+function canPlay(cd) {
+  if (G.phase !== 'AWAIT_ACTION') return false;
+  if (isWild(cd)) {
+    if (cd.v === 'W4') return !G.players[G.turn].hand.some(x => !isWild(x) && x.c === G.cur);
+    return true;
+  }
+  return cd.c === G.cur || cd.v === topCard().v;
+}
+function topCard() { return G.discard[G.discard.length - 1]; }
+function disposeCard(g) {
+  const grp = g.group || g;   // cardGroups 存的是包装对象 {key, group,...}
+  grp.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+  scene.remove(grp);
+}
+function buildHands() {
+  cardGroups.forEach(g => disposeCard(g)); cardGroups = [];
+  G.players.forEach((p, i) => layoutHand(i, true));
+}
+function layoutHand(pi, instant) {
+  const p = G.players[pi]; if (!p) return;
+  cardGroups.filter(g => g.owner === pi).forEach(disposeCard);
+  cardGroups = cardGroups.filter(g => g.owner !== pi);
+  const isSouth = pi === G.turn;
+  const pos = isSouth ? { x: 0, z: 2.3 } : seatPos(pi);
+  let faceUp = false;
+  if (p.bot) faceUp = false;   // 机器人永不公开（南位动画期也不许）
+  else if (isSouth) faceUp = G.mode === 'light' || G.phase !== 'HANDOFF';
+  else faceUp = G.mode === 'light';   // 明牌：全真人手牌常开
+  const n = p.hand.length;
+  if (!n) return;
+  const maxAngle = Math.min(140 * D2R, (10 + n * 6) * D2R);
+  const step = Math.min(0.15, Math.max(0.075, 1.1 / Math.max(1, n - 1)));
+  const compressed = n > 12;
+  p.hand.forEach((cd, k) => {
+    const g = mkCard(cd);
+    const t = n === 1 ? 0.5 : k / (n - 1);
+    const playable = isSouth && pi === G.turn && G.phase === 'AWAIT_ACTION' && canPlay(cd);
+    const lift = playable ? 0.09 : 0;
+    if (isSouth) {
+      g.position.x = (t - 0.5) * step * (n - 1);
+      g.position.y = 0.38 + lift;
+      g.position.z = 2.3;
+      g.rotation.x = -Math.PI / 2 + 0.98;
+      g.rotation.z = -(t - 0.5) * maxAngle * 0.5;
+    } else {
+      g.position.set(pos.x * 0.55, 0.36 + (k % 2) * 0.012, pos.z * 0.55);
+      g.rotation.x = -Math.PI / 2 + 0.35;
+      g.rotation.z = Math.atan2(pos.x, pos.z) * -1;
+    }
+    g.rotation.y = faceUp ? 0 : Math.PI;
+    g.children[1].visible = faceUp;
+    if (isSouth && pi === G.turn && G.phase === 'AWAIT_ACTION') {
+      g.children[1].material.color.setScalar(canPlay(cd) ? 1 : 0.6);
+    }
+    scene.add(g);
+    cardGroups.push({ key: pi + ':' + k, group: g, owner: pi, cardRef: cd });
+  });
+}
+
+/* ═══════════════ 5. UI ═══════════════ */
+let toastTimer = 0;
+function toast(msg, kind = '') {
+  const t = $('toast');
+  t.textContent = msg; t.className = kind;
+  void t.offsetWidth; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2800 * SPEED);
+}
+function updateHUD() {
+  $('players-bar').innerHTML = G.players.map((p, i) => {
+    const badges = (G.unoWin && G.unoWin.who === i && !G.unoWin.penalized ? '<span title="UNO!">🙌</span>' : '') + (p.hand.length === 1 ? '<span title="报单">1️⃣</span>' : '');
+    return `<div class="pchip ${i === G.turn && G.phase !== 'OVER' ? 'active' : ''}" id="pchip-${i}">
+      <span class="dot" style="background:${PLAYER_COLORS[p.colorIdx]}"></span>${netAvatarHtml(i)}
+      <span class="pname">${esc(p.name)}</span><span class="badges">${badges}</span>
+      <span class="cnt tabnum">${p.hand.length} 张</span></div>`;
+  }).join('');
+  $('hud-tools').hidden = G.phase === 'BOOT' || G.phase === 'SETUP' || G.phase === 'OVER';
+}
+function showActions() {
+  const p = G.players[G.turn], bar = $('action-bar');
+  // 联机：别人的回合不渲染操作条；例外=本端是 UNO 喊名窗口主人（要能按 UNO!）
+  const iAmUnoOwner = NETMODE && G.unoWin && !G.unoWin.penalized && G.unoWin.who === netSeatOf(myId);
+  if (NETMODE && !netIsMyTurn() && !iAmUnoOwner) { hideActions(); return; }
+  bar.classList.add('show');
+  bar.innerHTML = `
+    <div id="action-who">🎯 ${esc(p.name)} 的回合 · 当前 ${CNAME[G.cur]}色${G.drawnThisTurn ? ' · 已摸' : ''}</div>
+    <button id="btn-uno" type="button">UNO!<span class="ring"></span></button>
+    <div style="display:flex;gap:8px">
+      <button class="btn-sub" id="act-draw" type="button">🫳 摸一张</button>
+      <button class="btn-sub" id="act-pass" type="button" ${G.drawnThisTurn ? '' : 'disabled'}>👋 过</button>
+      <button class="btn-sub" id="act-hand" type="button">🃏 手牌(${p.hand.length})</button>
+    </div>
+    <div class="jail-hint">点桌面手牌打出 · 随时可摸（摸到可出的牌能选打出或保留）</div>`;
+  $('act-draw').onclick = () => { SFX.tap(); humanDraw(); };
+  $('act-pass').onclick = () => { SFX.tap(); doPass(); };
+  $('act-hand').onclick = () => { SFX.tap(); openHandOverlay(-1); };
+  const ub = $('btn-uno');
+  const unoMine = G.unoWin && !G.unoWin.penalized
+    && (G.unoWin.who === G.turn || (NETMODE && G.unoWin.who === netSeatOf(myId)));   // 联机：窗口主人的设备随时能喊
+  if (unoMine) {
+    ub.classList.add('show');
+    ub.onclick = () => callUno();
+  } else ub.classList.remove('show');
+}
+function hideActions() {
+  $('action-bar').classList.remove('show');
+  const u = $('btn-uno');
+  if (u) u.classList.remove('show');
+}
+function openHandOverlay(selK) {
+  const p = G.players[G.turn];
+  if (!p) return;
+  const ovl = $('hand-ovl');
+  const strip = $('hand-strip');
+  const active = !p.bot && G.phase === 'AWAIT_ACTION';
+  strip.innerHTML = p.hand.map((cd, k) => {
+    const play = active && canPlay(cd);
+    const face = active || G.mode === 'light';
+    const sym = isWild(cd) ? SYM[cd.v][0] : (cd.v in SYM ? SYM[cd.v][0] : cd.v);
+    const word = isWild(cd) ? SYM[cd.v][1] : (cd.v in SYM ? SYM[cd.v][1] : CNAME[cd.c]);
+    const bg = isWild(cd) ? 'linear-gradient(135deg,#ef4444 0 50%,#eab308 50% 100%)' : COLORS[cd.c];
+    return `<div class="hcard ${play ? 'playable' : 'dim'} ${k === selK ? 'sel' : ''}" data-k="${k}" style="background:${bg}">${face ? sym + `<small>${word}</small>` : '🃏'}</div>`;
+  }).join('');
+  [...strip.children].forEach(el => {
+    el.addEventListener('click', () => {
+      const k = +el.dataset.k;
+      if (!active) return;
+      if (!canPlay(p.hand[k])) { el.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(5px)' }, { transform: 'translateX(0)' }], { duration: 220 }); SFX.warn(); return; }
+      closeHandOverlay();
+      humanPlay(k);
+    });
+  });
+  ovl.classList.add('show');
+  ovl.onclick = e => { if (e.target === ovl) closeHandOverlay(); };
+}
+function closeHandOverlay() { $('hand-ovl').classList.remove('show'); }
+
+/* ═══════════════ 6. 存档 ═══════════════ */
+const SAVE_KEY = 'uno:save:v1';
+function saveGame() {
+  if (NETMODE) return;   // 联机局状态在房间 retained 文档里，不落本地热座存档
+  if (NETMODE) return;   // 联机局状态在房间 retained 文档里，不落本地热座存档
+  if (G.phase === 'SETUP' || G.phase === 'OVER' || G.phase === 'BOOT') return;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      v: 1, at: Date.now(), phase: G.phase, turn: G.turn, dir: G.dir, cur: G.cur,
+      drawnThisTurn: G.drawnThisTurn, mode: G.mode, skipHandoff: G.skipHandoff,
+      lastHumanActor: G.lastHumanActor, passStreak: G.passStreak, rngA: rngBox.a, seed: G.seed,
+      players: G.players.map(p => ({ name: p.name, bot: p.bot, colorIdx: p.colorIdx, hand: p.hand })),
+      deck: G.deck, discard: G.discard,
+      unoWin: G.unoWin ? { who: G.unoWin.who, remain: G.unoWin.remain, penalized: G.unoWin.penalized } : null,
+      winner: G.winner != null ? G.winner : null,
+    }));
+  } catch (e) {}
+}
+function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
+function loadSave() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    if (s && s.v === 1 && Date.now() - s.at < 24 * 3600 * 1000) return s;
+  } catch (e) {}
+  return null;
+}
+
+/* ═══════════════ 7. 状态机 ═══════════════ */
+function shuffle(arr) { for (let i = arr.length - 1; i > 0; i--) { const j = rint(i + 1); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; }
+function ensureDeck(n) {
+  if (G.deck.length < n && G.discard.length > 1) {
+    const top = G.discard[G.discard.length - 1];
+    G.deck = shuffle(G.discard.slice(0, -1));
+    G.discard = [top];
+    toast('🔄 弃牌堆洗回牌库（顶牌保留）');
+  }
+  return Math.min(n, G.deck.length);
+}
+function aliveIdx() { return G.players.map((p, i) => p.out ? -1 : i).filter(i => i >= 0); }
+function nextIdx(from) {
+  let n = from;
+  do { n = ((n + G.dir) % G.players.length + G.players.length) % G.players.length; } while (G.players[n] && G.players[n].out);
+  return n;
+}
+
+function startGame(cfg) {
+  G.mode = cfg.mode; G.skipHandoff = cfg.skipHandoff;
+  G.players = cfg.players.map((p, i) => ({ name: p.name, bot: !!p.bot, colorIdx: i, hand: [] }));
+  G.deck = shuffle(buildDeck());
+  G.discard = [];
+  reseed(cfg.seed || SEED); G.seed = rngBox.a;
+  for (let k = 0; k < 7; k++) G.players.forEach(p => p.hand.push(G.deck.pop()));
+  for (let guard = 0; guard < 200; guard++) {
+    const c = G.deck.pop();
+    if (/^[0-9]$/.test(c.v)) { G.discard.push(c); break; }
+    G.deck.unshift(c);
+  }
+  G.dir = 1; G.turn = cfg.firstPlayer || 0; G.drawnThisTurn = false;
+  G.cur = topCard().c; G.unoWin = null; G.unoCatch = null; G.passStreak = 0; G.winner = null;
+  G.lastHumanActor = -1;
+  clearSave();
+  $('setup').hidden = true; $('result-overlay').hidden = true; $('hand-ovl').classList.remove('show');
+  if (G.gl) buildHands();
+  setColor(G.cur); render2D(); updateHUD();
+  netCkpt();
+  beginTurn();
+}
+function gateNeeded(nextIdx2) {   // 下一个行动者是真人 && 与上一位真人不同（连续出牌不开闸）
+  const p = G.players[nextIdx2];
+  return !p.bot && G.mode === 'dark' && !G.skipHandoff && G.lastHumanActor !== nextIdx2;
+}
+function beginTurn() {
+  const p = G.players[G.turn];
+  if (!p || p.out) { advance(0); return; }
+  G.drawnThisTurn = false;
+  G.phase = 'HANDOFF';
+  saveGame(); updateHUD(); render2D();
+  if (G.gl) buildHands();   // 座位随当前玩家轮转：换手必须全量重摆（只摆新玩家会让上家手牌残留在南位泄漏
+  netCkpt();   // 联机：把「轮到谁」播出去；新行动者端 applyGameSnapshot 收到 HANDOFF 后接管本回合
+  if (NETMODE) setTimeout(() => { if (G.phase === 'HANDOFF') netCkpt(); }, 900);   // 防丢自愈：心跳并发撞 seq 吞掉本快照时重发一次
+  if (p.bot) {
+    G.phase = 'AWAIT_ACTION';   // 机器人行动窗口就是 AWAIT_ACTION（canPlay 有相位门槛）
+    $('handoff').hidden = true; hideActions();
+    toast(`🤖 ${p.name} 行动中…`);
+    if (!(NETMODE && !isHost())) setTimeout(() => botAct(), (500 + rint(600)) * SPEED);   // 联机：机器人由房主代跑
+  } else if (NETMODE && !netIsMyTurn()) {
+    $('handoff').hidden = true;
+    if (!(G.unoWin && !G.unoWin.penalized && G.unoWin.who === netSeatOf(myId))) hideActions();   // 窗口主人保留操作条（能按 UNO!）
+  } else if (gateNeeded(G.turn)) {
+    hideActions();
+    $('handoff-name').textContent = `请把手机交给 ${p.name}`;
+    $('btn-handoff-go').textContent = `我是 ${p.name}，开始回合`;
+    const cb = $('btn-catch');
+    if (G.unoCatch && !G.unoCatch.done && Date.now() < G.unoCatch.until && G.unoCatch.who !== G.turn) {
+      cb.hidden = false;
+      cb.textContent = `🫵 抓包！${esc(G.unoCatch.whoName)} 忘喊 UNO（罚 2 张）`;
+      cb.onclick = () => { cb.hidden = true; G.unoCatch.done = true; const f = G.players[G.unoCatch.who]; SFX.catchU(); const got = dealTo(f, 2); toast('🫵 抓包成功！' + f.name + ' 忘喊 UNO，罚摸 ' + got + ' 张', 'loss'); updateHUD(); };
+    } else cb.hidden = true;
+    $('handoff').hidden = false;
+  } else {
+    enterHumanTurn();
+  }
+}
+function enterHumanTurn() {
+  $('handoff').hidden = true;
+  G.phase = 'AWAIT_ACTION';
+  G.lastHumanActor = G.turn;
+  lastInteract = Date.now();
+  if (G.gl) layoutHand(G.turn, false);
+  saveGame(); updateHUD(); render2D(); showActions();
+  netCkpt();
+}
+$('btn-handoff-go').addEventListener('click', () => { SFX.tap(); enterHumanTurn(); });
+
+function advance(extraSkip) {
+  if (extraSkip) {
+    const victim = nextIdx(G.turn);
+    toast(`⏭️ ${G.players[victim].name} 被跳过`);
+    G.turn = nextIdx(victim);
+  } else {
+    G.turn = nextIdx(G.turn);
+  }
+  if (G.passStreak >= PASS_STALL_LIMIT) { endGame('stall'); return; }
+  beginTurn();
+}
+
+async function playCard(pi, k, chosenColor) {
+  const p = G.players[pi];
+  const cd = p.hand[k];
+  if (!cd) return;
+  cancelUnoWindow();
+  G.phase = 'ANIMATING'; hideActions(); updateHUD();
+  p.hand.splice(k, 1);
+  G.discard.push(cd);
+  if (G.gl) { layoutHand(pi, true); flyToPile(); }
+  SFX.play();
+  if (G.gl) await sleep(420); else await sleep(60);
+  G.phase = 'RESOLVE';
+  let skipNext = false, drawN = 0;
+  if (cd.v === 'S') { skipNext = true; toast('🚫 ' + p.name + ' 跳过下家', 'gain'); }
+  else if (cd.v === 'R') {
+    G.dir *= -1;
+    if (G.players.length === 2) { skipNext = true; toast('🔁 两人局：反转当跳过', 'gain'); }
+    else toast('🔁 反转！方向变' + (G.dir === 1 ? '顺时针' : '逆时针'), 'gain');
+    setColor(G.cur);
+  } else if (cd.v === 'D2') { drawN = 2; }
+  else if (cd.v === 'W4') { drawN = 4; }
+  if (isWild(cd) && chosenColor) { setColor(chosenColor); toast('🌈 ' + p.name + ' 把颜色改成' + CNAME[chosenColor] + '色' + (drawN ? `，下家摸 ${drawN}` : ''), 'gain'); }
+  if (p.hand.length === 1) armUnoWindow(pi);
+  else if (p.hand.length === 0) {
+    if (drawN) {   // 最后一张的功能效果仍结算（标准 UNO）
+      const victim = nextIdx(pi);
+      const got = dealTo(G.players[victim], drawN);
+      toast(`📥 ${G.players[victim].name} 罚摸 ${got} 张（最后一张效果仍结算）`, 'loss');
+      SFX.warn();
+      if (G.players[victim].bot) botQuote('hit');
+    }
+    updateHUD(); render2D(); onWin(pi); return;
+  }
+  if (drawN) {
+    const victim = nextIdx(pi);
+    const got = dealTo(G.players[victim], drawN);
+    toast(`📥 ${G.players[victim].name} ${got ? '罚摸 ' + got + ' 张并轮空' : '轮空（牌库枯竭未摸到）'}`, 'loss');
+    SFX.warn();
+    if (G.players[victim].bot) botQuote('hit');
+    skipNext = true;
+  }
+  updateHUD(); render2D();
+  await sleep(300);
+  netCkpt();
+  advance(skipNext ? 1 : 0);
+}
+function dealTo(p, n) {
+  const got = ensureDeck(n);
+  for (let i2 = 0; i2 < got; i2++) p.hand.push(G.deck.pop());
+  if (got < n) toast('📚 牌库枯竭，只摸到 ' + got + ' 张', 'loss');
+  if (G.gl) layoutHand(G.players.indexOf(p), true);
+  render2D();
+  return got;
+}
+async function humanDraw() {
+  if (G.phase !== 'AWAIT_ACTION' || (NETMODE && !netIsMyTurn())) return;
+  const p = G.players[G.turn];
+  G.phase = 'ANIMATING'; hideActions();
+  SFX.draw();
+  const got = dealTo(p, 1);
+  if (!got) { toast('📚 没牌可摸，只能过', 'loss'); G.drawnThisTurn = true; await sleep(200); G.phase = 'AWAIT_ACTION'; showActions(); return; }
+  const cd = p.hand[p.hand.length - 1];
+  if (G.gl) await sleep(300); else await sleep(50);
+  if (canPlay(cd)) {
+    G.phase = 'AWAIT_ACTION';
+    netCkpt();
+    openGenModal(`<p style="line-height:1.9">🫳 摸到 <b>${isWild(cd) ? '万能' : CNAME[cd.c] + (cd.v in SYM ? SYM[cd.v][1] : cd.v)}</b>，可以出！</p>`,
+      [{ label: '打出这张', fn: () => { closeGenModal(); const k = p.hand.length - 1; humanPlay(k); } },
+       { label: '先留着（本回合仍可出别的）', fn: () => { closeGenModal(); G.drawnThisTurn = true; G.phase = 'AWAIT_ACTION'; if (G.gl) layoutHand(G.turn, false); showActions(); } }]);
+    return;
+  }
+  toast('🫳 摸到 ' + (isWild(cd) ? '万能' : CNAME[cd.c] + (cd.v in SYM ? SYM[cd.v][1] : cd.v)) + '，出不了，自动过', 'loss');
+  G.drawnThisTurn = true;
+  G.passStreak++;
+  G.phase = 'RESOLVE'; hideActions(); saveGame();
+  netCkpt();
+  setTimeout(() => advance(0), 400 * SPEED);
+}
+function doPass() {
+  if (G.phase !== 'AWAIT_ACTION' || !G.drawnThisTurn || (NETMODE && !netIsMyTurn())) return;
+  G.passStreak++;
+  G.phase = 'RESOLVE'; hideActions();
+  toast('👋 ' + G.players[G.turn].name + ' 过');
+  saveGame();
+  netCkpt();
+  setTimeout(() => advance(0), 350 * SPEED);
+}
+function humanPlay(k) {
+  const p = G.players[G.turn], cd = p.hand[k];
+  if (!cd || G.phase !== 'AWAIT_ACTION' || !canPlay(cd) || (NETMODE && !netIsMyTurn())) { toast('🚫 这张现在出不了', 'error'); return; }
+  G.passStreak = 0;
+  G.lastHumanActor = G.turn;
+  if (isWild(cd)) {
+    openWild(c2 => playCard(G.turn, k, c2));
+    return;
+  }
+  playCard(G.turn, k, null);
+}
+function openWild(cb) {
+  const m2 = $('wild-modal');
+  m2.hidden = false;
+  [...m2.querySelectorAll('.wbtn')].forEach(b => {
+    b.onclick = () => { SFX.tap(); m2.hidden = true; cb(b.dataset.c); };
+  });
+}
+
+/* UNO 喊名窗口 */
+function armUnoWindow(pi) {
+  const p = G.players[pi];
+  G.unoWin = { who: pi, remain: UNO_WIN_MS, penalized: false, lastTs: 0 };
+  if (p.bot) {
+    setTimeout(() => { const w = G.unoWin; if (w && w.who === pi && !w.penalized) callUno(pi); }, (600 + rint(600)) * SPEED);
+    toast(`🤖 ${p.name}：UNO！`, 'gain');
+    return;
+  }
+  updateHUD(); showActions();
+  toast(`🙌 ${p.name} 只剩 1 张——快喊 UNO！`, 'gain');
+}
+function callUno(forcedPi) {
+  const w = G.unoWin;
+  if (!w || w.penalized) return;
+  const p = G.players[forcedPi != null ? forcedPi : w.who];
+  w.penalized = true;
+  if (p.bot) return;
+  SFX.uno();
+  toast(`🙌 ${p.name}：UNO！！`, 'gain');
+  netReact('uno', w.who);
+  hideActions(); showActions();
+}
+function cancelUnoWindow() { if (G.unoWin && !G.unoWin.penalized) G.unoWin = null; }
+function tickUnoWindow(now) {
+  const w = G.unoWin;
+  if (!w || w.penalized) return;
+  if (NETMODE && netSeatOf(myId) !== w.who) return;   // 联机：喊名窗口只在窗口主人设备计时结算，避免多端重复罚
+  if (G.phase !== 'AWAIT_ACTION' || (!NETMODE && w.who !== G.turn)) { w.lastTs = 0; return; }   // 交接/动画暂停；联机主人设备连续计时（出牌后回合已交给下家）
+  if (!w.lastTs) { w.lastTs = now; return; }
+  w.remain -= now - w.lastTs; w.lastTs = now;
+  const ub = $('btn-uno');
+  const ring = ub && ub.querySelector('.ring');
+  if (ub && ring && ub.classList.contains('show')) {
+    const frac = Math.max(0, w.remain / UNO_WIN_MS);
+    if (REDUCED) ub.textContent = 'UNO! ' + Math.ceil(w.remain / 1000) + 's';   // REDUCED 数字倒计时退路
+    else ring.style.background = `conic-gradient(rgba(255,255,255,0.85) ${frac * 360}deg, transparent 0)`;
+    ub.style.opacity = frac < 0.25 ? 0.55 : 1;
+  }
+  if (w.remain <= 0) settleCatch(w.who);
+}
+function settleCatch(who) {
+  const w = G.unoWin;
+  if (w) w.penalized = true;
+  const forgetter = G.players[who];
+  const bots = G.players.map((p, i) => p.bot && !p.out ? i : -1).filter(i => i >= 0);
+  if (bots.length) {
+    const catcher = G.players[bots[rint(bots.length)]];
+    botQuote('catch');
+    SFX.catchU();
+    const got = dealTo(forgetter, 2);
+    toast(`🚨 ${catcher.name} 抓到 ${forgetter.name} 忘喊 UNO！罚摸 ${got} 张`, 'loss');
+  } else if (!G.unoCatch || !G.unoCatch.done) {
+    if (NETMODE) { hideActions(); updateHUD(); return; }   // 联机不做交接闸抓包按钮：罚摸已由窗口主人设备结算；窗口条（UNO!）用完即收
+    G.unoCatch = { who, whoName: forgetter.name, until: Date.now() + 10000, done: false };
+    toast(`😮 ${forgetter.name} 忘了喊 UNO！下家可以在交接时抓包`, 'loss');
+  }
+  if (w && w.who === G.turn) { hideActions(); showActions(); }   // 罚后按钮残留刷新
+  if (NETMODE) netReact('catch', who);
+  netCkpt();
+  updateHUD();
+}
+function botQuote(kind) {
+  const key = G.turn + ':' + kind;
+  if (G.quoteTurn === key) return;
+  G.quoteTurn = key;
+  const arr = BOT_QUOTES[kind];
+  if (arr && arr.length) toast(arr[rint(arr.length)]);
+}
+function showResult(stall) {   // 结算屏渲染（onWin/endGame/远端快照补演共用，以当前 G 为准）
+  const rank = G.players.map((p, i) => ({ i, p, pts: handPoints(p.hand) })).sort((a, b) => a.pts - b.pts);
+  const win = G.winner != null && G.players[G.winner] ? G.players[G.winner] : rank[0].p;
+  $('result-winner').textContent = stall ? '🤝 僵局和局' : '🏆 ' + win.name;
+  $('result-pods').innerHTML = rank.map((r, n) =>
+    `<div class="pod"><span class="rank">${['🥇', '🥈', '🥉', '4'][n] || n + 1}</span>
+     <span class="dot" style="background:${PLAYER_COLORS[r.p.colorIdx]}"></span>
+     <span>${esc(r.p.name)}${r.p.bot ? ' 🤖' : ''}</span><span class="pts tabnum">${r.p.hand.length} 张 · ${r.pts} 分</span></div>`).join('');
+  $('result-overlay').hidden = false;
+  SFX.win(); updateHUD();
+}
+function onWin(pi) {
+  cancelUnoWindow();
+  G.phase = 'OVER'; G.winner = pi;
+  hideActions(); clearSave();
+  showResult();
+  netCkpt();
+  if (G.players[pi].bot) botQuote('win');
+}
+function endGame(kind) {
+  G.phase = 'OVER'; hideActions(); clearSave();
+  showResult(kind === 'stall');
+  netCkpt();
+}
+
+/* ═══════════════ 8. 机器人 ═══════════════ */
+function botAct() {
+  const p = G.players[G.turn];
+  if (!p || !p.bot || p.out || G.phase === 'OVER') return;
+  if (NETMODE && !isHost()) return;   // 联机：机器人座位由房主代跑
+  if (NETMODE && !isHost()) return;   // 联机：机器人座位由房主代跑
+  const k = botPick(p);
+  if (k >= 0) {
+    const cd = p.hand[k];
+    G.passStreak = 0;
+    if (isWild(cd)) playCard(G.turn, k, botColor(p));
+    else playCard(G.turn, k, null);
+  } else {
+    const got = dealTo(p, 1);
+    if (!got) { G.passStreak++; toast('🤖 ' + p.name + ' 没牌摸，过'); setTimeout(() => advance(0), 350 * SPEED); return; }
+    const k2 = p.hand.length - 1;
+    updateHUD();
+    if (canPlay(p.hand[k2])) {
+      setTimeout(() => {
+        if (G.phase === 'OVER' || !p.hand[k2]) return;
+        const cd = p.hand[k2];
+        G.passStreak = 0;
+        if (isWild(cd)) playCard(G.turn, k2, botColor(p)); else playCard(G.turn, k2, null);
+      }, (500 + rint(400)) * SPEED);
+    } else {
+      G.passStreak++;
+      setTimeout(() => { if (G.phase === 'OVER') return; toast('🤖 ' + p.name + ' 过'); advance(0); }, 400 * SPEED);
+    }
+  }
+}
+function botPick(p) {
+  const idxs = p.hand.map((cd, k) => canPlay(cd) ? k : -1).filter(k => k >= 0);
+  if (!idxs.length) return -1;
+  const next = G.players[nextIdx(G.turn)];
+  const colors = {};
+  p.hand.forEach(cd => { if (!isWild(cd)) colors[cd.c] = (colors[cd.c] || 0) + 1; });
+  const score = k => {
+    const cd = p.hand[k];
+    let s = 0;
+    if (isWild(cd)) s -= 10;
+    else s += (colors[cd.c] || 0) * 2;
+    if (['S', 'R', 'D2'].includes(cd.v) && next.hand.length <= 2) s += 8;
+    if (cd.v === 'W4') s -= 4;
+    return s;
+  };
+  return idxs.sort((a, b) => score(b) - score(a))[0];
+}
+function botColor(p) {
+  const colors = {};
+  p.hand.forEach(cd => { if (!isWild(cd)) colors[cd.c] = (colors[cd.c] || 0) + 1; });
+  const best = Object.entries(colors).sort((a, b) => b[1] - a[1]);
+  return best.length ? best[0][0] : ['r', 'y', 'g', 'b'][rint(4)];
+}
+function flyToPile() {
+  const cd = topCard();
+  pileMesh.children[1].material.map = cardFaceTex(cd);
+  pileMesh.children[1].material.needsUpdate = true;
+  pileMesh.rotation.z = (rnd() - 0.5) * 0.5;
+}
+
+/* ═══════════════ 9. 2D 降级 ═══════════════ */
+function render2D() {
+  if (G.gl) return;
+  const box = $('board2d');
+  if (G.phase === 'SETUP' || G.phase === 'BOOT') { box.innerHTML = ''; return; }
+  const t = topCard();
+  if (!t) { box.innerHTML = ''; return; }
+  const pair = isWild(t) ? SYM[t.v] : (t.v in SYM ? SYM[t.v] : [t.v, CNAME[t.c]]);
+  box.innerHTML = `
+    <div class="d2-table">
+      <div class="d2-pile">牌库<br><b>${G.deck.length}</b><br><button class="btn-sub" id="d2-draw" style="margin-top:6px">🫳 摸</button></div>
+      <div class="d2-card" style="background:${isWild(t) ? 'linear-gradient(135deg,#ef4444 0 50%,#eab308 50% 100%)' : COLORS[t.c]}">${pair[0]}<small>${pair[1]}</small></div>
+      <div class="d2-pile">弃牌顶<br><b>${CNAME[G.cur]}色</b><br>${G.dir === 1 ? '顺时针' : '逆时针'}</div>
+    </div>`;
+  const btn = $('d2-draw');
+  if (btn) btn.onclick = () => { const p = G.players[G.turn]; if (p && !p.bot && G.phase === 'AWAIT_ACTION') humanDraw(); };
+}
+
+/* ═══════════════ 10. loperf-lite ═══════════════ */
+const frameTimes = [];
+function perfWatch(now) {
+  if (bodyLo) return;
+  if (perfWatch.last) {
+    frameTimes.push(now - perfWatch.last);
+    if (frameTimes.length > 60) {
+      frameTimes.shift();
+      if (frameTimes.length === 60) {
+        const med = [...frameTimes].sort((a, b) => a - b)[30];
+        if (med > 26) {
+          bodyLo = true;
+          document.body.classList.add('loperf');
+          if (renderer) { renderer.shadowMap.enabled = false; dirLight.castShadow = false; sizeScene(); }
+        }
+      }
+    }
+  }
+  perfWatch.last = now;
+}
+
+/* ═══════════════ 11. 主循环 & boot ═══════════════ */
+function tick(now) {
+  perfWatch(now);
+  tickUnoWindow(now);
+  if (G.gl) {
+    dirRing.rotation.z += (G.dir === 1 ? 0.4 : -0.4) * (now - (tick.last || now)) / 1000;
+    if (!TURBO && !(AUTOTEST && bodyLo) && renderer) renderer.render(scene, camera);
+  }
+  tick.last = now;
+  requestAnimationFrame(tick);
+}
+function setLoader(pct, text) { $('loader-bar').style.width = pct + '%'; if (text) $('loader-text').textContent = text; }
+function hideLoader() {
+  const l = $('loader');
+  l.style.opacity = '0'; l.style.transform = 'scale(1.04)';
+  l.classList.add('reveal-done');
+  setTimeout(() => l.remove(), 300);
+}
+const seatState = [];
+function defaultName(i) {
+  const names = ['小明', '小红', '阿强', '婷婷'];
+  try { const m = JSON.parse(localStorage.getItem('uno:names') || 'null'); if (m && m[i]) return m[i]; } catch (e) {}
+  return names[i] || `玩家${i + 1}`;
+}
+function renderSeats() {
+  const box = $('seat-rows');
+  box.innerHTML = '';
+  seatState.forEach((st, i) => {
+    const row = document.createElement('div');
+    row.className = 'seat-row';
+    row.innerHTML = `<span class="dot" style="background:${PLAYER_COLORS[i]}"></span>
+      <input type="text" maxlength="8" value="${esc(st.name)}" aria-label="玩家${i + 1}名字">
+      <span class="bot-toggle ${st.bot ? 'on' : ''}" role="button" tabindex="0">🤖 机器人</span>`;
+    row.querySelector('input').addEventListener('input', e => { st.name = e.target.value; });
+    const bt = row.querySelector('.bot-toggle');
+    const flip = () => { st.bot = !st.bot; bt.classList.toggle('on', st.bot); SFX.tap(); };
+    bt.addEventListener('click', flip);
+    bt.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } });
+    box.appendChild(row);
+  });
+  $('seat-minus').disabled = seatState.length <= 2;
+  $('seat-plus').disabled = seatState.length >= 4;
+}
+function syncLightMode() {
+  const light = $('opt-light').checked;
+  $('row-skip').classList.toggle('dimmed', light);
+  $('skip-handoff').disabled = light;
+}
+$('opt-light').addEventListener('change', syncLightMode);
+$('seat-plus').addEventListener('click', () => { if (seatState.length < 4) { seatState.push({ name: defaultName(seatState.length), bot: seatState.length === 1 }); renderSeats(); } });
+$('seat-minus').addEventListener('click', () => { if (seatState.length > 2) { seatState.pop(); renderSeats(); } });
+$('btn-start').addEventListener('click', () => {
+  SFX.tap();
+  const players = seatState.map(s => ({ name: s.name.trim() || '无名氏', bot: s.bot }));
+  if (!players.some(p => !p.bot)) players[0].bot = false;   // 热座至少 1 真人
+  try { localStorage.setItem('uno:names', JSON.stringify(players.map(p => p.name))); } catch (e) {}
+  startGame({ players, mode: $('opt-light').checked ? 'light' : 'dark', skipHandoff: $('skip-handoff').checked });
+});
+$('btn-back-arcade').addEventListener('click', () => { location.href = 'index.html'; });
+$('skip-handoff').addEventListener('change', () => { try { localStorage.setItem('uno:nohandoff', $('skip-handoff').checked ? '1' : '0'); } catch (e) {} });
+
+function openGenModal(bodyHtml, actions) {
+  $('gen-body').innerHTML = bodyHtml;
+  $('gen-actions').innerHTML = '';
+  actions.forEach((a, i) => {
+    const b = document.createElement('button');
+    b.className = i === 0 ? 'btn-primary' : 'btn-ghost';
+    if (i === 0) b.style.marginTop = '16px';
+    b.textContent = a.label;
+    b.addEventListener('click', () => { SFX.tap(); a.fn(); });
+    $('gen-actions').appendChild(b);
+  });
+  $('gen-modal').hidden = false;
+}
+function closeGenModal() { $('gen-modal').hidden = true; }
+const RULES_HTML = `<div style="text-align:left"><b>🃏 牌型图例</b><ul style="padding-left:20px;line-height:1.9;font-size:0.85rem;margin:8px 0">
+  <li>🚫 跳过：下家轮空 · 🔁 反转：方向掉头（两人局=跳过）</li>
+  <li>+2 / 万能+4：下家罚摸并轮空 · 🌈 换色</li>
+  <li>只剩 1 张 → 6 秒内喊 UNO!，忘了罚 2 张</li></ul>
+  <b>📐 本作差异</b><ul style="padding-left:20px;line-height:1.9;font-size:0.85rem;margin:8px 0">
+  <li>+4 只有手中没有当前颜色时才能出</li>
+  <li>摸牌后想留，本回合仍可出任意手牌</li>
+  <li>+2 不能叠加 · 无 7-0 家规</li>
+  <li>牌库枯竭：弃牌堆洗回（顶牌保留，选的色不变）</li></ul></div>`;
+$('btn-rules-top').addEventListener('click', () => openGenModal(RULES_HTML, [{ label: '明白了', fn: closeGenModal }]));
+$('btn-quit').addEventListener('click', () => {
+  const inGame = G.phase !== 'SETUP' && G.phase !== 'OVER' && G.phase !== 'BOOT';
+  openGenModal(`<p style="line-height:1.8">${inGame ? '对局已自动保存，下次进入可继续。<br>确定离开？' : '返回游戏中心？'}</p>`,
+    [{ label: '确定离开', fn: () => { location.href = 'index.html'; } }, { label: '继续玩', fn: closeGenModal }]);
+});
+$('btn-sfx').addEventListener('click', () => { $('btn-sfx').textContent = SFX.toggle() ? '🔊' : '🔇'; });
+$('btn-sfx').textContent = SFX.on ? '🔊' : '🔇';
+$('btn-rematch').addEventListener('click', () => {
+  SFX.tap();
+  if (NETMODE) {   // 联机：只有房主能开新局，胜者先手
+    if (isHost()) {
+      // 对局结束后 doc.started 从不复位会让 netStartGame 直接 return——先复位再开
+      mutate(n => { n.started = false; n.game = null; }, 'edit').then(() => netStartGame({ firstPlayer: G.winner != null ? G.winner : 0 }));
+    }
+    else toast('👑 等房主开新局', '', 2600);
+    return;
+  }
+  const cfg = { players: G.players.map(p => ({ name: p.name, bot: p.bot })), mode: G.mode, skipHandoff: G.skipHandoff, firstPlayer: G.winner != null ? G.winner : rint(G.players.length), seed: (Math.random() * 0xffffffff) >>> 0 };
+  startGame(cfg);
+});
+$('btn-result-home').addEventListener('click', () => { location.href = 'index.html'; });
+
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+function pickHand(ev) {
+  if (!G.gl) return;
+  if (NETMODE && !netIsMyTurn()) return;
+  const p = G.players[G.turn];
+  if (!p || p.bot || G.phase !== 'AWAIT_ACTION') return;
+  const r = $('uno-canvas').getBoundingClientRect();
+  ndc.x = ((ev.clientX - r.left) / r.width) * 2 - 1;
+  ndc.y = -((ev.clientY - r.top) / r.height) * 2 + 1;
+  ray.setFromCamera(ndc, camera);
+  const mine = cardGroups.filter(g => g.owner === G.turn);
+  const hits = ray.intersectObjects(mine.map(g => g.group), true);
+  if (!hits.length) return;
+  let g = hits[0].object;
+  while (g.parent && !mine.some(mm => mm.group === g)) g = g.parent;
+  const entry = mine.find(mm => mm.group === g);
+  if (!entry) return;
+  const k = p.hand.indexOf(entry.cardRef);
+  if (k < 0) return;
+  if (p.hand.length > 12 || (Math.min(innerWidth, innerHeight) < 700 && p.hand.length > 9)) { openHandOverlay(k); return; }   // 压缩模式（大扇 + 小屏窄扇）
+  if (canPlay(entry.cardRef)) { SFX.tap(); humanPlay(k); }
+  else { toast('🚫 这张现在出不了（要跟 ' + CNAME[G.cur] + '色或同数字）', 'error'); SFX.warn(); }
+}
+$('uno-canvas').addEventListener('click', pickHand);
+
+async function boot() {
+  const t0 = performance.now();
+  if (AUTOTEST && qs.get('loperf') === '1') { bodyLo = true; document.body.classList.add('loperf'); }
+  setLoader(20, '洗牌中...');
+  const ok = initScene();
+  await sleep(120);
+  setLoader(55, '发牌中...');
+  if (ok) { try { await Promise.race([document.fonts.load('900 150px "Noto Sans SC"'), sleep(800)]); } catch (e) {} }
+  await sleep(120);
+  setLoader(85, '就位...');
+  if (AUTOTEST) {
+    $('skip-handoff').checked = true;
+    seatState.length = 0;
+    seatState.push({ name: '测试员', bot: false }, { name: '机器人甲', bot: true });
+    renderSeats();
+  } else {
+    try { $('net-name').value = localStorage.getItem('uno:netname') || ''; } catch (e) {}
+    try { if (localStorage.getItem('uno:nohandoff') === '1') $('skip-handoff').checked = true; } catch (e) {}
+    try { if (!localStorage.getItem('uno:rulesSeen')) { $('rules-box').open = true; localStorage.setItem('uno:rulesSeen', '1'); } } catch (e) {}
+    seatState.push({ name: defaultName(0), bot: false }, { name: defaultName(1), bot: true });
+    renderSeats();
+  }
+  updateHUD();
+  await sleep(120);
+  setLoader(100);
+  const wait = Math.max(0, 900 - (performance.now() - t0));
+  await sleep(wait / SPEED);
+  hideLoader();
+  G.phase = 'SETUP';
+  const save = loadSave();
+  if (AUTOTEST) {
+    if (save) { resumeGame(save); return; }   // autotest 有档自动续局（探针 A12 需要）
+    if (qs.get('net') === '1') { await netBootAutotest(); return; }   // E2E 联机：?net=1&room=&role=host|join[&autostart=1][&localnet=1]
+    startGame({ players: seatState.map(s => ({ name: s.name, bot: s.bot })), mode: 'dark', skipHandoff: true });
+    return;
+  }
+  if (save) {
+    const lead = save.players.reduce((a, b) => (b.hand.length < a.hand.length ? b : a), save.players[0]);
+    openGenModal(`<p style="line-height:1.9">🏠 发现上一局<br><b>${esc(lead.name)} 只剩 ${lead.hand.length} 张</b></p>`,
+      [{ label: '继续对局', fn: () => { closeGenModal(); resumeGame(save); } },
+       { label: '弃局重来', fn: () => { closeGenModal(); clearSave(); $('setup').hidden = false; } }]);
+  } else {
+    $('setup').hidden = false;
+  }
+}
+function resumeGame(sv) {
+  G.mode = sv.mode; G.skipHandoff = sv.skipHandoff;
+  G.players = sv.players.map((p, i) => ({ name: p.name, bot: p.bot, colorIdx: p.colorIdx != null ? p.colorIdx : i, hand: p.hand.map(cd => ({ ...cd })) }));
+  G.deck = sv.deck.map(cd => ({ ...cd })); G.discard = sv.discard.map(cd => ({ ...cd }));
+  G.dir = sv.dir; G.cur = sv.cur; G.turn = sv.turn;
+  G.drawnThisTurn = sv.drawnThisTurn; G.passStreak = sv.passStreak || 0;
+  G.lastHumanActor = sv.lastHumanActor != null ? sv.lastHumanActor : -1;
+  G.winner = sv.winner != null ? sv.winner : null;
+  reseed(sv.rngA != null ? sv.rngA : sv.seed); G.seed = sv.seed;
+  $('setup').hidden = true;
+  if (G.gl) buildHands();
+  setColor(G.cur); render2D(); updateHUD();
+  if (sv.unoWin && !sv.unoWin.penalized) {
+    G.unoWin = { who: sv.unoWin.who, remain: sv.unoWin.remain, penalized: false, lastTs: 0 };
+    if (sv.unoWin.remain <= 0) { settleCatch(sv.unoWin.who); G.phase = 'HANDOFF'; beginTurn(); return; }   // 过期未罚 → 恢复即结算
+  } else G.unoWin = null;
+  beginTurn();
+}
+requestAnimationFrame(tick);
+boot();
+
+/* ═══════════════ 12. E2E 钩子 ═══════════════ */
+if (AUTOTEST) {
+  window.__uno = {
+    state: G,
+    deckN: () => G.deck.length,
+    discardTop: () => topCard(),
+    forceHand: (i, cards) => { G.players[i].hand = cards.map(cd => ({ ...cd })); if (G.gl) layoutHand(i, true); render2D(); updateHUD(); },
+    callUno: () => callUno(),
+    forceUnoTimeout: () => { const w = G.unoWin; if (w && !w.penalized) settleCatch(w.who); },
+    chooseColor: c => { const b = document.querySelector(`#wild-modal .wbtn[data-c="${c}"]`); if (b && !$('wild-modal').hidden) b.click(); },
+    handoff: () => { if (!$('handoff').hidden) $('btn-handoff-go').click(); },
+    play: k => humanPlay(k),
+    draw: () => humanDraw(),
+    net: () => ({ mode: NETMODE, joined, room: NDOC && NDOC.room, myId, doc: NDOC, host: isHost(), myTurn: netIsMyTurn(), mic: P.mic.on(), peers: P.mic.peers(), enter: netEnter, publish: netCkpt, start: netStartGame, ui: syncNetHUD }),
+    play: k => humanPlay(k),
+    draw: () => humanDraw(),
+    saveNow: () => saveGame(),
+    net: () => ({ mode: NETMODE, joined, room: NDOC && NDOC.room, myId, doc: NDOC, host: isHost(), myTurn: netIsMyTurn(), mic: P.mic.on(), peers: P.mic.peers(), enter: netEnter, publish: netCkpt, start: netStartGame, ui: syncNetHUD }),
+    mc: n => new Promise(async res => {
+      const out = [];
+      for (let k = 0; k < n; k++) {
+        startGame({ players: [0, 1, 2, 3].map(x => ({ name: 'B' + k + x, bot: true })), mode: 'light', skipHandoff: true, seed: 9000 + k * 17 });
+        await new Promise(r => { const iv = setInterval(() => { if (G.phase === 'OVER') { clearInterval(iv); r(); } }, 25); });
+        const stat = { game: k, winner: G.winner, stall: G.passStreak >= PASS_STALL_LIMIT };
+        console.log('[uno-mc] ' + JSON.stringify(stat));
+        out.push(stat);
+      }
+      res(out);
+    }),
+  };
+}
+</script>
+</body>
+</html>

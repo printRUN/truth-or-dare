@@ -23,7 +23,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   for (const [tag, vw, vh] of [['desktop-1100', 1100, 800], ['wide-1440', 1440, 900], ['mobile-390', 390, 844]]) {
     const ctx = await browser.newContext({ viewport: { width: vw, height: vh } });
     const p = await ctx.newPage();
-    await p.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: 'domcontentloaded' });
+    await p.goto(`http://127.0.0.1:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
     await p.waitForSelector('#screen-join.active', { timeout: 20000 });
     await p.evaluate(() => { try { closeGuide(); } catch {} });
     await p.waitForSelector('#loading-overlay', { state: 'detached', timeout: 8000 }).catch(() => {});

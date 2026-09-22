@@ -19,7 +19,7 @@ const server = http.createServer((req, res) => {
   for (let i = 0; i < 6; i++) {
     const p = await ctx.newPage();
     pages.push(p);
-    await p.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+    await p.goto(`http://127.0.0.1:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
     await p.waitForSelector('#loading-overlay', { state: 'detached', timeout: 10000 }).catch(() => {});
     await p.fill('#input-name', '玩家' + (i + 1));
     await p.click('details.adv summary');

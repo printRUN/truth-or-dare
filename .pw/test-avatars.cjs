@@ -6,7 +6,7 @@ const { chromium } = require(PW);
 const http = require('http'); const fs = require('fs'); const path = require('path');
 const ROOT = 'D:/myidea/truth-or-dare';
 const PORT = 8755;
-const URL = `http://localhost:${PORT}/index.html`;
+const URL = `http://localhost:${PORT}/index.html?game=tod`;
 function serve() {
   return new Promise(res => {
     const s = http.createServer((req, r) => {

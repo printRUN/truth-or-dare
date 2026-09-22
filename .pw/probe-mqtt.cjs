@@ -14,7 +14,7 @@ const PORT = 8735;
   await new Promise(r => server.listen(PORT, r));
   const browser = await chromium.launch();
   const page = await browser.newPage();
-  await page.goto(`http://localhost:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`http://localhost:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#loading-overlay', { state: 'detached', timeout: 10000 }).catch(() => {});
   await page.fill('#input-name', 'probe');
   await page.click('.avatar-option >> nth=0');

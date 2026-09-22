@@ -56,35 +56,33 @@ const ok = (name, cond, extra) => { results.push([cond ? 'PASS' : 'FAIL', name +
     ok('① 相机落位 arcade（z-52/rx5）', st.world.includes('-52px') && st.world.includes('rotateX(5deg)'), st.world.slice(0, 80));
     ok('① 零 pageerror', errs.length === 0, errs.join(';'));
 
-    // ── ② 点「真心话大冒险」卡 → join 屏 ──
+    // ── ② 点「真心话大冒险」卡 → 真导航 tod.html（单页拆分契约，2026-09-20）──
     await p.click('#card-tod');
-    await p.waitForTimeout(150);
+    await p.waitForURL('**/tod.html', { timeout: 10000 });
+    ok('② tod 卡跳转 tod.html', p.url().includes('tod.html'), p.url());
+    await p.waitForSelector('#loading-overlay', { state: 'detached', timeout: 20000 }).catch(() => {});
+    await p.waitForTimeout(1600);
     const st2 = await p.evaluate(() => ({
       active: document.querySelector('.screen.active')?.id,
       arcade: window.__ARCADE__,
+      hasArcadeDom: !!document.getElementById('screen-arcade'),
+      hasCardJs: !!document.getElementById('card-tod'),
       title: document.getElementById('app-title').textContent,
-      back: getComputedStyle(document.querySelector('.arcade-back')).display,
-      picked: sessionStorage.getItem('tod:picked'),
     }));
-    ok('② 点卡进 join 屏', st2.active === 'screen-join', st2.active);
-    ok('② __ARCADE__ 翻假', st2.arcade === false);
-    ok('② h1 回 tod', st2.title === '🎭 真心话大冒险', st2.title);
-    ok('② 「← 游戏中心」可见（arcade-nav 常驻）', st2.back !== 'none', st2.back);
-    ok('② tod:picked 落 sessionStorage', st2.picked === '1');
-    const netChip2 = await p.evaluate(() => getComputedStyle(document.querySelector('.net-chip')).display);
-    ok('② 进 join 后 net-chip 恢复（on-arcade 已摘）', netChip2 !== 'none', netChip2);
+    ok('② tod.html 直落 join 屏', st2.active === 'screen-join', st2.active);
+    ok('② tod.html __ARCADE__=false', st2.arcade === false, st2.arcade);
+    ok('② tod.html 无 arcade 残留（屏 DOM/卡片都不在）', !st2.hasArcadeDom && !st2.hasCardJs, st2);
+    ok('② tod.html 标题=游戏本体', st2.title.includes('真心话大冒险') && !st2.title.includes('游戏中心'), st2.title);
 
-    // ── ③ 返回游戏中心 ──
-    await p.click('#btn-arcade-back');
-    await p.waitForTimeout(150);
+    // ── ③ 浏览器返回 → 回到 index 游戏中心（无返回劫持）──
+    await p.goBack();
+    await p.waitForFunction(() => document.querySelector('.screen.active')?.id === 'screen-arcade', null, { timeout: 10000 });
+    await p.waitForTimeout(600);
     const st3 = await p.evaluate(() => ({
       active: document.querySelector('.screen.active')?.id,
       arcade: window.__ARCADE__,
-      picked: sessionStorage.getItem('tod:picked'),
     }));
-    ok('③ 返回 arcade 屏', st3.active === 'screen-arcade', st3.active);
-    ok('③ __ARCADE__ 翻真', st3.arcade === true);
-    ok('③ tod:picked 已清', st3.picked === null);
+    ok('③ 返回 index 落 arcade 屏', st3.active === 'screen-arcade' && st3.arcade === true, JSON.stringify(st3));
     await ctx.close();
   }
 
@@ -125,24 +123,18 @@ const ok = (name, cond, extra) => { results.push([cond ? 'PASS' : 'FAIL', name +
     await ctx.close();
   }
 
-  // ── ⑥ 回房票：新鲜票直落 join / 过期票落游戏中心 ──
+  // ── ⑥ 回房票（单页拆分后）：票不劫持 index 落地（防返回死循环）；票的自动回房在 tod.html 生效 ──
   {
     const ctx = await browser.newContext({ viewport: { width: 1100, height: 800 } });
     const p = await ctx.newPage();
     await p.addInitScript(() => sessionStorage.setItem('tod:tab', JSON.stringify({ id: 't1', room: 'RR01', name: '小明', ts: Date.now() })));
     await p.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: 'domcontentloaded' });
-    await p.waitForTimeout(400);
-    ok('⑥ 新鲜回房票直落 join', await p.evaluate(() => document.querySelector('.screen.active')?.id) === 'screen-join');
-    await ctx.close();
-  }
-  {
-    const ctx = await browser.newContext({ viewport: { width: 1100, height: 800 } });
-    const p = await ctx.newPage();
-    await p.addInitScript(() => sessionStorage.setItem('tod:tab', JSON.stringify({ id: 't1', room: 'RR01', name: '小明', ts: Date.now() - 31 * 60 * 1000 })));
-    await p.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: 'domcontentloaded' });
-    await p.waitForTimeout(400);
-    const a = await p.evaluate(() => ({ active: document.querySelector('.screen.active')?.id, arcade: window.__ARCADE__ }));
-    ok('⑥ 过期票落游戏中心（谓词=主脚本 30min 窗）', a.active === 'screen-arcade' && a.arcade === true, JSON.stringify(a));
+    await p.waitForTimeout(600);
+    ok('⑥ 新鲜票裸开 index 恒落游戏中心（不劫持）', await p.evaluate(() => document.querySelector('.screen.active')?.id) === 'screen-arcade');
+    await p.goto(`http://127.0.0.1:${PORT}/tod.html`, { waitUntil: 'domcontentloaded' });
+    await p.waitForTimeout(2000);
+    const t6 = await p.evaluate(() => ({ active: document.querySelector('.screen.active')?.id, room: document.getElementById('input-room').value }));
+    ok('⑥ 票在 tod.html 回房：join 屏 + 房号回填', t6.active === 'screen-join' && t6.room === 'RR01', JSON.stringify(t6));
     await ctx.close();
   }
 

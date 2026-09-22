@@ -41,7 +41,7 @@ async function boot(browser, tag, init) {
   const page = await ctx.newPage();
   watch(page, tag);
   if (init) await page.addInitScript(init);
-  await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`http://127.0.0.1:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#screen-join.active', { timeout: 60000 });
   await sleep(400);
   await page.evaluate(() => closeGuide());
@@ -165,7 +165,7 @@ async function boot(browser, tag, init) {
   const ctxD = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3 });
   const d = await ctxD.newPage();
   watch(d, 'PerfD');
-  await d.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+  await d.goto(`http://127.0.0.1:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
   await d.waitForSelector('#screen-join.active', { timeout: 60000 });
   await d.evaluate(() => {   // 把 blur 层塞回去，制造持续掉帧：perfWatch 必须自动降载
     const st = document.createElement('style');

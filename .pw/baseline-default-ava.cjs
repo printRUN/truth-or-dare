@@ -20,7 +20,7 @@ function serve() {
   const ctx = await browser.newContext({ viewport: { width: 1100, height: 900 } });
   await ctx.addInitScript(() => { try { localStorage.setItem('tod:guide', '1'); } catch {} });
   const p = await ctx.newPage();
-  await p.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+  await p.goto(`http://127.0.0.1:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
   await p.waitForSelector('#loading-overlay', { state: 'detached', timeout: 15000 });
   const snap = await p.evaluate(() => ({
     tabSel: document.querySelector('.av-tab.sel') && document.querySelector('.av-tab.sel').id,

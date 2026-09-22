@@ -7,7 +7,7 @@ const http = require('http'); const fs = require('fs'); const path = require('pa
 
 const ROOT = 'D:/myidea/truth-or-dare';
 const PORT = Number(process.argv[2] || 8811);
-const URL = `http://127.0.0.1:${PORT}/index.html`;
+const URL = `http://127.0.0.1:${PORT}/index.html?game=tod`;
 const errors = [];
 const server = http.createServer((req, res) => {
   const u = req.url.split('?')[0];

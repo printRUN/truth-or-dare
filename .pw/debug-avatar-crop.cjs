@@ -16,7 +16,7 @@ const server = http.createServer((req, res) => {
   });
 });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const URL_ = `http://127.0.0.1:${PORT}/`;
+const URL_ = `http://127.0.0.1:${PORT}/index.html?game=tod`;
 
 (async () => {
   await new Promise(r => server.listen(PORT, r));

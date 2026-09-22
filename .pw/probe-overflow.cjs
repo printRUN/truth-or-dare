@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const ROOT = 'D:/myidea/truth-or-dare';
 const PORT = 8816;
-const URL = `http://127.0.0.1:${PORT}/index.html`;
+const URL = `http://127.0.0.1:${PORT}/index.html?game=tod`;
 const serve = () => new Promise(res => {
   const s = http.createServer((req, r) => {
     const f = path.join(ROOT, req.url.split('?')[0] === '/' ? 'index.html' : decodeURIComponent(req.url.split('?')[0]));
