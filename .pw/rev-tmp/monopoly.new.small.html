@@ -1,0 +1,1762 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>大富翁 · 游戏中心</title>
+<!--
+  🎲 大富翁 —— 游戏中心第二款游戏（feat/arcade-monopoly）
+  设计方案：.pw/design-plan-arcade-monopoly.md v3（三位挑刺专家评审定稿）
+  · 独立自包含单文件：three.js r128 从 index.html 原样内联（check-syntax.cjs 做 sha256 一致断言）
+  · 视觉语言对齐 index：--bg #0a0a1a / 玻璃拟态 / 紫·粉·青霓虹 / ACES+sRGB / FogExp2 / dpr 封顶
+  · 经济参数（玩家专家 P0-1 收敛包）：起始 ¥10000 · 过起点 +¥1000 · 租金=价×40% · 集齐同色×3 · 回合上限终局
+  · 热座交接闸 / 自动存档恢复 / REDUCED + loperf-lite + 2D 降级三套退路
+-->
+<style>
+  :root {
+    --bg: #0a0a1a; --primary: #8b5cf6; --accent-pink: #f472b6;
+    --accent-cyan: #22d3ee; --gold: #fbbf24;
+    --glass: rgba(255,255,255,0.08); --glass-border: rgba(255,255,255,0.15);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg); color: #fff; overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button { font-family: inherit; }
+  .tabnum { font-variant-numeric: tabular-nums; }
+
+  /* ═══ loader（在 three.js 解析前就要可见：603KB UMD 解析期不能白屏） ═══ */
+  #loader { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; background: var(--bg); transition: opacity 0.26s ease, transform 0.26s ease; }
+  #loader.reveal-done { pointer-events: none; }
+  .loader-box { text-align: center; }
+  .loader-ico { font-size: 52px; animation: loader-bob 1.2s ease-in-out infinite alternate; }
+  @keyframes loader-bob { from { transform: translateY(0) rotate(-6deg); } to { transform: translateY(-10px) rotate(6deg); } }
+  .loader-box h2 { font-size: 1.3rem; margin: 8px 0 4px; }
+  .loader-box p { font-size: 0.82rem; color: rgba(255,255,255,0.6); min-height: 1.2em; }
+  .loader-bar { width: 180px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.12); margin: 14px auto 0; overflow: hidden; }
+  .loader-bar i { display: block; height: 100%; width: 0; border-radius: 2px; background: linear-gradient(90deg, var(--accent-cyan), var(--primary)); transition: width 0.3s ease; }
+
+  /* ═══ 3D 画布（body 直挂，无 transform 包裹——fixed 包含块红线） ═══ */
+  #mono-canvas { position: fixed; inset: 0; z-index: 0; display: block; width: 100%; height: 100%; touch-action: none; }
+  body.gl-off #mono-canvas { display: none; }
+
+  /* ═══ HUD（全部 body 级 fixed，禁进任何 transform 容器） ═══ */
+  #players-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 30; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: max(8px, env(safe-area-inset-top)) 10px 0; pointer-events: none; }
+  .pchip { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 6px 9px; border-radius: 12px; background: rgba(10,10,26,0.72); border: 1px solid var(--glass-border); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); font-size: 0.82rem; transition: box-shadow 0.3s, opacity 0.3s; }
+  .pchip .dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+  .pchip .pname { max-width: 5.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pchip .cash { margin-left: auto; font-weight: 700; }
+  .pchip .badges { display: flex; gap: 2px; font-size: 0.72rem; }
+  .pchip.active { box-shadow: 0 0 0 1.5px var(--accent-cyan), 0 0 14px rgba(34,211,238,0.35); animation: chip-breath 1.2s ease-in-out infinite alternate; }
+  @keyframes chip-breath { from { box-shadow: 0 0 0 1.5px rgba(34,211,238,1), 0 0 16px rgba(34,211,238,0.45); } to { box-shadow: 0 0 0 1.5px rgba(34,211,238,0.45), 0 0 6px rgba(34,211,238,0.15); } }
+  .pchip.dead { opacity: 0.45; filter: grayscale(0.8); }
+  .pchip { position: relative; }
+  .mfloat { position: absolute; left: 50%; top: -4px; transform: translateX(-50%); font-weight: 800; font-size: 0.9rem; pointer-events: none; animation: mfloat-up 0.8s ease-out forwards; text-shadow: 0 1px 6px rgba(0,0,0,0.8); }
+  @keyframes mfloat-up { from { opacity: 1; margin-top: 0; } to { opacity: 0; margin-top: -26px; } }
+  #round-chip { position: fixed; top: calc(max(8px, env(safe-area-inset-top)) + 8px); right: 10px; z-index: 31; font-size: 0.72rem; padding: 4px 10px; border-radius: 999px; background: rgba(10,10,26,0.72); border: 1px solid var(--glass-border); }
+  #btn-quit, #btn-rules-top, #btn-sfx { position: fixed; z-index: 31; top: auto; }
+  #hud-tools { position: fixed; right: 10px; top: calc(max(8px, env(safe-area-inset-top)) + 38px); z-index: 31; display: flex; flex-direction: column; gap: 6px; }
+  #hud-tools button { width: 38px; height: 38px; border-radius: 12px; border: 1px solid var(--glass-border); background: rgba(10,10,26,0.72); color: #fff; font-size: 1rem; cursor: pointer; }
+  #hud-tools button:active { transform: scale(0.94); }
+
+  /* toast：玩家条之下、棋盘上缘之上；单条新替旧 */
+  #toast { position: fixed; top: calc(max(8px, env(safe-area-inset-top)) + 92px); left: 50%; transform: translateX(-50%); z-index: 40; max-width: min(86vw, 420px); padding: 8px 16px; border-radius: 12px; background: rgba(10,10,26,0.82); border: 1px solid var(--glass-border); font-size: 0.86rem; text-align: center; opacity: 0; transition: opacity 0.25s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+  #toast.gain { border-color: rgba(34,211,238,0.5); color: var(--accent-cyan); }
+  #toast.loss { border-color: rgba(244,114,182,0.5); color: var(--accent-pink); }
+
+  /* 骰子大字读数（3D 骰子是仪式，DOM 是主读数） */
+  #dice-readout { position: fixed; left: 50%; bottom: 128px; transform: translateX(-50%); z-index: 35; font-size: 1.6rem; font-weight: 900; text-shadow: 0 2px 12px rgba(0,0,0,0.8); opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+  #dice-readout.show { opacity: 1; }
+
+  /* 动作条（仅本人回合可见） */
+  #action-bar { position: fixed; left: 0; right: 0; bottom: max(12px, env(safe-area-inset-bottom)); z-index: 30; display: none; flex-direction: column; align-items: center; gap: 8px; padding: 0 14px; }
+  #action-bar.show { display: flex; }
+  .btn-main { min-height: 52px; width: min(60vw, 280px); border: none; border-radius: 16px; background: linear-gradient(135deg, var(--primary), var(--accent-pink)); color: #fff; font-size: 1.05rem; font-weight: 800; cursor: pointer; box-shadow: 0 6px 24px rgba(139,92,246,0.4); }
+  .btn-main:active { transform: scale(0.97); }
+  .btn-main:disabled { opacity: 0.45; cursor: default; }
+  .btn-sub { min-height: 44px; padding: 8px 18px; border-radius: 14px; border: 1px solid var(--glass-border); background: rgba(10,10,26,0.72); color: #fff; font-size: 0.9rem; cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  .btn-sub:disabled { opacity: 0.4; cursor: default; }
+  .jail-hint { font-size: 0.74rem; color: rgba(255,255,255,0.55); text-align: center; }
+  #action-who { font-size: 0.78rem; color: rgba(255,255,255,0.6); }
+
+  /* 全屏浮层（setup / handoff / result / 弹窗） */
+  .ovl { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(4,4,12,0.6); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); overflow-y: auto; }
+  .ovl[hidden] { display: none; }
+  .panel { width: 100%; max-width: 420px; max-height: calc(100vh - 32px); overflow-y: auto; background: rgba(16,14,34,0.92); border: 1px solid var(--glass-border); border-radius: 20px; padding: 22px; box-shadow: 0 18px 60px rgba(0,0,0,0.55); }
+  .panel h2 { font-size: 1.25rem; margin-bottom: 4px; }
+  .panel .sub { font-size: 0.8rem; color: rgba(255,255,255,0.6); margin-bottom: 16px; }
+  .panel.center { text-align: center; }
+  .btn-primary { display: block; width: 100%; min-height: 52px; border: none; border-radius: 16px; background: linear-gradient(135deg, var(--primary), var(--accent-pink)); color: #fff; font-size: 1.02rem; font-weight: 800; cursor: pointer; }
+  .btn-primary:disabled { opacity: 0.45; filter: saturate(0.35); cursor: default; }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-ghost { display: block; width: 100%; min-height: 44px; margin-top: 10px; border-radius: 14px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.06); color: #fff; font-size: 0.9rem; cursor: pointer; }
+  .btn:focus-visible, .btn-primary:focus-visible, .btn-ghost:focus-visible, .btn-sub:focus-visible, .btn-main:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 3px; }
+
+  /* setup */
+  .seat-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .seat-row .dot { width: 14px; height: 14px; border-radius: 50%; flex: 0 0 auto; }
+  .seat-row input[type="text"] { flex: 1; min-height: 42px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.06); color: #fff; font-size: 0.95rem; }
+  .seat-row input[type="text"]:focus { outline: none; border-color: var(--accent-cyan); }
+  .bot-toggle { display: flex; align-items: center; gap: 5px; font-size: 0.8rem; color: rgba(255,255,255,0.75); cursor: pointer; user-select: none; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--glass-border); }
+  .bot-toggle.on { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+  .seat-add { display: flex; gap: 8px; margin: 10px 0 14px; }
+  .seat-add button { flex: 1; min-height: 40px; border-radius: 12px; border: 1px dashed var(--glass-border); background: transparent; color: rgba(255,255,255,0.7); font-size: 0.88rem; cursor: pointer; }
+  .opt-row { display: flex; align-items: center; gap: 8px; font-size: 0.88rem; margin: 10px 0; }
+  .opt-row select { min-height: 38px; padding: 4px 10px; border-radius: 10px; border: 1px solid var(--glass-border); background: rgba(20,18,40,0.9); color: #fff; font-size: 0.88rem; }
+  .opt-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary); }
+  #round-est { font-size: 0.76rem; color: rgba(255,255,255,0.55); }
+  #rules-box { margin: 12px 0; border: 1px solid var(--glass-border); border-radius: 12px; overflow: hidden; }
+  #rules-box summary { padding: 9px 12px; font-size: 0.86rem; cursor: pointer; list-style: none; }
+  #rules-box[open] summary { border-bottom: 1px solid var(--glass-border); }
+  #rules-box ul { padding: 8px 12px 10px 26px; font-size: 0.8rem; color: rgba(255,255,255,0.75); line-height: 1.75; }
+
+  /* 交接闸 */
+  #handoff .panel { max-width: 340px; text-align: center; }
+  #handoff .hand-emoji { font-size: 46px; margin-bottom: 6px; }
+  #handoff h2 { font-size: 1.15rem; }
+  #handoff .sub { margin-bottom: 18px; }
+  #btn-handoff-go { min-height: 56px; font-size: 1.08rem; }
+
+  /* 买地弹窗 */
+  #buy-modal .prop-chip { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: -2px; margin-right: 6px; }
+  #buy-modal .buy-rent { font-size: 0.84rem; color: rgba(255,255,255,0.7); margin: 8px 0 16px; line-height: 1.6; }
+  #buy-modal .buy-row { display: flex; gap: 10px; }
+  #buy-modal .buy-row button { flex: 1; }
+
+  /* 结算 */
+  #result-overlay { flex-direction: column; gap: 0; }
+  #result-veil { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 42%, transparent 0%, rgba(4,4,12,0.85) 78%); opacity: 0; animation: veil-in 1s cubic-bezier(0.4,0,0.2,1) forwards; pointer-events: none; }
+  @keyframes veil-in { 0% { opacity: 0; } 45% { opacity: 0.7; } 75% { opacity: 0.92; } 100% { opacity: 1; } }
+  #result-box { position: relative; width: 100%; max-width: 400px; text-align: center; }
+  #result-box h2 { font-size: 1.5rem; margin: 10px 0 2px; }
+  #result-winner { font-size: 2rem; margin: 8px 0; display: inline-block; padding: 10px 26px; border-radius: 20px; border: 2px solid var(--gold); text-shadow: 0 0 18px rgba(251,191,36,0.4); animation: crown-pulse 1.1s ease-in-out 3 alternate; }
+  @keyframes crown-pulse { from { box-shadow: 0 0 8px rgba(251,191,36,0.3); } to { box-shadow: 0 0 30px rgba(251,191,36,0.65); } }
+  .pod { display: flex; align-items: center; gap: 10px; padding: 9px 14px; margin: 6px 0; border-radius: 14px; background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border); opacity: 0; transform: translateY(14px); animation: pod-rise 0.24s ease-out forwards; font-size: 0.92rem; }
+  .pod .rank { font-weight: 900; color: var(--gold); width: 1.4em; }
+  .pod .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .pod .asset { margin-left: auto; font-weight: 700; }
+  #result-box .pod:nth-child(1) { animation-delay: 0.25s; } #result-box .pod:nth-child(2) { animation-delay: 0.41s; } #result-box .pod:nth-child(3) { animation-delay: 0.57s; } #result-box .pod:nth-child(4) { animation-delay: 0.73s; }
+  @keyframes pod-rise { to { opacity: 1; transform: none; } }
+  #result-actions { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+
+  /* 破产横幅 + 震屏 */
+  #bust-banner { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; font-weight: 900; background: rgba(60,8,24,0.55); text-shadow: 0 2px 16px rgba(0,0,0,0.9); opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+  #bust-banner.show { opacity: 1; }
+  @keyframes shake-it { 0%,100% { transform: none; } 25% { transform: translate(4px, -2px); } 50% { transform: translate(-3px, 2px); } 75% { transform: translate(2px, 3px); } }
+  body.shaking #mono-canvas, body.shaking #players-bar, body.shaking #action-bar { animation: shake-it 0.26s ease-in-out 1; }
+
+  /* REDUCED 降级卡（REDUCED 揭晓替代 3D 飞卡） */
+  #card-dom .card-face { padding: 18px; border-radius: 16px; background: linear-gradient(160deg, #241b44, #14102a); border: 1px solid var(--glass-border); }
+  #card-dom .card-kind { font-size: 0.78rem; color: var(--gold); margin-bottom: 8px; }
+  #card-dom .card-text { font-size: 1.05rem; line-height: 1.7; }
+
+  /* 2D 降级棋盘（WebGL 不可用：列表化棋盘，同一状态机） */
+  #board2d { position: fixed; inset: 0; z-index: 10; display: none; overflow-y: auto; padding: 110px 14px 140px; }
+  body.gl-off #board2d { display: block; }
+  .t2 { display: flex; align-items: center; gap: 8px; padding: 8px 10px; margin-bottom: 6px; border-radius: 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); font-size: 0.85rem; }
+  .t2 .strip { width: 6px; align-self: stretch; border-radius: 3px; flex: 0 0 auto; }
+  .t2 .t2-name { font-weight: 700; }
+  .t2 .t2-price { font-size: 0.76rem; color: rgba(255,255,255,0.6); }
+  .t2 .t2-owner { margin-left: auto; font-size: 0.74rem; }
+  .t2.here { border-color: var(--accent-cyan); box-shadow: 0 0 10px rgba(34,211,238,0.35); }
+
+  @media (max-width: 767px) {
+    #players-bar { grid-template-columns: repeat(2, 1fr); }
+    .pchip { min-height: 40px; font-size: 0.78rem; padding: 5px 8px; }
+    .pchip .cash { overflow: hidden; text-overflow: ellipsis; }
+  }
+
+  /* REDUCED / loperf-lite 退路 */
+  @media (prefers-reduced-motion: reduce) {
+    .loader-ico, .pchip.active, #result-veil, #result-winner, .pod, .mfloat, #bust-banner, body.shaking #mono-canvas, body.shaking #players-bar, body.shaking #action-bar { animation: none !important; }
+    .pchip.active { box-shadow: 0 0 0 1.5px var(--accent-cyan); }
+    .pod { opacity: 1; transform: none; }
+    #loader { transition: none; }
+    .mfloat { opacity: 0; }
+  }
+  body.loperf .pchip.active { animation: none; box-shadow: 0 0 0 1.5px var(--accent-cyan); }
+  body.loperf #result-veil { display: none; }
+  body.loperf .pchip, body.loperf .btn-sub, body.loperf .btn-main, body.loperf .ovl, body.loperf #toast { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  body.loperf .pod { opacity: 1; transform: none; animation: none; }
+  /* ═══ 联机（v1：组件 UI 在 party-net.js；这里只留 HUD 侧） ═══ */
+  .pchip.off { opacity: 0.45; }
+  .pchip.speaking { box-shadow: 0 0 0 2px rgba(52,211,153,0.8) !important; }
+  .pav { width: 22px; height: 22px; border-radius: 50%; flex: 0 0 auto; }
+  #btn-mic.live { background: linear-gradient(135deg, #34d399, #10b981); color: #06281c; }
+  #btn-listen.off { opacity: 0.5; }
+</style>
+</head>
+<body>
+
+<!-- loader：三里程碑（搭建棋盘=three init / 点亮灯光=纹理绘制 / 就位=HUD ready） -->
+<div id="loader">
+  <div class="loader-box">
+    <div class="loader-ico">🎲</div>
+    <h2>大富翁</h2>
+    <p id="loader-text">搭建棋盘...</p>
+    <div class="loader-bar"><i id="loader-bar"></i></div>
+  </div>
+</div>
+
+<canvas id="mono-canvas"></canvas>
+<div id="board2d"></div>
+
+<!-- HUD -->
+<div id="players-bar"></div>
+<div id="round-chip" hidden></div>
+<div id="hud-tools" hidden>
+  <button id="btn-rules-top" type="button" title="规则速览">❓</button>
+  <button id="btn-sfx" type="button" title="音效开关">🔊</button>
+  <button id="btn-mic" class="js-mic-btn" type="button" title="连麦（WebRTC）" hidden>🎙️</button>
+  <button id="btn-listen" class="js-listen-btn" type="button" title="收听开关" hidden>🔊</button>
+  <button id="btn-quit" type="button" title="返回游戏中心">🏠</button>
+</div>
+<div id="toast"></div>
+<div id="dice-readout"></div>
+<div id="action-bar"></div>
+<div id="bust-banner"></div>
+
+<!-- SETUP -->
+<div id="setup" class="ovl" hidden>
+  <div class="panel">
+    <h2>🎲 大富翁</h2>
+    <p class="sub">🌐 联机房间是默认玩法 · 2-4 人 · 房号邀请</p>
+    <div id="party-net"></div>
+    <details id="adv-box" class="pn-adv">
+    <summary>⚙️ 高级选项 · 本地热座（同屏传机）</summary>
+    <div id="hot-opts">
+    <div id="seat-rows"></div>
+    <div class="seat-add" id="seat-add">
+      <button id="seat-minus" type="button">－ 减一人</button>
+      <button id="seat-plus" type="button">＋ 加一人</button>
+    </div>
+    <div class="opt-row">局长
+      <select id="round-limit">
+        <option value="15">15 轮（约 10 分钟）</option>
+        <option value="20" selected>20 轮（约 15 分钟）</option>
+        <option value="0">不限（纯破产制）</option>
+      </select>
+      <span id="round-est">预计约 15 分钟</span>
+    </div>
+    <label class="opt-row"><input type="checkbox" id="skip-handoff"> 跳过交接确认（大家都盯着屏幕）</label>
+    </div>
+    <button id="btn-start" class="btn-primary" type="button">开始本地热座 🪑</button>
+    </details>
+    <details id="rules-box">
+      <summary>📜 规则速览</summary>
+      <ul>
+        <li>过起点 +¥1000；无主地可买</li>
+        <li>租金 = 地价 40%，集齐同色 ×3</li>
+        <li>双数再掷一次；三连双数入狱</li>
+        <li>监狱三选一：赌双数 / ¥500 / 免罚卡</li>
+        <li>所得税 ¥1000；房屋维修每块地 ¥300</li>
+        <li>局长打满：按现金+地价排名</li>
+        <li>现金付不起 = 破产出局</li>
+        <li>最后存活着胜 🏆</li>
+      </ul>
+    </details>
+        <button id="btn-back-arcade" class="btn-ghost" type="button">← 返回游戏中心</button>
+  </div>
+</div>
+
+<!-- 交接闸 -->
+<div id="handoff" class="ovl" hidden>
+  <div class="panel">
+    <p class="hand-emoji">📱</p>
+    <h2 id="handoff-name">请把手机交给 XX</h2>
+    <p class="sub">其他人先移开视线 😉</p>
+    <button id="btn-handoff-go" class="btn-primary" type="button">我是 XX，开始回合</button>
+  </div>
+</div>
+
+<!-- 买地 -->
+<div id="buy-modal" class="ovl" hidden>
+  <div class="panel">
+    <h2><span class="prop-chip" id="buy-color"></span><span id="buy-name">地块</span></h2>
+    <p class="buy-rent" id="buy-info"></p>
+    <div class="buy-row">
+      <button id="btn-buy-no" class="btn-ghost" style="margin-top:0" type="button">不买</button>
+      <button id="btn-buy-yes" class="btn-primary" type="button">买下</button>
+    </div>
+  </div>
+</div>
+
+<!-- 通用弹窗（退出确认 / REDUCED 揭晓卡） -->
+<div id="gen-modal" class="ovl" hidden>
+  <div class="panel center">
+    <div id="gen-body"></div>
+    <div id="gen-actions"></div>
+  </div>
+</div>
+
+<!-- 结算 -->
+<div id="result-overlay" class="ovl" hidden>
+  <div id="result-veil"></div>
+  <div id="result-box">
+    <h2>🏁 本局结算</h2>
+    <div id="result-winner"></div>
+    <div id="result-pods"></div>
+    <div id="result-actions">
+      <button id="btn-rematch" class="btn-primary" type="button">🔄 同班人马再来一局</button>
+      <button id="btn-result-home" class="btn-ghost" type="button">🏠 返回游戏中心</button>
+    </div>
+  </div>
+</div>
+
+<script>
+
+/**
+ * @license
+ * Copyright 2010-2021 Three.js Authors
+ * SPDX-License-Identifier: MIT
+ */
+
+
+</script>
+
+<script src="dicebear-local.js"></script>
+<script src="party-net.js"></script>
+<script>
+'use strict';
+/* ═════════════════════════ 0. 基础工具 ═════════════════════════ */
+const $ = id => document.getElementById(id);
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const qs = new URLSearchParams(location.search);
+const AUTOTEST = qs.get('autotest') === '1';
+const SPEED = AUTOTEST ? (qs.get('turbo') ? 0.01 : 0.15) : 1;   // autotest：动画 ×0.15；turbo=蒙特卡洛 ×0.01
+const TURBO = AUTOTEST && qs.get('turbo') === '1';      // turbo：跳过渲染与动画，纯状态机跑蒙特卡洛
+const LOPERF_FORCED = AUTOTEST && qs.get('loperf') === '1';   // E2E 强制跳帧档（perfWatch 不再判定/恢复）
+let SEED = AUTOTEST ? 20260919 : (Math.random() * 0xffffffff) >>> 0;
+function mulberry32(box) {
+  return function () {
+    box.a |= 0; box.a = box.a + 0x6D2B79F5 | 0;
+    let t = Math.imul(box.a ^ box.a >>> 15, 1 | box.a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const rngBox = { a: SEED };                              // 状态外置：存档存 rngBox.a 即可逐字节续跑
+let rng = mulberry32(rngBox);
+const rnd = () => rng();
+function reseed(a) { rngBox.a = a | 0; rng = mulberry32(rngBox); }
+function rint(n) { return Math.floor(rnd() * n); }
+const sleep = ms => new Promise(r => setTimeout(r, ms * SPEED));
+const fmt = n => '¥' + n.toLocaleString('zh-CN');
+
+/* ═════════════════════════ 1. 音效（WebAudio 合成，零资源） ═════════════════════════ */
+const SFX = (() => {
+  let ctx = null, on = true, master = null;
+  try { on = localStorage.getItem('mono:sfx') !== '0'; } catch (e) {}
+  const ensure = () => { if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); master = ctx.createGain(); master.gain.value = 1; master.connect(ctx.destination); } catch (e) {} } return ctx; };
+  const env = (g, t0, a, d, v) => { g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(v, t0 + a); g.gain.exponentialRampToValueAtTime(0.001, t0 + a + d); };
+  const tone = (f0, f1, dur, type, vol, when = 0) => {
+    const c = ensure(); if (!c || !on) return;
+    const o = c.createOscillator(), g = c.createGain(), t0 = c.currentTime + when;
+    o.type = type; o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t0 + dur);
+    env(g, t0, 0.01, dur, vol); o.connect(g).connect(master || c.destination); o.start(t0); o.stop(t0 + dur + 0.1);
+  };
+  const noise = (dur, vol, fc) => {
+    const c = ensure(); if (!c || !on) return;
+    const n = c.sampleRate * dur, buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const s = c.createBufferSource(), g = c.createGain(), f = c.createBiquadFilter();
+    s.buffer = buf; f.type = 'lowpass'; f.frequency.value = fc; env(g, c.currentTime, 0.005, dur, vol);
+    s.connect(f).connect(g).connect(master || c.destination); s.start();
+  };
+  return {
+    get on() { return on; },
+    toggle() { on = !on; try { localStorage.setItem('mono:sfx', on ? '1' : '0'); } catch (e) {} return on; },
+    unlock() { ensure(); },
+    tap() { tone(660, 520, 0.05, 'sine', 0.12); },
+    roll() { noise(0.16, 0.25, 1200); tone(120, 70, 0.14, 'sine', 0.3); },
+    coin() { tone(880, 880, 0.07, 'sine', 0.16); tone(1320, 1320, 0.09, 'sine', 0.16, 0.07); },
+    pay() { tone(320, 210, 0.16, 'sine', 0.18); },
+    jail() { tone(140, 90, 0.3, 'square', 0.14); noise(0.24, 0.14, 700); },
+    bust() { tone(420, 70, 0.65, 'sawtooth', 0.16); },
+    win() { [523, 659, 784, 1046].forEach((f, i) => tone(f, f, 0.12, 'triangle', 0.18, i * 0.11)); },
+    card() { tone(500, 900, 0.09, 'sine', 0.1); },
+    // 连麦压低（duck）：连麦模块在开麦/收听时调用，压动作音效总线减少串音
+    duckMusic(f, ms = 300) {
+      const c = ensure(); if (!c || !master) return;
+      try { master.gain.cancelScheduledValues(c.currentTime); master.gain.setValueAtTime(master.gain.value, c.currentTime); master.gain.linearRampToValueAtTime(f, c.currentTime + ms / 1000); } catch (e) {}
+    },
+  };
+})();
+document.addEventListener('pointerdown', () => SFX.unlock(), { once: true, passive: true });
+
+// ═══════════════════════════════════════════════════════════════
+// 17. 联机（公共组件 party-net.js 的宿主适配层；组件契约见 SPEC §1.9）
+// ═══════════════════════════════════════════════════════════════
+let NETMODE = false, NDOC = null, myId = null, joined = false, link = null;   // 组件全局常量 NET_STALE_* 可直接引用
+const P = PartyNet.create({
+  key: 'mono', prefix: 'mono/v1', maxPlayers: 4, allowBots: true,
+  localOnly: AUTOTEST && qs.get('localnet') === '1',   // E2E：同浏览器多标签走 BroadcastChannel，不碰外网
+  toast, sleep, sfx: SFX,
+  snapshot: () => gameSnapshot(),
+  onGame: (g, d) => applyGameSnapshot(g, d),
+  onState: () => { NETMODE = P.mode(); NDOC = P.doc(); myId = P.myId; joined = P.joined(); link = P.link(); syncNetHUD(); },
+  kick: () => netHostKick(),
+  // 开局后座位不删：掉线者按座位号代管为机器人（先 filter 后对齐会错位座位——终审 P0 教训）
+  prune: (n, now) => {
+    if (!n.game) return;
+    n.game.players.forEach((gp, i) => {
+      const np = n.players[i];
+      if (!np || np.bot) return;
+      if (now - (np.lastSeen || 0) > 90000) { gp.bot = true; gp.name = gp.name + '🤖'; if (n.players[i]) n.players[i].bot = true; }
+    });
+  },
+  onStart: () => netStartGame({ roundLimit: +$('net-round').value }),
+  lobbyExtraHtml: `<div class="opt-row" id="net-round-row">局长
+    <select id="net-round">
+      <option value="15">15 轮（约 10 分钟）</option>
+      <option value="20" selected>20 轮（约 15 分钟）</option>
+      <option value="0">不限（纯破产制）</option>
+    </select></div>`,
+  avSeedPrefix: 'MONO',
+});
+P.mount('party-net');
+$('btn-mic').addEventListener('click', () => P.mic.toggle());
+$('btn-listen').addEventListener('click', () => P.mic.toggleListen());
+
+const isHost = () => P.isHost();
+function netSeatOf(pid) { return P.seatOf(pid); }
+function netIsMyTurn() {
+  return NETMODE && NDOC && NDOC.started && NDOC.game && NDOC.players[G.turn] && NDOC.players[G.turn].id === myId;
+}
+function mutate(fn, mode) { return P.mutate(fn, mode); }
+function netCkpt() { if (NETMODE && joined && NDOC && NDOC.started) return P.mutate(() => {}, 'ck'); }
+function netEnter(room, name, asHost) { return P.enter(room, name, asHost); }
+function netLeave(silent) { P.leave(silent); }
+// 棋局快照（retained 文档的 game 字段；只含纯数据）
+function gameSnapshot() {
+  return JSON.parse(JSON.stringify({
+    phase: G.phase, players: G.players, owners: G.owners, decks: G.decks,
+    turn: G.turn, doubles: G.doubles, roundLimit: G.roundLimit, skipHandoff: G.skipHandoff, seed: G.seed,
+  }));
+}
+// 远端棋局快照 → 本地 G（静态重绘，不播动画；交战动作只发生在行动者设备上）
+function applyGameSnapshot(g, doc) {
+  if (TURBO || !g || !Array.isArray(g.players)) return;
+  const prevPhase = G.phase, prevTurn = G.turn, prevPos = G.players[G.turn] && G.players[G.turn].pos;
+  G.phase = g.phase; G.players = JSON.parse(JSON.stringify(g.players));
+  G.owners = g.owners.slice(); G.decks = JSON.parse(JSON.stringify(g.decks));
+  G.turn = g.turn; G.doubles = g.doubles; G.roundLimit = g.roundLimit; G.skipHandoff = !!g.skipHandoff; G.seed = g.seed;
+  $('setup').hidden = true; $('handoff').hidden = true; hideActions();
+  if (g.phase !== 'OVER') $('result-overlay').hidden = true;   // 新局快照要收起上一局的结算屏
+  $('buy-modal').hidden = true; $('gen-modal').hidden = true;
+  if (G.gl && !pawnObjs.length && G.players.length) { buildPawns(); }
+  G.players.forEach((p, i) => { if (pawnObjs[i]) { pawnObjs[i].visible = !p.bankrupt; placePawn(i, p.pos, true); } });
+  if (plateSprites.length) { plateSprites.forEach((s, i) => { if (s) s.visible = !!(G.players[i] && !G.players[i].bankrupt); }); layoutPlates(); }
+  ownerMarks.forEach(m => { if (m) m.visible = false; });
+  G.owners.forEach((o, i) => {
+    if (o != null && ownerMarks[i]) {
+      ownerMarks[i].visible = true;
+      ownerMarks[i].material.color.set(PLAYER_COLORS[G.players[o].colorIdx]);
+      ownerMarks[i].material.needsUpdate = true;
+    }
+  });
+  // 观战镜头：换人或行动者位移了就把镜头转向行动者（back=全景档，不抢近景）
+  if (G.gl && !REDUCED && !bodyLo && G.phase !== 'OVER'
+      && (G.turn !== prevTurn || (prevPos !== undefined && G.players[G.turn] && G.players[G.turn].pos !== prevPos))) {
+    focusPawn(G.turn, true);
+  }
+  if (prevPhase !== 'OVER' && g.phase === 'OVER') showResult();
+  render2D(); updateHUD();
+  // 回合接管/自愈：快照显示轮到本端真人且本端操作条不在 → 开/恢复自己的回合
+  //（HANDOFF=上家刚播出「轮到谁」；AWAIT_ROLL=本端稳定等待期操作条被某次快照误收起）
+  if (NETMODE && netIsMyTurn() && !$('action-bar').classList.contains('show')
+      && (g.phase === 'HANDOFF' || (g.phase === 'AWAIT_ROLL' && prevPhase === 'AWAIT_ROLL'))) enterHumanTurn();
+}
+function netStartGame(cfg) {
+  const doc = P.doc();
+  if (!NETMODE || !doc || doc.started) return;
+  const players = doc.players.map(p => ({ name: p.name, bot: !!p.bot }));
+  P.setStarted();   // 先落开局标志并发布，startGame 内的检查点会携带首份棋局快照
+  clearSave();      // 联机局不落本地热座存档
+  startGame({ players, roundLimit: cfg.roundLimit || 20, skipHandoff: true });
+}
+// 房主接管补跑（组件已按 isHost/bot/seq 守卫并延迟调度）：把代管座位的回合推进起来
+function netHostKick() {
+  if (!(NETMODE && NDOC && NDOC.started && G.phase !== 'OVER')) return;
+  const cp = currentPlayer();
+  if (cp && cp.bot && !cp.bankrupt) beginTurn();
+}
+// HUD 侧联机同步（大厅/表单由组件自渲染）：连麦按钮显隐 + 掉线灰显 + 已开局隐藏 setup
+function syncNetHUD() {
+  const onNet = NETMODE && joined && NDOC;
+  $('btn-mic').hidden = !onNet;
+  $('btn-listen').hidden = !onNet;
+  if (onNet && NDOC.started) {
+    NDOC.players.forEach((p, i) => {
+      const chip = $('pchip-' + i);
+      if (chip) chip.classList.toggle('off', Date.now() - (p.lastSeen || 0) > NET_STALE_GRAY_MS);
+    });
+    $('setup').hidden = true;
+  }
+}
+// HUD 玩家条头像（tod 配方协议；无 av 的本地热座回落色点）
+function netAvatarHtml(i) {
+  const rep = NETMODE && NDOC && NDOC.players[i] && NDOC.players[i].av;
+  if (!rep) return '';
+  const uri = P.avatarUri(rep);
+  return uri ? `<img class="pav" src="${uri.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" alt="" onerror="this.style.visibility='hidden'">` : '';   // 转义纵深：组件侧已有 dataURL 白名单；onerror=双故障时隐藏而非裂图
+}
+async function netBootAutotest() {
+  const room = qs.get('room') || '88888';
+  const name = qs.get('name') || (qs.get('role') === 'host' ? '测试房主' : '测试员');
+  const ok2 = await netEnter(room, name, qs.get('role') === 'host');
+  if (!ok2) return;
+  if (qs.get('role') === 'host' && qs.get('autostart') === '1') {
+    if (qs.get('bot') !== '0') await P.addBot();   // 组件入口：自带随机人物向配方 + isHost/started 守卫
+    setTimeout(() => netStartGame({ roundLimit: 20 }), 500);
+  }
+}
+
+
+/* ═════════════════════════ 2. 棋盘数据 ═════════════════════════ */
+// 24 格环形（7×7 边框）：角 0/6/12/18，每边 5 格 = 4 地产 + 1 特殊。
+// 地产 4 色组（避开 HUD 紫/粉/青/金；组条加白点数量作色盲冗余）
+const GROUPS = [
+  { color: '#f59e0b', dots: 1, names: ['老城区', '小巷集市', '旧仓库', '码头街'] },
+  { color: '#ef4444', dots: 2, names: ['大学路', '咖啡巷', '书店街', '剧院街'] },
+  { color: '#22c55e', dots: 3, names: ['金融街', '商贸广场', '电视塔', '会展中心'] },
+  { color: '#3b82f6', dots: 4, names: ['科技园', '云端大厦', '星光大道', '环球中心'] },
+];
+const PROP_PRICE = [[1000, 1200, 1400, 1600], [1800, 2000, 2200, 2400], [2600, 2800, 3000, 3200], [3400, 3600, 3800, 4000]];
+const RENT_RATE = 0.4, SET_MULT = 3, TAX = 1000, GO_PAY = 1000, START_CASH = 10000, JAIL_FINE = 500;
+const PLAYER_COLORS = ['#22d3ee', '#f472b6', '#8b5cf6', '#4ade80'];
+
+// 环形坐标：GO(3,3) 起，沿南边向西 → 西边向北 → 北边向东 → 东边向南
+function tileCoord(i) {
+  if (i <= 5) return { x: 3 - i, z: 3 };
+  if (i === 6) return { x: -3, z: 3 };
+  if (i <= 11) return { x: -3, z: 3 - (i - 6) };
+  if (i === 12) return { x: -3, z: -3 };
+  if (i <= 17) return { x: -3 + (i - 12), z: -3 };
+  if (i === 18) return { x: 3, z: -3 };
+  return { x: 3, z: -3 + (i - 18) };
+}
+const TILES = (() => {
+  const arr = [];
+  for (let i = 0; i < 24; i++) {
+    const c = tileCoord(i);
+    if (i === 0) arr.push({ kind: 'go', name: '起点', emoji: '🏁', x: c.x, z: c.z });
+    else if (i === 6) arr.push({ kind: 'jail', name: '监狱', emoji: '🚔', x: c.x, z: c.z });
+    else if (i === 12) arr.push({ kind: 'parking', name: '免费停车', emoji: '☕', x: c.x, z: c.z });
+    else if (i === 18) arr.push({ kind: 'gotojail', name: '入狱', emoji: '🚨', x: c.x, z: c.z });
+    else {
+      const side = i < 6 ? 0 : i < 12 ? 1 : i < 18 ? 2 : 3;
+      const slot = i < 6 ? i - 1 : i < 12 ? i - 7 : i < 18 ? i - 13 : i - 19;   // 边内 0-4
+      if (slot === 2) arr.push({ kind: side === 0 || side === 3 ? 'chance' : side === 1 ? 'chest' : 'tax', name: side === 2 ? '所得税' : side === 1 ? '命运' : '机会', emoji: side === 2 ? '💸' : side === 1 ? '🎁' : '❓', x: c.x, z: c.z });
+      else {
+        const gi = slot < 2 ? slot : slot - 1;   // 地产在边内的 0-3 序
+        arr.push({ kind: 'prop', group: side, gi, name: GROUPS[side].names[gi], price: PROP_PRICE[side][gi], x: c.x, z: c.z });
+      }
+    }
+  }
+  return arr;
+})();
+const propIdxOfGroup = g => TILES.map((t, i) => t.kind === 'prop' && t.group === g ? i : -1).filter(i => i >= 0);
+
+const CARDS = {
+  chance: [
+    { text: '🎉 生日快乐！向每位玩家收 ¥500', act: { collectAll: 500 } },
+    { text: '🏥 医药费：支付 ¥800', act: { pay: 800 } },
+    { text: '🎓 奖学金：收到 ¥1000', act: { gain: 1000 } },
+    { text: '🚔 立即入狱！', act: { jail: true } },
+    { text: '🎫 免罚卡：入狱时可用来立即出狱（保留）', act: { jailCard: true } },
+    { text: '🏁 前往起点，领取 ¥1000', act: { goto: 0 } },
+    { text: '🛠 房屋维修：每块地支付 ¥300', act: { perProp: 300 } },
+    { text: '📱 刮刮乐中奖！收到 ¥500', act: { gain: 500 } },
+  ],
+  chest: [
+    { text: '💸 缴纳罚款 ¥500', act: { pay: 500 } },
+    { text: '🏦 银行利率误差，收到 ¥800', act: { gain: 800 } },
+    { text: '🚕 前往起点，领取 ¥1000', act: { goto: 0 } },
+    { text: '🚔 立即入狱！', act: { jail: true } },
+    { text: '🎫 免罚卡：入狱时可用来立即出狱（保留）', act: { jailCard: true } },
+    { text: '🎁 遗产到账：收到 ¥1200', act: { gain: 1200 } },
+    { text: '📉 股票亏损：支付 ¥1000', act: { pay: 1000 } },
+    { text: '☕ 请全桌喝咖啡：向每位玩家支付 ¥500', act: { payAll: 500 } },
+  ],
+};
+const BOT_QUOTES = {
+  jailed: ['🤖：这局先出去，地留给我。', '🤖：铁窗泪……但我会回来的。', '🤖：谁把我送进来的？'],
+  rentIn: ['🤖：谢谢惠顾～', '🤖：过路费了解一下。', '🤖：这条街我罩的。'],
+  bustBy: ['🤖：用力过猛了……', '🤖：江湖再见，朋友们。', '🤖：下把一定苟住。'],
+};
+
+/* ═════════════════════════ 3. 对局状态 ═════════════════════════ */
+const G = {
+  phase: 'BOOT',           // BOOT / SETUP / HANDOFF / AWAIT_ROLL / ROLLING / HOPPING / RESOLVE / OVER
+  players: [],             // {name, bot, colorIdx, cash, pos, jailed, jailTurns, jailCards, bankrupt, turnsTaken}
+  owners: new Array(24).fill(null),   // tile idx -> player idx or null
+  decks: { chance: [], chest: [], chanceDisc: [], chestDisc: [] },
+  turn: 0, doubles: 0, roundLimit: 20, skipHandoff: false,
+  seed: SEED,
+  gl: true,                // WebGL 可用性
+};
+let lastInteract = Date.now();
+
+/* ═════════════════════════ 4. Three.js 场景 ═════════════════════════ */
+let renderer, scene, camera, dirLight;
+let tileMeshes = [], ownerMarks = [], pawnObjs = [], plateSprites = [], diceObjs = [];
+let cardMesh = null, cardPivot = null;
+const D2R = Math.PI / 180;
+const rig = { az: 0, elev: 42 * D2R, dist: 7.2, focusK: 1, token: 0, raf: 0, tgt: { x: 0, y: 0.3, z: 0 }, autoDist: true };
+const TGT = { x: 0, y: 0.3, z: 0 };
+const REF_ELEV = 42 * D2R;          // 距离反推的参考仰角：不读 rig.elev（近景抬角后会把 dist 越算越大）
+const NEAR_HALF_W = 1.35, NEAR_DIST_FLOOR = 4.8;   // 近景水平半宽目标 / 距离下限
+
+function dprCap(w, h) { return Math.min(window.devicePixelRatio || 1, 1.6, Math.sqrt(2.3e6 / (w * h))); }
+function baseDist() {   // 依视口纵横比反推距离：横竖屏都保证 7 单位棋盘完整入画（竖屏 375 下投影 ≥320px）
+  const halfV = Math.tan(camera.fov * D2R / 2);
+  const aspect = innerWidth / innerHeight;
+  const dH = 4.0 / (halfV * aspect);          // 横向容下 ±4
+  const dV = (7 * Math.sin(REF_ELEV) / 2 + 0.6) / halfV;
+  return Math.max(7.2, dH, dV);
+}
+function nearDist() {   // 近景绝对距离：竖屏不再被全景距离（18.7）连带，按「棋子+邻格」半宽 1.35 反推
+  const halfV = Math.tan(camera.fov * D2R / 2);
+  return Math.max(NEAR_DIST_FLOOR, NEAR_HALF_W / (halfV * innerWidth / innerHeight));
+}
+function camPos() {
+  const e = rig.elev, d = rig.dist * rig.focusK;
+  return { x: rig.tgt.x + d * Math.cos(e) * Math.sin(rig.az), y: rig.tgt.y + d * Math.sin(e), z: rig.tgt.z + d * Math.cos(e) * Math.cos(rig.az) };
+}
+function camApply() {
+  const p = camPos();
+  camera.position.set(p.x, p.y, p.z);
+  camera.lookAt(rig.tgt.x, rig.tgt.y, rig.tgt.z);
+}
+const smooth = k => k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+const shortestArc = a => Math.atan2(Math.sin(a), Math.cos(a));
+function camTo(opts, ms, done) {   // 墙钟 smoothstep 补间；token 作废机制照抄 tod Cam
+  rig.token++; const my = rig.token;
+  const from = { az: rig.az, elev: rig.elev, dist: rig.dist, focusK: rig.focusK, tgt: Object.assign({}, rig.tgt) };
+  const to = Object.assign({}, from, opts, { tgt: opts.tgt ? Object.assign({}, opts.tgt) : Object.assign({}, TGT) });
+  if (REDUCED || bodyLo || TURBO) { Object.assign(rig, to, { tgt: Object.assign({}, to.tgt) }); camApply(); if (done) done(); return; }
+  const t0 = performance.now();
+  const step = now => {
+    if (rig.token !== my) return;
+    const k = Math.min(1, (now - t0) / (ms * SPEED));
+    const s = smooth(k);
+    rig.az = from.az + (to.az - from.az) * s;
+    rig.elev = from.elev + (to.elev - from.elev) * s;
+    rig.dist = from.dist + (to.dist - from.dist) * s;
+    rig.focusK = from.focusK + (to.focusK - from.focusK) * s;
+    rig.tgt.x = from.tgt.x + (to.tgt.x - from.tgt.x) * s;
+    rig.tgt.y = from.tgt.y + (to.tgt.y - from.tgt.y) * s;
+    rig.tgt.z = from.tgt.z + (to.tgt.z - from.tgt.z) * s;
+    camApply();
+    if (k < 1) rig.raf = requestAnimationFrame(step);
+    else if (done) done();
+  };
+  rig.raf = requestAnimationFrame(step);
+}
+function focusPawn(pi, back, done) {
+  const p = pawnObjs[pi]; if (!p || !G.gl) { if (done) done(); return; }
+  const az = Math.atan2(p.position.x - TGT.x, p.position.z - TGT.z);
+  if (back) { rig.autoDist = true; camTo({ az, elev: REF_ELEV, dist: baseDist(), focusK: 1, tgt: { x: TGT.x, y: TGT.y, z: TGT.z } }, 700, done); }
+  // 近景：dist 用绝对距离（竖屏不再被全景距离连带），lookAt 向棋子偏 35% 把棋子抬到画面中上安全区
+  else { rig.autoDist = false; camTo({ az, elev: 55 * D2R, dist: nearDist(), focusK: 1, tgt: { x: p.position.x * 0.35, y: TGT.y, z: p.position.z * 0.35 } }, 900, done); }
+}
+
+function initScene() {
+  const canvas = $('mono-canvas');
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  } catch (e) { G.gl = false; document.body.classList.add('gl-off'); return false; }
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.12;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0a1a);
+  scene.fog = new THREE.FogExp2(0x0a0a1a, 0.035);
+  camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 80);
+  scene.add(new THREE.HemisphereLight(0x8899ff, 0x1a1030, 0.55));
+  const warm = new THREE.PointLight(0xffb46b, 1.05, 30, 2); warm.position.set(0, 6.2, 0); scene.add(warm);
+  const cool = new THREE.DirectionalLight(0x7aa0ff, 0.24); cool.position.set(-4, 3, 2); scene.add(cool);
+  dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
+  dirLight.position.set(-3, 8, 2); dirLight.castShadow = true;
+  dirLight.shadow.mapSize.set(1024, 1024);
+  dirLight.shadow.camera.left = -6; dirLight.shadow.camera.right = 6;
+  dirLight.shadow.camera.top = 6; dirLight.shadow.camera.bottom = -6;
+  scene.add(dirLight);
+  // 桌面（紫黑暖调毡面 #1d1523）
+  const table = new THREE.Mesh(
+    new THREE.CylinderGeometry(8, 8.4, 0.5, 48),
+    new THREE.MeshStandardMaterial({ color: 0x1d1523, roughness: 0.95, metalness: 0 })
+  );
+  table.position.y = -0.05; table.receiveShadow = true; scene.add(table);
+  buildBoard();
+  buildCenter();
+  buildDice();
+  buildCard();
+  sizeScene();
+  addEventListener('resize', sizeScene);
+  return true;
+}
+function sizeScene() {
+  if (!renderer) return;
+  renderer.setPixelRatio((bodyLo || loDegrade) ? 1 : dprCap(innerWidth, innerHeight));
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  if (rig.autoDist) rig.dist = baseDist();   // 近景期间不覆写（否则 resize/降级瞬间把 dist 打回全景）
+  camApply();
+}
+function mkTex(w, h, draw) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.encoding = THREE.sRGBEncoding;
+  t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
+  t.anisotropy = 4;
+  return t;
+}
+const truncate = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s;
+function buildBoard() {
+  const base = new THREE.MeshStandardMaterial({ color: 0x0d0a18, roughness: 0.9 });
+  const geo = new THREE.BoxGeometry(0.92, 0.08, 0.92);
+  const topGeo = new THREE.PlaneGeometry(0.92, 0.92);
+  TILES.forEach((t, i) => {
+    const grp = new THREE.Group();
+    const box = new THREE.Mesh(geo, base);
+    box.position.y = 0.04; box.receiveShadow = true;
+    grp.add(box);
+    const tex = mkTex(256, 256, (ctx, w, h) => {
+      const gd = ctx.createLinearGradient(0, 0, 0, h);
+      gd.addColorStop(0, '#171226'); gd.addColorStop(1, '#0f0c1a');
+      ctx.fillStyle = gd; ctx.fillRect(0, 0, w, h);
+      if (t.kind === 'prop') {
+        ctx.fillStyle = GROUPS[t.group].color; ctx.fillRect(0, 0, w, 30);
+        ctx.fillStyle = '#fff';
+        const dots = GROUPS[t.group].dots;
+        for (let d = 0; d < dots; d++) { ctx.beginPath(); ctx.arc(w - 16 - d * 20, 15, 6, 0, 7); ctx.fill(); }
+        ctx.fillStyle = '#fff'; ctx.font = '700 40px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(truncate(t.name, 5), w / 2, h / 2 - 12);
+        ctx.fillStyle = 'rgba(255,255,255,0.72)'; ctx.font = '600 34px "Noto Sans SC","PingFang SC",sans-serif';
+        ctx.fillText('¥' + t.price, w / 2, h / 2 + 38);
+      } else {
+        ctx.font = '52px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(t.emoji, w / 2, h / 2 - 26);
+        ctx.fillStyle = '#fff'; ctx.font = '700 34px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
+        ctx.fillText(truncate(t.name, 5), w / 2, h / 2 + 30);
+      }
+    });
+    const top = new THREE.Mesh(topGeo, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85 }));
+    top.rotation.x = -Math.PI / 2; top.position.y = 0.081;
+    grp.add(top);
+    grp.position.set(t.x, 0.3, t.z);
+    scene.add(grp);
+    tileMeshes[i] = grp;
+    // 地块归属标记（买下出现，破产收回）
+    const mk = new THREE.Mesh(
+      new THREE.BoxGeometry(0.2, 0.12, 0.2),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x222222, roughness: 0.5 })
+    );
+    mk.visible = false; mk.position.set(t.x, 0.44, t.z);
+    scene.add(mk); ownerMarks[i] = mk;
+  });
+}
+function buildCenter() {
+  const tex = mkTex(512, 512, (ctx, w, h) => {
+    const gd = ctx.createRadialGradient(w / 2, h / 2, 40, w / 2, h / 2, 250);
+    gd.addColorStop(0, '#2a2050'); gd.addColorStop(1, '#120e24');
+    ctx.fillStyle = gd; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = 'rgba(139,92,246,0.5)'; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.arc(w / 2, h / 2, 200, 0, 7); ctx.stroke();
+    ctx.strokeStyle = 'rgba(34,211,238,0.35)';
+    ctx.beginPath(); ctx.arc(w / 2, h / 2, 160, 0, 7); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '900 110px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillText('大富翁', w / 2, h / 2 - 26);
+    ctx.font = '64px serif'; ctx.fillText('🎲', w / 2, h / 2 + 80);
+  });
+  const disc = new THREE.Mesh(
+    new THREE.CircleGeometry(2.1, 48),
+    new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 })
+  );
+  disc.rotation.x = -Math.PI / 2; disc.position.y = 0.315;
+  scene.add(disc);
+}
+function dieFaceTex(v) {
+  return mkTex(128, 128, (ctx, w, h) => {
+    ctx.fillStyle = '#f5f1e6'; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#1a1a2e';
+    const r = 10, off = 32, c = w / 2;
+    const pos = { 1: [[c, c]], 2: [[off, off], [w - off, w - off]], 3: [[off, off], [c, c], [w - off, w - off]], 4: [[off, off], [w - off, off], [off, w - off], [w - off, w - off]], 5: [[off, off], [w - off, off], [c, c], [off, w - off], [w - off, w - off]], 6: [[off, off], [w - off, off], [off, c], [w - off, c], [off, w - off], [w - off, w - off]] }[v];
+    pos.forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); });
+  });
+}
+function buildDice() {
+  const mats = [1, 6, 2, 5, 3, 4].map(v => new THREE.MeshStandardMaterial({ map: dieFaceTex(v), roughness: 0.35 }));
+  const geo = new THREE.BoxGeometry(0.42, 0.42, 0.42);
+  [[-0.55, 1.15], [0.55, 1.45]].forEach(([x, z], di) => {
+    const m = new THREE.Mesh(geo, mats);
+    m.position.set(x, 0.51, z); m.castShadow = true;
+    scene.add(m); diceObjs[di] = m;
+  });
+}
+const FACE_NORMALS = { 1: [0, -1, 0], 2: [0, 0, 1], 3: [1, 0, 0], 4: [-1, 0, 0], 5: [0, 0, -1], 6: [0, 1, 0] };   // 材质序 [+x,-x,+y,-y,+z,-z]=[1,6,2,5,3,4]
+function quatFor(v) {
+  const n = new THREE.Vector3(...FACE_NORMALS[v]);
+  return new THREE.Quaternion().setFromUnitVectors(n, new THREE.Vector3(0, 1, 0));
+}
+function buildCard() {
+  cardPivot = new THREE.Group();
+  cardPivot.position.set(-0.46, 0.33, 0);   // 远边枢轴（北侧）
+  cardMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.9, 0.9),
+    new THREE.MeshStandardMaterial({ transparent: true, opacity: 0, roughness: 0.6, emissive: 0x1a1428, emissiveIntensity: 0.4, side: THREE.DoubleSide })
+  );
+  cardMesh.position.set(0.46, 0, 0);        // 平面相对枢轴回正
+  cardMesh.rotation.x = -Math.PI / 2;
+  cardPivot.rotation.x = 0;                 // 盖着（父 0 + 子 -90° = 法线朝下）；翻到 PI 即面朝上
+  cardPivot.visible = false;
+  scene.add(cardPivot);
+}
+function setCardFace(kind, text) {
+  const tex = mkTex(512, 1024, (ctx, w, h) => {
+    const gd = ctx.createLinearGradient(0, 0, 0, h);
+    gd.addColorStop(0, '#2a2050'); gd.addColorStop(1, '#120e24');
+    ctx.fillStyle = gd; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = kind === 'chance' ? 'rgba(251,191,36,0.75)' : 'rgba(34,211,238,0.75)';
+    ctx.lineWidth = 10; ctx.strokeRect(18, 18, w - 36, h - 36);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = kind === 'chance' ? '#fbbf24' : '#22d3ee';
+    ctx.font = '900 92px "Noto Sans SC","PingFang SC",sans-serif';
+    ctx.fillText(kind === 'chance' ? '机会' : '命运', w / 2, 200);
+    ctx.font = '160px serif'; ctx.fillText(kind === 'chance' ? '❓' : '🎁', w / 2, 420);
+    ctx.fillStyle = '#fff'; ctx.font = '700 56px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
+    wrapText(ctx, text, w / 2, 600, w - 120, 84);
+  });
+  if (cardMesh.material.map) cardMesh.material.map.dispose();
+  cardMesh.material.map = tex;
+  cardMesh.material.needsUpdate = true;
+  cardMesh.material.opacity = 1;
+}
+function wrapText(ctx, text, cx, y, maxW, lh) {
+  let line = '', yy = y;
+  for (const ch of text) {
+    if (ctx.measureText(line + ch).width > maxW) { ctx.fillText(line, cx, yy); line = ch; yy += lh; }
+    else line += ch;
+  }
+  ctx.fillText(line, cx, yy);
+}
+function buildPawns() {
+  pawnObjs.forEach(p => { p.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); scene.remove(p); }); pawnObjs = [];
+  plateSprites.forEach(s => { if (s.material.map) s.material.map.dispose(); s.material.dispose(); scene.remove(s); }); plateSprites = [];
+  G.players.forEach((p, i) => {
+    const grp = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color: PLAYER_COLORS[p.colorIdx], roughness: 0.4, metalness: 0.1 });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.15, 0.34, 20), mat);
+    body.position.y = 0.17; body.castShadow = true;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.095, 18, 14), mat);
+    head.position.y = 0.4; head.castShadow = true;
+    grp.add(body, head);
+    scene.add(grp); pawnObjs[i] = grp;
+    const tex = mkTex(256, 64, (ctx, w, h) => {
+      ctx.fillStyle = PLAYER_COLORS[p.colorIdx];
+      ctx.beginPath(); ctx.arc(18, h / 2, 9, 0, 7); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = '700 30px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(truncate(p.name, 4), 34, h / 2 + 1);
+    });
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+    sp.scale.set(0.86, 0.215, 1);
+    scene.add(sp); plateSprites[i] = sp;
+    placePawn(i, G.players[i].pos, true);
+  });
+  layoutPlates();
+}
+function placePawn(i, tileIdx, instant) {
+  const grp = pawnObjs[i]; if (!grp) return;
+  const t = TILES[tileIdx];
+  const [x, z] = pawnSlot(i, tileIdx);
+  if (instant || !G.gl) { grp.position.set(x, 0.34, z); return; }
+  // 单格滑步（走位逐格由 hop 动画负责，这里只是兜底）
+  grp.position.set(x, 0.34, z);
+}
+function pawnSlot(i, tileIdx) {
+  const t = TILES[tileIdx];
+  const mates = G.players.map((p, j) => (!p.bankrupt && p.pos === tileIdx) ? j : -1).filter(j => j >= 0);
+  const k = Math.max(0, mates.indexOf(i));
+  const n = Math.max(1, mates.length);
+  const ang = Math.atan2(t.x, t.z);
+  const spread = (k - (n - 1) / 2) * 0.22;
+  const px = t.x + Math.sin(ang) * 0.001 - Math.cos(ang) * spread;   // 切向展开
+  const pz = t.z + Math.cos(ang) * 0.001 + Math.sin(ang) * spread;
+  return [px + (Math.sin(ang) * 0.3), pz + (Math.cos(ang) * 0.3)];   // 往外圈让出格面
+}
+function layoutPlates() {
+  plateSprites.forEach((sp, i) => {
+    if (!sp) return;
+    const p = G.players[i]; const t = TILES[p.pos];
+    const ang = Math.atan2(t.x, t.z);
+    const lift = (i % 2 === 0 ? 0.18 : 0);   // 交替抬高破同高
+    sp.position.set(t.x + Math.sin(ang) * 0.55, 0.86 + lift, t.z + Math.cos(ang) * 0.55);
+  });
+}
+function plateVisibility() {   // 投影有效高 <22px 隐藏（tod「出屏不写」纪律的 Sprite 版）
+  if (!G.gl) return;
+  const v = new THREE.Vector3();
+  plateSprites.forEach(sp => {
+    if (!sp) return;
+    v.copy(sp.position).project(camera);
+    const px = (v.y * 0.5 + 0.5) * innerHeight * (0.215 / Math.abs(camera.position.distanceTo(sp.position))) * (innerHeight / (2 * Math.tan(camera.fov * D2R / 2)));
+    sp.visible = px >= 22 && v.z < 1;
+  });
+}
+
+/* ═════════════════════════ 5. HUD / UI ═════════════════════════ */
+let toastTimer = 0;
+function toast(msg, kind = '') {
+  const t = $('toast');
+  t.textContent = msg; t.className = kind;
+  void t.offsetWidth; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2600 * SPEED);
+}
+function updateHUD() {
+  const bar = $('players-bar');
+  const floats = [...bar.querySelectorAll('.mfloat')];
+  bar.innerHTML = G.players.map((p, i) => {
+    const badges = (p.jailed ? '<span title="狱中">🚔</span>' : '') + (p.jailCards ? `<span title="免罚卡">🃏×${p.jailCards}</span>` : '') + (p.bankrupt ? '<span title="破产观战">💀</span>' : '');
+    return `<div class="pchip ${i === G.turn && G.phase !== 'OVER' && !p.bankrupt ? 'active' : ''} ${p.bankrupt ? 'dead' : ''}" id="pchip-${i}">
+      <span class="dot" style="background:${PLAYER_COLORS[p.colorIdx]}"></span>${netAvatarHtml(i)}
+      <span class="pname">${escapeHtml(p.name)}</span>
+      <span class="badges">${badges}</span>
+      <span class="cash tabnum">${fmt(p.cash)}</span></div>`;
+  }).join('');
+  floats.forEach(el => { const c = $('pchip-' + el.dataset.pi); if (c) c.appendChild(el); });   // 在飞浮层回挂（800ms 动画继续走）
+  const rc = $('round-chip');
+  if (G.roundLimit > 0 && G.players.some(p => !p.bankrupt)) {
+    rc.hidden = false;
+    const cur = Math.min(...G.players.filter(p => !p.bankrupt).map(p => p.turnsTaken)) + 1;
+    rc.textContent = `第 ${Math.min(cur, G.roundLimit)}/${G.roundLimit} 轮`;
+  } else rc.hidden = true;
+  $('hud-tools').hidden = G.phase === 'BOOT' || G.phase === 'SETUP' || G.phase === 'OVER';
+}
+function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function moneyFloat(i, delta) {
+  const chip = $('pchip-' + i); if (!chip) return;
+  const el = document.createElement('span');
+  el.className = 'mfloat'; el.dataset.pi = i;   // updateHUD 重建玩家条后按归属回挂（否则浮层活不过下一次绘制）
+  el.style.color = delta >= 0 ? 'var(--accent-cyan)' : 'var(--accent-pink)';
+  el.textContent = (delta >= 0 ? '+' : '−') + '¥' + Math.abs(delta).toLocaleString('zh-CN');
+  chip.appendChild(el);
+  setTimeout(() => el.remove(), 900 * SPEED);
+}
+function diceReadout(d1, d2) {
+  const el = $('dice-readout');
+  el.textContent = `${d1} + ${d2} = ${d1 + d2}` + (d1 === d2 ? ' ✨双数' : '');
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 900 * SPEED);
+}
+function showActions() {
+  const p = G.players[G.turn], bar = $('action-bar');
+  bar.classList.add('show');
+  if (p.jailed) {
+    const left = 3 - p.jailTurns;
+    bar.innerHTML = `
+      <div id="action-who">🎯 ${escapeHtml(p.name)} 的回合 · 🚔 狱中</div>
+      <button class="btn-main" id="act-roll" type="button">🎲 ${escapeHtml(p.name)} · 赌双数出狱</button>
+      <div class="jail-hint">还剩 ${left} 次机会 · 双数即出狱并前进</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-sub" id="act-fine" type="button" ${p.cash < JAIL_FINE ? 'disabled' : ''}>💸 付 ¥500 立即出狱</button>
+        ${p.jailCards ? `<button class="btn-sub" id="act-card" type="button">🃏 使用免罚卡</button>` : ''}
+      </div>`;
+    $('act-roll').onclick = () => { SFX.tap(); doRoll(true); };
+    if (p.cash >= JAIL_FINE) $('act-fine').onclick = () => { SFX.tap(); payFine(); };
+    if (p.jailCards) $('act-card').onclick = () => { SFX.tap(); useJailCard(); };
+  } else {
+    bar.innerHTML = `
+      <div id="action-who">🎯 ${escapeHtml(p.name)} 的回合</div>
+      <button class="btn-main" id="act-roll" type="button">🎲 ${escapeHtml(p.name)} · 掷骰子</button>`;
+    $('act-roll').onclick = () => { SFX.tap(); doRoll(false); };
+  }
+}
+function hideActions() { $('action-bar').classList.remove('show'); }
+
+/* ═════════════════════════ 6. 存档（P0-3 自动保存/恢复） ═════════════════════════ */
+const SAVE_KEY = 'mono:save:v1';
+function saveGame() {
+  if (NETMODE) return;   // 联机局状态在房间 retained 文档里，不落本地热座存档
+  if (G.phase === 'SETUP' || G.phase === 'OVER' || G.phase === 'BOOT') return;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      v: 1, at: Date.now(), phase: G.phase, turn: G.turn, doubles: G.doubles,
+      roundLimit: G.roundLimit, skipHandoff: G.skipHandoff, rngA: rngBox.a, seed: G.seed,
+      players: G.players.map(p => ({ name: p.name, bot: p.bot, colorIdx: p.colorIdx, cash: p.cash, pos: p.pos, jailed: p.jailed, jailTurns: p.jailTurns, jailCards: p.jailCards, bankrupt: p.bankrupt, turnsTaken: p.turnsTaken })),
+      owners: G.owners,
+      decks: G.decks,
+    }));
+  } catch (e) {}
+}
+function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
+function loadSave() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    if (s && s.v === 1 && Date.now() - s.at < 24 * 3600 * 1000) return s;
+  } catch (e) {}
+  return null;
+}
+
+/* ═════════════════════════ 7. 状态机 ═════════════════════════ */
+function shuffleDeck(kind) {
+  const a = CARDS[kind].map((_, i) => i);
+  for (let i = a.length - 1; i > 0; i--) { const j = rint(i + 1); [a[i], a[j]] = [a[j], a[i]]; }
+  G.decks[kind] = a; G.decks[kind + 'Disc'] = [];
+}
+function aliveIdx() { return G.players.map((p, i) => p.bankrupt ? -1 : i).filter(i => i >= 0); }
+function currentPlayer() { return G.players[G.turn]; }
+
+function startGame(cfg) {
+  G.roundLimit = cfg.roundLimit; G.skipHandoff = cfg.skipHandoff;
+  G.players = cfg.players.map((p, i) => ({
+    name: p.name, bot: !!p.bot, colorIdx: i, cash: START_CASH, pos: 0,
+    jailed: false, jailTurns: 0, jailCards: 0, bankrupt: false, turnsTaken: 0,
+  }));
+  G.owners = new Array(24).fill(null);
+  ownerMarks.forEach(m => { if (m) m.visible = false; });
+  G._resumeSkipInc = false;
+  reseed(cfg.seed || SEED);
+  G.seed = rngBox.a;
+  shuffleDeck('chance'); shuffleDeck('chest');
+  G.turn = 0; G.doubles = 0; G.phase = 'HANDOFF';
+  clearSave();
+  $('setup').hidden = true; $('result-overlay').hidden = true;
+  if (G.gl) { buildPawns(); layoutPlates(); }
+  else render2D();
+  updateHUD();
+  netCkpt();
+  beginTurn();
+}
+function beginTurn() {
+  const p = currentPlayer();
+  if (!p || p.bankrupt) { advanceTurn(); return; }
+  if (G._resumeSkipInc) G._resumeSkipInc = false;   // 存档恢复重放本回合：turnsTaken 已计过，别再 +1
+  else p.turnsTaken++;
+  G.phase = 'HANDOFF';
+  saveGame(); updateHUD();   // 存档只落在 beginTurn 这个安全点（回合起点），恢复=重放整个回合
+  netCkpt();   // 联机：把「轮到谁」播出去；新行动者端 applyGameSnapshot 收到 HANDOFF 后接管本回合
+  if (NETMODE) setTimeout(() => { if (G.phase === 'HANDOFF') netCkpt(); }, 900);   // 防丢自愈：心跳与检查点并发撞 seq 吞掉本快照时（行动者未接管，本端仍停在 HANDOFF）重发一次
+  if (p.bot) {
+    $('handoff').hidden = true;
+    focusPawn(G.turn, false);
+    toast(`🤖 ${p.name} 行动中…`);
+    if (!(NETMODE && !isHost())) setTimeout(() => botAct(), (500 + rint(600)) * SPEED);   // 联机：机器人由房主代跑，其他端等快照
+  } else if (NETMODE && netIsMyTurn()) {
+    enterHumanTurn();
+  } else if (NETMODE) {
+    $('handoff').hidden = true; hideActions();   // 联机：非本端回合，等快照
+  } else if (G.skipHandoff) {
+    enterHumanTurn();
+  } else {
+    $('handoff-name').textContent = `请把手机交给 ${p.name}`;
+    $('btn-handoff-go').textContent = `我是 ${p.name}，开始回合`;
+    $('handoff').hidden = false;
+    hideActions();
+  }
+}
+function enterHumanTurn() {
+  $('handoff').hidden = true;
+  G.phase = 'AWAIT_ROLL';
+  lastInteract = Date.now();
+  focusPawn(G.turn, false);
+  saveGame(); updateHUD(); showActions();
+  netCkpt();
+}
+$('btn-handoff-go').addEventListener('click', () => { SFX.tap(); enterHumanTurn(); });
+
+function advanceTurn() {
+  if (checkRoundCap()) return;
+  if (aliveIdx().length <= 1) { endGame('last'); return; }
+  let n = G.turn;
+  do { n = (n + 1) % G.players.length; } while (G.players[n].bankrupt);
+  G.turn = n; G.doubles = 0;
+  beginTurn();
+}
+function checkRoundCap() {
+  if (G.roundLimit <= 0) return false;
+  const alive = aliveIdx();
+  if (alive.length && alive.every(i => G.players[i].turnsTaken >= G.roundLimit)) { endGame('cap'); return true; }
+  return false;
+}
+
+async function doRoll(jailAttempt) {
+  const p = currentPlayer();
+  G.phase = 'ROLLING'; hideActions(); updateHUD();
+  const d1 = 1 + rint(6), d2 = 1 + rint(6);
+  SFX.roll();
+  await animateDice(d1, d2);
+  diceReadout(d1, d2);
+  if (jailAttempt) {
+    if (d1 === d2) {
+      p.jailed = false; p.jailTurns = 0;
+      toast('✨ 双数！出狱并前进', 'gain'); SFX.coin();
+      await movePawn(d1 + d2);
+      await resolveTile();
+    } else {
+      p.jailTurns++;
+      if (p.jailTurns >= 3) {
+        toast('😭 三次没赌中，强制付 ¥500 出狱', 'loss');
+        charge(p, JAIL_FINE, null);
+        if (!p.bankrupt) { p.jailed = false; p.jailTurns = 0; await movePawn(d1 + d2); await resolveTile(); }
+        else afterResolve();
+      } else {
+        toast(`🎲 不是双数，还在狱中（已蹲 ${p.jailTurns} 回合）`);
+        SFX.jail();
+        afterResolve();
+      }
+    }
+    return;
+  }
+  if (d1 === d2) {
+    G.doubles++;
+    if (G.doubles >= 3) {
+      toast('⚡ 三连双数！钢琴手铐伺候'); SFX.jail();
+      sendToJail();
+      afterResolve();
+      return;
+    }
+    toast('✨ 双数！再来一次', 'gain');
+  } else G.doubles = 0;
+  await movePawn(d1 + d2);
+  await resolveTile();
+}
+
+function animateDice(d1, d2) {
+  if (!G.gl) return Promise.resolve();
+  if (REDUCED || bodyLo || TURBO) { diceObjs.forEach((m, i) => { m.quaternion.copy(quatFor(i ? d2 : d1)); }); return Promise.resolve(); }
+  return new Promise(res => {
+    const t0 = performance.now(), dur = 800;
+    const starts = diceObjs.map(m => ({ p: m.position.clone(), q: m.quaternion.clone() }));
+    const ends = [[-0.55, 1.15], [0.55, 1.45]];
+    const spins = diceObjs.map(() => ({ x: (rnd() - 0.5) * 14, y: (rnd() - 0.5) * 14, z: (rnd() - 0.5) * 14 }));
+    const targets = [quatFor(d1), quatFor(d2)];
+    const step = now => {
+      const k = Math.min(1, (now - t0) / (dur * SPEED));
+      diceObjs.forEach((m, i) => {
+        if (k < 0.85) {
+          const kk = k / 0.85;
+          m.position.x = starts[i].p.x + (ends[i][0] - starts[i].p.x) * kk;
+          m.position.z = starts[i].p.z + (ends[i][1] - starts[i].p.z) * kk;
+          m.position.y = 0.51 + Math.sin(kk * Math.PI) * 1.3;
+          m.rotation.x += spins[i].x * 0.016; m.rotation.y += spins[i].y * 0.016; m.rotation.z += spins[i].z * 0.016;
+        } else {
+          const kk = (k - 0.85) / 0.15;
+          m.position.lerpVectors(new THREE.Vector3(ends[i][0], 0.51 + Math.sin(kk * Math.PI) * 0.12, ends[i][1]), new THREE.Vector3(ends[i][0], 0.51, ends[i][1]), kk);
+          m.quaternion.slerpQuaternions(starts[i].q, targets[i], kk);   // 收尾短弧落定（r128 实例方法，静态 slerp 已废弃）
+        }
+      });
+      if (k < 1) requestAnimationFrame(step);
+      else {
+        if (d1 === d2) diceObjs.forEach(m => { m.material.forEach && 0; });   // 双数白闪由 emissive 材质略过（pip 材质数组无 emissive——保持简单）
+        res();
+      }
+    };
+    requestAnimationFrame(step);
+  });
+}
+
+function movePawn(steps) {
+  const p = currentPlayer();
+  G.phase = 'HOPPING'; updateHUD();
+  if (!G.gl || REDUCED || bodyLo || TURBO) {
+    let np = (p.pos + steps) % 24;
+    if (p.pos + steps >= 24) { gainMoney(p, GO_PAY, '🏁 过起点'); }
+    p.pos = np;
+    placePawn(G.turn, np, true); layoutPlates(); render2D();
+    return Promise.resolve();
+  }
+  return new Promise(res => {
+    let left = steps;
+    rig.token++;   // 整段镜头跟随：取消在飞补间；走完不回中（tgt≈棋子×0.8 正好给买地弹窗取景，下回合 focusPawn 重设）
+    const mv = { last: 0 };
+    const hop = () => {
+      const from = p.pos;
+      p.pos = (p.pos + 1) % 24;
+      const to = p.pos;
+      if (to === 0) gainMoney(p, GO_PAY, '🏁 过起点');
+      const grp = pawnObjs[G.turn];
+      const [x0, z0] = [TILES[from].x, TILES[from].z];
+      const [x1, z1] = [TILES[to].x, TILES[to].z];
+      const [sx, sz] = pawnSlot(G.turn, from);
+      const [ex, ez] = pawnSlot(G.turn, to);
+      const t0 = performance.now(), dur = 260;
+      const step = now => {
+        const k = Math.min(1, (now - t0) / (dur * SPEED));
+        const kk = k * k * (3 - 2 * k);
+        grp.position.set(sx + (ex - sx) * kk, 0.34 + Math.sin(k * Math.PI) * 0.35, sz + (ez - sz) * kk);
+        // 镜头连续跟随棋子（dt 归一阻尼，帧率无关；12 步长步数不再逐跳甩镜）
+        const dz = 1 - Math.pow(0.90, Math.min(100, now - (mv.last || now)) / 16.7);
+        mv.last = now;
+        rig.az += shortestArc(Math.atan2(grp.position.x - TGT.x, grp.position.z - TGT.z) - rig.az) * dz;
+        rig.tgt.x += (grp.position.x * 0.8 - rig.tgt.x) * dz;
+        rig.tgt.z += (grp.position.z * 0.8 - rig.tgt.z) * dz;
+        camApply();
+        if (k < 1) requestAnimationFrame(step);
+        else {
+          left--;
+          if (left > 0) hop();
+          else { layoutPlates(); render2D(); res(); }
+        }
+      };
+      requestAnimationFrame(step);
+    };
+    hop();
+  });
+}
+
+function sendToJail() {
+  const p = currentPlayer();
+  p.jailed = true; p.jailTurns = 0; G.doubles = 0;
+  p.pos = 6;
+  placePawn(G.turn, 6, !G.gl); layoutPlates();
+  SFX.jail();
+  render2D();
+}
+function payFine() {
+  const p = currentPlayer();
+  charge(p, JAIL_FINE, null);
+  if (!p.bankrupt) { p.jailed = false; p.jailTurns = 0; toast('💸 交钱出狱，继续掷骰'); enterHumanTurn(); }
+  else afterResolve();
+}
+function useJailCard() {
+  const p = currentPlayer();
+  p.jailCards--; p.jailed = false; p.jailTurns = 0;
+  G.decks.chestDisc.push(CARDS.chest.findIndex(c => c.act.jailCard));   // 卡回命运弃牌堆
+  toast('🃏 免罚卡生效，继续掷骰', 'gain');
+  updateHUD(); enterHumanTurn();
+}
+
+async function resolveTile() {
+  const p = currentPlayer();
+  G.phase = 'RESOLVE'; updateHUD();
+  netCkpt();
+  const t = TILES[p.pos];
+  if (t.kind === 'prop') {
+    const owner = G.owners[p.pos];
+    if (owner === null || owner === undefined) {
+      if (p.bot) {
+        const full = propIdxOfGroup(t.group).every(i => i === p.pos || G.owners[i] === G.turn);
+        if (p.cash >= t.price + 2000 || (full && p.cash >= t.price)) { await sleep(500); buyProperty(); }
+        else { toast(`🤖 ${p.name} 看了看 ${t.name}，摇了摇头`); await sleep(500); afterResolve(); }
+      } else {
+        openBuyModal();
+        return;   // 弹窗回调里 afterResolve
+      }
+    } else if (owner === G.turn) {
+      toast(`🏠 回自己的 ${t.name} 坐坐`);
+      await sleep(500); afterResolve();
+    } else {
+      const o = G.players[owner];
+      const full = propIdxOfGroup(t.group).every(i => G.owners[i] === owner);
+      const rent = t.price * RENT_RATE * (full ? SET_MULT : 1);
+      toast(`${p.name} 落入 ${o.name} 的 ${t.name}，租金 ${fmt(rent)}${full ? '（同色全套×3）' : ''}`, 'loss');
+      if (o.bot) botQuote('rentIn');
+      SFX.pay();
+      await sleep(700);
+      charge(p, rent, o);
+      afterResolve();
+    }
+  } else if (t.kind === 'tax') {
+    toast(`💸 所得税 ${fmt(TAX)}`, 'loss'); SFX.pay();
+    await sleep(600);
+    charge(p, TAX, null);
+    afterResolve();
+  } else if (t.kind === 'chance' || t.kind === 'chest') {
+    await drawCard(t.kind);
+  } else if (t.kind === 'gotojail') {
+    toast('🚨 被请进监狱！'); 
+    await sleep(600);
+    sendToJail();
+    afterResolve();
+  } else if (t.kind === 'jail') {
+    toast('🚔 探监中（只是路过）');
+    await sleep(500); afterResolve();
+  } else if (t.kind === 'parking') {
+    toast('☕ 喝杯咖啡歇口气');
+    await sleep(500); afterResolve();
+  } else {
+    afterResolve();
+  }
+}
+function afterResolve() {
+  const p = currentPlayer();
+  updateHUD();
+  netCkpt();
+  if (checkRoundCap()) return;
+  if (aliveIdx().length <= 1) { endGame('last'); return; }
+  if (G.doubles > 0 && !p.bankrupt && !p.jailed) {   // 双数同人多掷一轮
+    G.phase = 'AWAIT_ROLL';
+    if (p.bot) setTimeout(() => botAct(), (500 + rint(600)) * SPEED);
+    else { lastInteract = Date.now(); showActions(); }
+    updateHUD();
+    return;
+  }
+  G.doubles = 0;
+  advanceTurn();
+}
+
+/* ═════════════════════════ 8. 金钱 / 卡牌 ═════════════════════════ */
+function gainMoney(p, v, why) {
+  p.cash += v;
+  const i = G.players.indexOf(p);
+  moneyFloat(i, v); SFX.coin();
+  if (why) toast(`${why}，${p.name} ${fmt(v)} 进账`, 'gain');
+  updateHUD();
+}
+function charge(p, v, creditor) {
+  const i = G.players.indexOf(p);
+  if (p.cash >= v) {
+    p.cash -= v;
+    if (creditor) { creditor.cash += v; moneyFloat(G.players.indexOf(creditor), v); }
+    moneyFloat(i, -v);
+    if (creditor) toast(`${p.name} 支付 ${fmt(v)} 给 ${creditor.name}`, 'loss');
+  } else {
+    const rest = p.cash;
+    if (creditor) creditor.cash += rest;
+    p.cash = 0; p.bankrupt = true;
+    bustBanner(p, creditor, v - rest);
+    G.owners.forEach((o, idx) => { if (o === i) { G.owners[idx] = null; ownerMarks[idx].visible = false; } });
+    const grp = pawnObjs[i]; if (grp) grp.visible = false;
+    if (plateSprites[i]) plateSprites[i].visible = false;
+    if (creditor && creditor.bot) botQuote('bustBy');
+    SFX.bust();
+    updateHUD(); render2D();
+  }
+  updateHUD();
+}
+function bustBanner(p, creditor, owed) {
+  const b = $('bust-banner');
+  b.textContent = `💀 ${p.name} 破产出局！` + (creditor ? `（还欠 ${fmt(owed)}）` : '');
+  b.classList.add('show');
+  document.body.classList.add('shaking');
+  setTimeout(() => b.classList.remove('show'), 1800 * SPEED);
+  setTimeout(() => document.body.classList.remove('shaking'), 400 * SPEED);
+}
+function botQuote(kind) {
+  const arr = BOT_QUOTES[kind];
+  if (arr && arr.length) toast(arr[rint(arr.length)]);
+}
+function openBuyModal() {
+  const p = currentPlayer(), t = TILES[p.pos];
+  $('buy-color').style.background = GROUPS[t.group].color;
+  $('buy-name').textContent = t.name;
+  const full = propIdxOfGroup(t.group).every(i => i === p.pos || G.owners[i] === G.turn);
+  $('buy-info').innerHTML = `价格 <b>${fmt(t.price)}</b> · 租金 ${fmt(t.price * RENT_RATE)}${full ? ' · <b>买下即集齐同色全套，租金×3！</b>' : ''}<br>你的现金：${fmt(p.cash)}`;
+  $('buy-modal').hidden = false;
+  const yes = $('btn-buy-yes');
+  yes.disabled = p.cash < t.price;
+  yes.textContent = yes.disabled ? '💰 现金不足' : '买下';
+}
+$('btn-buy-yes').addEventListener('click', () => { SFX.tap(); $('buy-modal').hidden = true; buyProperty(); });
+$('btn-buy-no').addEventListener('click', async () => { SFX.tap(); $('buy-modal').hidden = true; toast('🤔 再看看吧'); await sleep(300); afterResolve(); });
+function buyProperty() {
+  const p = currentPlayer(), t = TILES[p.pos];
+  p.cash -= t.price;
+  G.owners[p.pos] = G.turn;
+  moneyFloat(G.turn, -t.price); SFX.pay();
+  toast(`🏠 ${p.name} 买下 ${t.name}（${fmt(t.price)}）`, 'loss');
+  if (ownerMarks[p.pos]) { ownerMarks[p.pos].visible = true; ownerMarks[p.pos].material.color.set(PLAYER_COLORS[p.colorIdx]); ownerMarks[p.pos].material.needsUpdate = true; }
+  updateHUD(); render2D();
+  afterResolve();
+}
+async function drawCard(kind) {
+  if (!G.decks[kind].length) {
+    G.decks[kind] = G.decks[kind + 'Disc']; G.decks[kind + 'Disc'] = [];
+    for (let i = G.decks[kind].length - 1; i > 0; i--) { const j = rint(i + 1); [G.decks[kind][i], G.decks[kind][j]] = [G.decks[kind][j], G.decks[kind][i]]; }
+  }
+  const cardIdx = G.decks[kind].shift();
+  const card = CARDS[kind][cardIdx];
+  const p = currentPlayer();
+  SFX.card();
+  await revealCard(kind, card.text);
+  if (card.act.jailCard) { p.jailCards++; toast('🎫 免罚卡入手（狱中可用来立即出狱）', 'gain'); }
+  else G.decks[kind + 'Disc'].push(cardIdx);
+  const a = card.act;
+  if (AUTOTEST) G._lastCard = { kind, idx: cardIdx, act: a };
+  if (a.gain) gainMoney(p, a.gain, '🎉');
+  if (a.pay) { SFX.pay(); charge(p, a.pay, null); }
+  if (a.perProp) {
+    const n = G.owners.filter(o => o === G.turn).length;
+    if (n) { SFX.pay(); charge(p, a.perProp * n, null); toast(`🛠 ${n} 块地维修费 ${fmt(a.perProp * n)}`, 'loss'); }
+    else toast('🛠 无地可修，躲过一劫');
+  }
+  if (a.collectAll) {
+    let got = 0;
+    G.players.forEach((o, j) => {
+      if (j === G.turn || o.bankrupt) return;
+      const take = Math.min(o.cash, a.collectAll);
+      o.cash -= take; got += take;
+      if (take < a.collectAll) { o.bankrupt = true; bustBanner(o, null, a.collectAll - take); SFX.bust(); G.owners.forEach((idx2, ti) => { if (idx2 === j) { G.owners[ti] = null; ownerMarks[ti].visible = false; } }); const gp = pawnObjs[j]; if (gp) gp.visible = false; if (plateSprites[j]) plateSprites[j].visible = false; }   // 付不清才破产：take<应付额 ⇔ 现金<应付额（恰好付清 = 存活，与 charge 语义一致）
+      moneyFloat(j, -take);
+    });
+    if (got) { p.cash += got; moneyFloat(G.turn, got); toast(`🎉 ${p.name} 收到 ${fmt(got)}`, 'gain'); SFX.coin(); }
+    else toast('🤷 大家都身无分文');
+  }
+  if (a.payAll) {
+    const n2 = G.players.filter((o, j) => j !== G.turn && !o.bankrupt).length;
+    if (n2 > 0) {
+      const per = Math.min(a.payAll, Math.floor(p.cash / n2));   // 承受力上限内分发：扣款必然付清，不触发破产增发
+      if (per > 0) {
+        G.players.forEach((o, j) => { if (j !== G.turn && !o.bankrupt) { o.cash += per; moneyFloat(j, per); } });
+        SFX.pay();
+        charge(p, per * n2, null);
+        if (per < a.payAll) toast('💸 现金不够，只能每人付到 ' + fmt(per), 'loss');
+      } else toast('💸 身无分文，请客作废', 'loss');
+    }
+  }
+  if (a.goto) {
+    p.pos = a.goto; placePawn(G.turn, 0, !G.gl); layoutPlates();
+    gainMoney(p, GO_PAY, '🏁 抵达起点');
+  }
+  if (a.jail) sendToJail();
+  updateHUD(); render2D();
+  await sleep(400);
+  afterResolve();
+}
+function revealCard(kind, text) {
+  if (TURBO) return Promise.resolve();   // 蒙特卡洛：不揭晓直接结算
+  if (!G.gl || REDUCED || bodyLo) {
+    return new Promise(res => {
+      openGenModal(`<div class="card-face"><div class="card-kind">${kind === 'chance' ? '❓ 机会' : '🎁 命运'}</div><div class="card-text">${text}</div></div>`,
+        [{ label: '知道了', fn: () => { closeGenModal(); res(); } }]);
+    });
+  }
+  return new Promise(res => {
+    setCardFace(kind, text);
+    cardPivot.visible = true;
+    cardPivot.rotation.x = 0;
+    rig.autoDist = false; camTo({ elev: 32 * D2R, dist: nearDist() * 0.92, focusK: 1 }, 900, () => {
+      const t0 = performance.now(), flipDur = 650;
+      const flip = now => {
+        const k = Math.min(1, (now - t0) / (flipDur * SPEED));
+        cardPivot.rotation.x = Math.PI * k;   // 远边枢轴 +180°：0(盖着)→PI(面朝上)
+        if (k < 1) requestAnimationFrame(flip);
+        else setTimeout(() => {
+          const t1 = performance.now(), outDur = 420;
+          const out = now2 => {
+            const k2 = Math.min(1, (now2 - t1) / (outDur * SPEED));
+            cardMesh.material.opacity = 1 - k2;
+            if (k2 < 1) requestAnimationFrame(out);
+            else { cardPivot.visible = false; cardMesh.material.opacity = 1; rig.autoDist = true; camTo({ elev: REF_ELEV, dist: baseDist(), focusK: 1 }, 500); res(); }
+          };
+          requestAnimationFrame(out);
+        }, 1400 * SPEED);
+      };
+      requestAnimationFrame(flip);
+    });
+  });
+}
+
+/* ═════════════════════════ 9. 机器人 ═════════════════════════ */
+function botAct() {
+  const p = currentPlayer();
+  if (!p || p.bot !== true || p.bankrupt) return;
+  if (NETMODE && !isHost()) return;   // 联机：机器人座位由房主代跑
+  if (p.jailed) {
+    if (p.jailCards) {
+      p.jailCards--; p.jailed = false; p.jailTurns = 0;
+      G.decks.chestDisc.push(CARDS.chest.findIndex(c => c.act.jailCard));
+      toast('🃏 免罚卡生效'); updateHUD();
+      doRoll(false); return;
+    }
+    if (p.cash >= 1000) {   // 有钱立刻付，不空赌三回合（玩家专家 P1-10）
+      charge(p, JAIL_FINE, null);
+      if (!p.bankrupt) { p.jailed = false; p.jailTurns = 0; toast('💸 交钱出狱'); updateHUD(); doRoll(false); return; }
+      afterResolve(); return;
+    }
+  }
+  doRoll(!!p.jailed);
+}
+
+/* ═════════════════════════ 10. 终局 ═════════════════════════ */
+function assetsOf(i) {
+  return G.players[i].cash + G.owners.reduce((s, o, ti) => s + (o === i ? TILES[ti].price : 0), 0);
+}
+function endGame(kind) {
+  G.phase = 'OVER'; hideActions(); clearSave();
+  showResult();
+  SFX.win();
+  updateHUD();
+  netCkpt();
+}
+function showResult() {
+  const rank = G.players.map((p, i) => ({ i, p, asset: p.bankrupt ? -1 : assetsOf(i) }))
+    .sort((a, b) => b.asset - a.asset);
+  $('result-winner').textContent = `🏆 ${rank[0].p.name}`;
+  $('result-pods').innerHTML = rank.map((r, n) =>
+    `<div class="pod"><span class="rank">${['🥇', '🥈', '🥉', '4'][n] || n + 1}</span>
+     <span class="dot" style="background:${PLAYER_COLORS[r.p.colorIdx]}"></span>
+     <span>${escapeHtml(r.p.name)}${r.p.bot ? ' 🤖' : ''}</span>
+     <span class="asset tabnum">${r.p.bankrupt ? '💀 破产' : fmt(r.asset)}</span></div>`).join('');
+  $('result-overlay').hidden = false;
+}
+$('btn-rematch').addEventListener('click', () => {
+  SFX.tap();
+  if (NETMODE) {   // 联机：只有房主能开新局，全员沿用当前座位
+    if (isHost()) {
+      // 对局结束后 doc.started 从不复位会让 netStartGame 直接 return——先复位再开
+      mutate(n => { n.started = false; n.game = null; }, 'edit').then(() => netStartGame({ roundLimit: G.roundLimit }));
+    }
+    else toast('👑 等房主开新局', '', 2600);
+    return;
+  }
+  const cfg = { players: G.players.map(p => ({ name: p.name, bot: p.bot })), roundLimit: G.roundLimit, skipHandoff: G.skipHandoff, seed: (Math.random() * 0xffffffff) >>> 0 };
+  startGame(cfg);
+});
+$('btn-result-home').addEventListener('click', () => { location.href = 'index.html'; });
+
+/* ═════════════════════════ 11. 通用弹窗 / 退出 ═════════════════════════ */
+function openGenModal(bodyHtml, actions) {
+  $('gen-body').innerHTML = bodyHtml;
+  $('gen-actions').innerHTML = '';
+  actions.forEach((a, i) => {
+    const b = document.createElement('button');
+    b.className = i === 0 ? 'btn-primary' : 'btn-ghost';
+    if (i === 0) b.style.marginTop = '16px';
+    b.textContent = a.label;
+    b.addEventListener('click', () => { SFX.tap(); a.fn(); });
+    $('gen-actions').appendChild(b);
+  });
+  $('gen-modal').hidden = false;
+}
+function closeGenModal() { $('gen-modal').hidden = true; }
+$('btn-quit').addEventListener('click', () => {
+  const inGame = G.phase !== 'SETUP' && G.phase !== 'OVER' && G.phase !== 'BOOT';
+  openGenModal(`<p style="line-height:1.8">${inGame ? '对局已自动保存，下次进入可继续。<br>确定离开？' : '返回游戏中心？'}</p>`,
+    [{ label: '确定离开', fn: () => { location.href = 'index.html'; } }, { label: '继续玩', fn: closeGenModal }]);
+});
+$('btn-rules-top').addEventListener('click', () => {
+  openGenModal(`<div style="text-align:left"><b>📜 规则速览</b><ul style="padding-left:20px;line-height:1.9;font-size:0.85rem;margin-top:8px">
+    <li>过起点 +¥1000；无主地可买</li><li>租金=地价40%，集齐同色×3</li><li>双数再掷；三连双入狱</li>
+    <li>监狱三选一：赌双数/¥500/🃏</li><li>所得税 ¥1000</li><li>局长打满按现金+地价排名</li>
+    <li>付不起=破产，最后存活胜</li></ul></div>`, [{ label: '明白了', fn: closeGenModal }]);
+});
+$('btn-sfx').addEventListener('click', () => { $('btn-sfx').textContent = SFX.toggle() ? '🔊' : '🔇'; });
+$('btn-sfx').textContent = SFX.on ? '🔊' : '🔇';
+
+/* ═════════════════════════ 12. SETUP ═════════════════════════ */
+const seatState = [];
+function defaultName(i) {
+  const names = ['小明', '小红', '阿强', '婷婷'];
+  try { const m = JSON.parse(localStorage.getItem('mono:names') || 'null'); if (m && m[i]) return m[i]; } catch (e) {}
+  return names[i] || `玩家${i + 1}`;
+}
+function renderSeats() {
+  const box = $('seat-rows');
+  box.innerHTML = '';
+  seatState.forEach((s, i) => {
+    const row = document.createElement('div');
+    row.className = 'seat-row';
+    row.innerHTML = `<span class="dot" style="background:${PLAYER_COLORS[i]}"></span>
+      <input type="text" maxlength="8" value="${escapeHtml(s.name)}" aria-label="玩家${i + 1}名字">
+      <span class="bot-toggle ${s.bot ? 'on' : ''}" role="button" tabindex="0">🤖 机器人</span>`;
+    row.querySelector('input').addEventListener('input', e => { s.name = e.target.value; });
+    const bt = row.querySelector('.bot-toggle');
+    const flip = () => { s.bot = !s.bot; bt.classList.toggle('on', s.bot); SFX.tap(); };
+    bt.addEventListener('click', flip);
+    bt.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } });
+    box.appendChild(row);
+  });
+  $('seat-minus').disabled = seatState.length <= 2;
+  $('seat-plus').disabled = seatState.length >= 4;
+}
+$('seat-plus').addEventListener('click', () => { if (seatState.length < 4) { seatState.push({ name: defaultName(seatState.length), bot: seatState.length === 1 }); renderSeats(); } });
+$('seat-minus').addEventListener('click', () => { if (seatState.length > 2) { seatState.pop(); renderSeats(); } });
+$('round-limit').addEventListener('change', e => {
+  const v = +e.target.value;
+  $('round-est').textContent = v === 15 ? '预计约 10 分钟' : v === 20 ? '预计约 15 分钟' : '不限时（纯破产制）';
+});
+$('btn-start').addEventListener('click', () => {
+  SFX.tap();
+  const players = seatState.map(s => ({ name: s.name.trim() || '无名氏', bot: s.bot }));
+  if (!players.some(p => !p.bot)) players[0].bot = false;   // 热座至少留 1 真人（纯围观用 2D 投屏等未来方案）
+  try { localStorage.setItem('mono:names', JSON.stringify(players.map(p => p.name))); } catch (e) {}
+  try { localStorage.setItem('mono:last', 'monopoly'); } catch (e) {}
+  startGame({ players, roundLimit: +$('round-limit').value, skipHandoff: $('skip-handoff').checked });
+});
+$('btn-back-arcade').addEventListener('click', () => { location.href = 'index.html'; });
+$('skip-handoff').addEventListener('change', () => { try { localStorage.setItem('mono:nohandoff', $('skip-handoff').checked ? '1' : '0'); } catch (e) {} });
+
+/* ═════════════════════════ 13. 2D 降级棋盘 ═════════════════════════ */
+function render2D() {
+  if (G.gl) return;
+  const box = $('board2d');
+  if (G.phase === 'SETUP' || G.phase === 'BOOT') { box.innerHTML = ''; return; }
+  box.innerHTML = TILES.map((t, i) => {
+    const o = G.owners[i];
+    const here = G.players.some((p, j) => !p.bankrupt && p.pos === i && j === G.turn);
+    const strip = t.kind === 'prop' ? `<span class="strip" style="background:${GROUPS[t.group].color}"></span>` : '<span class="strip" style="background:rgba(255,255,255,0.2)"></span>';
+    const who = G.players.filter((p, j) => !p.bankrupt && p.pos === i).map(p => escapeHtml(p.name)).join('、');
+    return `<div class="t2 ${here ? 'here' : ''}">${strip}<span class="t2-name">${t.emoji} ${t.name}</span>
+      <span class="t2-price">${t.kind === 'prop' ? fmt(t.price) + ' · 租' + fmt(t.price * RENT_RATE) : ''}</span>
+      <span class="t2-owner">${o !== null && o !== undefined ? '🏠 ' + escapeHtml(G.players[o].name) : ''}</span>
+      ${who ? `<span class="t2-owner">📍 ${who}</span>` : ''}</div>`;
+  }).join('');
+}
+
+/* ═════════════════════════ 14. loperf-lite（中位帧间隔 >26ms 触发） ═════════════════════════ */
+let bodyLo = false;
+let loDegrade = false;   // 一旦降过级，shadow/dpr 永久保持低配（恢复动画但不回画质，防阈值上下抖动）
+const frameTimes = [];
+function setBodyLo(on) {
+  bodyLo = on;
+  document.body.classList.toggle('loperf', on);
+  if (on && renderer) { renderer.shadowMap.enabled = false; dirLight.castShadow = false; }
+  sizeScene();
+}
+function perfWatch(now) {
+  if (LOPERF_FORCED) return;   // E2E 强制档：boot 已 setBodyLo(true)，判定/恢复全不参与
+  if (AUTOTEST) {              // 探针档：保持旧单窗判定（软渲探针依赖固定翻转节奏跳帧提速）
+    if (bodyLo) { perfWatch.last = now; return; }
+  } else {
+    if (perfWatch.t0 == null) { perfWatch.t0 = now; perfWatch.last = now; return; }
+    if (now - perfWatch.t0 <= 2600) { perfWatch.last = now; return; }   // 预热豁免：loader/shader 编译抖动不算数
+    if (!perfWatch.warm) { perfWatch.warm = true; frameTimes.length = 0; }   // 到期清空重采
+  }
+  if (perfWatch.last) {
+    frameTimes.push(now - perfWatch.last);
+    if (frameTimes.length >= 60) {
+      const med = [...frameTimes].sort((a, b) => a - b)[30];
+      frameTimes.length = 0;   // 不相交窗口
+      if (!bodyLo) {
+        if (med > 26) { if (AUTOTEST || ++perfWatch.bad >= 2) setBodyLo(true); }   // 正式局连续两慢窗才降级
+        else perfWatch.bad = 0;
+      } else if (!AUTOTEST && med < 17 && !perfWatch.recovered) {
+        perfWatch.recovered = true; loDegrade = true; setBodyLo(false);   // 一次性恢复：动画回来，画质保持低配
+      }
+    }
+  }
+  perfWatch.last = now;
+}
+
+/* ═════════════════════════ 15. 主循环 & boot ═════════════════════════ */
+function tick(now) {
+  perfWatch(now);
+  // idle 环绕只在该端「等别人行动」且处于全景（tgt 回桌心）时转：近景保持注视当前行动者不漂移
+  if (G.gl && !bodyLo && !REDUCED && G.phase === 'AWAIT_ROLL' && Date.now() - lastInteract > 3000
+      && !$('action-bar').classList.contains('show') && $('buy-modal').hidden && $('gen-modal').hidden
+      && (!$('handoff').hidden || !NETMODE || !netIsMyTurn())
+      && Math.hypot(rig.tgt.x - TGT.x, rig.tgt.z - TGT.z) < 0.05) {
+    rig.az += (4 * D2R) * (now - (tick.last || now)) / 1000;   // idle 环绕 +4°/s
+    camApply();
+  }
+  tick.last = now;
+  plateVisibility();
+  if (!TURBO && !(AUTOTEST && bodyLo) && renderer) renderer.render(scene, camera);   // turbo/loperf=1 只推状态机，不画（软渲每帧 100ms+ 会拖死探针）
+  requestAnimationFrame(tick);
+}
+function setLoader(pct, text) { $('loader-bar').style.width = pct + '%'; if (text) $('loader-text').textContent = text; }
+function hideLoader() {
+  const l = $('loader');
+  l.style.opacity = '0'; l.style.transform = 'scale(1.04)';
+  l.classList.add('reveal-done');
+  setTimeout(() => l.remove(), 300);
+}
+async function boot() {
+  if (LOPERF_FORCED) setBodyLo(true);   // E2E：跳帧渲染，纯状态机+UI 断言（软渲真渲染既慢又脆，见 SPEC 1.6）
+  const t0 = performance.now();
+  setLoader(20, '搭建棋盘...');
+  const ok = initScene();
+  await sleep(120);
+  setLoader(55, '点亮灯光...');
+  if (ok) { // 纹理已在 initScene 内绘制；等字体到位后重绘一次格面（签名重绘太重，改为仅名牌）
+    try { await Promise.race([document.fonts.load('700 44px "Noto Sans SC"'), sleep(800)]); } catch (e) {}
+  }
+  await sleep(120);
+  setLoader(85, '就位...');
+  if (AUTOTEST) {
+    $('skip-handoff').checked = true;
+    seatState.length = 0;
+    seatState.push({ name: '测试员', bot: false }, { name: '机器人甲', bot: true });
+    renderSeats();
+  } else {
+    try { if (localStorage.getItem('mono:nohandoff') === '1') $('skip-handoff').checked = true; } catch (e) {}
+    try { if (!localStorage.getItem('mono:rulesSeen')) { $('rules-box').open = true; localStorage.setItem('mono:rulesSeen', '1'); } } catch (e) {}
+    seatState.push({ name: defaultName(0), bot: false }, { name: defaultName(1), bot: true });
+    renderSeats();
+  }
+  updateHUD();
+  await sleep(120);
+  setLoader(100);
+  const wait = Math.max(0, 900 - (performance.now() - t0));   // loader 最低展示 900ms
+  await sleep(wait / SPEED);
+  hideLoader();
+  G.phase = 'SETUP';
+  const save = loadSave();
+  if (AUTOTEST) {
+    if (qs.get('net') === '1') { await netBootAutotest(); return; }   // E2E 联机：?net=1&room=&role=host|join[&autostart=1][&localnet=1]
+    startGame({ players: seatState.map(s => ({ name: s.name, bot: s.bot })), roundLimit: 20, skipHandoff: true });
+    return;
+  }
+  if (save) {
+    const leader = save.players.reduce((a, b) => (b.cash > a.cash ? b : a), save.players[0]);
+    openGenModal(`<p style="line-height:1.9">🏠 发现上一局<br><b>第 ${Math.min(...save.players.filter(p => !p.bankrupt).map(p => p.turnsTaken)) + 1} 轮 · ${escapeHtml(leader.name)} 领先</b></p>`,
+      [{ label: '继续对局', fn: () => { closeGenModal(); resumeGame(save); } },
+       { label: '弃局重来', fn: () => { closeGenModal(); clearSave(); $('setup').hidden = false; } }]);
+  } else {
+    $('setup').hidden = false;
+  }
+}
+function resumeGame(s) {
+  G.roundLimit = s.roundLimit; G.skipHandoff = s.skipHandoff;
+  G.players = s.players.map((p, i) => Object.assign({}, p, { colorIdx: p.colorIdx != null ? p.colorIdx : i }));
+  G.owners = s.owners.slice();
+  G.decks = s.decks; G.turn = s.turn; G.doubles = 0;
+  reseed(s.rngA != null ? s.rngA : s.seed);
+  G.seed = s.seed;
+  G._resumeSkipInc = true;
+  $('setup').hidden = true;
+  if (G.gl) buildPawns();
+  G.owners.forEach((o, i) => { if (o != null && ownerMarks[i]) { ownerMarks[i].visible = true; ownerMarks[i].material.color.set(PLAYER_COLORS[G.players[o].colorIdx]); ownerMarks[i].material.needsUpdate = true; } });
+  G.players.forEach((p, i) => { if (p.bankrupt && pawnObjs[i]) { pawnObjs[i].visible = false; if (plateSprites[i]) plateSprites[i].visible = false; } });
+  render2D(); updateHUD();
+  beginTurn();   // 从当前玩家回合起点安全恢复
+}
+requestAnimationFrame(tick);
+boot();
+
+/* ═════════════════════════ 16. E2E 钩子 ═════════════════════════ */
+if (AUTOTEST || qs.get('inspect') === '1') {   // inspect=1：真机路径（SPEED/渲染/perfWatch 全真）下只读取证访问器
+  window.__mono = {
+    state: G,
+    step: () => { const p = currentPlayer(); if (p && !p.bot && G.phase === 'AWAIT_ROLL') doRoll(!!p.jailed); },
+    buy: yes => { if (!$('buy-modal').hidden) { const b = $(yes ? 'btn-buy-yes' : 'btn-buy-no'); (b && !b.disabled ? b : $('btn-buy-no')).click(); } },   // 主键禁用（现金不足）自动回退「不买」
+    handoff: () => { if (!$('handoff').hidden) $('btn-handoff-go').click(); },
+    forcePos: (i, n) => { G.players[i].pos = n % 24; placePawn(i, G.players[i].pos, true); render2D(); },
+    forceMoney: (i, v) => { G.players[i].cash = v; updateHUD(); },
+    forceJail: i => { G.players[i].jailed = true; G.players[i].jailTurns = 0; G.players[i].pos = 6; placePawn(i, 6, true); updateHUD(); },
+    resolveAt: async (i, tile) => { G.turn = i; G.doubles = 0; G.players[i].pos = tile % 24; if (pawnObjs[i]) placePawn(i, G.players[i].pos, true); render2D(); await resolveTile(); },
+    sceneInfo: () => ({ gl: G.gl, bodyLo, tiles: tileMeshes.length, pawns: pawnObjs.length, plates: plateSprites.length, dice: diceObjs.length }),
+    rigSnap: () => ({ az: rig.az, elev: rig.elev, dist: rig.dist, focusK: rig.focusK, tgt: { x: rig.tgt.x, y: rig.tgt.y, z: rig.tgt.z } }),
+    pawnWorld: () => pawnObjs.map(p => (p ? [p.position.x, p.position.y, p.position.z] : null)),
+    net: () => ({ mode: NETMODE, joined, room: NDOC && NDOC.room, myId, doc: NDOC, host: isHost(), myTurn: netIsMyTurn(), mic: P.mic.on(), peers: P.mic.peers(), enter: netEnter, publish: netCkpt, start: netStartGame, ui: syncNetHUD, av: netAvatarHtml }),
+    mc: n => new Promise(async res => {
+      const out = [];
+      for (let k = 0; k < n; k++) {
+        startGame({ players: [0, 1, 2, 3].map(() => ({ name: 'B' + k, bot: true })), roundLimit: 20, skipHandoff: true, seed: 7000 + k * 13 });
+        await new Promise(r => { const iv = setInterval(() => { if (G.phase === 'OVER') { clearInterval(iv); r(); } }, 25); });
+        const stat = { game: k, turns: Math.max(...G.players.map(p => p.turnsTaken)), busts: G.players.filter(p => p.bankrupt).length };
+        console.log('[mc] ' + JSON.stringify(stat));
+        out.push(stat);
+      }
+      res(out);
+    }),
+  };
+}
+</script>
+</body>
+</html>

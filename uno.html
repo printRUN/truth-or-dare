@@ -160,6 +160,12 @@
   body.loperf .pchip, body.loperf .btn-sub, body.loperf .btn-main, body.loperf .ovl, body.loperf #toast, body.loperf #hand-ovl { backdrop-filter: none; -webkit-backdrop-filter: none; }
   body.loperf .pod { opacity: 1; transform: none; animation: none; }
 
+  /* ═══ 联机（v1：组件 UI 在 party-net.js；这里只留 HUD 侧） ═══ */
+  .pchip.off { opacity: 0.45; }
+  .pchip.speaking { box-shadow: 0 0 0 2px rgba(52,211,153,0.8) !important; }
+  .pav { width: 22px; height: 22px; border-radius: 50%; flex: 0 0 auto; }
+  #btn-mic.live { background: linear-gradient(135deg, #34d399, #10b981); color: #06281c; }
+  #btn-listen.off { opacity: 0.5; }
   @media (max-width: 767px) {
     #players-bar { grid-template-columns: repeat(2, 1fr); }
     .pchip { min-height: 40px; font-size: 0.78rem; padding: 5px 8px; }
@@ -187,6 +193,8 @@
 <div id="hud-tools" hidden>
   <button id="btn-rules-top" type="button" title="规则速览">❓</button>
   <button id="btn-sfx" type="button" title="音效开关">🔊</button>
+  <button id="btn-mic" class="js-mic-btn" type="button" title="连麦（WebRTC）" hidden>🎙️</button>
+  <button id="btn-listen" class="js-listen-btn" type="button" title="收听开关" hidden>🔊</button>
   <button id="btn-quit" type="button" title="返回游戏中心">🏠</button>
 </div>
 <div id="toast"></div>
@@ -200,14 +208,21 @@
 <div id="setup" class="ovl" hidden>
   <div class="panel">
     <h2>🃏 UNO</h2>
-    <p class="sub">本地同屏 · 传机暗牌 · 2-4 人（可带 🤖）</p>
+    <p class="sub">🌐 联机房间是默认玩法 · 2-4 人 · 房号邀请</p>
+    <div id="party-net"></div>
+    <details id="adv-box" class="pn-adv">
+    <summary>⚙️ 高级选项 · 本地热座（同屏传机暗牌）</summary>
+    <div id="hot-opts">
     <div id="seat-rows"></div>
-    <div class="seat-add">
+    <div class="seat-add" id="seat-add">
       <button id="seat-minus" type="button">－ 减一人</button>
       <button id="seat-plus" type="button">＋ 加一人</button>
     </div>
     <label class="opt-row"><input type="checkbox" id="opt-light"> 明牌模式（大家都看得见 · 适合客厅投屏）</label>
     <label class="opt-row" id="row-skip"><input type="checkbox" id="skip-handoff"> 跳过交接确认（大家都盯着屏幕）</label>
+    </div>
+    <button id="btn-start" class="btn-primary" type="button">开始本地热座 🪑</button>
+    </details>
     <details id="rules-box">
       <summary>📜 规则速览</summary>
       <ul>
@@ -220,8 +235,7 @@
         <li>+2 不能叠加；无 7-0 家规</li>
       </ul>
     </details>
-    <button id="btn-start" class="btn-primary" type="button">开始游戏 🎮</button>
-    <button id="btn-back-arcade" class="btn-ghost" type="button">← 返回游戏中心</button>
+        <button id="btn-back-arcade" class="btn-ghost" type="button">← 返回游戏中心</button>
   </div>
 </div>
 
@@ -277,6 +291,8 @@
 
 </script>
 
+<script src="dicebear-local.js"></script>
+<script src="party-net.js"></script>
 <script>
 'use strict';
 /* ═══════════════ 0. 基础 ═══════════════ */
@@ -307,15 +323,15 @@ const esc = s => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '
 
 /* ═══════════════ 1. 音效 ═══════════════ */
 const SFX = (() => {
-  let ctx = null, on = true;
+  let ctx = null, on = true, master = null;
   try { on = localStorage.getItem('uno:sfx') !== '0'; } catch (e) {}
-  const ensure = () => { if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } return ctx; };
+  const ensure = () => { if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); master = ctx.createGain(); master.gain.value = 1; master.connect(ctx.destination); } catch (e) {} } return ctx; };
   const env = (g, t0, a, d, v) => { g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(v, t0 + a); g.gain.exponentialRampToValueAtTime(0.001, t0 + a + d); };
   const tone = (f0, f1, dur, type, vol, when = 0) => {
     const c = ensure(); if (!c || !on) return;
     const o = c.createOscillator(), g = c.createGain(), t0 = c.currentTime + when;
     o.type = type; o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t0 + dur);
-    env(g, t0, 0.01, dur, vol); o.connect(g).connect(c.destination); o.start(t0); o.stop(t0 + dur + 0.1);
+    env(g, t0, 0.01, dur, vol); o.connect(g).connect(master || c.destination); o.start(t0); o.stop(t0 + dur + 0.1);
   };
   const noise = (dur, vol, fc) => {
     const c = ensure(); if (!c || !on) return;
@@ -323,7 +339,7 @@ const SFX = (() => {
     for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
     const s = c.createBufferSource(), g = c.createGain(), f = c.createBiquadFilter();
     s.buffer = buf; f.type = 'lowpass'; f.frequency.value = fc; env(g, c.currentTime, 0.005, dur, vol);
-    s.connect(f).connect(g).connect(c.destination); s.start();
+    s.connect(f).connect(g).connect(master || c.destination); s.start();
   };
   return {
     get on() { return on; },
@@ -337,9 +353,156 @@ const SFX = (() => {
     catchU() { tone(500, 240, 0.16, 'square', 0.14); tone(240, 500, 0.14, 'square', 0.12, 0.16); },
     win() { [523, 659, 784, 1046].forEach((f, i) => tone(f, f, 0.12, 'triangle', 0.18, i * 0.11)); },
     card() { tone(500, 900, 0.09, 'sine', 0.1); },
+    // 连麦压低（duck）：连麦模块在开麦/收听时调用
+    duckMusic(f, ms = 300) {
+      const c = ensure(); if (!c || !master) return;
+      try { master.gain.cancelScheduledValues(c.currentTime); master.gain.setValueAtTime(master.gain.value, c.currentTime); master.gain.linearRampToValueAtTime(f, c.currentTime + ms / 1000); } catch (e) {}
+    },
+    // 连麦压低（duck）：连麦模块在开麦/收听时调用
+    duckMusic(f, ms = 300) {
+      const c = ensure(); if (!c || !master) return;
+      try { master.gain.cancelScheduledValues(c.currentTime); master.gain.setValueAtTime(master.gain.value, c.currentTime); master.gain.linearRampToValueAtTime(f, c.currentTime + ms / 1000); } catch (e) {}
+    },
   };
 })();
 document.addEventListener('pointerdown', () => SFX.unlock(), { once: true, passive: true });
+
+// ═══════════════════════════════════════════════════════════════
+// 13. 联机（公共组件 party-net.js 的宿主适配层；组件契约见 SPEC §1.9）
+// ═══════════════════════════════════════════════════════════════
+let NETMODE = false, NDOC = null, myId = null, joined = false, link = null;   // 组件全局常量 NET_STALE_* 可直接引用
+const P = PartyNet.create({
+  key: 'uno', prefix: 'uno/v1', maxPlayers: 4, allowBots: true,
+  localOnly: AUTOTEST && qs.get('localnet') === '1',   // E2E：同浏览器多标签走 BroadcastChannel，不碰外网
+  toast, sleep, sfx: SFX,
+  snapshot: () => gameSnapshot(),
+  onGame: (g, d) => applyGameSnapshot(g, d),
+  onState: () => { NETMODE = P.mode(); NDOC = P.doc(); myId = P.myId; joined = P.joined(); link = P.link(); syncNetHUD(); },
+  kick: () => netHostKick(),
+  // 开局后座位不删：掉线者按座位号代管为机器人
+  prune: (n, now) => {
+    if (!n.game) return;
+    n.game.players.forEach((gp, i) => {
+      const np = n.players[i];
+      if (!np || np.bot) return;
+      if (now - (np.lastSeen || 0) > 90000) { gp.bot = true; gp.name = gp.name + '🤖'; if (n.players[i]) n.players[i].bot = true; }
+    });
+  },
+  onStart: () => netStartGame({}),
+  avSeedPrefix: 'UNO',
+});
+P.mount('party-net');
+$('btn-mic').addEventListener('click', () => P.mic.toggle());
+$('btn-listen').addEventListener('click', () => P.mic.toggleListen());
+
+const isHost = () => P.isHost();
+function netSeatOf(pid) { return P.seatOf(pid); }
+function netIsMyTurn() {
+  return NETMODE && NDOC && NDOC.started && NDOC.game && NDOC.players[G.turn] && NDOC.players[G.turn].id === myId;
+}
+function mutate(fn, mode) { return P.mutate(fn, mode); }
+function netCkpt() { if (NETMODE && joined && NDOC && NDOC.started) return P.mutate(() => {}, 'ck'); }
+function netEnter(room, name, asHost) { return P.enter(room, name, asHost); }
+function netLeave(silent) { P.leave(silent); }
+// 棋局快照（retained 文档的 game 字段；含全部手牌——房间号即门禁，已知限制见 SPEC §1.8）
+function gameSnapshot() {
+  return JSON.parse(JSON.stringify({
+    phase: G.phase, players: G.players, deck: G.deck, discard: G.discard,
+    dir: G.dir, cur: G.cur, turn: G.turn, drawnThisTurn: G.drawnThisTurn,
+    mode: G.mode, skipHandoff: G.skipHandoff, lastHumanActor: G.lastHumanActor, passStreak: G.passStreak,
+    seed: G.seed, winner: G.winner,
+  }));
+}
+// 远端棋局快照 → 本地 G（静态重绘，不播动画；喊名窗口是本地计时态不随快照走）
+function applyGameSnapshot(g, doc) {
+  if (TURBO || !g || !Array.isArray(g.players)) return;
+  const prevPhase = G.phase, prevTurn = G.turn;
+  const prevDiscard = G.discard, prevHands = G.players.map(p => p ? p.hand.length : -1);
+  G.phase = g.phase;
+  G.players = JSON.parse(JSON.stringify(g.players));
+  G.deck = JSON.parse(JSON.stringify(g.deck)); G.discard = JSON.parse(JSON.stringify(g.discard));
+  G.dir = g.dir; G.cur = g.cur; G.turn = g.turn; G.drawnThisTurn = g.drawnThisTurn;
+  G.mode = g.mode; G.skipHandoff = !!g.skipHandoff; G.lastHumanActor = g.lastHumanActor; G.passStreak = g.passStreak;
+  G.seed = g.seed; G.winner = g.winner;
+  // 喊名窗口是窗口主人的本地计时态不随快照走；仅在主人手牌数不再是 1（罚摸/赢局/新局）时作废
+  if (G.unoWin && G.players[G.unoWin.who] && G.players[G.unoWin.who].hand.length !== 1) G.unoWin = null;
+  $('setup').hidden = true; $('handoff').hidden = true; hideActions();
+  if (g.phase !== 'OVER') $('result-overlay').hidden = true;   // 新局快照要收起上一局的结算屏
+  $('gen-modal').hidden = true; closeHandOverlay();
+  if (G.gl) buildHands();
+  // 旁观端出牌补演：弃牌堆变长=有人出了牌；手牌变短的那个座位就是出牌者（G.turn 已轮到下家）
+  if (G.gl && g.discard.length > prevDiscard.length && prevDiscard.length >= 1) {
+    const pi = G.players.findIndex((p, i) => p.hand.length === prevHands[i] - 1);
+    if (pi >= 0) { flyToPile(pi, seatPos(pi)); glanceAside(pi); }
+  }
+  setColor(G.cur); render2D(); updateHUD();
+  // 结算屏补演：只要快照到 OVER 且本端还没显示就补演（本地模拟可能先行/滞后，不能只看 prevPhase）
+  if (g.phase === 'OVER' && $('result-overlay').hidden) showResult();
+  // 接管/自愈：快照显示轮到本端真人且本端操作条不在 → 开/恢复自己的回合
+  //（HANDOFF=上家刚交棒；AWAIT_ACTION=本端稳定等待期操作条被某次快照误收起）
+  if (NETMODE && netIsMyTurn() && !$('action-bar').classList.contains('show')
+      && (g.phase === 'HANDOFF' || (g.phase === 'AWAIT_ACTION' && prevPhase === 'AWAIT_ACTION'))) enterHumanTurn();
+  // 窗口主人自愈：非本端回合但本端握着 UNO 喊名窗口 → 恢复操作条让主人能按
+  if (NETMODE && !netIsMyTurn() && G.unoWin && !G.unoWin.penalized && G.unoWin.who === netSeatOf(myId)
+      && !$('action-bar').classList.contains('show')) showActions();
+}
+function netStartGame(cfg) {
+  const doc = P.doc();
+  if (!NETMODE || !doc || doc.started) return;
+  const players = doc.players.map(p => ({ name: p.name, bot: !!p.bot }));
+  P.setStarted();   // 先落开局标志并发布，startGame 内的检查点会携带首份棋局快照
+  clearSave();      // 联机局不落本地热座存档
+  startGame({ players, mode: 'dark', skipHandoff: true, firstPlayer: cfg.firstPlayer || 0 });
+}
+// 房主接管补跑（组件已按 isHost/bot/seq 守卫并延迟调度）
+function netHostKick() {
+  if (!(NETMODE && NDOC && NDOC.started && G.phase !== 'OVER')) return;
+  const cp = G.players[G.turn];
+  if (cp && cp.bot && !cp.out) beginTurn();
+}
+// 即发即忘事件（UNO 喊名 / 抓包）：迟到的旧事件按时间戳丢弃
+function netReact(kind, who) {
+  if (!NETMODE || !link) return;
+  try { link.publishReact({ kind, who, name: G.players[who] ? G.players[who].name : '', mid: genId(), t: Date.now() }); } catch (e) {}
+}
+function onNetReact(m) {
+  if (!m || !m.kind || !NETMODE) return;
+  if (typeof m.t === 'number' && Date.now() - m.t > 8000) return;
+  if (m.who === P.seatOf(myId)) return;   // 自己发的不回放
+  if (m.kind === 'uno') { SFX.uno(); toast(`🙌 ${m.name}：UNO！！`, 'gain'); }
+  else if (m.kind === 'catch') { SFX.catchU(); toast(`🫵 ${m.name} 被抓包：忘喊 UNO，罚 2 张`, 'loss'); }
+}
+// HUD 侧联机同步（大厅/表单由组件自渲染）
+function syncNetHUD() {
+  const onNet = NETMODE && joined && NDOC;
+  $('btn-mic').hidden = !onNet;
+  $('btn-listen').hidden = !onNet;
+  if (onNet && NDOC.started) {
+    NDOC.players.forEach((p, i) => {
+      const chip = $('pchip-' + i);
+      if (chip) chip.classList.toggle('off', Date.now() - (p.lastSeen || 0) > 40000);
+    });
+    $('setup').hidden = true;
+  }
+}
+function netAvatarHtml(i) {
+  const rep = NETMODE && NDOC && NDOC.players[i] && NDOC.players[i].av;
+  if (!rep) return '';
+  const uri = P.avatarUri(rep);
+  return uri ? `<img class="pav" src="${uri.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" alt="" onerror="this.style.visibility='hidden'">` : '';   // 转义纵深：组件侧已有 dataURL 白名单；onerror=双故障时隐藏而非裂图
+}
+async function netBootAutotest() {
+  const room = qs.get('room') || '88888';
+  const name = qs.get('name') || (qs.get('role') === 'host' ? '测试房主' : '测试员');
+  const ok2 = await netEnter(room, name, qs.get('role') === 'host');
+  if (!ok2) return;
+  if (qs.get('role') === 'host' && qs.get('autostart') === '1') {
+    if (qs.get('bot') !== '0') await P.addBot();   // 组件入口：自带随机人物向配方 + isHost/started 守卫
+    setTimeout(() => netStartGame({}), 500);
+  }
+}
+
+
 
 /* ═══════════════ 2. 牌与规则数据 ═══════════════ */
 const COLORS = { r: '#ef4444', y: '#eab308', g: '#22c55e', b: '#3b82f6' };
@@ -391,12 +554,35 @@ let backTex = null;
 let bodyLo = false;
 
 function dprCap(w, h) { return Math.min(window.devicePixelRatio || 1, 1.6, Math.sqrt(2.3e6 / (w * h))); }
+const rig = { az: 0, elev: 46 * D2R, focusK: 1, token: 0, raf: 0, tgt: { x: 0, y: 0, z: -0.2 } };   // 默认位形与旧静态机位等价
+const smooth = k => k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
 function camApply() {
   const halfV = Math.tan(camera.fov * D2R / 2);
   const aspect = innerWidth / innerHeight;
-  const d = Math.max(6.4, 4.6 / (halfV * aspect), (5.4 * Math.sin(46 * D2R)) / halfV * 0.92);
-  camera.position.set(0, d * Math.sin(46 * D2R), d * Math.cos(46 * D2R));
-  camera.lookAt(0, 0, -0.2);
+  const d = Math.max(6.4, 4.6 / (halfV * aspect), (5.4 * Math.sin(46 * D2R)) / halfV * 0.92) * rig.focusK;
+  camera.position.set(d * Math.cos(rig.elev) * Math.sin(rig.az), d * Math.sin(rig.elev), d * Math.cos(rig.elev) * Math.cos(rig.az));
+  camera.lookAt(rig.tgt.x, rig.tgt.y, rig.tgt.z);
+}
+function camTo(opts, ms, done) {   // 墙钟 smoothstep 补间（token 作废）；REDUCED/bodyLo/TURBO 直接落定
+  rig.token++; const my = rig.token;
+  const from = { az: rig.az, elev: rig.elev, focusK: rig.focusK, tgt: Object.assign({}, rig.tgt) };
+  const to = Object.assign({}, from, opts, { tgt: opts.tgt ? Object.assign({}, opts.tgt) : Object.assign({}, rig.tgt) });
+  if (REDUCED || bodyLo || TURBO) { Object.assign(rig, to, { tgt: Object.assign({}, to.tgt) }); camApply(); if (done) done(); return; }
+  const t0 = performance.now();
+  const step = now => {
+    if (rig.token !== my) return;
+    const s = smooth(Math.min(1, (now - t0) / ms));
+    rig.az = from.az + (to.az - from.az) * s;
+    rig.elev = from.elev + (to.elev - from.elev) * s;
+    rig.focusK = from.focusK + (to.focusK - from.focusK) * s;
+    rig.tgt.x = from.tgt.x + (to.tgt.x - from.tgt.x) * s;
+    rig.tgt.y = from.tgt.y + (to.tgt.y - from.tgt.y) * s;
+    rig.tgt.z = from.tgt.z + (to.tgt.z - from.tgt.z) * s;
+    camApply();
+    if (s < 1) rig.raf = requestAnimationFrame(step);
+    else if (done) done();
+  };
+  rig.raf = requestAnimationFrame(step);
 }
 function initScene() {
   const canvas = $('uno-canvas');
@@ -433,7 +619,7 @@ function initScene() {
 }
 function sizeScene() {
   if (!renderer) return;
-  renderer.setPixelRatio(bodyLo ? 1 : dprCap(innerWidth, innerHeight));
+  renderer.setPixelRatio((bodyLo || loDegrade) ? 1 : dprCap(innerWidth, innerHeight));
   renderer.setSize(innerWidth, innerHeight);
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
@@ -623,7 +809,7 @@ function updateHUD() {
   $('players-bar').innerHTML = G.players.map((p, i) => {
     const badges = (G.unoWin && G.unoWin.who === i && !G.unoWin.penalized ? '<span title="UNO!">🙌</span>' : '') + (p.hand.length === 1 ? '<span title="报单">1️⃣</span>' : '');
     return `<div class="pchip ${i === G.turn && G.phase !== 'OVER' ? 'active' : ''}" id="pchip-${i}">
-      <span class="dot" style="background:${PLAYER_COLORS[p.colorIdx]}"></span>
+      <span class="dot" style="background:${PLAYER_COLORS[p.colorIdx]}"></span>${netAvatarHtml(i)}
       <span class="pname">${esc(p.name)}</span><span class="badges">${badges}</span>
       <span class="cnt tabnum">${p.hand.length} 张</span></div>`;
   }).join('');
@@ -631,6 +817,9 @@ function updateHUD() {
 }
 function showActions() {
   const p = G.players[G.turn], bar = $('action-bar');
+  // 联机：别人的回合不渲染操作条；例外=本端是 UNO 喊名窗口主人（要能按 UNO!）
+  const iAmUnoOwner = NETMODE && G.unoWin && !G.unoWin.penalized && G.unoWin.who === netSeatOf(myId);
+  if (NETMODE && !netIsMyTurn() && !iAmUnoOwner) { hideActions(); return; }
   bar.classList.add('show');
   bar.innerHTML = `
     <div id="action-who">🎯 ${esc(p.name)} 的回合 · 当前 ${CNAME[G.cur]}色${G.drawnThisTurn ? ' · 已摸' : ''}</div>
@@ -645,7 +834,9 @@ function showActions() {
   $('act-pass').onclick = () => { SFX.tap(); doPass(); };
   $('act-hand').onclick = () => { SFX.tap(); openHandOverlay(-1); };
   const ub = $('btn-uno');
-  if (G.unoWin && G.unoWin.who === G.turn && !G.unoWin.penalized) {
+  const unoMine = G.unoWin && !G.unoWin.penalized
+    && (G.unoWin.who === G.turn || (NETMODE && G.unoWin.who === netSeatOf(myId)));   // 联机：窗口主人的设备随时能喊
+  if (unoMine) {
     ub.classList.add('show');
     ub.onclick = () => callUno();
   } else ub.classList.remove('show');
@@ -686,6 +877,8 @@ function closeHandOverlay() { $('hand-ovl').classList.remove('show'); }
 /* ═══════════════ 6. 存档 ═══════════════ */
 const SAVE_KEY = 'uno:save:v1';
 function saveGame() {
+  if (NETMODE) return;   // 联机局状态在房间 retained 文档里，不落本地热座存档
+  if (NETMODE) return;   // 联机局状态在房间 retained 文档里，不落本地热座存档
   if (G.phase === 'SETUP' || G.phase === 'OVER' || G.phase === 'BOOT') return;
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
@@ -745,6 +938,7 @@ function startGame(cfg) {
   $('setup').hidden = true; $('result-overlay').hidden = true; $('hand-ovl').classList.remove('show');
   if (G.gl) buildHands();
   setColor(G.cur); render2D(); updateHUD();
+  netCkpt();
   beginTurn();
 }
 function gateNeeded(nextIdx2) {   // 下一个行动者是真人 && 与上一位真人不同（连续出牌不开闸）
@@ -758,11 +952,16 @@ function beginTurn() {
   G.phase = 'HANDOFF';
   saveGame(); updateHUD(); render2D();
   if (G.gl) buildHands();   // 座位随当前玩家轮转：换手必须全量重摆（只摆新玩家会让上家手牌残留在南位泄漏
+  netCkpt();   // 联机：把「轮到谁」播出去；新行动者端 applyGameSnapshot 收到 HANDOFF 后接管本回合
+  if (NETMODE) setTimeout(() => { if (G.phase === 'HANDOFF') netCkpt(); }, 900);   // 防丢自愈：心跳并发撞 seq 吞掉本快照时重发一次
   if (p.bot) {
     G.phase = 'AWAIT_ACTION';   // 机器人行动窗口就是 AWAIT_ACTION（canPlay 有相位门槛）
     $('handoff').hidden = true; hideActions();
     toast(`🤖 ${p.name} 行动中…`);
-    setTimeout(() => botAct(), (500 + rint(600)) * SPEED);
+    if (!(NETMODE && !isHost())) setTimeout(() => botAct(), (500 + rint(600)) * SPEED);   // 联机：机器人由房主代跑
+  } else if (NETMODE && !netIsMyTurn()) {
+    $('handoff').hidden = true;
+    if (!(G.unoWin && !G.unoWin.penalized && G.unoWin.who === netSeatOf(myId))) hideActions();   // 窗口主人保留操作条（能按 UNO!）
   } else if (gateNeeded(G.turn)) {
     hideActions();
     $('handoff-name').textContent = `请把手机交给 ${p.name}`;
@@ -785,6 +984,7 @@ function enterHumanTurn() {
   lastInteract = Date.now();
   if (G.gl) layoutHand(G.turn, false);
   saveGame(); updateHUD(); render2D(); showActions();
+  netCkpt();
 }
 $('btn-handoff-go').addEventListener('click', () => { SFX.tap(); enterHumanTurn(); });
 
@@ -808,7 +1008,7 @@ async function playCard(pi, k, chosenColor) {
   G.phase = 'ANIMATING'; hideActions(); updateHUD();
   p.hand.splice(k, 1);
   G.discard.push(cd);
-  if (G.gl) { layoutHand(pi, true); flyToPile(); }
+  if (G.gl) { layoutHand(pi, true); flyToPile(pi); glanceAside(pi); }
   SFX.play();
   if (G.gl) await sleep(420); else await sleep(60);
   G.phase = 'RESOLVE';
@@ -843,6 +1043,7 @@ async function playCard(pi, k, chosenColor) {
   }
   updateHUD(); render2D();
   await sleep(300);
+  netCkpt();
   advance(skipNext ? 1 : 0);
 }
 function dealTo(p, n) {
@@ -854,7 +1055,7 @@ function dealTo(p, n) {
   return got;
 }
 async function humanDraw() {
-  if (G.phase !== 'AWAIT_ACTION') return;
+  if (G.phase !== 'AWAIT_ACTION' || (NETMODE && !netIsMyTurn())) return;
   const p = G.players[G.turn];
   G.phase = 'ANIMATING'; hideActions();
   SFX.draw();
@@ -864,6 +1065,7 @@ async function humanDraw() {
   if (G.gl) await sleep(300); else await sleep(50);
   if (canPlay(cd)) {
     G.phase = 'AWAIT_ACTION';
+    netCkpt();
     openGenModal(`<p style="line-height:1.9">🫳 摸到 <b>${isWild(cd) ? '万能' : CNAME[cd.c] + (cd.v in SYM ? SYM[cd.v][1] : cd.v)}</b>，可以出！</p>`,
       [{ label: '打出这张', fn: () => { closeGenModal(); const k = p.hand.length - 1; humanPlay(k); } },
        { label: '先留着（本回合仍可出别的）', fn: () => { closeGenModal(); G.drawnThisTurn = true; G.phase = 'AWAIT_ACTION'; if (G.gl) layoutHand(G.turn, false); showActions(); } }]);
@@ -873,19 +1075,21 @@ async function humanDraw() {
   G.drawnThisTurn = true;
   G.passStreak++;
   G.phase = 'RESOLVE'; hideActions(); saveGame();
+  netCkpt();
   setTimeout(() => advance(0), 400 * SPEED);
 }
 function doPass() {
-  if (G.phase !== 'AWAIT_ACTION' || !G.drawnThisTurn) return;
+  if (G.phase !== 'AWAIT_ACTION' || !G.drawnThisTurn || (NETMODE && !netIsMyTurn())) return;
   G.passStreak++;
   G.phase = 'RESOLVE'; hideActions();
   toast('👋 ' + G.players[G.turn].name + ' 过');
   saveGame();
+  netCkpt();
   setTimeout(() => advance(0), 350 * SPEED);
 }
 function humanPlay(k) {
   const p = G.players[G.turn], cd = p.hand[k];
-  if (!cd || G.phase !== 'AWAIT_ACTION' || !canPlay(cd)) { toast('🚫 这张现在出不了', 'error'); return; }
+  if (!cd || G.phase !== 'AWAIT_ACTION' || !canPlay(cd) || (NETMODE && !netIsMyTurn())) { toast('🚫 这张现在出不了', 'error'); return; }
   G.passStreak = 0;
   G.lastHumanActor = G.turn;
   if (isWild(cd)) {
@@ -922,13 +1126,15 @@ function callUno(forcedPi) {
   if (p.bot) return;
   SFX.uno();
   toast(`🙌 ${p.name}：UNO！！`, 'gain');
+  netReact('uno', w.who);
   hideActions(); showActions();
 }
 function cancelUnoWindow() { if (G.unoWin && !G.unoWin.penalized) G.unoWin = null; }
 function tickUnoWindow(now) {
   const w = G.unoWin;
   if (!w || w.penalized) return;
-  if (G.phase !== 'AWAIT_ACTION' || w.who !== G.turn) { w.lastTs = 0; return; }   // 交接/动画/他人回合暂停
+  if (NETMODE && netSeatOf(myId) !== w.who) return;   // 联机：喊名窗口只在窗口主人设备计时结算，避免多端重复罚
+  if (G.phase !== 'AWAIT_ACTION' || (!NETMODE && w.who !== G.turn)) { w.lastTs = 0; return; }   // 交接/动画暂停；联机主人设备连续计时（出牌后回合已交给下家）
   if (!w.lastTs) { w.lastTs = now; return; }
   w.remain -= now - w.lastTs; w.lastTs = now;
   const ub = $('btn-uno');
@@ -953,10 +1159,13 @@ function settleCatch(who) {
     const got = dealTo(forgetter, 2);
     toast(`🚨 ${catcher.name} 抓到 ${forgetter.name} 忘喊 UNO！罚摸 ${got} 张`, 'loss');
   } else if (!G.unoCatch || !G.unoCatch.done) {
+    if (NETMODE) { hideActions(); updateHUD(); return; }   // 联机不做交接闸抓包按钮：罚摸已由窗口主人设备结算；窗口条（UNO!）用完即收
     G.unoCatch = { who, whoName: forgetter.name, until: Date.now() + 10000, done: false };
     toast(`😮 ${forgetter.name} 忘了喊 UNO！下家可以在交接时抓包`, 'loss');
   }
   if (w && w.who === G.turn) { hideActions(); showActions(); }   // 罚后按钮残留刷新
+  if (NETMODE) netReact('catch', who);
+  netCkpt();
   updateHUD();
 }
 function botQuote(kind) {
@@ -966,24 +1175,10 @@ function botQuote(kind) {
   const arr = BOT_QUOTES[kind];
   if (arr && arr.length) toast(arr[rint(arr.length)]);
 }
-function onWin(pi) {
-  cancelUnoWindow();
-  G.phase = 'OVER'; G.winner = pi;
-  hideActions(); clearSave();
+function showResult(stall) {   // 结算屏渲染（onWin/endGame/远端快照补演共用，以当前 G 为准）
   const rank = G.players.map((p, i) => ({ i, p, pts: handPoints(p.hand) })).sort((a, b) => a.pts - b.pts);
-  $('result-winner').textContent = '🏆 ' + G.players[pi].name;
-  $('result-pods').innerHTML = rank.map((r, n) =>
-    `<div class="pod"><span class="rank">${['🥇', '🥈', '🥉', '4'][n] || n + 1}</span>
-     <span class="dot" style="background:${PLAYER_COLORS[r.p.colorIdx]}"></span>
-     <span>${esc(r.p.name)}${r.p.bot ? ' 🤖' : ''}</span><span class="pts tabnum">+${r.pts} 分</span></div>`).join('');
-  $('result-overlay').hidden = false;
-  SFX.win(); updateHUD();
-  if (G.players[pi].bot) botQuote('win');
-}
-function endGame(kind) {
-  G.phase = 'OVER'; hideActions(); clearSave();
-  const rank = G.players.map((p, i) => ({ i, p, pts: handPoints(p.hand) })).sort((a, b) => a.pts - b.pts);
-  $('result-winner').textContent = kind === 'stall' ? '🤝 僵局和局' : '🏆 ' + rank[0].p.name;
+  const win = G.winner != null && G.players[G.winner] ? G.players[G.winner] : rank[0].p;
+  $('result-winner').textContent = stall ? '🤝 僵局和局' : '🏆 ' + win.name;
   $('result-pods').innerHTML = rank.map((r, n) =>
     `<div class="pod"><span class="rank">${['🥇', '🥈', '🥉', '4'][n] || n + 1}</span>
      <span class="dot" style="background:${PLAYER_COLORS[r.p.colorIdx]}"></span>
@@ -991,11 +1186,26 @@ function endGame(kind) {
   $('result-overlay').hidden = false;
   SFX.win(); updateHUD();
 }
+function onWin(pi) {
+  cancelUnoWindow();
+  G.phase = 'OVER'; G.winner = pi;
+  hideActions(); clearSave();
+  showResult();
+  netCkpt();
+  if (G.players[pi].bot) botQuote('win');
+}
+function endGame(kind) {
+  G.phase = 'OVER'; hideActions(); clearSave();
+  showResult(kind === 'stall');
+  netCkpt();
+}
 
 /* ═══════════════ 8. 机器人 ═══════════════ */
 function botAct() {
   const p = G.players[G.turn];
   if (!p || !p.bot || p.out || G.phase === 'OVER') return;
+  if (NETMODE && !isHost()) return;   // 联机：机器人座位由房主代跑
+  if (NETMODE && !isHost()) return;   // 联机：机器人座位由房主代跑
   const k = botPick(p);
   if (k >= 0) {
     const cd = p.hand[k];
@@ -1043,11 +1253,41 @@ function botColor(p) {
   const best = Object.entries(colors).sort((a, b) => b[1] - a[1]);
   return best.length ? best[0][0] : ['r', 'y', 'g', 'b'][rint(4)];
 }
-function flyToPile() {
+function flyToPile(pi, seat) {
   const cd = topCard();
-  pileMesh.children[1].material.map = cardFaceTex(cd);
-  pileMesh.children[1].material.needsUpdate = true;
-  pileMesh.rotation.z = (rnd() - 0.5) * 0.5;
+  const land = () => {
+    pileMesh.children[1].material.map = cardFaceTex(cd);
+    pileMesh.children[1].material.needsUpdate = true;
+    pileMesh.rotation.z = (rnd() - 0.5) * 0.5;
+  };
+  if (REDUCED || bodyLo || TURBO) { land(); return; }
+  const g = mkCard(cd);
+  const south = pi === G.turn;   // 行动路径 pi===G.turn 恒南位；快照补演时行动者已被轮转到别座（seat=其实际座位）
+  const from = south ? { x: 0, z: 2.3 } : { x: seat.x * 0.55, z: seat.z * 0.55 };
+  const tilt0 = south ? 0.98 : 0.35;
+  g.position.set(from.x, 0.42, from.z);
+  g.rotation.x = -Math.PI / 2 + tilt0;
+  scene.add(g);
+  const p0 = g.position.clone(), p1 = pileMesh.position.clone();
+  const t0 = performance.now(), dur = 380;   // 生产 SPEED=1 时落在 playCard 的 420ms 窗口内；快照补演不依赖该窗口
+  const step = now => {
+    const k = Math.min(1, (now - t0) / dur);
+    const kk = k * k * (3 - 2 * k);
+    g.position.lerpVectors(p0, p1, kk);
+    g.position.y = p0.y + (p1.y - p0.y) * kk + Math.sin(kk * Math.PI) * 1.05;
+    g.rotation.x = -Math.PI / 2 + tilt0 + (0.42 - tilt0) * kk;   // 收平到牌堆俯角
+    if (k < 1) requestAnimationFrame(step);
+    else { disposeCard(g); land(); }
+  };
+  requestAnimationFrame(step);
+}
+function glanceAside(pi) {   // 别人出牌：镜头向牌堆轻推再回（行动者恒在南位，无需转 az）
+  if (REDUCED || bodyLo || TURBO) return;
+  const mine = NETMODE ? pi === netSeatOf(myId) : !G.players[pi].bot;
+  if (mine) return;   // 本端真人自己的动作：镜头保持稳定取景不干扰点牌
+  if (rig._glT) clearTimeout(rig._glT);
+  camTo({ focusK: 0.86 }, 480);
+  rig._glT = setTimeout(() => camTo({ az: 0, focusK: 1 }, 520), 780);
 }
 
 /* ═══════════════ 9. 2D 降级 ═══════════════ */
@@ -1069,20 +1309,32 @@ function render2D() {
 }
 
 /* ═══════════════ 10. loperf-lite ═══════════════ */
+let loDegrade = false;   // 一旦降过级，shadow/dpr 永久保持低配（恢复动画但不回画质，防阈值上下抖动）
 const frameTimes = [];
+function setBodyLo(on) {
+  bodyLo = on;
+  document.body.classList.toggle('loperf', on);
+  if (on && renderer) { renderer.shadowMap.enabled = false; dirLight.castShadow = false; }
+  sizeScene();
+}
 function perfWatch(now) {
-  if (bodyLo) return;
+  if (AUTOTEST) {              // 探针档：保持旧单窗判定（软渲探针依赖固定翻转节奏跳帧提速）
+    if (bodyLo) { perfWatch.last = now; return; }
+  } else {
+    if (perfWatch.t0 == null) { perfWatch.t0 = now; perfWatch.last = now; return; }
+    if (now - perfWatch.t0 <= 2600) { perfWatch.last = now; return; }   // 预热豁免：loader/shader 编译抖动不算数
+    if (!perfWatch.warm) { perfWatch.warm = true; frameTimes.length = 0; }   // 到期清空重采
+  }
   if (perfWatch.last) {
     frameTimes.push(now - perfWatch.last);
-    if (frameTimes.length > 60) {
-      frameTimes.shift();
-      if (frameTimes.length === 60) {
-        const med = [...frameTimes].sort((a, b) => a - b)[30];
-        if (med > 26) {
-          bodyLo = true;
-          document.body.classList.add('loperf');
-          if (renderer) { renderer.shadowMap.enabled = false; dirLight.castShadow = false; sizeScene(); }
-        }
+    if (frameTimes.length >= 60) {
+      const med = [...frameTimes].sort((a, b) => a - b)[30];
+      frameTimes.length = 0;   // 不相交窗口
+      if (!bodyLo) {
+        if (med > 26) { perfWatch.bad = (perfWatch.bad || 0) + 1; if (AUTOTEST || perfWatch.bad >= 2) setBodyLo(true); }   // 正式局连续两慢窗才降级（bad 惰性初始化防 NaN）
+        else perfWatch.bad = 0;
+      } else if (!AUTOTEST && med < 18 && !perfWatch.recovered) {
+        perfWatch.recovered = true; loDegrade = true; setBodyLo(false);   // 一次性恢复：动画回来，画质保持低配
       }
     }
   }
@@ -1183,6 +1435,14 @@ $('btn-sfx').addEventListener('click', () => { $('btn-sfx').textContent = SFX.to
 $('btn-sfx').textContent = SFX.on ? '🔊' : '🔇';
 $('btn-rematch').addEventListener('click', () => {
   SFX.tap();
+  if (NETMODE) {   // 联机：只有房主能开新局，胜者先手
+    if (isHost()) {
+      // 对局结束后 doc.started 从不复位会让 netStartGame 直接 return——先复位再开
+      mutate(n => { n.started = false; n.game = null; }, 'edit').then(() => netStartGame({ firstPlayer: G.winner != null ? G.winner : 0 }));
+    }
+    else toast('👑 等房主开新局', '', 2600);
+    return;
+  }
   const cfg = { players: G.players.map(p => ({ name: p.name, bot: p.bot })), mode: G.mode, skipHandoff: G.skipHandoff, firstPlayer: G.winner != null ? G.winner : rint(G.players.length), seed: (Math.random() * 0xffffffff) >>> 0 };
   startGame(cfg);
 });
@@ -1191,6 +1451,7 @@ $('btn-result-home').addEventListener('click', () => { location.href = 'index.ht
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
 function pickHand(ev) {
   if (!G.gl) return;
+  if (NETMODE && !netIsMyTurn()) return;
   const p = G.players[G.turn];
   if (!p || p.bot || G.phase !== 'AWAIT_ACTION') return;
   const r = $('uno-canvas').getBoundingClientRect();
@@ -1228,6 +1489,7 @@ async function boot() {
     seatState.push({ name: '测试员', bot: false }, { name: '机器人甲', bot: true });
     renderSeats();
   } else {
+    try { $('net-name').value = localStorage.getItem('uno:netname') || ''; } catch (e) {}
     try { if (localStorage.getItem('uno:nohandoff') === '1') $('skip-handoff').checked = true; } catch (e) {}
     try { if (!localStorage.getItem('uno:rulesSeen')) { $('rules-box').open = true; localStorage.setItem('uno:rulesSeen', '1'); } } catch (e) {}
     seatState.push({ name: defaultName(0), bot: false }, { name: defaultName(1), bot: true });
@@ -1243,6 +1505,7 @@ async function boot() {
   const save = loadSave();
   if (AUTOTEST) {
     if (save) { resumeGame(save); return; }   // autotest 有档自动续局（探针 A12 需要）
+    if (qs.get('net') === '1') { await netBootAutotest(); return; }   // E2E 联机：?net=1&room=&role=host|join[&autostart=1][&localnet=1]
     startGame({ players: seatState.map(s => ({ name: s.name, bot: s.bot })), mode: 'dark', skipHandoff: true });
     return;
   }
@@ -1277,9 +1540,10 @@ requestAnimationFrame(tick);
 boot();
 
 /* ═══════════════ 12. E2E 钩子 ═══════════════ */
-if (AUTOTEST) {
+if (AUTOTEST || qs.get('inspect') === '1') {   // inspect=1：真机路径（SPEED/渲染/perfWatch 全真）下只读取证访问器
   window.__uno = {
     state: G,
+    camInfo: () => ({ pos: camera.position.toArray(), az: rig.az, elev: rig.elev, focusK: rig.focusK, tgt: { x: rig.tgt.x, y: rig.tgt.y, z: rig.tgt.z }, gl: G.gl, lo: document.body.classList.contains('loperf') }),
     deckN: () => G.deck.length,
     discardTop: () => topCard(),
     forceHand: (i, cards) => { G.players[i].hand = cards.map(cd => ({ ...cd })); if (G.gl) layoutHand(i, true); render2D(); updateHUD(); },
@@ -1287,7 +1551,13 @@ if (AUTOTEST) {
     forceUnoTimeout: () => { const w = G.unoWin; if (w && !w.penalized) settleCatch(w.who); },
     chooseColor: c => { const b = document.querySelector(`#wild-modal .wbtn[data-c="${c}"]`); if (b && !$('wild-modal').hidden) b.click(); },
     handoff: () => { if (!$('handoff').hidden) $('btn-handoff-go').click(); },
+    play: k => humanPlay(k),
+    draw: () => humanDraw(),
+    net: () => ({ mode: NETMODE, joined, room: NDOC && NDOC.room, myId, doc: NDOC, host: isHost(), myTurn: netIsMyTurn(), mic: P.mic.on(), peers: P.mic.peers(), enter: netEnter, publish: netCkpt, start: netStartGame, ui: syncNetHUD }),
+    play: k => humanPlay(k),
+    draw: () => humanDraw(),
     saveNow: () => saveGame(),
+    net: () => ({ mode: NETMODE, joined, room: NDOC && NDOC.room, myId, doc: NDOC, host: isHost(), myTurn: netIsMyTurn(), mic: P.mic.on(), peers: P.mic.peers(), enter: netEnter, publish: netCkpt, start: netStartGame, ui: syncNetHUD }),
     mc: n => new Promise(async res => {
       const out = [];
       for (let k = 0; k < n; k++) {

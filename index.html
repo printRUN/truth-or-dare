@@ -1490,6 +1490,7 @@
         <span class="arc-badge arc-badge-soon" hidden>🚧 未开放</span>
         <span class="arc-arrow">→</span>
       </div>
+
     </div>
   </div>
 
@@ -1745,22 +1746,18 @@
 
 <script>
 /* 游戏中心（arcade）落地判定 —— 必须在主脚本之前定案：currentScreen()/lastScreenName/Cam.init 开机就会读 __ARCADE__。
-   默认落游戏中心；?game=tod、#tod、?room=邀请、30 分钟内回房票、本会话已选过 tod → 直落加入页；
-   ?game=arcade 强制回游戏中心（探针用）。任何异常退回纯 join 语义（禁半态）。 */
+   单页拆分（2026-09-20）：tod 已拆到 tod.html，index.html = 纯游戏中心。显式 tod 意图
+   （?game=tod 深链 / #tod / ?room= 邀请）一律 location.replace 到 tod.html 并原样携带 query+hash；
+   回房票/会话记忆不再劫持落地屏（防浏览器返回被弹回 tod 的死循环），回房由 tod.html 的既有票逻辑接管。
+   ?game=arcade 与裸开恒落游戏中心。任何异常退回纯 join 语义（禁半态）。 */
 (function () {
-  var on = true;
+  var wantsTod = false;
   try {
-    var q = new URLSearchParams(location.search), g = q.get('game');
-    if (g === 'tod' || location.hash === '#tod' || q.get('room')) on = false;
-    else if (g !== 'arcade') {
-      var t = null;
-      try { t = JSON.parse(sessionStorage.getItem('tod:tab') || 'null'); } catch (e) { t = null; }
-      if (t && t.id && t.room && Date.now() - (t.ts || 0) < 30 * 60 * 1000) on = false;   // 与主脚本回房票谓词保持逐字一致
-      else if (sessionStorage.getItem('tod:picked') === '1') on = false;
-    }
-  } catch (e) { on = false; }
-  window.__ARCADE__ = on;
-  if (!on) return;
+    var q = new URLSearchParams(location.search);
+    wantsTod = q.get('game') === 'tod' || location.hash === '#tod' || !!q.get('room');
+  } catch (e) { wantsTod = false; }
+  if (wantsTod) { try { location.replace('tod.html' + location.search + location.hash); } catch (e2) {} return; }
+  window.__ARCADE__ = true;
   try {
     var j = document.getElementById('screen-join'), a = document.getElementById('screen-arcade');
     if (!j || !a) throw 0;
@@ -2755,7 +2752,7 @@ function applyState(s) {
   // 我仍在房间？（发布竞争导致丢失时自愈重加）；顺手留存我的战绩快照
   if (joined && myId) {
     const self = S.players.find(p => p.id === myId);
-    if (self) myRecord = JSON.parse(JSON.stringify(self));
+    if (self) { myRecord = JSON.parse(JSON.stringify(self)); saveMyRecord(); }
     else selfHealJoin();
   }
 
@@ -2816,12 +2813,57 @@ function myPlayerTemplate() {
   return {
     id: myId, name: myName, avatar: myAvatar, joinedAt: myJoinedAt, lastSeen: Date.now(),
     skips: r.skips || 0, draws: r.draws || 0, truth: r.truth || 0, dare: r.dare || 0,
-    score: r.score || 0, passes: r.passes == null ? PASSES_PER_GAME : r.passes, micOn: r.micOn || false,
+    score: r.score || 0, passes: r.passes == null ? PASSES_PER_GAME : r.passes,
+    micOn: !!MIC.on,   // 实时硬件态不随 myRecord 回灌：认领/快照重进时本机必是关麦（doJoin 先 closeMic），否则全场看到「幻影开麦」
     eggs: r.eggs == null ? 1 : r.eggs,   // 🥚 重连回房鸡蛋不重置（随 myRecord 整对象快照保住）
     micListen: r.micListen == null ? !!MIC.listen : !!r.micListen,
+    uid: myUid,   // 设备身份：新会话/新标签页回房时靠它认领旧条目（见 doJoin「记住我」段）
   };
 }
 let myName = '', myAvatar = '', myJoinedAt = 0;
+let myUid = '';   // 设备级持久身份（localStorage['tod:uid']），doJoin 时取用
+
+// ───────────────────────────── 记住我：设备身份 + 房间战绩快照 ─────────────────────────────
+// 房间文档里的战绩跟着「条目」走：主动退房会删条目，掉线幽灵 90s 后被清——条目一没，
+// 再进房就是 0 分新人。所以本机再留一份「我在这个房间的战绩」快照，回房时接上。
+function deviceUid() {   // 同一浏览器跨标签页/跨会话稳定；隐身模式写不进就退回会话级随机（行为同旧版）
+  try {
+    let u = localStorage.getItem('tod:uid');
+    if (!u) { u = genId(); localStorage.setItem('tod:uid', u); }
+    return u;
+  } catch { return genId(); }
+}
+const REC_KEY = 'tod:myrec';   // { rooms: { <房号>: { uid, startedAt, ts, rec } } }，只留最近 8 个房间
+let _lastRecJson = '';
+function saveMyRecord() {
+  if (!joined || !S || !myRecord || !link || link.kind === 'local') return;   // 本地模式多标签=多名玩家，不记
+  const p = S.players.find(x => x.id === myId);
+  if (!p) return;
+  const payload = {
+    uid: myUid, startedAt: S.startedAt || 0, ts: Date.now(),
+    rec: {
+      skips: p.skips || 0, draws: p.draws || 0, truth: p.truth || 0, dare: p.dare || 0, score: p.score || 0,
+      passes: p.passes, eggs: p.eggs, micListen: p.micListen,   // 不存 micOn：硬件实时态，恢复必撒谎（模板吃 MIC.on）
+    },
+  };
+  const j = JSON.stringify({ u: myUid, r: S.room, s: S.startedAt || 0, c: payload.rec });
+  if (j === _lastRecJson) return;   // 状态包来得很勤：内容没变就别写盘（签名不带 ts——它每次都变）
+  _lastRecJson = j;
+  try {
+    const all = JSON.parse(localStorage.getItem(REC_KEY) || '{}');
+    const rooms = all.rooms || (all.rooms = {});
+    rooms[S.room] = payload;
+    const kept = Object.entries(rooms).sort((a, b) => (b[1].ts || 0) - (a[1].ts || 0)).slice(0, 8);
+    localStorage.setItem(REC_KEY, JSON.stringify({ rooms: Object.fromEntries(kept) }));
+  } catch {}
+}
+function loadMyRecord(room, uid) {
+  try {
+    const r = (JSON.parse(localStorage.getItem(REC_KEY) || '{}').rooms || {})[room];
+    if (r && r.uid === uid && r.rec && Date.now() - (r.ts || 0) < 6 * 3600e3) return r;   // 6h 兜底过期（房间 TTL 本就 30min）
+  } catch {}
+  return null;
+}
 
 // ───────────────────────────── 渲染 ─────────────────────────────
 function currentScreen() {
@@ -4866,7 +4908,7 @@ async function doJoin(name, avatar, roomInput, forceLocal) {
   // 否则刷新前的幽灵记录会被当成“另一个人”，出现房间里两个一样的自己
   let ident = null;
   try { ident = JSON.parse(sessionStorage.getItem('tod:tab') || 'null'); } catch {}
-  myName = name; myAvatar = avKeyOf(avatar);   // 预设头像转短索引 av:P## 入状态（省 2KB+/人 的同步流量），自定义仍存 dataURL
+  myName = name; myAvatar = avKeyOf(avatar); myUid = deviceUid();   // 预设头像转短索引 av:P## 入状态（省 2KB+/人 的同步流量），自定义仍存 dataURL
   let ticketRejoin = false;
   if (ident && ident.id && ident.room === room && Date.now() - (ident.ts || 0) < 30 * 60 * 1000) {
     myId = ident.id; myJoinedAt = ident.joinedAt || Date.now();
@@ -4880,7 +4922,7 @@ async function doJoin(name, avatar, roomInput, forceLocal) {
   closeMic(true);
   resetHb();   // 上一段会话的心跳水位与本房无关，带着它会刚进房就把新人误判成在线
   if (link) { link.close(); link = null; }
-  S = null; firstApply = true; joined = false; clearStageTimers(); myRecord = null;
+  S = null; firstApply = true; joined = false; clearStageTimers(); myRecord = null; _lastRecJson = '';
 
   const btn = $('btn-join');
   btn.disabled = true; btn.textContent = '连接中...';
@@ -4894,7 +4936,7 @@ async function doJoin(name, avatar, roomInput, forceLocal) {
     else if (st === 'syncing') setNet('syncing', '同步中...');
     else setNet('', '离线');
   };
-  let sawState = false, sawPool = false;
+  let sawState = false, sawPool = false, rememberedToast = '';
   const onState = s => { sawState = true; applyState(s); };
   const onPool = p => { sawPool = true; setPool(p); };
   try {
@@ -4966,6 +5008,34 @@ async function doJoin(name, avatar, roomInput, forceLocal) {
       }
       showLoading('🃏 进入房间...');
     }
+    // ── 记住我：设备身份认领 + 房间战绩恢复（仅在线模式；本地多标签=多名玩家是既有契约）──
+    //   ① 房间里还留着带 uid 的旧条目（关页重开时掉线幽灵未及清理）→ 整个身份认领：沿用旧
+    //      id 与 joinedAt（座位资历/主持顺延延续），战绩随 myRecord 接上；旧条目随下面的
+    //      入房清理换成我的新条目，uid 继续跟随。另一标签页还活着时也会并入同一身份（同设
+    //      备同房间的第二个标签页本就罕见，且关掉一个即自愈）——条目还没凉到会被 prune
+    //      （≤90s，与掉线清理同尺）视为活着，不触发下面的主持人让位，活主机不被摘帽。
+    //   ② 条目已不在（主动退出会删条目 / 幽灵已被清）→ 退路：本机 tod:myrec 的战绩快照，
+    //      且房间 startedAt 非 0 且没变才恢复——重新开局过就人人从零，旧账不该跟过来；
+    //      startedAt=0（未开局/旧版主机/同号重建房）一律不恢复，快照不污染陌生新房间。
+    let mergedLive = false;
+    if (link.kind !== 'local') {
+      const mine = S.players.filter(p => p && p.uid === myUid)
+        .sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
+      if (mine.length) {
+        const e = mine[0];
+        myId = e.id; myJoinedAt = e.joinedAt || Date.now();
+        myRecord = JSON.parse(JSON.stringify(e));
+        mergedLive = Date.now() - (e.lastSeen || 0) < STALE_MS + 10000;   // 与 pruneTimer 同一把尺（90s）：还没到会被清的程度就不算幽灵。后台标签心跳被节流到 ≥60s/跳，35s 窗口会误摘活主机
+        ticketRejoin = true;   // 与「刷新回房」同规：回来不当主持人，指挥权继续留给场上的人
+        rememberedToast = `🎭 已认领你之前的身份，战绩接上了${myRecord.score ? `（+${myRecord.score} 分）` : ''}`;
+      } else {
+        const saved = loadMyRecord(room, myUid);
+        if (saved && S.startedAt && saved.startedAt === S.startedAt) {
+          myRecord = JSON.parse(JSON.stringify(saved.rec));
+          rememberedToast = `🎭 欢迎回来！战绩接上了${myRecord.score ? `（+${myRecord.score} 分）` : ''}`;
+        }
+      }
+    }
     joined = true;
     let handoffTo = null, roomFull = false;
     await mutate(n => {
@@ -4980,8 +5050,8 @@ async function doJoin(name, avatar, roomInput, forceLocal) {
       n.players.push(myPlayer());
       if (n.players.length === 1) { n.gameStarted = false; n.turn.stage = 'choosing'; n.turn.chooserId = null; }
       // 主持人刷新自动回房 → 让位：回来后就是普通成员，指挥权交给还在场上的最早玩家
-      // （只剩自己一人时不让位，否则没人能开局）
-      if (ticketRejoin && n.hostId === myId && n.players.length > 1) {
+      // （只剩自己一人时不让位，否则没人能开局；认领到心跳还热的条目=另一标签活着，不让位）
+      if (ticketRejoin && !mergedLive && n.hostId === myId && n.players.length > 1) {
         n.hostId = oldestOf(n.players.filter(p => p.id !== myId));
         handoffTo = n.players.find(p => p.id === n.hostId);
       }
@@ -5038,6 +5108,7 @@ async function doJoin(name, avatar, roomInput, forceLocal) {
   if (myAvatar.startsWith('data:')) { try { localStorage.setItem('tod:me:avatar', myAvatar); } catch {} }
   const n = S ? S.players.length : 1;
   toast(n > 1 ? `加入成功！当前 ${n} 人 🎉` : `房间已创建：${room}，分享链接开玩吧！`, 'success', 3500);
+  if (rememberedToast) setTimeout(() => toast(rememberedToast, 'success', 4200), 600);   // 错开「加入成功」，别叠在同一次弹出里
   startTimers();
   updatePoolCount();
   if (!isLocalPage()) { try { history.replaceState(null, '', shareUrl()); } catch {} }   // 本地页（file:// / content://）改地址栏无意义且部分浏览器禁止
@@ -5052,6 +5123,7 @@ async function doJoin(name, avatar, roomInput, forceLocal) {
 
 async function doLeave() {
   if (!joined) return;
+  saveMyRecord();   // 退房会把自己的条目从房间文档删掉——这份快照是下次「记住我」接战绩的唯一凭证
   try { sessionStorage.removeItem('tod:tab'); } catch {}   // 主动退出后刷新不再自动回房
   closeMic(true);
   // 先把「离开后的房间状态」抓下来，但**不等广播落地**：网络一旦慢，等待就会变成退房时的空白卡顿。
@@ -5096,7 +5168,10 @@ function startTimers() {
     const p = S.players.find(x => x.id === myId);
     if (!p) return;
     if (seenAgo(p) > HEARTBEAT_MS - 5000) {
-      await mutate(n => { const q = n.players.find(x => x.id === myId); if (q) q.lastSeen = Date.now(); });
+      await mutate(n => {
+        const q = n.players.find(x => x.id === myId);
+        if (q) { q.lastSeen = Date.now(); q.micOn = !!MIC.on; }   // 麦态随心跳对齐实时值：滞后快照整文档覆盖后能自愈，不留幻影开麦
+      });
     }
     // 票面续期：挂机超过 30 分钟刷新页面也不会被当成过期票踢出自动回房
     try {
@@ -6524,11 +6599,7 @@ const urlRoom = (new URLSearchParams(location.search).get('room') || '').toUpper
 // 点「真心话大冒险」= 状态驱动换屏：__ARCADE__ 翻假 → currentScreen() 回 join → renderScreen 走既有扫视。
 // tod:picked 记入 sessionStorage：join 屏刷新不弹回大厅；arcade-nav 类会话级常驻（返回链接的显隐依据）。
 function enterTodFromArcade() {
-  if (!window.__ARCADE__) return;
-  window.__ARCADE__ = false;
-  try { sessionStorage.setItem('tod:picked', '1'); } catch (e) {}
-  renderScreen();   // applyTitle 由 renderScreen 统一接管
-  setTimeout(() => pasteRoom(true), 0);   // 从大厅进来也要能自动识别剪贴板邀请（boot 期在 arcade 屏被守卫跳过了）
+  location.href = 'tod.html';   // 单页拆分：tod 卡=真导航（原页内换屏语义随拆分移除；返回靠浏览器返回，tod.html 自己会认剪贴板邀请与回房票）
 }
 $('card-tod').addEventListener('click', enterTodFromArcade);
 $('card-tod').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); enterTodFromArcade(); } });
@@ -6564,8 +6635,7 @@ if (location.protocol !== 'file:') {
 }
 function jumpExternal(card) {
   const href = card.dataset.href, name = card.dataset.name;
-  if (location.protocol === 'file:' || typeof AbortSignal === 'undefined' || !AbortSignal.timeout) { location.href = href; return; }   // fail-open：file:// 与老浏览器直跳
-  if (jumpMemo[href] === true) { location.href = href; return; }
+  if (location.protocol === 'file:' || typeof AbortSignal === 'undefined' || !AbortSignal.timeout) { location.href = href; return; }   // fail-open：file:// 与老浏览器直跳（404 也比永远点不开/炸脚本好）
   if (jumpPending) return;
   jumpPending = true;
   toast('🚧 正在确认 ' + name + ' 能不能开门…');
@@ -6591,7 +6661,7 @@ let tabTicket = null;
 try { tabTicket = JSON.parse(sessionStorage.getItem('tod:tab') || 'null'); } catch {}
 const rejoinName = tabTicket && tabTicket.id && tabTicket.room && Date.now() - (tabTicket.ts || 0) < 30 * 60 * 1000
   ? (tabTicket.name || $('input-name').value.trim()) : '';
-if (rejoinName) {
+if (rejoinName && !window.__ARCADE__) {   // 单页拆分：index 恒 arcade——页内不再自动回房（回房语义整体归 tod.html）
   applyIdentity(rejoinName, tabTicket.avatar);
   $('input-room').value = tabTicket.room;
   $('chk-local').checked = !!tabTicket.local;

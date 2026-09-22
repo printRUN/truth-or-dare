@@ -19,7 +19,22 @@ index.html 的首屏是**游戏中心**：三张游戏卡（🎭 真心话大冒
 - h1 由 `applyTitle()` 唯一写入（同值短路）；`body.on-arcade` 隐藏 net-chip（落地页不挂红点「未连接」）。
 - 卡片是 **div[role=button] 不是 button**——tapFx 的 `closest('button:…')` 守卫会吞掉按压动画；新 CSS 动画三挂点：REDUCED 块、`body.loperf` backdrop 清单、`:focus-visible` 组。
 
-**E2E 契约**：全部 `.pw` 脚本入口 goto 已补 `?game=tod`（六步 sed，审计 grep 必须为空；probe-join-latency 的 `/?room=` 故意保留测邀请路径）。`check-syntax.cjs` 同时解析 index.html + monopoly.html，并断言两边内联 three.js UMD sha256 一致（trim 后比对；防单边升级双版本漂移）。探针：`.pw/probe-arcade.cjs`（8905，28 断言）。
+**E2E 契约**：全部 `.pw` 脚本入口 goto 已补 `?game=tod`（六步 sed，审计 grep 必须为空；probe-join-latency 的 `/?room=` 故意保留测邀请路径）。`check-syntax.cjs` 同时解析 index/tod/monopoly/uno/bombcat 五文件，并断言 index/tod/monopoly/uno 四方内联 three.js UMD sha256 一致（trim 后比对；防单边升级双版本漂移；bombcat 只做语法扫描不入 sha——其 three 装配在 bc 树自成一体）。探针：`.pw/probe-arcade.cjs`（8905，32 断言）。
+
+### 1.5b 单页拆分：tod.html 独立 + 炸弹猫合入（2026-09-20）
+
+- **tod.html = 纯游戏单页**（从 index.html 派生，three blob 与主脚本同源）：early 门控恒 `__ARCADE__=false`；`#screen-arcade` DOM、arcade 卡片 JS（enterTodFromArcade/jumpExternal/probeExternal/btn-arcade-back）整体拆除。`?room=` 回填、回房票自动重join、剪贴板识别全沿用主脚本既有逻辑。改 tod 游戏本体 = 改 tod.html（index 里的同名代码已不再可达，勿双改）。
+- **index.html = 纯游戏中心**：early 门控只做一件事——显式 tod 意图（`?game=tod` / `#tod` / `?room=` 邀请）`location.replace('tod.html'+search+hash)` 原样转发；**回房票/tod:picked 不再劫持落地屏**（防「返回被弹回 tod」死循环，票的回房语义整体归 tod.html）。主脚本 `rejoinName` 分支加 `!window.__ARCADE__` 守卫（页内休眠引擎不许自动重join=防双活）。tod 卡 `location.href='tod.html'` 真导航。
+- **bombcat.html 从 bc worktree（feat/bombcat-lobby 0657c26）字节级拷入**——自包含单文件（无本地依赖），卡片 HEAD 探测自动转绿直连。bc 树后续演进按共存契约同步拷贝。
+- 深链入口兼容：30+ 存量探针 `index.html?game=tod` → 重定向 → tod.html（Playwright goto 自动跟随），test-3d 37/37、probe-persona-full 20/20 实证。probe-arcade ②③⑥ 已按「真导航+无返回劫持」契约改写（32 断言全绿）。
+
+### 1.5c 随机惩罚模式（S.challenge，2026-09-20）
+
+- **语义**：开关在主持人设置面板（大厅/对局内同一面板），开启后「大冒险」抽题替换为 10 形式随机小游戏池（67 条：成语接龙/古诗接句/脑筋急转弯/绕口令/三连快答/24 点/模仿秀/故事接龙/猜谜语/反口令，28 条带参考答案）；真心话不受影响；中途切换下一张牌生效；`n.challenge === true` 才算开（读侧禁真值判断）。
+- **答案协议**：题串 = `『形式』题面` + 可选 `参考答案`；punParts() 在 textContent/fillText 渲染前拆分（REDUCED/打字机/终态三路 + drawQuestion 两处），**禁入 innerHTML**；surpriseOf/qSig 吃整串保持确定性。
+- **揭底**：answer-row 兄弟块全员可点（不受 chooser 门禁），three3d 经 bridgeSync 上 #stage-actions；重置只由 `lastAnsSig=seq+'|'+punishment` 边沿驱动（心跳免疫），applyState 首帧清零防换房残留；CSS 必须补 `.answer-row[hidden]{display:none}`（flex 压过 [hidden] UA 规则）。
+- **契约**：『形式』+题面 ≤40 全角字（drawQuestion wrap 5 行悬崖，fs 安全带 40→30 已加）；形式级防重复（lastForm 过滤+条目级回退，cap 10）；挑战池不进题库编辑器（schema 迁移留后续）。
+- **探针**：`.pw/probe-challenge.cjs`(8951) + `.pw/probe-chal-reduced.cjs`（REDUCED 全流程）；门禁 test-3d 37/persona-full/feel/egg-react 全绿。
 
 ### 1.6 大富翁（monopoly.html，独立自包含单文件）
 
@@ -39,6 +54,54 @@ index.html 的首屏是**游戏中心**：三张游戏卡（🎭 真心话大冒
 
 **UNO 规则 v1**：108 张标准牌；首翻只收数字牌（非数字塞回牌库底）；+4 强限「手中无当前色」（无质疑制的替代）；摸牌随时可点，摸到可出→打出/保留二选，保留后本回合仍可出任意手牌，**摸到不可出自动过**；**最后一张是 +2/+4 仍结算罚摸**；洗回顶牌除外、选色独立；僵局 200 连过→和局按罚分排名。**热座暗牌**：交接闸 gateNeeded=下一个行动者是真人且与上一位真人不同（连续出牌不开闸）；明牌模式全真人手牌常开、机器人永不公开（南位动画期也算）；**换手必须 buildHands 全量重摆**（座位随当前玩家轮转，只摆新玩家=上家手牌残留在南位泄漏——终审 P0）。**UNO 喊名 6s**：只在持窗者的 AWAIT_ACTION 计时（他人回合/HANDOFF/ANIMATING 暂停），REDUCED 数字倒计时；有 bot=窗口到期即抓罚 2；全真人=下一位真人的交接闸出「抓包」按钮（点=罚 2，非本人可见；done 后不复活）。压缩模式（>12 张或小屏 >9 张）→ DOM 手牌浮层（卡宽 64px scroll-snap）。存档 uno:save:v1 字段含 hands/deck/discard/dir/cur/drawnThisTurn/unoWin{remain}；RESOLVE 过渡期不落档。E2E：probe-uno.cjs（8909，21 断言：规则链/抓包/洗回/僵局/恢复/2D/20 局 MC）+ probe-arcade 35 断言（含 UNO 跳转、炸弹猫双分支、landui 矮屏 4 卡）。check-syntax sha 断言扩为 **index+monopoly+uno 三方一致**（硬编码白名单，不含 bombcat.html）。合并顺序约定：bombcat-lobby rebase 到 feat/arcade-monopoly 之上，门禁冲突由 arcade 侧解决。
 
+### 1.8 联机体系（monopoly/uno v1，2026-09-19，feat/3d-one-take）
+
+**目标**：大富翁与 UNO 各自接入「联机房间」，完整移植 index.html tod 的三大件：MiniMqtt 多 broker 房间链、WebRTC 网状连麦、WebAudio 音效（含连麦 duck）。setup 面板顶部「🪑 本地热座 / 🌐 联机房间」模式切换（状态在 `NETMODE`，不是 DOM 硬切）；创建/加入 5 位房号；大厅（房主 👑 可开局/设局长，UNO 无局长）；掉线 40s 灰显 `pchip.off`、90s 处置。
+
+**同步模型（沿用 tod 的 LWW 快照，非主机权威）**：topic `mono|uno/v1/<房号>/state`（retained QoS1），文档 `{room,seq,ts,expiresAt,started,game,players[],writer,hbOnly}`。`mutate(fn, mode)` 三种写权限：`'ck'` 行动检查点（game 以本地 G 全量覆盖；行动者设备在各相位边界发布：startGame/beginTurn/enterHumanTurn/resolveTile/afterResolve/buy/jail/drawCard/endGame）、`'hb'` 纯心跳（`hbOnly=true`，对端只刷成员水位**不重放 game**——防陈旧棋局覆盖行动者，终审 P1）、`'edit'` 治理写（掉线代管）。`netSetDoc` 守卫：seq 单调 + 同 seq ts 决胜 + **成员按 id 合并**（防发布竞争吞人/幽灵加入，终审 P0）。掉线处置**只由房主执行**：大厅删人；开局后座位不删、代管为机器人（`gp.bot=true` 按座位号对齐——先 filter 后对齐会错位座位，终审 P0）。**房主接管补跑 `netHostKick`**：收到快照时若本端是 host 且当前座位是 bot → 补 `beginTurn()`（`lastKickSeq` 防重），同时解决「老房主掉线后 players[0] 迁移死锁」与「掉线者回合悬空」（终审 P0）。加入者 doc 的 `seq` 从房间现役 seq+1 起步（归零会被全员守卫丢弃→幽灵）。同 myId（sessionStorage）刷新后可认领原座位重进。联机局**不落本地存档**（saveGame 对 NETMODE 关闸 + netStartGame clearSave，防「联机残局被当热座档恢复」，终审 P1）。
+
+**联机游戏语义**：交接闸自动跳过（`skipHandoff:true`，各人玩各的设备）；机器人座位由房主代跑（`botAct`/`beginTurn` 对 `NETMODE && !isHost()` 关闸）；联机 UNO 强制 dark 模式、喊名窗口只在窗口主人设备计时结算（`netReact` 走 `/react` 即发即忘通道广播「UNO!」/「抓包」给全房），联机不做交接闸抓包按钮（窗口主人掉线则该次罚则不结算——已知限制）；联机大富翁结算复用 `showResult()`（endGame 拆出），远端按快照相位过渡到 OVER 时补渲染；「再来一局」联机仅房主可开。
+
+**连麦**：MIC 块逐字移植（ICE/STUN 列表、非 trickle SDP、媒体外放双路径、三级自动播放兜底、micWatch 自检），仅改 localStorage key（`mono:ice/listen/duck/speaker`、`uno:*`）与 BGM 引用；SFX 加 master 总线 + `duckMusic(f)`（开麦 14%/外放 6%/仅收听 50%）。HUD 按钮 `#btn-mic`/`#btn-listen`（`.js-mic-btn` class 复用 tod renderMicUI）。
+
+**已知限制（v1 接受）**：①快照含全部手牌/牌堆（房间号即门禁；公共 MQTT 明文，知道房号可订阅开天眼）——**不要在赌注场景使用**，v2 候选=按玩家分包手牌+发布者密钥；②UNO 喊名窗口主人掉线则罚则悬空；③跨端时钟偏移影响同 seq ts 决胜；④iOS 切后台不触发 pagehide（心跳灰显兜底）。
+
+**E2E**：`probe-mono-net.cjs`（8911）/ `probe-uno-net.cjs`（8913）：双标签同 context（BroadcastChannel 本地链路 `&localnet=1`，不碰外网）+ `?autotest=1&net=1&room=&role=host|join&autostart=1`；断言建房/开局拒绝迟到者/大厅名单/开局快照+棋子重摆/对局推进两端一致（turn/phase/现金/地产、手牌/弃牌堆/当前色）/掉线灰显上屏（真实 `.pchip.off` DOM 断言，非自欺布尔）/座位不删/零 pageerror。`__mono.net()`/`__uno.net()` 访问器含 `ui:renderNetUI`。三文件 three.js 内联段已统一为 LF 行尾（`e88777…`，Edit 工具保存会整文件规范化 LF——勿再让 index 独享 CRLF，否则 sha 门禁反复翻车）。
+
+### 1.9 公共联机组件 party-net.js（2026-09-19 第二轮：进房体验下沉为组件，联机默认化）
+
+**背景**：用户要求把 tod 的房间加入逻辑/填表/头像搬成公共组件给所有游戏用，**联机为默认玩法、本地热座收进「高级选项」**。产物是仓库根的 `party-net.js`（单文件零依赖，file:// 双击可用，CSS 由组件自注入 `.pn-*` 前缀），monopoly.html / uno.html 通过 `<script src>` 消费并各自留 ~150 行薄适配层。
+
+**组件内含（`PartyNet.create(cfg)` 闭包实例，多游戏互不串扰）**：① 传输核 = MiniMqtt/LocalTransport/RoomLink 逐字移植，topic 前缀与存储 key 参数化（`prefix`/`key`）；② 完整 WebRTC 连麦 MIC 块（存储 key 前缀参数化）；③ 进房 UI = 24 张 DiceBear 头像格（tod 配方协议 `dcb:{"s","d","b","n"}`，seed 前缀按游戏区分如 `MONO-A00`；渲染走 api.dicebear.com CDN，onerror 回退首字母圆）+ 昵称填表（localStorage 记忆）+ 创建/加入 5 位房号 + 大厅（房号/成员头像列表/开局/加机器人/退出）；④ 治理逻辑 = mutate 三态写权限（'ck' 行动检查点 / 'hb' 纯心跳 hbOnly / 'edit' 治理写）、seq/ts 守卫 + 成员按 id 合并、心跳巡检（大厅踢人；开局代管走 `cfg.prune`）、`netHostKick` 房主接管补跑（cfg.kick）、加入者 seq 从房间现役+1 起步、同 myId 刷新认领座位、expiresAt 校验。
+
+**宿主契约（cfg 回调）**：`snapshot()`（ck 检查点的 game 字段）、`onGame(game,doc)`（远端快照 → 本地 G 静态重绘）、`onState(doc)`（宿主镜像 NETMODE/NDOC/myId/joined/link + HUD 同步；**setStarted/mutate/enter 都会触发，宿主镜像不得自行赋值**）、`kick()`（当前座位是 bot 时补 beginTurn）、`prune(n,now)`（开局后掉线代管）、`onStart()`（大厅开局按钮）、`onReact(m)`（即发即忘通道，UNO 喊名/抓包用）、`allowBots`/`lobbyExtraHtml`（monopoly 的局长选择）/`avSeedPrefix`/`localOnly`（E2E 走 BroadcastChannel）。组件对宿主暴露 `mic.toggle/toggleListen`、`avatarUri(rep)`、`seatOf`、`isHost` 等。
+
+**游戏侧改造**：setup 面板 = `<div id="party-net"></div>`（默认联机表单）+ `<details class="pn-adv">高级选项</details>`（热座 seat-rows/局长/交接闸/明牌 + 「开始本地热座 🪑」）；HUD 玩家条 pchip 增加头像 `netAvatarHtml(i)`（有 av 显示 DiceBear 图，热座回落色点）；`.pn-form[hidden]/.pn-lobby[hidden]` 必须 `display:none!important`（CSS display:grid 会压过 hidden 属性——视觉评审抓过）。**tod 本体未迁移**：其 join 屏与 arcade 门禁/头像定制器/战绩体系深度耦合，本轮保持原生（组件母本即它），v2 待议。
+
+**门禁与 E2E**：check-syntax.cjs 扩为「index+monopoly+uno 内联脚本 + party-net.js 过 new Function」+ three.js sha 三方一致；probe-mono-net 增 2 断言（默认落地 24 头像联机表单、热座收进高级选项）。改 party-net.js 必须三处联跑：probe-mono-net(8911)/probe-uno-net(8913)/check-syntax。已知坑：组件 `PartyNet`/`NET_STALE_*` 是全局——宿主适配层**不得重复声明**；`P.setStarted()` 后宿主镜像靠 onState 刷新（漏触发会让 ck 检查点被 started 守卫拦掉，症状=对端收到 started 但 game 恒 null）。
+
+
+
+### 1.9.1 头像定制器组件化（v1.1，2026-09-20：去默认 24 预设，tod 定制器整套下沉）
+
+用户点名「不要用默认的头像…其他所有游戏都用该组件」。进房表单的 24 预设头像格退役，换成与 tod join 屏同款两标签定制器（`pnav-` 视觉/交互逐条对齐母本；设计与终审档案 `.pw/design-plan-avatar-component.md` v2 + 双检查官报告）：
+
+- **宿主硬契约**：宿主页必须在 party-net.js **之前** `<script src="dicebear-local.js"></script>`（index.html 内联母本的逐字抽取副本，check-syntax 有 EOL 归一漂移门禁拦单边改动）。漏带 → 组件自动退 api.dicebear.com CDN（shapes 鲜色池特例退化为 CDN 默认配色；同房两端开同一份宿主页，该路径仅漏带才可达）。
+- **协议三态**：`dcb:{s,d,b}`（~50B，各端本地生成逐字节一致）/ dataURL（**严格 base64 图片白名单**——dataURL 会经宿主 innerHTML 插值，任意 data: 串=对端可伪造状态包的远程注入面，终审 P0 已堵；两宿主 HUD 还做了引号转义纵深）/ 遗留 `av:P##` 短索引（24 预设表=纯渲染映射：**组件不自创，tod 迁入项可选可发、无删除角标**——删了 tod 侧 boot 会复活+重复 toast）。
+- **共享库**：「我的」= `tod:avatars:v1`（与 tod 本体同一 key，同一浏览器全游戏通用）。写前 reloadStore 先读后写 + storage 事件对账。**已知竞态存量（刻意冻结 index.html 的取舍）**：tod 页开着时其整对象回写可吞组件侧一次增删；组件删掉 `tod:me.avatar` 引用的配方会被 tod 下次 boot 再迁回。
+- **boot 语义（F5）**：`key:avatar` 存 rep 字符串；dcb → 回填定制器（styleTouched=true，🎲 只换脸）落「定制」；dataURL / av: → 落「我的」；无效（含 v1.0 数字索引）→ 随机人物向风格 + 随机 seed **开箱即用**。selectRep 每次写 key:avatar。v1.0 的「+localStorage 把 null 变 0 → 全员第 0 格月白脸」bug 一并消灭。
+- **删除/回落**：两连点确认；删正用头像 → 🎲 换 seed 回落定制（rep 必重写，防 boot 捡回被删项）。
+- **机器人**：`P.addBot()` 给随机人物向配方（内联生成，禁拨宿主正在用的 cz）；宿主 autotest 注入 bot 也走该入口。
+- **折叠**：foldcz 类无条件常挂 + 仅 `@media (max-width:619px)` 启用展开钮与隐藏规则（纯 CSS 无 resize 监听）；chips 区 max-height 150px 滚动（tod 同款）。**构建时序雷**：buildAvatarUI 必须在 form 入文档之后调用（定制器构建全按 root 查询，detached 树上 querySelector 全空 → 静默 no-op——实测踩过）。
+- **旧数据**：旧 retained 房间的 dcb（含多余 "n" 字段、MONO-A## seed）照常出图；**旧 shapes 配方渲染从 CDN 素色升级为鲜色池**（一次性变化，retained 30 分钟过期，接受）。
+- **门禁**：check-syntax 加 dicebear-local.js（new Function + 母本漂移）；probe-avatar-picker.cjs（8933，47 断言：所见即所得/入库/刷新三路回填/删除三路/遗留只读+刷新/上传/数字迁移/入房 dcb/大厅 data:svg/390×844 折叠首屏）；probe-mono-net / diag-mono-net A0 改为「31 chip + 首 chip data:svg + 两标签 + dcb 入房」。API：`presets:` 废为空数组（防老宿主解构断裂）。
+
+**v1.2（2026-09-20 晚，用户点名「选了即用不需要确认，表单更简洁高效，全设备自适应」）**：
+
+- **拨了即用（零确认）**：「✓ 就用它」按钮、「预览中」待确认角标、预览格点选确认全部删除——拨风格/底色/🎲 在任何标签下立即生效并写入 `key:avatar`；预览格变纯展示 div。💾 存进我的 = 入库动作（非确认），存后留在定制页继续拨；📷 上传不再强制切标签。
+- **表单更简**：组标签行、seed 文案行（信息移入 🎲 title）删除；🎲（紧凑图标钮）+9 底色点独占一整行、💾 存进我的贴预览右侧垂直居中；版权行与提示行文案缩短；**头像区必须插在表单首位**（buildAvatarUI 用 `form.insertBefore(group, form.firstChild)`——它等 form 入文档后才跑，append 会掉到昵称/创建按钮下面）。
+- **全设备**：≤619px 默认折叠（纯 CSS）+ 展开钮；≤359px 磁贴/chip 再收一档；≤619px 底色点 24px 保 🎲+9 点单行；panel 内滚动兜底。设备扫描（probe-avatar-picker B 段）：320×698 / 390×844 / 740×360 横屏 / 768×1024 / 1280×800 全部无横向溢出、控件齐全。
+- **回归**：probe-avatar-picker 51 断言（新增：零确认控件、保存不切页、🎲 只换脸 rep 语义、chip 回填按 `.sel` title、三设备扫描）。
 
 ## 2. Visual & Rendering Specification
 
@@ -448,34 +511,3 @@ big bank never inflates per-turn sync traffic. 旧版纯字符串题库按 `{x: 
 - [x] 互动浮窗不挡操作（`.pw/test-landscape.cjs`）：844×390 / 390×844 / 1280×800 / 1024×768 下浮标与展开的 6 颗 emoji 均落在屏内且与所有 `button/input/.player-card/.choice-card` 零重叠、浮标可真实点击（Playwright 点击，非 DOM 兜底）；Esc 可收起；旧版「底栏常驻」在 390×844 会压住选卡/工具栏、横屏左中会压住玩法切换的问题已消除
 - [x] PC / 平板兼容（`.pw/test-landscape.cjs` 的 1280×800 与 1024×768 分段）：大厅/牌桌/揭晓页文档宽 = 视口宽（3D 牌桌透视投影不再撑宽，移动仿真下 fixed 浮窗不再被推出屏）；矮屏桌面/平板的选卡与「完成/跳过」落在首屏内；互动浮窗不压控件；`.pw/probe-overflow.cjs` 留证
 - [x] PC / 平板版式（`.pw/probe-pcwidths.cjs`、`.pw/probe-pcfit.cjs`）：1920×1000 / 1440×900 / 1280×800 / 1024×768 / 900×900 / 820×1180 六档下 join/lobby 内容列水平居中（偏移 0~8px，8px 是经典滚动条的一半）、文档宽恒等于视口宽、浮标在屏内；加入按钮在 720~1080 各高度全部落在首屏内（旧版 ≤900 高全部需要滚动）；`.pw/probe-tabletshift.cjs` 留了「居中不改变纵向位置」的 A/B 取证
-
----
-
-## 4. 炸弹猫（bombcat.html）— 第二款游戏（2026-09-19，分支 feat/bombcat-lobby）
-
-单文件自包含卡牌游戏（three.js r128 UMD 内联，双击即开，无 CDN 依赖）。**与 arcade 会话（feat/arcade-monopoly）的分工契约**：index.html 的游戏中心屏由 arcade 会话实现（`?game=` 门控），炸弹猫以 `.arcade-card` 卡片接入（粘贴片段见 `.pw/design-bombcat-lobby.md` §9），`bombcat.html?room=X` 与跳转契约一致；本分支**零改动 index.html**。
-
-### 4.1 架构
-- **主机权威**：只有 host 跑规则引擎 `CAT`（纯逻辑单例，`G` 公共态永不含手牌内容/牌库顺序，手牌只在主机内存 `H`）。非主机一切动作走 `act` 主题（重试闭环：4s 未进 seq → 同 (from,mid) 重发 ≤3 次），敏感载荷（拆除插位/恩惠给牌）走 `p/<pid>/up` 私密上行主题。
-- **传输**：MiniMqtt/LocalTransport/RoomLink 移植自 index.html，topic 族 `cat/v1/<room>/{state,act,react,p/<pid>,p/<pid>/up}`；'tod' 硬编码全部改名 'cat'（channel `cat-<room>`、key `cat:room:<room>:*`、clientId `cat-*`）。**LocalTransport 的 key 懒分配**支持动态私密主题；p/<pid> 的 `.pop()` 天然去重不许重构。
-- **私密包**：主机对每个 state 变更向全部活人补发 `{hand, peek?}`；hello 由 15s presence 循环承担（大厅 presence + 局中补手牌）；qos1。
-- **发牌公式**（probe 钉死）：副数 d=n≤5?1:2；放回拆除 6d−n、爆炸猫 **n−1**（用户原文准据，不随副数翻倍）；牌库 52d−4n−1；n=4→35张3猫 / n=5→31张4猫 / n=6→79张5猫 / n=8→71张7猫。种子 RNG mulberry32，`__cat.setSeed/forceDeck/setTiming` 测试钩子。
-- **回合转结**：攻击不结束回合（attackQueued 累计，抽牌禁用+「结束回合」按钮）；收尾时 `下家.extra += attackQueued + 我方剩余 extra`。nope 窗 2.5s 起（无人持 nope 快结算 0.8s）、每 nope +2s cap 9s；奇数张=取消。出牌/窗口结算时刷新 `turn.acted`（等待他人不占决策时钟）。
-- **看门狗**（主机 1s tick 唯一时钟）：nope 窗/拆牌 15s/恩惠 10s/弃牌挑 15s 超时兜底（种子 RNG）；回合 30s 无动作代抽，afk≥2 后 8s；**tick 后 dirty→必须 hostPublish**（引擎被 tick 改过而没广播 = P0，吃过亏）。
-- **hostLost**：主机每 5s 心跳刷 ver；客户端 20s 无 ver 更新且 pending 过期 → 判死局回大厅（心跳不刷 ver = 全端误判弹回大厅，吃过亏）。over 局有人 join → 唤醒回大厅。
-
-### 4.2 3D 与退路
-- 借 tod DNA：FogExp2(0x0a0a1a,0.042)、ACES+sRGB、dpr 封顶、事件驱动阴影、球面脸贴片（r0.215，`color` 必须随 map 归白）、turnRing。**initScene 成功后必须挂 `body.three3d`**（忘挂=画布永远 display:none，吃过亏）。名牌=DOM 投影（本文件无嵌套 transform，直接写视口坐标）+ **签名边沿 innerHTML**（禁每帧重绘）。
-- 无 WebGL/loperf/REDUCED → 纯 DOM 可玩：`#bc-board2d` + `#bc-players` 玩家状态栏承担全部信息。头像=程序化猫脸（`bc:h:s`，makeCatFace 种子 canvas）。
-
-### 4.3 E2E 门禁与踩过的雷（改前必读）
-- `.pw/check-syntax-bc.cjs`（独立命名，勿动 arcade 会话的 check-syntax.cjs）；`node .pw/build-bombcat.cjs` 从 `.pw/bc-src-a.html + bc-main-{1..4}.js + three-r128.blob.js` 组装 bombcat.html——**改源件后必须重建**。
-- `probe-bombcat-rules.cjs`(8931) 37 断言：发牌四组数值/种子确定性/攻击叠加三例/nope 奇偶反制/拆牌/爆炸/恩惠/组合三式/负例/stf/看门狗/牌库空/离开/over 唤醒/mid 幂等。
-- `probe-bombcat-ui.cjs`(8933) 25 断言：三人本地局全流程+观战+无 WebGL 退路；**稳定四连绿**（flake 治理史：act 重复投递曾引发「dup→hostPublish→storage 事件→再发布」风暴——`hostOnAct` 对 dup 必须 early-return；over 态残留自动 hostRestart 曾把结算屏 0ms 顶掉）。
-- 探针纪律：本地模式同 context 多 page；注入手牌后给**每人**发 hello 补私密包；**清掉牌库原生 ek**（爆炸只由探针注入触发，剧本才确定）；等「按钮解禁」而非引擎态（渲染晚于 publish ≤1s）；GL 页截图 3-10s，nope/defuse 窗要放宽；3D 下点击用 evaluate 级 click（仓库既有契约）；page.evaluate 闭包**不能引用 Node 变量**（ids 用参数传）。
-
-### 4.4 终审修订（双检查官，2026-09-19）
-- **弃牌堆公开为准据修订**：用户原文「打出的牌面朝下进弃牌堆」与「5 张不同名从弃牌堆选 1 张」在数字实现下取官方实物语义——打出的牌名随出牌横幅公开（nope 决策必需），弃牌堆全量 cardId 进公共态供 5 异名挑选；GL 演出保留「飞行面朝下、落定翻明」。
-- afk 快进修复：代抽不再清 afk；挂机玩家的攻击/略过回合被代**结束**（不代抽），extra 转结照常。
-- 8 人硬上限（start 拒绝 + 大厅开局键禁用）；结算屏炸弹猫数=人数−1；局中进入观战提示中文化；恩惠接收方离场→恩惠取消（牌不再蒸发）；目标空手牌校验引擎与 UI 对齐；hostLost 判死 20s→12s；等待类 pending 补倒计时。
-- LocalTransport 非 retained 主题（act/priv/up/react）不再落 localStorage——杜绝 storage 重放风暴，手牌明文不滞留。

@@ -91,6 +91,7 @@
   .panel .sub { font-size: 0.8rem; color: rgba(255,255,255,0.6); margin-bottom: 16px; }
   .panel.center { text-align: center; }
   .btn-primary { display: block; width: 100%; min-height: 52px; border: none; border-radius: 16px; background: linear-gradient(135deg, var(--primary), var(--accent-pink)); color: #fff; font-size: 1.02rem; font-weight: 800; cursor: pointer; }
+  .btn-primary:disabled { opacity: 0.45; filter: saturate(0.35); cursor: default; }
   .btn-primary:active { transform: scale(0.98); }
   .btn-ghost { display: block; width: 100%; min-height: 44px; margin-top: 10px; border-radius: 14px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.06); color: #fff; font-size: 0.9rem; cursor: pointer; }
   .btn:focus-visible, .btn-primary:focus-visible, .btn-ghost:focus-visible, .btn-sub:focus-visible, .btn-main:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 3px; }
@@ -181,6 +182,12 @@
   body.loperf #result-veil { display: none; }
   body.loperf .pchip, body.loperf .btn-sub, body.loperf .btn-main, body.loperf .ovl, body.loperf #toast { backdrop-filter: none; -webkit-backdrop-filter: none; }
   body.loperf .pod { opacity: 1; transform: none; animation: none; }
+  /* ═══ 联机（v1：组件 UI 在 party-net.js；这里只留 HUD 侧） ═══ */
+  .pchip.off { opacity: 0.45; }
+  .pchip.speaking { box-shadow: 0 0 0 2px rgba(52,211,153,0.8) !important; }
+  .pav { width: 22px; height: 22px; border-radius: 50%; flex: 0 0 auto; }
+  #btn-mic.live { background: linear-gradient(135deg, #34d399, #10b981); color: #06281c; }
+  #btn-listen.off { opacity: 0.5; }
 </style>
 </head>
 <body>
@@ -204,6 +211,8 @@
 <div id="hud-tools" hidden>
   <button id="btn-rules-top" type="button" title="规则速览">❓</button>
   <button id="btn-sfx" type="button" title="音效开关">🔊</button>
+  <button id="btn-mic" class="js-mic-btn" type="button" title="连麦（WebRTC）" hidden>🎙️</button>
+  <button id="btn-listen" class="js-listen-btn" type="button" title="收听开关" hidden>🔊</button>
   <button id="btn-quit" type="button" title="返回游戏中心">🏠</button>
 </div>
 <div id="toast"></div>
@@ -215,9 +224,13 @@
 <div id="setup" class="ovl" hidden>
   <div class="panel">
     <h2>🎲 大富翁</h2>
-    <p class="sub">本地同屏 · 轮流传机 · 2-4 人（可带 🤖 机器人）</p>
+    <p class="sub">🌐 联机房间是默认玩法 · 2-4 人 · 房号邀请</p>
+    <div id="party-net"></div>
+    <details id="adv-box" class="pn-adv">
+    <summary>⚙️ 高级选项 · 本地热座（同屏传机）</summary>
+    <div id="hot-opts">
     <div id="seat-rows"></div>
-    <div class="seat-add">
+    <div class="seat-add" id="seat-add">
       <button id="seat-minus" type="button">－ 减一人</button>
       <button id="seat-plus" type="button">＋ 加一人</button>
     </div>
@@ -230,6 +243,9 @@
       <span id="round-est">预计约 15 分钟</span>
     </div>
     <label class="opt-row"><input type="checkbox" id="skip-handoff"> 跳过交接确认（大家都盯着屏幕）</label>
+    </div>
+    <button id="btn-start" class="btn-primary" type="button">开始本地热座 🪑</button>
+    </details>
     <details id="rules-box">
       <summary>📜 规则速览</summary>
       <ul>
@@ -243,8 +259,7 @@
         <li>最后存活着胜 🏆</li>
       </ul>
     </details>
-    <button id="btn-start" class="btn-primary" type="button">开始游戏 🎮</button>
-    <button id="btn-back-arcade" class="btn-ghost" type="button">← 返回游戏中心</button>
+        <button id="btn-back-arcade" class="btn-ghost" type="button">← 返回游戏中心</button>
   </div>
 </div>
 
@@ -304,6 +319,8 @@
 
 </script>
 
+<script src="dicebear-local.js"></script>
+<script src="party-net.js"></script>
 <script>
 'use strict';
 /* ═════════════════════════ 0. 基础工具 ═════════════════════════ */
@@ -313,6 +330,7 @@ const qs = new URLSearchParams(location.search);
 const AUTOTEST = qs.get('autotest') === '1';
 const SPEED = AUTOTEST ? (qs.get('turbo') ? 0.01 : 0.15) : 1;   // autotest：动画 ×0.15；turbo=蒙特卡洛 ×0.01
 const TURBO = AUTOTEST && qs.get('turbo') === '1';      // turbo：跳过渲染与动画，纯状态机跑蒙特卡洛
+const LOPERF_FORCED = AUTOTEST && qs.get('loperf') === '1';   // E2E 强制跳帧档（perfWatch 不再判定/恢复）
 let SEED = AUTOTEST ? 20260919 : (Math.random() * 0xffffffff) >>> 0;
 function mulberry32(box) {
   return function () {
@@ -332,15 +350,15 @@ const fmt = n => '¥' + n.toLocaleString('zh-CN');
 
 /* ═════════════════════════ 1. 音效（WebAudio 合成，零资源） ═════════════════════════ */
 const SFX = (() => {
-  let ctx = null, on = true;
+  let ctx = null, on = true, master = null;
   try { on = localStorage.getItem('mono:sfx') !== '0'; } catch (e) {}
-  const ensure = () => { if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } return ctx; };
+  const ensure = () => { if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); master = ctx.createGain(); master.gain.value = 1; master.connect(ctx.destination); } catch (e) {} } return ctx; };
   const env = (g, t0, a, d, v) => { g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(v, t0 + a); g.gain.exponentialRampToValueAtTime(0.001, t0 + a + d); };
   const tone = (f0, f1, dur, type, vol, when = 0) => {
     const c = ensure(); if (!c || !on) return;
     const o = c.createOscillator(), g = c.createGain(), t0 = c.currentTime + when;
     o.type = type; o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t0 + dur);
-    env(g, t0, 0.01, dur, vol); o.connect(g).connect(c.destination); o.start(t0); o.stop(t0 + dur + 0.1);
+    env(g, t0, 0.01, dur, vol); o.connect(g).connect(master || c.destination); o.start(t0); o.stop(t0 + dur + 0.1);
   };
   const noise = (dur, vol, fc) => {
     const c = ensure(); if (!c || !on) return;
@@ -348,7 +366,7 @@ const SFX = (() => {
     for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
     const s = c.createBufferSource(), g = c.createGain(), f = c.createBiquadFilter();
     s.buffer = buf; f.type = 'lowpass'; f.frequency.value = fc; env(g, c.currentTime, 0.005, dur, vol);
-    s.connect(f).connect(g).connect(c.destination); s.start();
+    s.connect(f).connect(g).connect(master || c.destination); s.start();
   };
   return {
     get on() { return on; },
@@ -362,9 +380,143 @@ const SFX = (() => {
     bust() { tone(420, 70, 0.65, 'sawtooth', 0.16); },
     win() { [523, 659, 784, 1046].forEach((f, i) => tone(f, f, 0.12, 'triangle', 0.18, i * 0.11)); },
     card() { tone(500, 900, 0.09, 'sine', 0.1); },
+    // 连麦压低（duck）：连麦模块在开麦/收听时调用，压动作音效总线减少串音
+    duckMusic(f, ms = 300) {
+      const c = ensure(); if (!c || !master) return;
+      try { master.gain.cancelScheduledValues(c.currentTime); master.gain.setValueAtTime(master.gain.value, c.currentTime); master.gain.linearRampToValueAtTime(f, c.currentTime + ms / 1000); } catch (e) {}
+    },
   };
 })();
 document.addEventListener('pointerdown', () => SFX.unlock(), { once: true, passive: true });
+
+// ═══════════════════════════════════════════════════════════════
+// 17. 联机（公共组件 party-net.js 的宿主适配层；组件契约见 SPEC §1.9）
+// ═══════════════════════════════════════════════════════════════
+let NETMODE = false, NDOC = null, myId = null, joined = false, link = null;   // 组件全局常量 NET_STALE_* 可直接引用
+const P = PartyNet.create({
+  key: 'mono', prefix: 'mono/v1', maxPlayers: 4, allowBots: true,
+  localOnly: AUTOTEST && qs.get('localnet') === '1',   // E2E：同浏览器多标签走 BroadcastChannel，不碰外网
+  toast, sleep, sfx: SFX,
+  snapshot: () => gameSnapshot(),
+  onGame: (g, d) => applyGameSnapshot(g, d),
+  onState: () => { NETMODE = P.mode(); NDOC = P.doc(); myId = P.myId; joined = P.joined(); link = P.link(); syncNetHUD(); },
+  kick: () => netHostKick(),
+  // 开局后座位不删：掉线者按座位号代管为机器人（先 filter 后对齐会错位座位——终审 P0 教训）
+  prune: (n, now) => {
+    if (!n.game) return;
+    n.game.players.forEach((gp, i) => {
+      const np = n.players[i];
+      if (!np || np.bot) return;
+      if (now - (np.lastSeen || 0) > 90000) { gp.bot = true; gp.name = gp.name + '🤖'; if (n.players[i]) n.players[i].bot = true; }
+    });
+  },
+  onStart: () => netStartGame({ roundLimit: +$('net-round').value }),
+  lobbyExtraHtml: `<div class="opt-row" id="net-round-row">局长
+    <select id="net-round">
+      <option value="15">15 轮（约 10 分钟）</option>
+      <option value="20" selected>20 轮（约 15 分钟）</option>
+      <option value="0">不限（纯破产制）</option>
+    </select></div>`,
+  avSeedPrefix: 'MONO',
+});
+P.mount('party-net');
+$('btn-mic').addEventListener('click', () => P.mic.toggle());
+$('btn-listen').addEventListener('click', () => P.mic.toggleListen());
+
+const isHost = () => P.isHost();
+function netSeatOf(pid) { return P.seatOf(pid); }
+function netIsMyTurn() {
+  return NETMODE && NDOC && NDOC.started && NDOC.game && NDOC.players[G.turn] && NDOC.players[G.turn].id === myId;
+}
+function mutate(fn, mode) { return P.mutate(fn, mode); }
+function netCkpt() { if (NETMODE && joined && NDOC && NDOC.started) return P.mutate(() => {}, 'ck'); }
+function netEnter(room, name, asHost) { return P.enter(room, name, asHost); }
+function netLeave(silent) { P.leave(silent); }
+// 棋局快照（retained 文档的 game 字段；只含纯数据）
+function gameSnapshot() {
+  return JSON.parse(JSON.stringify({
+    phase: G.phase, players: G.players, owners: G.owners, decks: G.decks,
+    turn: G.turn, doubles: G.doubles, roundLimit: G.roundLimit, skipHandoff: G.skipHandoff, seed: G.seed,
+  }));
+}
+// 远端棋局快照 → 本地 G（静态重绘，不播动画；交战动作只发生在行动者设备上）
+function applyGameSnapshot(g, doc) {
+  if (TURBO || !g || !Array.isArray(g.players)) return;
+  const prevPhase = G.phase, prevTurn = G.turn, prevPos = G.players[G.turn] && G.players[G.turn].pos;
+  G.phase = g.phase; G.players = JSON.parse(JSON.stringify(g.players));
+  G.owners = g.owners.slice(); G.decks = JSON.parse(JSON.stringify(g.decks));
+  G.turn = g.turn; G.doubles = g.doubles; G.roundLimit = g.roundLimit; G.skipHandoff = !!g.skipHandoff; G.seed = g.seed;
+  $('setup').hidden = true; $('handoff').hidden = true; hideActions();
+  if (g.phase !== 'OVER') $('result-overlay').hidden = true;   // 新局快照要收起上一局的结算屏
+  $('buy-modal').hidden = true; $('gen-modal').hidden = true;
+  if (G.gl && !pawnObjs.length && G.players.length) { buildPawns(); }
+  G.players.forEach((p, i) => { if (pawnObjs[i]) { pawnObjs[i].visible = !p.bankrupt; placePawn(i, p.pos, true); } });
+  if (plateSprites.length) { plateSprites.forEach((s, i) => { if (s) s.visible = !!(G.players[i] && !G.players[i].bankrupt); }); layoutPlates(); }
+  ownerMarks.forEach(m => { if (m) m.visible = false; });
+  G.owners.forEach((o, i) => {
+    if (o != null && ownerMarks[i]) {
+      ownerMarks[i].visible = true;
+      ownerMarks[i].material.color.set(PLAYER_COLORS[G.players[o].colorIdx]);
+      ownerMarks[i].material.needsUpdate = true;
+    }
+  });
+  // 观战镜头：换人或行动者位移了就把镜头转向行动者（back=全景档，不抢近景）
+  if (G.gl && !REDUCED && !bodyLo && G.phase !== 'OVER'
+      && (G.turn !== prevTurn || (prevPos !== undefined && G.players[G.turn] && G.players[G.turn].pos !== prevPos))) {
+    focusPawn(G.turn, true);
+  }
+  if (prevPhase !== 'OVER' && g.phase === 'OVER') showResult();
+  render2D(); updateHUD();
+  // 回合接管/自愈：快照显示轮到本端真人且本端操作条不在 → 开/恢复自己的回合
+  //（HANDOFF=上家刚播出「轮到谁」；AWAIT_ROLL=本端稳定等待期操作条被某次快照误收起）
+  if (NETMODE && netIsMyTurn() && !$('action-bar').classList.contains('show')
+      && (g.phase === 'HANDOFF' || (g.phase === 'AWAIT_ROLL' && prevPhase === 'AWAIT_ROLL'))) enterHumanTurn();
+}
+function netStartGame(cfg) {
+  const doc = P.doc();
+  if (!NETMODE || !doc || doc.started) return;
+  const players = doc.players.map(p => ({ name: p.name, bot: !!p.bot }));
+  P.setStarted();   // 先落开局标志并发布，startGame 内的检查点会携带首份棋局快照
+  clearSave();      // 联机局不落本地热座存档
+  startGame({ players, roundLimit: cfg.roundLimit || 20, skipHandoff: true });
+}
+// 房主接管补跑（组件已按 isHost/bot/seq 守卫并延迟调度）：把代管座位的回合推进起来
+function netHostKick() {
+  if (!(NETMODE && NDOC && NDOC.started && G.phase !== 'OVER')) return;
+  const cp = currentPlayer();
+  if (cp && cp.bot && !cp.bankrupt) beginTurn();
+}
+// HUD 侧联机同步（大厅/表单由组件自渲染）：连麦按钮显隐 + 掉线灰显 + 已开局隐藏 setup
+function syncNetHUD() {
+  const onNet = NETMODE && joined && NDOC;
+  $('btn-mic').hidden = !onNet;
+  $('btn-listen').hidden = !onNet;
+  if (onNet && NDOC.started) {
+    NDOC.players.forEach((p, i) => {
+      const chip = $('pchip-' + i);
+      if (chip) chip.classList.toggle('off', Date.now() - (p.lastSeen || 0) > NET_STALE_GRAY_MS);
+    });
+    $('setup').hidden = true;
+  }
+}
+// HUD 玩家条头像（tod 配方协议；无 av 的本地热座回落色点）
+function netAvatarHtml(i) {
+  const rep = NETMODE && NDOC && NDOC.players[i] && NDOC.players[i].av;
+  if (!rep) return '';
+  const uri = P.avatarUri(rep);
+  return uri ? `<img class="pav" src="${uri.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" alt="" onerror="this.style.visibility='hidden'">` : '';   // 转义纵深：组件侧已有 dataURL 白名单；onerror=双故障时隐藏而非裂图
+}
+async function netBootAutotest() {
+  const room = qs.get('room') || '88888';
+  const name = qs.get('name') || (qs.get('role') === 'host' ? '测试房主' : '测试员');
+  const ok2 = await netEnter(room, name, qs.get('role') === 'host');
+  if (!ok2) return;
+  if (qs.get('role') === 'host' && qs.get('autostart') === '1') {
+    if (qs.get('bot') !== '0') await P.addBot();   // 组件入口：自带随机人物向配方 + isHost/started 守卫
+    setTimeout(() => netStartGame({ roundLimit: 20 }), 500);
+  }
+}
+
 
 /* ═════════════════════════ 2. 棋盘数据 ═════════════════════════ */
 // 24 格环形（7×7 边框）：角 0/6/12/18，每边 5 格 = 4 地产 + 1 特殊。
@@ -456,32 +608,39 @@ let renderer, scene, camera, dirLight;
 let tileMeshes = [], ownerMarks = [], pawnObjs = [], plateSprites = [], diceObjs = [];
 let cardMesh = null, cardPivot = null;
 const D2R = Math.PI / 180;
-const rig = { az: 0, elev: 42 * D2R, dist: 7.2, focusK: 1, token: 0, raf: 0 };
+const rig = { az: 0, elev: 42 * D2R, dist: 7.2, focusK: 1, token: 0, raf: 0, tgt: { x: 0, y: 0.3, z: 0 }, autoDist: true };
 const TGT = { x: 0, y: 0.3, z: 0 };
+const REF_ELEV = 42 * D2R;          // 距离反推的参考仰角：不读 rig.elev（近景抬角后会把 dist 越算越大）
+const NEAR_HALF_W = 1.6, NEAR_DIST_FLOOR = 4.8;   // 近景水平半宽目标（1.6 容下东西侧格的骰子横移）/ 距离下限
 
 function dprCap(w, h) { return Math.min(window.devicePixelRatio || 1, 1.6, Math.sqrt(2.3e6 / (w * h))); }
 function baseDist() {   // 依视口纵横比反推距离：横竖屏都保证 7 单位棋盘完整入画（竖屏 375 下投影 ≥320px）
   const halfV = Math.tan(camera.fov * D2R / 2);
   const aspect = innerWidth / innerHeight;
   const dH = 4.0 / (halfV * aspect);          // 横向容下 ±4
-  const dV = (7 * Math.sin(rig.elev) / 2 + 0.6) / halfV;
+  const dV = (7 * Math.sin(REF_ELEV) / 2 + 0.6) / halfV;
   return Math.max(7.2, dH, dV);
+}
+function nearDist() {   // 近景绝对距离：竖屏不再被全景距离（18.7）连带，按「棋子+邻格」半宽 1.35 反推
+  const halfV = Math.tan(camera.fov * D2R / 2);
+  return Math.max(NEAR_DIST_FLOOR, NEAR_HALF_W / (halfV * innerWidth / innerHeight));
 }
 function camPos() {
   const e = rig.elev, d = rig.dist * rig.focusK;
-  return { x: TGT.x + d * Math.cos(e) * Math.sin(rig.az), y: TGT.y + d * Math.sin(e), z: TGT.z + d * Math.cos(e) * Math.cos(rig.az) };
+  return { x: rig.tgt.x + d * Math.cos(e) * Math.sin(rig.az), y: rig.tgt.y + d * Math.sin(e), z: rig.tgt.z + d * Math.cos(e) * Math.cos(rig.az) };
 }
 function camApply() {
   const p = camPos();
   camera.position.set(p.x, p.y, p.z);
-  camera.lookAt(TGT.x, TGT.y, TGT.z);
+  camera.lookAt(rig.tgt.x, rig.tgt.y, rig.tgt.z);
 }
 const smooth = k => k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+const shortestArc = a => Math.atan2(Math.sin(a), Math.cos(a));
 function camTo(opts, ms, done) {   // 墙钟 smoothstep 补间；token 作废机制照抄 tod Cam
   rig.token++; const my = rig.token;
-  const from = { az: rig.az, elev: rig.elev, dist: rig.dist, focusK: rig.focusK };
-  const to = Object.assign({}, from, opts);
-  if (REDUCED || bodyLo || TURBO) { Object.assign(rig, to); camApply(); if (done) done(); return; }
+  const from = { az: rig.az, elev: rig.elev, dist: rig.dist, focusK: rig.focusK, tgt: Object.assign({}, rig.tgt) };
+  const to = Object.assign({}, from, opts, { tgt: opts.tgt ? Object.assign({}, opts.tgt) : Object.assign({}, TGT) });
+  if (REDUCED || bodyLo || TURBO) { Object.assign(rig, to, { tgt: Object.assign({}, to.tgt) }); camApply(); if (done) done(); return; }
   const t0 = performance.now();
   const step = now => {
     if (rig.token !== my) return;
@@ -491,6 +650,9 @@ function camTo(opts, ms, done) {   // 墙钟 smoothstep 补间；token 作废机
     rig.elev = from.elev + (to.elev - from.elev) * s;
     rig.dist = from.dist + (to.dist - from.dist) * s;
     rig.focusK = from.focusK + (to.focusK - from.focusK) * s;
+    rig.tgt.x = from.tgt.x + (to.tgt.x - from.tgt.x) * s;
+    rig.tgt.y = from.tgt.y + (to.tgt.y - from.tgt.y) * s;
+    rig.tgt.z = from.tgt.z + (to.tgt.z - from.tgt.z) * s;
     camApply();
     if (k < 1) rig.raf = requestAnimationFrame(step);
     else if (done) done();
@@ -500,8 +662,9 @@ function camTo(opts, ms, done) {   // 墙钟 smoothstep 补间；token 作废机
 function focusPawn(pi, back, done) {
   const p = pawnObjs[pi]; if (!p || !G.gl) { if (done) done(); return; }
   const az = Math.atan2(p.position.x - TGT.x, p.position.z - TGT.z);
-  if (back) camTo({ az, elev: 42 * D2R, focusK: 1 }, 700, done);
-  else camTo({ az, elev: 55 * D2R, focusK: 0.667 }, 900, done);
+  if (back) { rig.autoDist = true; camTo({ az, elev: REF_ELEV, dist: baseDist(), focusK: 1, tgt: { x: TGT.x, y: TGT.y, z: TGT.z } }, 700, done); }
+  // 近景：dist 用绝对距离（竖屏不再被全景距离连带），lookAt 向棋子偏 35% 把棋子抬到画面中上安全区
+  else { rig.autoDist = false; camTo({ az, elev: 55 * D2R, dist: nearDist(), focusK: 1, tgt: { x: p.position.x * 0.35, y: TGT.y, z: p.position.z * 0.35 } }, 900, done); }
 }
 
 function initScene() {
@@ -543,11 +706,11 @@ function initScene() {
 }
 function sizeScene() {
   if (!renderer) return;
-  renderer.setPixelRatio(bodyLo ? 1 : dprCap(innerWidth, innerHeight));
+  renderer.setPixelRatio((bodyLo || loDegrade) ? 1 : dprCap(innerWidth, innerHeight));
   renderer.setSize(innerWidth, innerHeight);
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
-  rig.dist = baseDist();
+  if (rig.autoDist) rig.dist = baseDist();   // 近景期间不覆写（否则 resize/降级瞬间把 dist 打回全景）
   camApply();
 }
 function mkTex(w, h, draw) {
@@ -770,7 +933,7 @@ function updateHUD() {
   bar.innerHTML = G.players.map((p, i) => {
     const badges = (p.jailed ? '<span title="狱中">🚔</span>' : '') + (p.jailCards ? `<span title="免罚卡">🃏×${p.jailCards}</span>` : '') + (p.bankrupt ? '<span title="破产观战">💀</span>' : '');
     return `<div class="pchip ${i === G.turn && G.phase !== 'OVER' && !p.bankrupt ? 'active' : ''} ${p.bankrupt ? 'dead' : ''}" id="pchip-${i}">
-      <span class="dot" style="background:${PLAYER_COLORS[p.colorIdx]}"></span>
+      <span class="dot" style="background:${PLAYER_COLORS[p.colorIdx]}"></span>${netAvatarHtml(i)}
       <span class="pname">${escapeHtml(p.name)}</span>
       <span class="badges">${badges}</span>
       <span class="cash tabnum">${fmt(p.cash)}</span></div>`;
@@ -828,6 +991,7 @@ function hideActions() { $('action-bar').classList.remove('show'); }
 /* ═════════════════════════ 6. 存档（P0-3 自动保存/恢复） ═════════════════════════ */
 const SAVE_KEY = 'mono:save:v1';
 function saveGame() {
+  if (NETMODE) return;   // 联机局状态在房间 retained 文档里，不落本地热座存档
   if (G.phase === 'SETUP' || G.phase === 'OVER' || G.phase === 'BOOT') return;
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
@@ -875,6 +1039,7 @@ function startGame(cfg) {
   if (G.gl) { buildPawns(); layoutPlates(); }
   else render2D();
   updateHUD();
+  netCkpt();
   beginTurn();
 }
 function beginTurn() {
@@ -884,11 +1049,17 @@ function beginTurn() {
   else p.turnsTaken++;
   G.phase = 'HANDOFF';
   saveGame(); updateHUD();   // 存档只落在 beginTurn 这个安全点（回合起点），恢复=重放整个回合
+  netCkpt();   // 联机：把「轮到谁」播出去；新行动者端 applyGameSnapshot 收到 HANDOFF 后接管本回合
+  if (NETMODE) setTimeout(() => { if (G.phase === 'HANDOFF') netCkpt(); }, 900);   // 防丢自愈：心跳与检查点并发撞 seq 吞掉本快照时（行动者未接管，本端仍停在 HANDOFF）重发一次
   if (p.bot) {
     $('handoff').hidden = true;
     focusPawn(G.turn, false);
     toast(`🤖 ${p.name} 行动中…`);
-    setTimeout(() => botAct(), (500 + rint(600)) * SPEED);   // 800±300ms（设计 §3.9）
+    if (!(NETMODE && !isHost())) setTimeout(() => botAct(), (500 + rint(600)) * SPEED);   // 联机：机器人由房主代跑，其他端等快照
+  } else if (NETMODE && netIsMyTurn()) {
+    enterHumanTurn();
+  } else if (NETMODE) {
+    $('handoff').hidden = true; hideActions();   // 联机：非本端回合，等快照
   } else if (G.skipHandoff) {
     enterHumanTurn();
   } else {
@@ -904,6 +1075,7 @@ function enterHumanTurn() {
   lastInteract = Date.now();
   focusPawn(G.turn, false);
   saveGame(); updateHUD(); showActions();
+  netCkpt();
 }
 $('btn-handoff-go').addEventListener('click', () => { SFX.tap(); enterHumanTurn(); });
 
@@ -1010,6 +1182,8 @@ function movePawn(steps) {
   }
   return new Promise(res => {
     let left = steps;
+    rig.token++;   // 整段镜头跟随：取消在飞补间；走完不回中（tgt≈棋子×0.8 正好给买地弹窗取景，下回合 focusPawn 重设）
+    const mv = { last: 0 };
     const hop = () => {
       const from = p.pos;
       p.pos = (p.pos + 1) % 24;
@@ -1018,13 +1192,20 @@ function movePawn(steps) {
       const grp = pawnObjs[G.turn];
       const [x0, z0] = [TILES[from].x, TILES[from].z];
       const [x1, z1] = [TILES[to].x, TILES[to].z];
+      const [sx, sz] = pawnSlot(G.turn, from);
+      const [ex, ez] = pawnSlot(G.turn, to);
       const t0 = performance.now(), dur = 260;
       const step = now => {
         const k = Math.min(1, (now - t0) / (dur * SPEED));
         const kk = k * k * (3 - 2 * k);
-        const [sx, sz] = pawnSlot(G.turn, from);
-        const [ex, ez] = pawnSlot(G.turn, to);
         grp.position.set(sx + (ex - sx) * kk, 0.34 + Math.sin(k * Math.PI) * 0.35, sz + (ez - sz) * kk);
+        // 镜头连续跟随棋子（dt 归一阻尼，帧率无关；12 步长步数不再逐跳甩镜）
+        const dz = 1 - Math.pow(0.90, Math.min(100, now - (mv.last || now)) / 16.7);
+        mv.last = now;
+        rig.az += shortestArc(Math.atan2(grp.position.x - TGT.x, grp.position.z - TGT.z) - rig.az) * dz;
+        rig.tgt.x += (grp.position.x * 0.8 - rig.tgt.x) * dz;
+        rig.tgt.z += (grp.position.z * 0.8 - rig.tgt.z) * dz;
+        camApply();
         if (k < 1) requestAnimationFrame(step);
         else {
           left--;
@@ -1063,6 +1244,7 @@ function useJailCard() {
 async function resolveTile() {
   const p = currentPlayer();
   G.phase = 'RESOLVE'; updateHUD();
+  netCkpt();
   const t = TILES[p.pos];
   if (t.kind === 'prop') {
     const owner = G.owners[p.pos];
@@ -1114,6 +1296,7 @@ async function resolveTile() {
 function afterResolve() {
   const p = currentPlayer();
   updateHUD();
+  netCkpt();
   if (checkRoundCap()) return;
   if (aliveIdx().length <= 1) { endGame('last'); return; }
   if (G.doubles > 0 && !p.bankrupt && !p.jailed) {   // 双数同人多掷一轮
@@ -1175,7 +1358,9 @@ function openBuyModal() {
   const full = propIdxOfGroup(t.group).every(i => i === p.pos || G.owners[i] === G.turn);
   $('buy-info').innerHTML = `价格 <b>${fmt(t.price)}</b> · 租金 ${fmt(t.price * RENT_RATE)}${full ? ' · <b>买下即集齐同色全套，租金×3！</b>' : ''}<br>你的现金：${fmt(p.cash)}`;
   $('buy-modal').hidden = false;
-  $('btn-buy-yes').disabled = p.cash < t.price;
+  const yes = $('btn-buy-yes');
+  yes.disabled = p.cash < t.price;
+  yes.textContent = yes.disabled ? '💰 现金不足' : '买下';
 }
 $('btn-buy-yes').addEventListener('click', () => { SFX.tap(); $('buy-modal').hidden = true; buyProperty(); });
 $('btn-buy-no').addEventListener('click', async () => { SFX.tap(); $('buy-modal').hidden = true; toast('🤔 再看看吧'); await sleep(300); afterResolve(); });
@@ -1255,8 +1440,7 @@ function revealCard(kind, text) {
     setCardFace(kind, text);
     cardPivot.visible = true;
     cardPivot.rotation.x = 0;
-    focusPawn(G.turn, false);
-    camTo({ elev: 30 * D2R, focusK: 0.5 }, 900, () => {
+    rig.autoDist = false; camTo({ elev: 32 * D2R, dist: nearDist() * 0.92, focusK: 1 }, 900, () => {
       const t0 = performance.now(), flipDur = 650;
       const flip = now => {
         const k = Math.min(1, (now - t0) / (flipDur * SPEED));
@@ -1268,7 +1452,7 @@ function revealCard(kind, text) {
             const k2 = Math.min(1, (now2 - t1) / (outDur * SPEED));
             cardMesh.material.opacity = 1 - k2;
             if (k2 < 1) requestAnimationFrame(out);
-            else { cardPivot.visible = false; cardMesh.material.opacity = 1; camTo({ elev: 42 * D2R, focusK: 1 }, 500); res(); }
+            else { cardPivot.visible = false; cardMesh.material.opacity = 1; rig.autoDist = true; camTo({ elev: REF_ELEV, dist: baseDist(), focusK: 1 }, 500); res(); }
           };
           requestAnimationFrame(out);
         }, 1400 * SPEED);
@@ -1282,6 +1466,7 @@ function revealCard(kind, text) {
 function botAct() {
   const p = currentPlayer();
   if (!p || p.bot !== true || p.bankrupt) return;
+  if (NETMODE && !isHost()) return;   // 联机：机器人座位由房主代跑
   if (p.jailed) {
     if (p.jailCards) {
       p.jailCards--; p.jailed = false; p.jailTurns = 0;
@@ -1304,6 +1489,12 @@ function assetsOf(i) {
 }
 function endGame(kind) {
   G.phase = 'OVER'; hideActions(); clearSave();
+  showResult();
+  SFX.win();
+  updateHUD();
+  netCkpt();
+}
+function showResult() {
   const rank = G.players.map((p, i) => ({ i, p, asset: p.bankrupt ? -1 : assetsOf(i) }))
     .sort((a, b) => b.asset - a.asset);
   $('result-winner').textContent = `🏆 ${rank[0].p.name}`;
@@ -1313,11 +1504,17 @@ function endGame(kind) {
      <span>${escapeHtml(r.p.name)}${r.p.bot ? ' 🤖' : ''}</span>
      <span class="asset tabnum">${r.p.bankrupt ? '💀 破产' : fmt(r.asset)}</span></div>`).join('');
   $('result-overlay').hidden = false;
-  SFX.win();
-  updateHUD();
 }
 $('btn-rematch').addEventListener('click', () => {
   SFX.tap();
+  if (NETMODE) {   // 联机：只有房主能开新局，全员沿用当前座位
+    if (isHost()) {
+      // 对局结束后 doc.started 从不复位会让 netStartGame 直接 return——先复位再开
+      mutate(n => { n.started = false; n.game = null; }, 'edit').then(() => netStartGame({ roundLimit: G.roundLimit }));
+    }
+    else toast('👑 等房主开新局', '', 2600);
+    return;
+  }
   const cfg = { players: G.players.map(p => ({ name: p.name, bot: p.bot })), roundLimit: G.roundLimit, skipHandoff: G.skipHandoff, seed: (Math.random() * 0xffffffff) >>> 0 };
   startGame(cfg);
 });
@@ -1414,21 +1611,33 @@ function render2D() {
 
 /* ═════════════════════════ 14. loperf-lite（中位帧间隔 >26ms 触发） ═════════════════════════ */
 let bodyLo = false;
+let loDegrade = false;   // 一旦降过级，shadow/dpr 永久保持低配（恢复动画但不回画质，防阈值上下抖动）
 const frameTimes = [];
+function setBodyLo(on) {
+  bodyLo = on;
+  document.body.classList.toggle('loperf', on);
+  if (on && renderer) { renderer.shadowMap.enabled = false; dirLight.castShadow = false; }
+  sizeScene();
+}
 function perfWatch(now) {
-  if (bodyLo) return;
+  if (LOPERF_FORCED) return;   // E2E 强制档：boot 已 setBodyLo(true)，判定/恢复全不参与
+  if (AUTOTEST) {              // 探针档：保持旧单窗判定（软渲探针依赖固定翻转节奏跳帧提速）
+    if (bodyLo) { perfWatch.last = now; return; }
+  } else {
+    if (perfWatch.t0 == null) { perfWatch.t0 = now; perfWatch.last = now; return; }
+    if (now - perfWatch.t0 <= 2600) { perfWatch.last = now; return; }   // 预热豁免：loader/shader 编译抖动不算数
+    if (!perfWatch.warm) { perfWatch.warm = true; frameTimes.length = 0; }   // 到期清空重采
+  }
   if (perfWatch.last) {
     frameTimes.push(now - perfWatch.last);
-    if (frameTimes.length > 60) {
-      frameTimes.shift();
-      if (frameTimes.length === 60) {
-        const sorted = [...frameTimes].sort((a, b) => a - b);
-        const med = sorted[30];
-        if (med > 26) {
-          bodyLo = true;
-          document.body.classList.add('loperf');
-          if (renderer) { renderer.shadowMap.enabled = false; dirLight.castShadow = false; sizeScene(); }
-        }
+    if (frameTimes.length >= 60) {
+      const med = [...frameTimes].sort((a, b) => a - b)[30];
+      frameTimes.length = 0;   // 不相交窗口
+      if (!bodyLo) {
+        if (med > 26) { perfWatch.bad = (perfWatch.bad || 0) + 1; if (AUTOTEST || perfWatch.bad >= 2) setBodyLo(true); }   // 正式局连续两慢窗才降级（bad 惰性初始化防 NaN）
+        else perfWatch.bad = 0;
+      } else if (!AUTOTEST && med < 18 && !perfWatch.recovered) {
+        perfWatch.recovered = true; loDegrade = true; setBodyLo(false);   // 一次性恢复：动画回来，画质保持低配
       }
     }
   }
@@ -1438,7 +1647,11 @@ function perfWatch(now) {
 /* ═════════════════════════ 15. 主循环 & boot ═════════════════════════ */
 function tick(now) {
   perfWatch(now);
-  if (G.gl && !bodyLo && !REDUCED && G.phase === 'AWAIT_ROLL' && Date.now() - lastInteract > 3000) {
+  // idle 环绕只在该端「等别人行动」且处于全景（tgt 回桌心）时转：近景保持注视当前行动者不漂移
+  if (G.gl && !bodyLo && !REDUCED && G.phase === 'AWAIT_ROLL' && Date.now() - lastInteract > 3000
+      && !$('action-bar').classList.contains('show') && $('buy-modal').hidden && $('gen-modal').hidden
+      && (!$('handoff').hidden || !NETMODE || !netIsMyTurn())
+      && Math.hypot(rig.tgt.x - TGT.x, rig.tgt.z - TGT.z) < 0.05) {
     rig.az += (4 * D2R) * (now - (tick.last || now)) / 1000;   // idle 环绕 +4°/s
     camApply();
   }
@@ -1455,7 +1668,7 @@ function hideLoader() {
   setTimeout(() => l.remove(), 300);
 }
 async function boot() {
-  if (AUTOTEST && qs.get('loperf') === '1') { bodyLo = true; document.body.classList.add('loperf'); }   // E2E：跳帧渲染，纯状态机+UI 断言（软渲真渲染既慢又脆，见 SPEC 1.6）
+  if (LOPERF_FORCED) setBodyLo(true);   // E2E：跳帧渲染，纯状态机+UI 断言（软渲真渲染既慢又脆，见 SPEC 1.6）
   const t0 = performance.now();
   setLoader(20, '搭建棋盘...');
   const ok = initScene();
@@ -1486,6 +1699,7 @@ async function boot() {
   G.phase = 'SETUP';
   const save = loadSave();
   if (AUTOTEST) {
+    if (qs.get('net') === '1') { await netBootAutotest(); return; }   // E2E 联机：?net=1&room=&role=host|join[&autostart=1][&localnet=1]
     startGame({ players: seatState.map(s => ({ name: s.name, bot: s.bot })), roundLimit: 20, skipHandoff: true });
     return;
   }
@@ -1517,7 +1731,7 @@ requestAnimationFrame(tick);
 boot();
 
 /* ═════════════════════════ 16. E2E 钩子 ═════════════════════════ */
-if (AUTOTEST) {
+if (AUTOTEST || qs.get('inspect') === '1') {   // inspect=1：真机路径（SPEED/渲染/perfWatch 全真）下只读取证访问器
   window.__mono = {
     state: G,
     step: () => { const p = currentPlayer(); if (p && !p.bot && G.phase === 'AWAIT_ROLL') doRoll(!!p.jailed); },
@@ -1528,6 +1742,9 @@ if (AUTOTEST) {
     forceJail: i => { G.players[i].jailed = true; G.players[i].jailTurns = 0; G.players[i].pos = 6; placePawn(i, 6, true); updateHUD(); },
     resolveAt: async (i, tile) => { G.turn = i; G.doubles = 0; G.players[i].pos = tile % 24; if (pawnObjs[i]) placePawn(i, G.players[i].pos, true); render2D(); await resolveTile(); },
     sceneInfo: () => ({ gl: G.gl, bodyLo, tiles: tileMeshes.length, pawns: pawnObjs.length, plates: plateSprites.length, dice: diceObjs.length }),
+    rigSnap: () => ({ az: rig.az, elev: rig.elev, dist: rig.dist, focusK: rig.focusK, tgt: { x: rig.tgt.x, y: rig.tgt.y, z: rig.tgt.z } }),
+    pawnWorld: () => pawnObjs.map(p => (p ? [p.position.x, p.position.y, p.position.z] : null)),
+    net: () => ({ mode: NETMODE, joined, room: NDOC && NDOC.room, myId, doc: NDOC, host: isHost(), myTurn: netIsMyTurn(), mic: P.mic.on(), peers: P.mic.peers(), enter: netEnter, publish: netCkpt, start: netStartGame, ui: syncNetHUD, av: netAvatarHtml }),
     mc: n => new Promise(async res => {
       const out = [];
       for (let k = 0; k < n; k++) {
