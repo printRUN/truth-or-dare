@@ -7,7 +7,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const ROOT = 'D:/myidea/truth-or-dare';
-const PORT = 8951;
+let PORT = 8951;
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript' };
 const server = http.createServer((req, res) => {
   const p = decodeURIComponent(req.url.split('?')[0]);
@@ -21,7 +21,14 @@ let fails = 0;
 const ok = (name, cond, extra) => { console.log((cond ? '  ✓ ' : '  ✗ FAIL ') + name + (extra !== undefined ? ` | ${JSON.stringify(extra).slice(0, 140)}` : '')); if (!cond) fails++; };
 
 (async () => {
-  await new Promise(r => server.listen(PORT, r));
+  await new Promise((resolve, reject) => {
+    let tries = 0;
+    server.on('error', err => {   // 连续复跑时上一轮的 8951 可能未释放，自动退让 +1（最多 5 次）
+      if (err.code === 'EADDRINUSE' && ++tries <= 5) { PORT += 1; server.listen(PORT, resolve); }
+      else reject(err);
+    });
+    server.listen(PORT, resolve);
+  });
   const browser = await chromium.launch();
   const mkCtx = async () => {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });   // 手机竖屏档=自适应口径
@@ -34,10 +41,13 @@ const ok = (name, cond, extra) => { console.log((cond ? '  ✓ ' : '  ✗ FAIL '
     const ctx = await mkCtx();
     const p = await ctx.newPage();
     const errs = []; p.on('pageerror', e => errs.push(String(e)));
-    // 1a. ?room= 预填
+    // 1a. ?room= 预填 + tod 同款落地引导（已带上房号提示 + 名字框聚焦）
     await p.goto(`http://127.0.0.1:${PORT}/monopoly.html?room=12345&localnet=1`, { waitUntil: 'domcontentloaded' });
     await p.waitForSelector('.pn-room', { timeout: 20000 });
     ok('monopoly ?room=12345 预填表单', (await p.inputValue('.pn-room')) === '12345', await p.inputValue('.pn-room'));
+    await p.waitForTimeout(900);
+    ok('monopoly 带房号落地有「输入名字即可加入」引导', ((await p.textContent('.pn-sub')) || '').includes('已带上房号 12345'));
+    ok('monopoly 落地名字框自动聚焦', await p.evaluate(() => !!(document.activeElement && document.activeElement.classList.contains('pn-name'))));
     // 1b. 脏参数静默忽略
     await p.goto(`http://127.0.0.1:${PORT}/monopoly.html?room=abc&localnet=1`, { waitUntil: 'domcontentloaded' });
     await p.waitForSelector('.pn-room', { timeout: 20000 });
@@ -53,7 +63,7 @@ const ok = (name, cond, extra) => { console.log((cond ? '  ✓ ' : '  ✗ FAIL '
     const clip = await p.evaluate(() => navigator.clipboard.readText()).catch(() => '');
     ok('monopoly 复制邀请链接含 ?room=' + code, clip.includes(`monopoly.html?room=${code}`), clip);
     ok('monopoly 复制后按钮反馈已复制', (await p.textContent('.pn-invite')).includes('已复制'));
-    // 1d. 第二页直接打开复制出的链接 = 直进同一房
+    // 1d. 第二页直接打开复制出的链接 = 直进同一房；开始游戏仅房主可见（用户点名）
     const p2 = await ctx.newPage();
     const inviteUrl = clip.trim();
     await p2.goto(inviteUrl + '&localnet=1', { waitUntil: 'domcontentloaded' });
@@ -63,6 +73,9 @@ const ok = (name, cond, extra) => { console.log((cond ? '  ✓ ' : '  ✗ FAIL '
     await p2.click('.pn-join');
     await p2.waitForSelector('.pn-lobby:not([hidden])', { timeout: 20000 });
     ok('monopoly 第二页经链接加入同房', (await p2.textContent('.pn-code-b')).trim() === code);
+    await p2.waitForFunction(() => document.querySelectorAll('.pn-prow').length >= 2, null, { timeout: 15000 }).catch(() => {});
+    ok('monopoly 房主可见「开始游戏」', await p.evaluate(() => { const b = document.querySelector('.pn-start'); return b && !b.hidden && b.offsetParent !== null; }));
+    ok('monopoly 非房主看不到「开始游戏」', await p2.evaluate(() => { const b = document.querySelector('.pn-start'); return !b || b.hidden || b.offsetParent === null; }));
     // 1e. 粘贴整段邀请文字 → join 抽房号
     const p3 = await ctx.newPage();
     await p3.goto(`http://127.0.0.1:${PORT}/monopoly.html?localnet=1`, { waitUntil: 'domcontentloaded' });
@@ -97,6 +110,8 @@ const ok = (name, cond, extra) => { console.log((cond ? '  ✓ ' : '  ✗ FAIL '
     await p.goto(`http://127.0.0.1:${PORT}/uno.html?room=24680&localnet=1`, { waitUntil: 'domcontentloaded' });
     await p.waitForSelector('.pn-room', { timeout: 20000 });
     ok('uno ?room=24680 预填', (await p.inputValue('.pn-room')) === '24680');
+    await p.waitForTimeout(900);
+    ok('uno 带房号落地有「输入名字即可加入」引导', ((await p.textContent('.pn-sub')) || '').includes('已带上房号 24680'));
     await p.fill('.pn-name', 'U人');
     await p.click('.pn-create');
     await p.waitForSelector('.pn-lobby:not([hidden])', { timeout: 20000 });
@@ -115,29 +130,40 @@ const ok = (name, cond, extra) => { console.log((cond ? '  ✓ ' : '  ✗ FAIL '
     const ctx = await mkCtx();
     const p = await ctx.newPage();
     const errs = []; p.on('pageerror', e => errs.push(String(e)));
-    await p.goto(`http://127.0.0.1:${PORT}/bombcat.html?room=ab12`, { waitUntil: 'domcontentloaded' });
+    const catRoom = 'bc' + Math.random().toString(36).slice(2, 6);   // 房号随机化：真实 broker 上可能有上一轮跑留下的 retained 房间（30 分钟过期），固定房号会加入幽灵房间当不上房主
+    await p.goto(`http://127.0.0.1:${PORT}/bombcat.html?room=${catRoom}`, { waitUntil: 'domcontentloaded' });
     await p.waitForSelector('#in-room', { timeout: 20000 });
-    ok('bombcat ?room=ab12 预填并大写', (await p.inputValue('#in-room')) === 'AB12', await p.inputValue('#in-room'));
+    ok(`bombcat ?room=${catRoom} 预填并大写`, (await p.inputValue('#in-room')) === catRoom.toUpperCase(), await p.inputValue('#in-room'));
+    await p.waitForTimeout(600);
+    ok('bombcat 带房号落地提示并聚焦名字框', await p.evaluate(() =>
+      ((document.querySelector('#bc-toast .toast-in') || {}).textContent || '').includes('输入名字即可加入')
+      && document.activeElement && document.activeElement.id === 'in-name'));
     await p.goto(`http://127.0.0.1:${PORT}/bombcat.html`, { waitUntil: 'domcontentloaded' });
     await p.waitForSelector('#in-room', { timeout: 20000 });
     ok('bombcat 无参数不预填（留空=新建）', (await p.inputValue('#in-room')) === '');
-    // A 建房 AB12 → 大厅复制按钮在场
+    // A 建房 → 大厅复制按钮在场；勾本地链路（复选框视觉隐藏，check() 会超时，直接置 checked）
     const nameSel = 'input[placeholder*="昵称"], #in-name, input[type=text]:not(#in-room)';
-    await p.fill('#in-room', 'ab12');
+    await p.evaluate(() => { const c = document.getElementById('chk-local'); if (c) c.checked = true; });
+    await p.fill('#in-room', catRoom);
     await p.fill(nameSel, '猫头').catch(() => {});
     await p.click('#btn-join');
-    await p.waitForFunction(() => (document.querySelector('#share-room') || {}).textContent === 'AB12', null, { timeout: 25000 }).catch(() => {});
-    ok('bombcat A 建房 ab12 进房', await p.evaluate(() => (document.querySelector('#share-room') || {}).textContent === 'AB12'));
+    await p.waitForFunction(rm => (document.querySelector('#share-room') || {}).textContent === rm, catRoom.toUpperCase(), { timeout: 25000 }).catch(() => {});
+    ok(`bombcat A 建房 ${catRoom} 进房`, await p.evaluate(rm => (document.querySelector('#share-room') || {}).textContent === rm, catRoom.toUpperCase()));
     ok('bombcat 大厅有复制邀请按钮', await p.isVisible('#btn-copy'));
     // B 经链接加入同房
     const pb = await ctx.newPage();
-    await pb.goto(`http://127.0.0.1:${PORT}/bombcat.html?room=ab12`, { waitUntil: 'domcontentloaded' });
+    await pb.goto(`http://127.0.0.1:${PORT}/bombcat.html?room=${catRoom}`, { waitUntil: 'domcontentloaded' });
     await pb.waitForSelector('#in-room', { timeout: 20000 });
-    await pb.fill('#in-room', 'ab12');
+    await pb.evaluate(() => { const c = document.getElementById('chk-local'); if (c) c.checked = true; });
+    await pb.fill('#in-room', catRoom);
     await pb.fill(nameSel, '猫二').catch(() => {});
     await pb.click('#btn-join');
     await pb.waitForFunction(() => { const s = window.__cat && __cat.S; return s && s.players && s.players.length >= 2; }, null, { timeout: 25000 }).catch(() => {});
     ok('bombcat B 经链接加入同房（2 人）', await pb.evaluate(() => { const s = window.__cat && __cat.S; return !!(s && s.players && s.players.length >= 2); }));
+    // 开始游戏仅房主可见（用户点名「只有房主可以点击开始游戏」）；等房主自己的状态收到 2 人再断言
+    await p.waitForFunction(() => { const s = window.__cat && __cat.S; return s && s.players && s.players.length >= 2; }, null, { timeout: 20000 }).catch(() => {});
+    ok('bombcat 房主可见「开始游戏」', await p.evaluate(() => { const b = document.getElementById('btn-start'); return b && getComputedStyle(b).display !== 'none'; }));
+    ok('bombcat 非房主看不到「开始游戏」', await pb.evaluate(() => { const b = document.getElementById('btn-start'); return !b || getComputedStyle(b).display === 'none'; }));
     ok('bombcat 零 JS 错误', errs.length === 0, errs[0]);
     await ctx.close();
   }

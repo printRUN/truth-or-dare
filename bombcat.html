@@ -1919,7 +1919,7 @@ function cardFaceURL(cardId) {
       $('#bg').appendChild(c);
     }
   }
-  if (urlRoom) toast('已带上房号 ' + urlRoom);
+  if (urlRoom) { toast('已带上房号 ' + urlRoom + '，输入名字即可加入'); try { $('#in-name').focus(); } catch (e) {} }   // 对齐 tod「发现房间」落地引导（2026-09-23）
 })();
 
 /* ── 调试句柄（E2E 依赖）── */
