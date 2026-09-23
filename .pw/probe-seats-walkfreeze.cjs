@@ -129,7 +129,7 @@ const check = (n, ok, d) => { if (ok) { pass++; console.log('  ✅ ' + n); } els
   await B.waitForFunction(() => S.turn.chooserId === myId && S.turn.stage === 'choosing', null, { timeout: 15000 });
   await B.evaluate(() => document.getElementById('card-truth').click());
   await A.waitForFunction(() => S.turn.stage === 'revealed', null, { timeout: 30000 });
-  await A.waitForTimeout(1200);   // 近景推镜完成（revealK=1）
+  await A.waitForTimeout(1500);   // 近景推镜完成（revealK=1；2026-09-22 镜头放缓轮推近 0.9s→1.15s，余量 1200→1500）
   await A.evaluate(() => mutate(s => s.players.push({ id: 'wz3', name: '再迟到', avatar: '😀', isHost: false, ready: true, micOn: false, online: true, skips: 0, draws: 0, truth: 0, dare: 0, score: 0, passes: 2, lastSeen: Date.now(), joinedAt: Date.now() })));
   await A.waitForFunction(() => window.__three.chars.size === 5, null, { timeout: 15000 });
   await A.waitForTimeout(400);

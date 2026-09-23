@@ -1538,6 +1538,8 @@ function updateMicBadges() {
 .pn-create,.pn-start{width:100%}
 .pn-code{text-align:center;font-size:1.05rem;margin:4px 0}
 .pn-code b{font-size:1.6rem;color:var(--accent-cyan,#22d3ee);letter-spacing:6px}
+.pn-invite{margin:2px auto 8px;display:block;width:fit-content;font-size:0.82rem}
+.pn-invite.copied{border-color:rgba(34,197,94,0.6);color:#4ade80}
 .pn-players{display:grid;gap:6px;margin:4px 0}
 .pn-prow{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);font-size:0.88rem}
 .pn-prow img,.pn-prow .pn-avfb{width:28px;height:28px;border-radius:50%;flex:0 0 auto}
@@ -1566,6 +1568,44 @@ function updateMicBadges() {
     const st = document.createElement('style'); st.textContent = PN_CSS; document.head.appendChild(st);
   }
   function el(tag, cls, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
+  /* ── 房间邀请链接（2026-09-23，四游戏表单对齐 tod 口径）：复制 ?room= 链接 + 粘贴链接/邀请文字自动抽房号 ──
+     剪贴板降级链与 tod 同款：navigator.clipboard（安全上下文）→ execCommand 兜底 → 失败 toast 报房号。
+     file:// 下 origin+pathname 拼不出可分享链接，退化为纯房号邀请文字。 */
+  function pnExtractRoom(text) {
+    if (!text) return '';
+    const t = String(text);
+    const m = t.match(/[?&#]room=([0-9]{5})/i) || t.match(/房号\s*[:：]?\s*([0-9]{5})/) || t.match(/^\s*([0-9]{5})\s*$/) || t.match(/([0-9]{5})/);
+    return m ? m[1] : '';
+  }
+  function pnLegacyCopy(text) {
+    let ta;
+    try {
+      ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;top:0;left:0;width:2px;height:2px;opacity:0';
+      ta.contentEditable = 'true';
+      document.body.appendChild(ta);
+      const sel = document.getSelection();
+      ta.focus(); ta.setSelectionRange(0, text.length);
+      if (sel) { try { const r = document.createRange(); r.selectNodeContents(ta); sel.removeAllRanges(); sel.addRange(r); } catch (e) {} }
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) {}
+      if (sel) { try { sel.removeAllRanges(); } catch (e) {} }
+      return ok;
+    } catch (e) { return false; }
+    finally { try { ta && ta.remove(); } catch (e) {} }
+  }
+  async function pnCopyText(text) {
+    const cb = navigator.clipboard;
+    if (cb && cb.writeText && window.isSecureContext !== false) {
+      try { await cb.writeText(text); return true; } catch (e) {}
+    }
+    return pnLegacyCopy(text);
+  }
+  function pnInviteText(room) {
+    if (location.protocol === 'file:') return '来玩一局！各自打开同一份文件，输入房号 ' + room + ' 即可联机';
+    return location.origin + location.pathname + '?room=' + room;
+  }
   function mount(container) {
     injectCss();
     root = typeof container === 'string' ? document.getElementById(container) : container;
@@ -1575,20 +1615,44 @@ function updateMicBadges() {
     try { name.value = localStorage.getItem(key + ':netname') || ''; } catch (e) {}
     const create = el('button', 'btn-primary pn-create', '🌐 创建房间'); create.type = 'button';
     const row = el('div', 'pn-row');
-    const roomIn = el('input', 'pn-room'); roomIn.maxLength = 5; roomIn.placeholder = '房号'; roomIn.inputMode = 'numeric'; roomIn.autocomplete = 'off';
+    const roomIn = el('input', 'pn-room'); roomIn.maxLength = 120; roomIn.placeholder = '房号 / 邀请链接'; roomIn.inputMode = 'numeric'; roomIn.autocomplete = 'off';
+    roomIn.addEventListener('paste', ev => {   // 粘整段邀请链接/文字即时抽房号（maxLength 放宽否则链接会被截断在 5 字符）
+      try {
+        const t = (ev.clipboardData && ev.clipboardData.getData('text')) || '';
+        const code = pnExtractRoom(t);
+        if (code) { ev.preventDefault(); roomIn.value = code; }
+      } catch (e) {}
+    });
     const joinB = el('button', 'btn-primary pn-join', '加入'); joinB.type = 'button';
     row.appendChild(roomIn); row.appendChild(joinB);
-    const hint = el('p', 'pn-sub', '创建房间把 5 位房号发给朋友，或输入房号加入；本地热座收在「高级选项」。');
+    // 直进预填：邀请链接 ?room=12345 打开即带房号（数字 5 位才认，脏参数静默忽略）
+    try {
+      const qr = pnExtractRoom(decodeURIComponent(location.search));
+      if (qr) roomIn.value = qr;
+    } catch (e) {}
+    const hint = el('p', 'pn-sub', '创建房间把 5 位房号发给朋友；也可直接粘贴邀请链接或「房号 12345」文字。本地热座收在「高级选项」。');
     form.appendChild(name); form.appendChild(create); form.appendChild(row); form.appendChild(hint);
 
     const lobby = el('div', 'pn-lobby'); lobby.hidden = true;
     const code = el('div', 'pn-code', '房号 <b class="pn-code-b">-----</b>');
+    const invite = el('button', 'btn-ghost pn-invite', '📋 复制邀请链接'); invite.type = 'button';
+    invite.addEventListener('click', async () => {
+      sfxTap();
+      if (!NDOC) return;
+      const room = NDOC.room, text = pnInviteText(room);
+      const ok = await pnCopyText(text);
+      if (ok) {
+        invite.textContent = '✅ 已复制！'; invite.classList.add('copied');
+        setTimeout(() => { invite.textContent = '📋 复制邀请链接'; invite.classList.remove('copied'); }, 2000);
+        if (location.protocol === 'file:') toast('已复制房号邀请（本地文件页地址不可分享）', 'success', 3600);
+      } else toast('复制失败，房号：' + room + '（长按房号手动复制）', 'error', 4000);
+    });
     const players = el('div', 'pn-players');
     const extra = el('div', 'pn-lobby-extra'); if (cfg.lobbyExtraHtml) extra.innerHTML = cfg.lobbyExtraHtml;
     const start = el('button', 'btn-primary pn-start', '开始游戏 🎮'); start.type = 'button'; start.hidden = true;
     const addBot = el('button', 'btn-ghost pn-addbot', '＋ 加一个机器人'); addBot.type = 'button'; addBot.hidden = true;
     const lv = el('button', 'btn-ghost pn-leave', '退出房间'); lv.type = 'button';
-    lobby.appendChild(code); lobby.appendChild(players); lobby.appendChild(extra); lobby.appendChild(start); lobby.appendChild(addBot); lobby.appendChild(lv);
+    lobby.appendChild(code); lobby.appendChild(invite); lobby.appendChild(players); lobby.appendChild(extra); lobby.appendChild(start); lobby.appendChild(addBot); lobby.appendChild(lv);
 
     create.addEventListener('click', async () => {
       sfxTap();
@@ -1600,8 +1664,10 @@ function updateMicBadges() {
     });
     joinB.addEventListener('click', async () => {
       sfxTap();
-      const rm = (roomIn.value || '').replace(/\D/g, '');
+      const raw = (roomIn.value || '').trim();
+      const rm = pnExtractRoom(raw) || raw.replace(/\D/g, '').slice(0, 5);   // 粘了整段邀请链接/文字也能抽出房号
       if (rm.length !== 5) { toast('请输入 5 位房号', 'error'); return; }
+      if (rm !== roomIn.value) roomIn.value = rm;   // 回写规整值，让玩家看见实际加入的房号
       const nm = (name.value || '').trim() || '玩家';
       try { localStorage.setItem(key + ':netname', nm); } catch (e) {}
       create.disabled = joinB.disabled = true;

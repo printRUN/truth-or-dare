@@ -126,6 +126,10 @@
   #buy-modal .buy-rent { font-size: 0.84rem; color: rgba(255,255,255,0.7); margin: 8px 0 16px; line-height: 1.6; }
   #buy-modal .buy-row { display: flex; gap: 10px; }
   #buy-modal .buy-row button { flex: 1; }
+  /* 弹窗弹出（买地/通用揭晓）：轻上浮过冲 0.24s；REDUCED 由下方降级卡关闭，loperf 显式关闭，TURBO 不开弹窗 */
+  #buy-modal .panel, #gen-modal .panel { animation: ovl-pop 0.24s cubic-bezier(0.34,1.4,0.64,1) both; }
+  @keyframes ovl-pop { from { opacity: 0; transform: translateY(12px) scale(0.96); } to { opacity: 1; transform: none; } }
+  body.loperf #buy-modal .panel, body.loperf #gen-modal .panel { animation: none; }
 
   /* 结算 */
   #result-overlay { flex-direction: column; gap: 0; }
@@ -172,7 +176,7 @@
 
   /* REDUCED / loperf-lite 退路 */
   @media (prefers-reduced-motion: reduce) {
-    .loader-ico, .pchip.active, #result-veil, #result-winner, .pod, .mfloat, #bust-banner, body.shaking #mono-canvas, body.shaking #players-bar, body.shaking #action-bar { animation: none !important; }
+    .loader-ico, .pchip.active, #result-veil, #result-winner, .pod, .mfloat, #bust-banner, #buy-modal .panel, #gen-modal .panel, body.shaking #mono-canvas, body.shaking #players-bar, body.shaking #action-bar { animation: none !important; }
     .pchip.active { box-shadow: 0 0 0 1.5px var(--accent-cyan); }
     .pod { opacity: 1; transform: none; }
     #loader { transition: none; }
@@ -380,6 +384,9 @@ const SFX = (() => {
     bust() { tone(420, 70, 0.65, 'sawtooth', 0.16); },
     win() { [523, 659, 784, 1046].forEach((f, i) => tone(f, f, 0.12, 'triangle', 0.18, i * 0.11)); },
     card() { tone(500, 900, 0.09, 'sine', 0.1); },
+    pop() { tone(340, 560, 0.07, 'sine', 0.09); },   // 弹窗弹出轻音
+    flip() { noise(0.08, 0.1, 2200); },              // 卡牌翻面起手：纸感轻擦（揭示两拍之一）
+    deal() { noise(0.06, 0.16, 900); tone(523, 523, 0.1, 'triangle', 0.13); tone(784, 784, 0.16, 'triangle', 0.13, 0.09); },   // 买地成交：戳记+暖双音（三角波+闷戳，区别于 coin/pay）
     // 连麦压低（duck）：连麦模块在开麦/收听时调用，压动作音效总线减少串音
     duckMusic(f, ms = 300) {
       const c = ensure(); if (!c || !master) return;
@@ -395,7 +402,7 @@ document.addEventListener('pointerdown', () => SFX.unlock(), { once: true, passi
 let NETMODE = false, NDOC = null, myId = null, joined = false, link = null;   // 组件全局常量 NET_STALE_* 可直接引用
 const P = PartyNet.create({
   key: 'mono', prefix: 'mono/v1', maxPlayers: 4, allowBots: true,
-  localOnly: AUTOTEST && qs.get('localnet') === '1',   // E2E：同浏览器多标签走 BroadcastChannel，不碰外网
+  localOnly: qs.get('localnet') === '1',   // 本地链路（BroadcastChannel，不碰外网）：E2E 用；2026-09-23 起脱离 AUTOTEST 门控，供房间链接探针/离线本地房
   toast, sleep, sfx: SFX,
   snapshot: () => gameSnapshot(),
   onGame: (g, d) => applyGameSnapshot(g, d),
@@ -640,6 +647,7 @@ function camTo(opts, ms, done) {   // 墙钟 smoothstep 补间；token 作废机
   rig.token++; const my = rig.token;
   const from = { az: rig.az, elev: rig.elev, dist: rig.dist, focusK: rig.focusK, tgt: Object.assign({}, rig.tgt) };
   const to = Object.assign({}, from, opts, { tgt: opts.tgt ? Object.assign({}, opts.tgt) : Object.assign({}, TGT) });
+  to.az = from.az + shortestArc(to.az - from.az);   // az 走最短弧：atan2 绝对角直接插值会绕远路转一整圈（用户点名「运镜缓慢防晕」）
   if (REDUCED || bodyLo || TURBO) { Object.assign(rig, to, { tgt: Object.assign({}, to.tgt) }); camApply(); if (done) done(); return; }
   const t0 = performance.now();
   const step = now => {
@@ -662,9 +670,27 @@ function camTo(opts, ms, done) {   // 墙钟 smoothstep 补间；token 作废机
 function focusPawn(pi, back, done) {
   const p = pawnObjs[pi]; if (!p || !G.gl) { if (done) done(); return; }
   const az = Math.atan2(p.position.x - TGT.x, p.position.z - TGT.z);
-  if (back) { rig.autoDist = true; camTo({ az, elev: REF_ELEV, dist: baseDist(), focusK: 1, tgt: { x: TGT.x, y: TGT.y, z: TGT.z } }, 700, done); }
+  // 时长放缓（用户点名「推拉缓慢防晕」）：back=回全景档（az 转身放在远景做，角速度低）1100ms；近景 1250ms
+  if (back) { rig.autoDist = true; camTo({ az, elev: REF_ELEV, dist: baseDist(), focusK: 1, tgt: { x: TGT.x, y: TGT.y, z: TGT.z } }, 1100, done); }
   // 近景：dist 用绝对距离（竖屏不再被全景距离连带），lookAt 向棋子偏 35% 把棋子抬到画面中上安全区
-  else { rig.autoDist = false; camTo({ az, elev: 55 * D2R, dist: nearDist(), focusK: 1, tgt: { x: p.position.x * 0.35, y: TGT.y, z: p.position.z * 0.35 } }, 900, done); }
+  else { rig.autoDist = false; camTo({ az, elev: 55 * D2R, dist: nearDist(), focusK: 1, tgt: { x: p.position.x * 0.35, y: TGT.y, z: p.position.z * 0.35 } }, 1250, done); }
+}
+function atOverview() {   // 全景档判据：回程补间/快照回景落定后为真；近景跟随期（autoDist=false）恒假
+  return rig.autoDist && Math.abs(rig.dist - baseDist()) < 0.3 && Math.abs(rig.tgt.x - TGT.x) < 0.05 && Math.abs(rig.tgt.z - TGT.z) < 0.05;
+}
+function approachTurn(pi, done) {   // 「回布局→跟下一个人」（用户点名）：换人就先回全景对准再推近——大角度转身天然在全景距完成（近距甩最大角=最晕，终审 P2-3）。
+                                    // 唯一例外：同一位行动者原地再进入（免罚卡/出狱续掷）镜头已贴着他，免「拉出-推回」脉冲（终审 P2-6）
+  if (!G.gl || REDUCED || bodyLo || TURBO || !pawnObjs[pi]) { focusPawn(pi, false, done); return; }
+  const p = pawnObjs[pi];
+  const az = Math.atan2(p.position.x - TGT.x, p.position.z - TGT.z);
+  const azOff = Math.abs(shortestArc(az - rig.az));
+  const tgtNear = Math.min(Math.hypot(rig.tgt.x - p.position.x * 0.35, rig.tgt.z - p.position.z * 0.35),
+                           Math.hypot(rig.tgt.x - p.position.x * 0.8, rig.tgt.z - p.position.z * 0.8)) < 0.6;   // 近景两锚（推近档/跟随档）任一贴合即算贴身
+  const sameActorNear = azOff < 75 * D2R && Math.abs(rig.elev - 55 * D2R) < 0.06 && Math.abs(rig.dist - nearDist()) < 0.5 && tgtNear;
+  const go = () => focusPawn(pi, false, done);
+  if (sameActorNear) { go(); return; }
+  if (atOverview() && azOff < 10 * D2R) { go(); return; }   // 交接卡/快照已把全景对准本行动者：免一拍空转直接推近
+  focusPawn(pi, true, go);
 }
 
 function initScene() {
@@ -1053,7 +1079,7 @@ function beginTurn() {
   if (NETMODE) setTimeout(() => { if (G.phase === 'HANDOFF') netCkpt(); }, 900);   // 防丢自愈：心跳与检查点并发撞 seq 吞掉本快照时（行动者未接管，本端仍停在 HANDOFF）重发一次
   if (p.bot) {
     $('handoff').hidden = true;
-    focusPawn(G.turn, false);
+    approachTurn(G.turn);   // 回布局对准新行动者再推近；被快速掷骰的跟随打断时 movePawn 的 dist/elev 阻尼自愈
     toast(`🤖 ${p.name} 行动中…`);
     if (!(NETMODE && !isHost())) setTimeout(() => botAct(), (500 + rint(600)) * SPEED);   // 联机：机器人由房主代跑，其他端等快照
   } else if (NETMODE && netIsMyTurn()) {
@@ -1067,13 +1093,14 @@ function beginTurn() {
     $('btn-handoff-go').textContent = `我是 ${p.name}，开始回合`;
     $('handoff').hidden = false;
     hideActions();
+    focusPawn(G.turn, true);   // 交接期镜头回全景并对准下一位行动者（跟完上一家先回整个布局，推拉放缓）
   }
 }
 function enterHumanTurn() {
   $('handoff').hidden = true;
   G.phase = 'AWAIT_ROLL';
   lastInteract = Date.now();
-  focusPawn(G.turn, false);
+  approachTurn(G.turn);   // 交接卡点下后：回布局（若尚未在）→ 推近本行动者
   saveGame(); updateHUD(); showActions();
   netCkpt();
 }
@@ -1183,6 +1210,7 @@ function movePawn(steps) {
   return new Promise(res => {
     let left = steps;
     rig.token++;   // 整段镜头跟随：取消在飞补间；走完不回中（tgt≈棋子×0.8 正好给买地弹窗取景，下回合 focusPawn 重设）
+    rig.autoDist = false;   // 跟随期近景档（终审 P2-2：approachTurn 的 back 腿置 true 后若被打断不复位，走位中 resize 会把 dist 瞬拨回全景）
     const mv = { last: 0 };
     const hop = () => {
       const from = p.pos;
@@ -1199,12 +1227,16 @@ function movePawn(steps) {
         const k = Math.min(1, (now - t0) / (dur * SPEED));
         const kk = k * k * (3 - 2 * k);
         grp.position.set(sx + (ex - sx) * kk, 0.34 + Math.sin(k * Math.PI) * 0.35, sz + (ez - sz) * kk);
-        // 镜头连续跟随棋子（dt 归一阻尼，帧率无关；12 步长步数不再逐跳甩镜）
-        const dz = 1 - Math.pow(0.90, Math.min(100, now - (mv.last || now)) / 16.7);
+        // 镜头连续跟随棋子（dt 归一阻尼，帧率无关；12 步长步数不再逐跳甩镜）。
+        // dist/elev/tgt.y 同款阻尼自愈：近景推镜被快节奏掷骰/双数再掷打断时收敛到跟随档，不冻结在中间值
+        const dz = 1 - Math.pow(0.92, Math.min(100, now - (mv.last || now)) / 16.7);
         mv.last = now;
         rig.az += shortestArc(Math.atan2(grp.position.x - TGT.x, grp.position.z - TGT.z) - rig.az) * dz;
         rig.tgt.x += (grp.position.x * 0.8 - rig.tgt.x) * dz;
         rig.tgt.z += (grp.position.z * 0.8 - rig.tgt.z) * dz;
+        rig.dist += (nearDist() - rig.dist) * dz;
+        rig.elev += (55 * D2R - rig.elev) * dz;
+        rig.tgt.y += (TGT.y - rig.tgt.y) * dz;
         camApply();
         if (k < 1) requestAnimationFrame(step);
         else {
@@ -1322,7 +1354,7 @@ function charge(p, v, creditor) {
   const i = G.players.indexOf(p);
   if (p.cash >= v) {
     p.cash -= v;
-    if (creditor) { creditor.cash += v; moneyFloat(G.players.indexOf(creditor), v); }
+    if (creditor) { creditor.cash += v; moneyFloat(G.players.indexOf(creditor), v); if (!TURBO) SFX.coin(); }   // 收租方进账轻音：与付款方 pay 形成两拍层次（仅真收租路径；turbo 静默）
     moneyFloat(i, -v);
     if (creditor) toast(`${p.name} 支付 ${fmt(v)} 给 ${creditor.name}`, 'loss');
   } else {
@@ -1358,6 +1390,7 @@ function openBuyModal() {
   const full = propIdxOfGroup(t.group).every(i => i === p.pos || G.owners[i] === G.turn);
   $('buy-info').innerHTML = `价格 <b>${fmt(t.price)}</b> · 租金 ${fmt(t.price * RENT_RATE)}${full ? ' · <b>买下即集齐同色全套，租金×3！</b>' : ''}<br>你的现金：${fmt(p.cash)}`;
   $('buy-modal').hidden = false;
+  if (!TURBO) SFX.pop();   // 弹出轻音，与上方 ovl-pop 动画同拍（turbo 蒙特卡洛不加声不拖慢）
   const yes = $('btn-buy-yes');
   yes.disabled = p.cash < t.price;
   yes.textContent = yes.disabled ? '💰 现金不足' : '买下';
@@ -1370,7 +1403,22 @@ function buyProperty() {
   G.owners[p.pos] = G.turn;
   moneyFloat(G.turn, -t.price); SFX.pay();
   toast(`🏠 ${p.name} 买下 ${t.name}（${fmt(t.price)}）`, 'loss');
-  if (ownerMarks[p.pos]) { ownerMarks[p.pos].visible = true; ownerMarks[p.pos].material.color.set(PLAYER_COLORS[p.colorIdx]); ownerMarks[p.pos].material.needsUpdate = true; }
+  const mk = ownerMarks[p.pos];
+  if (mk) { mk.visible = true; mk.material.color.set(PLAYER_COLORS[p.colorIdx]); mk.material.needsUpdate = true; }
+  if (mk && !TURBO) SFX.deal();   // 成交戳记音（付款 pay 之外的第二拍；turbo 蒙特卡洛静默不拖慢）
+  // 成交落位：归属标记 easeOutBack 过冲 0→≈1.15→1；REDUCED/bodyLo/TURBO 维持上方瞬时落位（静态退路）
+  if (mk && G.gl && !REDUCED && !bodyLo && !TURBO) {
+    const t0 = performance.now(), dur = 380, c1 = 2.2;
+    mk.scale.set(0.01, 0.01, 0.01);
+    const land = now => {
+      if (!mk.visible) { mk.scale.set(1, 1, 1); return; }   // 动画中标记被收回（快照重绘/破产清算）：立即归位，防卡中间态
+      const k = Math.min(1, (now - t0) / (dur * SPEED)), u = k - 1;
+      const s = k < 1 ? 1 + (c1 + 1) * u * u * u + c1 * u * u : 1;   // easeOutBack，峰值 ≈1.15
+      mk.scale.set(s, s, s);
+      if (k < 1) requestAnimationFrame(land);
+    };
+    requestAnimationFrame(land);
+  }
   updateHUD(); render2D();
   afterResolve();
 }
@@ -1440,22 +1488,23 @@ function revealCard(kind, text) {
     setCardFace(kind, text);
     cardPivot.visible = true;
     cardPivot.rotation.x = 0;
-    rig.autoDist = false; camTo({ elev: 32 * D2R, dist: nearDist() * 0.92, focusK: 1 }, 900, () => {
+    rig.autoDist = false; camTo({ elev: 32 * D2R, dist: nearDist() * 0.92, focusK: 1 }, 1250, () => {
       const t0 = performance.now(), flipDur = 650;
+      SFX.flip();   // 翻面起手：纸感轻擦（揭示两拍之一）
       const flip = now => {
         const k = Math.min(1, (now - t0) / (flipDur * SPEED));
         cardPivot.rotation.x = Math.PI * k;   // 远边枢轴 +180°：0(盖着)→PI(面朝上)
         if (k < 1) requestAnimationFrame(flip);
-        else setTimeout(() => {
+        else { SFX.card(); setTimeout(() => {   // 翻完揭示：与抽卡起手同音呼应（两拍之二）
           const t1 = performance.now(), outDur = 420;
           const out = now2 => {
             const k2 = Math.min(1, (now2 - t1) / (outDur * SPEED));
             cardMesh.material.opacity = 1 - k2;
             if (k2 < 1) requestAnimationFrame(out);
-            else { cardPivot.visible = false; cardMesh.material.opacity = 1; rig.autoDist = true; camTo({ elev: REF_ELEV, dist: baseDist(), focusK: 1 }, 500); res(); }
+            else { cardPivot.visible = false; cardMesh.material.opacity = 1; rig.autoDist = true; camTo({ elev: REF_ELEV, dist: baseDist(), focusK: 1 }, 1000); res(); }
           };
           requestAnimationFrame(out);
-        }, 1400 * SPEED);
+        }, 1400 * SPEED); }
       };
       requestAnimationFrame(flip);
     });
@@ -1743,6 +1792,7 @@ if (AUTOTEST || qs.get('inspect') === '1') {   // inspect=1：真机路径（SPE
     resolveAt: async (i, tile) => { G.turn = i; G.doubles = 0; G.players[i].pos = tile % 24; if (pawnObjs[i]) placePawn(i, G.players[i].pos, true); render2D(); await resolveTile(); },
     sceneInfo: () => ({ gl: G.gl, bodyLo, tiles: tileMeshes.length, pawns: pawnObjs.length, plates: plateSprites.length, dice: diceObjs.length }),
     rigSnap: () => ({ az: rig.az, elev: rig.elev, dist: rig.dist, focusK: rig.focusK, tgt: { x: rig.tgt.x, y: rig.tgt.y, z: rig.tgt.z } }),
+    distAnchor: () => ({ near: G.gl && camera ? nearDist() : 0, base: G.gl && camera ? baseDist() : 0 }),   // 探针用：当前视口的近景/全景锚距
     pawnWorld: () => pawnObjs.map(p => (p ? [p.position.x, p.position.y, p.position.z] : null)),
     net: () => ({ mode: NETMODE, joined, room: NDOC && NDOC.room, myId, doc: NDOC, host: isHost(), myTurn: netIsMyTurn(), mic: P.mic.on(), peers: P.mic.peers(), enter: netEnter, publish: netCkpt, start: netStartGame, ui: syncNetHUD, av: netAvatarHtml }),
     mc: n => new Promise(async res => {

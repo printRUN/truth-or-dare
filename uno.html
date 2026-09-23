@@ -121,6 +121,11 @@
 
   #wild-modal .wrow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
   .wbtn { min-height: 64px; border-radius: 14px; border: 2px solid rgba(255,255,255,0.4); font-size: 1rem; font-weight: 800; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,0.5); cursor: pointer; }
+  .wbtn:active { transform: scale(0.94); }
+  #wild-modal .panel { animation: wild-pop 0.26s cubic-bezier(0.34,1.56,0.64,1); }   /* 选色弹窗轻弹入（hidden→显示时重放） */
+  @keyframes wild-pop { from { transform: scale(0.82) translateY(12px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
+  body.loperf #wild-modal .panel { animation: none; }   /* 低性能档静态退路 */
+  html.turbo #wild-modal .panel { animation: none; }    /* TURBO 探针档静态退路 */
 
   #handoff .panel { max-width: 340px; text-align: center; }
   #handoff .hand-emoji { font-size: 46px; margin-bottom: 6px; }
@@ -150,7 +155,7 @@
   .d2-pile { font-size: 0.76rem; color: rgba(255,255,255,0.65); text-align: center; }
 
   @media (prefers-reduced-motion: reduce) {
-    .loader-ico, .pchip.active, #result-veil, #result-winner, .pod, #btn-uno.show, #dir-chip .dico { animation: none !important; transition: none !important; }
+    .loader-ico, .pchip.active, #result-veil, #result-winner, .pod, #btn-uno.show, #dir-chip .dico, #wild-modal .panel { animation: none !important; transition: none !important; }
     .pchip.active { box-shadow: 0 0 0 1.5px var(--accent-cyan); }
     .pod { opacity: 1; transform: none; }
     #loader { transition: none; }
@@ -333,13 +338,14 @@ const SFX = (() => {
     o.type = type; o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t0 + dur);
     env(g, t0, 0.01, dur, vol); o.connect(g).connect(master || c.destination); o.start(t0); o.stop(t0 + dur + 0.1);
   };
-  const noise = (dur, vol, fc) => {
+  const noise = (dur, vol, fc, when = 0) => {
     const c = ensure(); if (!c || !on) return;
     const n = c.sampleRate * dur, buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
     for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
     const s = c.createBufferSource(), g = c.createGain(), f = c.createBiquadFilter();
-    s.buffer = buf; f.type = 'lowpass'; f.frequency.value = fc; env(g, c.currentTime, 0.005, dur, vol);
-    s.connect(f).connect(g).connect(master || c.destination); s.start();
+    const t0 = c.currentTime + when;
+    s.buffer = buf; f.type = 'lowpass'; f.frequency.value = fc; env(g, t0, 0.005, dur, vol);
+    s.connect(f).connect(g).connect(master || c.destination); s.start(t0);
   };
   return {
     get on() { return on; },
@@ -347,12 +353,21 @@ const SFX = (() => {
     unlock() { ensure(); },
     tap() { tone(660, 520, 0.05, 'sine', 0.12); },
     play() { tone(500, 760, 0.07, 'triangle', 0.16); },
-    draw() { noise(0.09, 0.14, 2200); },
+    draw() { noise(0.07, 0.13, 2600); noise(0.08, 0.09, 900, 0.05); tone(340, 520, 0.07, 'sine', 0.05, 0.04); },   // 摸牌：高擦+延迟低沙双层+轻音头（层次感）
     warn() { tone(300, 180, 0.2, 'sawtooth', 0.14); },
-    uno() { tone(660, 660, 0.08, 'square', 0.12); tone(990, 990, 0.12, 'square', 0.12, 0.08); },
+    uno() { tone(660, 660, 0.08, 'square', 0.12); tone(990, 990, 0.12, 'square', 0.12, 0.08); tone(1320, 1320, 0.14, 'square', 0.07, 0.16); },   // 补一层高八度亮尾，宣告更有冲劲
     catchU() { tone(500, 240, 0.16, 'square', 0.14); tone(240, 500, 0.14, 'square', 0.12, 0.16); },
     win() { [523, 659, 784, 1046].forEach((f, i) => tone(f, f, 0.12, 'triangle', 0.18, i * 0.11)); },
     card() { tone(500, 900, 0.09, 'sine', 0.1); },
+    slam() { noise(0.05, 0.22, 1100); tone(180, 60, 0.08, 'sine', 0.2); noise(0.025, 0.1, 4500, 0.014); },   // 出牌落堆「啪」：低频顿感 + 前后双层噪声
+    act(kind) {   // 功能牌三音族：同族 triangle 短音、不同音高轮廓（跳过/反转/罚摸各自辨识）
+      if (kind === 'rev') { tone(420, 620, 0.07, 'triangle', 0.15); tone(620, 420, 0.07, 'triangle', 0.15, 0.08); }
+      else if (kind === 'd4') { tone(240, 170, 0.1, 'triangle', 0.16); tone(240, 170, 0.1, 'triangle', 0.13, 0.11); }
+      else if (kind === 'd2') { tone(300, 210, 0.09, 'triangle', 0.16); tone(300, 210, 0.09, 'triangle', 0.13, 0.1); }
+      else { tone(480, 720, 0.08, 'triangle', 0.15); }   // skip：上行短促
+    },
+    wildOpen() { tone(320, 560, 0.1, 'sine', 0.1); tone(480, 840, 0.12, 'sine', 0.08, 0.05); },   // 选色弹窗：五度上行轻扫
+    colorShift() { tone(520, 780, 0.07, 'sine', 0.12); tone(780, 1040, 0.09, 'sine', 0.1, 0.06); },   // 变色落定：两连上滑
     // 连麦压低（duck）：连麦模块在开麦/收听时调用
     duckMusic(f, ms = 300) {
       const c = ensure(); if (!c || !master) return;
@@ -373,7 +388,7 @@ document.addEventListener('pointerdown', () => SFX.unlock(), { once: true, passi
 let NETMODE = false, NDOC = null, myId = null, joined = false, link = null;   // 组件全局常量 NET_STALE_* 可直接引用
 const P = PartyNet.create({
   key: 'uno', prefix: 'uno/v1', maxPlayers: 4, allowBots: true,
-  localOnly: AUTOTEST && qs.get('localnet') === '1',   // E2E：同浏览器多标签走 BroadcastChannel，不碰外网
+  localOnly: qs.get('localnet') === '1',   // 本地链路（BroadcastChannel，不碰外网）：E2E 用；2026-09-23 起脱离 AUTOTEST 门控，供房间链接探针/离线本地房
   toast, sleep, sfx: SFX,
   snapshot: () => gameSnapshot(),
   onGame: (g, d) => applyGameSnapshot(g, d),
@@ -1010,18 +1025,18 @@ async function playCard(pi, k, chosenColor) {
   G.discard.push(cd);
   if (G.gl) { layoutHand(pi, true); flyToPile(pi); glanceAside(pi); }
   SFX.play();
-  if (G.gl) await sleep(420); else await sleep(60);
+  if (G.gl) await sleep(420); else { await sleep(60); SFX.slam(); }   // 2D 退路同样在落定瞬间给「啪」感（3D 由 flyToPile 落地回调触发）
   G.phase = 'RESOLVE';
   let skipNext = false, drawN = 0;
-  if (cd.v === 'S') { skipNext = true; toast('🚫 ' + p.name + ' 跳过下家', 'gain'); }
+  if (cd.v === 'S') { skipNext = true; toast('🚫 ' + p.name + ' 跳过下家', 'gain'); SFX.act('skip'); }
   else if (cd.v === 'R') {
     G.dir *= -1;
     if (G.players.length === 2) { skipNext = true; toast('🔁 两人局：反转当跳过', 'gain'); }
     else toast('🔁 反转！方向变' + (G.dir === 1 ? '顺时针' : '逆时针'), 'gain');
-    setColor(G.cur);
-  } else if (cd.v === 'D2') { drawN = 2; }
-  else if (cd.v === 'W4') { drawN = 4; }
-  if (isWild(cd) && chosenColor) { setColor(chosenColor); toast('🌈 ' + p.name + ' 把颜色改成' + CNAME[chosenColor] + '色' + (drawN ? `，下家摸 ${drawN}` : ''), 'gain'); }
+    setColor(G.cur); SFX.act('rev');
+  } else if (cd.v === 'D2') { drawN = 2; SFX.act('d2'); }
+  else if (cd.v === 'W4') { drawN = 4; SFX.act('d4'); }
+  if (isWild(cd) && chosenColor) { setColor(chosenColor); toast('🌈 ' + p.name + ' 把颜色改成' + CNAME[chosenColor] + '色' + (drawN ? `，下家摸 ${drawN}` : ''), 'gain'); SFX.colorShift(); }
   if (p.hand.length === 1) armUnoWindow(pi);
   else if (p.hand.length === 0) {
     if (drawN) {   // 最后一张的功能效果仍结算（标准 UNO）
@@ -1101,6 +1116,7 @@ function humanPlay(k) {
 function openWild(cb) {
   const m2 = $('wild-modal');
   m2.hidden = false;
+  SFX.wildOpen();   // 选色弹窗轻弹入配音（CSS 弹入见 #wild-modal .panel）
   [...m2.querySelectorAll('.wbtn')].forEach(b => {
     b.onclick = () => { SFX.tap(); m2.hidden = true; cb(b.dataset.c); };
   });
@@ -1253,12 +1269,57 @@ function botColor(p) {
   const best = Object.entries(colors).sort((a, b) => b[1] - a[1]);
   return best.length ? best[0][0] : ['r', 'y', 'g', 'b'][rint(4)];
 }
+let pileFx = null;   // 落堆轻弹动画句柄 { raf, baseY }（叠落时作废上一轮并按 baseY 复位，防位置漂移）
+function pileBounce() {   // 落堆瞬间牌堆轻微下沉回弹（REDUCED/bodyLo/TURBO 静态退路：整体跳过）
+  if (!pileMesh || REDUCED || bodyLo || TURBO) return;
+  if (pileFx && pileFx.raf) cancelAnimationFrame(pileFx.raf);
+  const baseY = pileFx ? pileFx.baseY : pileMesh.position.y;
+  const t0 = performance.now(), dur = 240;
+  const fx = { raf: 0, baseY };
+  pileFx = fx;
+  const step = now => {
+    const k = Math.min(1, (now - t0) / dur);
+    const dip = Math.sin(k * k * (3 - 2 * k) * Math.PI);   // smoothstep 包络 0→1→0：下压再回弹
+    pileMesh.position.y = baseY - dip * 0.05;
+    pileMesh.scale.setScalar(1 - dip * 0.055);
+    if (k < 1) fx.raf = requestAnimationFrame(step);
+    else { fx.raf = 0; pileMesh.position.y = baseY; pileMesh.scale.setScalar(1); }
+  };
+  fx.raf = requestAnimationFrame(step);
+}
+function pileDust() {   // 落堆尘埃：一圈暖色微粒扩散淡出，一次性对象用完即焚（同上三档静态退路）；用 Math.random 不消耗 rng 种子流
+  if (!pileMesh || !scene || REDUCED || bodyLo || TURBO) return;
+  const N = 10, arr = new Float32Array(N * 3), sp = [];
+  const cx = pileMesh.position.x, cz = pileMesh.position.z;
+  for (let i = 0; i < N; i++) sp.push({ a: (i / N) * Math.PI * 2 + Math.random() * 0.6, r: 0.42 + Math.random() * 0.3 });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+  const mat = new THREE.PointsMaterial({ color: 0xd8c9a8, size: 0.07, transparent: true, opacity: 0.7, depthWrite: false });
+  const pts = new THREE.Points(geo, mat);
+  scene.add(pts);
+  const t0 = performance.now(), dur = 340;
+  const step = now => {
+    const k = Math.min(1, (now - t0) / dur), kk = 1 - (1 - k) * (1 - k);
+    for (let i = 0; i < N; i++) {
+      const rr = 0.12 + sp[i].r * kk;
+      arr[i * 3] = cx + Math.cos(sp[i].a) * rr;
+      arr[i * 3 + 1] = 0.37 + Math.sin(kk * Math.PI) * 0.1;
+      arr[i * 3 + 2] = cz + Math.sin(sp[i].a) * rr;
+    }
+    geo.attributes.position.needsUpdate = true;
+    mat.opacity = 0.7 * (1 - kk);
+    if (k < 1) requestAnimationFrame(step);
+    else { scene.remove(pts); geo.dispose(); mat.dispose(); }
+  };
+  requestAnimationFrame(step);
+}
 function flyToPile(pi, seat) {
   const cd = topCard();
   const land = () => {
     pileMesh.children[1].material.map = cardFaceTex(cd);
     pileMesh.children[1].material.needsUpdate = true;
     pileMesh.rotation.z = (rnd() - 0.5) * 0.5;
+    SFX.slam(); pileBounce(); pileDust();   // 落堆「啪」+ 下沉回弹 + 尘埃（动效在 REDUCED/bodyLo/TURBO 自动跳过，音效不占帧）
   };
   if (REDUCED || bodyLo || TURBO) { land(); return; }
   const g = mkCard(cd);
@@ -1276,6 +1337,7 @@ function flyToPile(pi, seat) {
     g.position.lerpVectors(p0, p1, kk);
     g.position.y = p0.y + (p1.y - p0.y) * kk + Math.sin(kk * Math.PI) * 1.05;
     g.rotation.x = -Math.PI / 2 + tilt0 + (0.42 - tilt0) * kk;   // 收平到牌堆俯角
+    g.rotation.z = Math.sin(kk * Math.PI * 2.4) * 0.14 * (1 - kk);   // 飞行中轻微摆动，临近落堆收敛到 0（不碰时长/镜头）
     if (k < 1) requestAnimationFrame(step);
     else { disposeCard(g); land(); }
   };
@@ -1286,8 +1348,9 @@ function glanceAside(pi) {   // 别人出牌：镜头向牌堆轻推再回（行
   const mine = NETMODE ? pi === netSeatOf(myId) : !G.players[pi].bot;
   if (mine) return;   // 本端真人自己的动作：镜头保持稳定取景不干扰点牌
   if (rig._glT) clearTimeout(rig._glT);
-  camTo({ focusK: 0.86 }, 480);
-  rig._glT = setTimeout(() => camTo({ az: 0, focusK: 1 }, 520), 780);
+  // 推近放缓 750ms；已在推近态不重启推镜（连续出牌保持跟随不反复推拉），回程顺延到最后一手后 950ms，900ms 缓回全景
+  if (rig.focusK > 0.96) camTo({ focusK: 0.84 }, 750);
+  rig._glT = setTimeout(() => camTo({ az: 0, focusK: 1 }, 900), 950);
 }
 
 /* ═══════════════ 9. 2D 降级 ═══════════════ */
@@ -1476,6 +1539,7 @@ $('uno-canvas').addEventListener('click', pickHand);
 async function boot() {
   const t0 = performance.now();
   if (AUTOTEST && qs.get('loperf') === '1') { bodyLo = true; document.body.classList.add('loperf'); }
+  if (TURBO) document.documentElement.classList.add('turbo');   // 新增 CSS 动效（wild 弹窗弹入）的 TURBO 静态退路开关
   setLoader(20, '洗牌中...');
   const ok = initScene();
   await sleep(120);
