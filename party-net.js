@@ -1560,6 +1560,13 @@ function updateMicBadges() {
   .pn-cz-chip{width:52px}
   .pn-cz-chip img{width:36px;height:36px}
 }
+@media (min-width:720px){   /* 宽屏左右分区（对齐 tod landui 加入页）：左列表单字段 + 右列头像墙；DOM 顺序不动（头像首位 v1.2 契约），纯 grid 放位。align-items:start 防 grid 默认 stretch 把左列输入框/CTA 撑高 */
+  .pn-form{grid-template-columns:minmax(0,1.15fr) minmax(0,0.95fr);grid-template-rows:repeat(5,auto);align-items:start;align-content:start;column-gap:18px}
+  .pn-form>.pn-avatar-group{grid-column:2;grid-row:1/span 5;align-self:start;max-height:calc(100vh - 140px);overflow-y:auto;padding-right:2px;scrollbar-width:thin}   /* span 数值而非 1/-1：隐式行下 -1 会塌成单行 */
+  .pn-form>.pn-name,.pn-form>.pn-create,.pn-form>.pn-row,.pn-form>.pn-sub,.pn-form>.pn-pills{grid-column:1}
+  .pn-form>.pn-create{align-self:start}   /* 基础样式的 align-self:stretch 在被头像列摊高的行里会把 CTA 拉成两倍高；横向满宽由 width:100% 保证 */
+  .pn-lobby{max-width:520px;margin:0 auto;width:100%}   /* 入房大厅不跟宿主拉宽后的面板一起摊大饼 */
+}
 @media (prefers-reduced-motion:reduce){.pn-avopt,.pn-cz-bg,.pn-cz-chip,.pn-avtab,.pn-btn-tiny,.pn-create,.pn-join,.pn-start,.pn-addbot,.pn-leave{transition:none!important;animation:none!important}}   /* 只列组件自有类：裸 .btn-primary/.btn-ghost 会命中宿主页面组件外的按钮 */
 /* ── 大 CTA + 药丸（2026-09-23 对齐 tod 填表页三件套：主操作=渐变大按钮+流光扫过；药丸由宿主注入 .pn-pills） ── */
 .pn-create{position:relative;overflow:hidden;align-self:stretch;padding:14px 24px;font-size:1.04rem;border-radius:16px;letter-spacing:4px;text-indent:4px;font-weight:800;border:none;color:#fff;background:linear-gradient(120deg,#8b5cf6,#ec4899 55%,#8b5cf6);box-shadow:0 10px 30px rgba(139,92,246,0.4),inset 0 2px 0 rgba(255,255,255,0.28)}

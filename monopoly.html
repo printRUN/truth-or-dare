@@ -90,6 +90,11 @@
   .panel h2 { font-size: 1.25rem; margin-bottom: 4px; }
   .panel .sub { font-size: 0.8rem; color: rgba(255,255,255,0.6); margin-bottom: 16px; }
   .panel.center { text-align: center; }
+  /* 宽屏 setup 面板拉宽：party-net 表单在 ≥720px 做左右分区（对齐 tod 加入页），420px 窄盒装不下两列；只圈 #setup 不碰其他 .panel 弹层 */
+  @media (min-width:720px) {
+    #setup .panel { max-width: 960px; }
+    #setup #adv-box, #setup #rules-box { max-width: 600px; }   /* 热座/规则速览限宽：960 通栏一行百字难读 */
+  }
   .btn-primary { display: block; width: 100%; min-height: 52px; border: none; border-radius: 16px; background: linear-gradient(135deg, var(--primary), var(--accent-pink)); color: #fff; font-size: 1.02rem; font-weight: 800; cursor: pointer; }
   .btn-primary:disabled { opacity: 0.45; filter: saturate(0.35); cursor: default; }
   .btn-primary:active { transform: scale(0.98); }

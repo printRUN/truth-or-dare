@@ -72,6 +72,19 @@ details.adv .adv-in { display: flex; flex-direction: column; gap: 8px; margin-to
 .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 .ghost { padding: 8px 14px; border-radius: 999px; background: var(--glass); border: 1px solid var(--glass-border); font-size: 0.82rem; color: rgba(255,255,255,0.85); }
 .join-row { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+/* 宽屏左右分区（对齐 tod 加入页）：左列昵称/房号/高级选项/CTA/链接，右列猫头像墙；窄视口保持原堆叠 */
+@media (min-width:720px) {
+  .join-box { max-width: 860px; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr); grid-template-rows: repeat(6, auto); align-items: start; align-content: start; gap: 14px 18px; }
+  .join-box > label:nth-of-type(1) { grid-column: 1; grid-row: 1; }   /* 昵称 */
+  .join-box > label:nth-of-type(2) { grid-column: 2; grid-row: 1 / span 6; align-self: start; max-height: calc(100vh - 170px); overflow-y: auto; padding-right: 2px; }   /* 猫头像墙跨行 */
+  .join-box > label:nth-of-type(3) { grid-column: 1; grid-row: 2; }   /* 房号 */
+  .join-box > details.adv { grid-column: 1; grid-row: 3; }
+  .join-box > #btn-join { grid-column: 1; grid-row: 4; }
+  .join-box > .join-row { grid-column: 1; grid-row: 5; }
+  .join-box > div { grid-column: 1; grid-row: 6; }
+  #cat-pick { grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  #cat-pick .ctile.dice { font-size: 1.6rem; }   /* 格子放大后骰子字号同步提一档 */
+}
 
 /* ── 大厅 ── */
 .room-head { margin: 14px 0 6px; display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; font-size: 1rem; }
