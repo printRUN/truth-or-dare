@@ -188,11 +188,13 @@ body:not(.three3d) #bc-board2d { display: block; }
   .orb, .confetti { animation: none !important; }
   #btn-nope { animation: none !important; }
   .hcard, .hcard:hover, .hcard.sel, .tgt:hover:not(:disabled), .pickcard:hover { transition: none; transform: none; }
+  #bc-boom-flash { display: none !important; }
 }
 body.loperf .orb, body.loperf .confetti { animation: none !important; }
 body.loperf .join-box, body.loperf #bc-nope, body.loperf .pchip { backdrop-filter: none; }
 body.loperf .confetti { display: none; }
 body.loperf .screen.active, body.loperf .ovl-box, body.loperf .toast-in { animation: none !important; }
+body.loperf #bc-boom-flash { display: none !important; }
 
 /* 窄屏 */
 @media (max-width: 560px) {
@@ -392,6 +394,9 @@ const SFX = {
       case 'win': [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => this.tone(f, 0.22, 'triangle', 0.14), i * 130)); break;
       case 'tick': this.tone(880, 0.03, 'square', 0.05); break;
       case 'pop': this.tone(420, 0.07, 'sine', 0.1, 700); break;
+      case 'slam': this.noise(0.09, 0.22, 1900); this.tone(150, 0.1, 'sine', 0.15, 62); break;   // 出牌「啪」：短噪声拍面 + 低频落桌闷响
+      case 'snip': this.noise(0.035, 0.18, 3600); setTimeout(() => this.noise(0.05, 0.2, 3000), 90); break;   // 拆除剪刀「咔哒」两拍
+      case 'shatter': this.noise(0.22, 0.2, 5200); setTimeout(() => this.noise(0.3, 0.14, 3400), 70); break;   // 引爆高频碎裂层（叠在 boom 低频轰鸣之上）
     }
   }
 };
@@ -1250,6 +1255,7 @@ let seenEv = new Set();
 let overShown = false, tipDismissed = localStorage.getItem('cat:tip') === '1';
 let helloTimer = null, tickTimer = null, retryTimer = null, nopeTimer = null, hintTimer = null;
 let lastSeq = 0;
+let lastPlayFxKey = '';             // 出牌飞牌演出去重（pending.pid|t0，空串=无 pending）
 
 const urlRoom = extractRoom();
 if (urlRoom) { const ri = $('#in-room'); if (ri && !ri.value) ri.value = urlRoom; }
@@ -1456,8 +1462,8 @@ function onGameEvent(e) {
   switch (e.t) {
     case 'deal': SFX.play('deal'); break;
     case 'ek': SFX.play('tick'); break;
-    case 'defuse': SFX.play('tick'); break;
-    case 'boom': SFX.play('boom'); sceneBoom(e.pid); break;
+    case 'defuse': SFX.play('snip'); break;   // 拆除生效：剪刀咔哒（原 tick 太弱，撑不起这时刻）
+    case 'boom': SFX.play('boom'); SFX.play('shatter'); sceneBoom(e.pid); break;   // 低频轰鸣 + 高频碎裂双层
     case 'nope': SFX.play('nope'); sceneNope(e.pid); break;
     case 'shuffle': SFX.play('draw'); sceneShuffle(); break;
     case 'steal': SFX.play('pop'); sceneSteal(e.pid, e.from); break;
@@ -1542,6 +1548,10 @@ function renderGame() {
   }
   // 日志
   $('#bc-log').innerHTML = (S.log || []).slice(-9).map(l => `<div>${esc(l.m)}</div>`).join('');
+  // 出牌飞牌演出（仅 GL 路径）：进入 nope 窗瞬间，首张牌从出牌者座位飞向弃牌堆（280ms；loperf/无 GL 自动 no-op）
+  const pendKey = pd && pd.kind === 'nope' ? pd.pid + '|' + (pd.t0 || 0) : '';
+  if (pendKey && pendKey !== lastPlayFxKey) { lastPlayFxKey = pendKey; scenePlayFx(pd.pid, pd.cards && pd.cards[0]); }
+  else if (!pendKey) lastPlayFxKey = '';
   // 2D 退路面板
   render2DBoard();
 }
@@ -1630,7 +1640,7 @@ $('#btn-play') && ($('#btn-play').onclick = () => {
   if (shape.needTarget) { openTarget(shape); return; }
   sendAct({ t: 'play', idxs: [...sel] });
   sel.clear();
-  SFX.play('flip');
+  SFX.play('slam');   // 出牌确认「啪」（原 flip 是翻牌音，撑不起打出动作）
 });
 function openTarget(shape) {
   const ovl = $('#ovl-target');
@@ -1643,7 +1653,7 @@ function openTarget(shape) {
     b.onclick = () => {
       const pid = b.dataset.pid;
       if (shape.needName) { openName(shape, pid); }
-      else { sendAct({ t: 'play', idxs: [...sel], target: pid }); sel.clear(); SFX.play('flip'); closeOvl(ovl); }
+      else { sendAct({ t: 'play', idxs: [...sel], target: pid }); sel.clear(); SFX.play('slam'); closeOvl(ovl); }
     };
   });
   ovl.hidden = false;
@@ -1656,7 +1666,7 @@ function openName(shape, pid) {
   $('#name-list').querySelectorAll('.pickcard').forEach(b => {
     b.onclick = () => {
       sendAct({ t: 'play', idxs: [...sel], target: pid, namePick: b.dataset.k });
-      sel.clear(); SFX.play('flip'); closeOvl(ovl);
+      sel.clear(); SFX.play('slam'); closeOvl(ovl);
     };
   });
   ovl.hidden = false;
@@ -1670,7 +1680,7 @@ function openGive() {
   $('#give-list').innerHTML = PRIV.hand.map((c, i) =>
     `<button class="pickcard" data-i="${i}"><img src="${cardFaceURL(c)}" alt=""></button>`).join('');
   $('#give-list').querySelectorAll('.pickcard').forEach(b => {
-    b.onclick = () => { sendUp({ t: 'give', idx: +b.dataset.i }); closeOvl(ovl); };
+    b.onclick = () => { SFX.play('tap'); sendUp({ t: 'give', idx: +b.dataset.i }); closeOvl(ovl); };
   });
   ovl.hidden = false;
 }
@@ -1682,7 +1692,7 @@ function openPick() {
   $('#disc-list').innerHTML = (S.discard || []).slice().reverse().slice(0, 24).map(c =>
     `<button class="pickcard" data-id="${c}"><img src="${cardFaceURL(c)}" alt="${esc(CAT.nameOf(c))}"></button>`).join('');
   $('#disc-list').querySelectorAll('.pickcard').forEach(b => {
-    b.onclick = () => { sendAct({ t: 'pickDiscard', cardId: b.dataset.id }); closeOvl(ovl); };
+    b.onclick = () => { SFX.play('tap'); sendAct({ t: 'pickDiscard', cardId: b.dataset.id }); closeOvl(ovl); };
   });
   ovl.hidden = false;
 }
@@ -1712,7 +1722,7 @@ function openInsert() {
   };
   slider.oninput = drawVis;
   drawVis();
-  $('#ins-ok').onclick = () => { sendUp({ t: 'insert', pos: +slider.value }); closeOvl(ovl); };
+  $('#ins-ok').onclick = () => { SFX.play('snip'); sendUp({ t: 'insert', pos: +slider.value }); closeOvl(ovl); };   // 插位确认：剪刀咔哒（inserted 广播另有 defuse 琶音）
   ovl.hidden = false;
 }
 function closeOvl(ovl) { ovl.hidden = true; delete ovl.dataset.open; }
@@ -1753,6 +1763,13 @@ $('#btn-copy').onclick = async () => {
 };
 $('#btn-join').onclick = doJoin;
 $('#in-name').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
+$('#in-room').addEventListener('paste', ev => {   // 粘整段邀请链接/文字也能抽房号（2026-09-23 四游戏表单对齐口径）
+  try {
+    const t = (ev.clipboardData && ev.clipboardData.getData('text')) || '';
+    const m = t.match(/[?&#]room=([A-Za-z0-9]{3,8})/i) || t.match(/房号\s*[:：]?\s*([A-Za-z0-9]{3,8})/i);
+    if (m) { ev.preventDefault(); ev.target.value = m[1].toUpperCase(); }
+  } catch (e) {}
+});
 $('#in-room').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
 $('#btn-start').onclick = () => { sendAct({ t: 'start' }); SFX.play('deal'); };
 $('#btn-leave').onclick = () => { sendAct({ t: 'leave' }); leaveRoom(); };
@@ -2268,6 +2285,15 @@ function initScene() {
       const t0 = performance.now();
       anims.push({ wiggle: deckGroup, t0, dur: 800, done: () => {} });
     },
+    playFx(pid, cardId) {   // 出牌：牌面从出牌者座位短弧线飞向弃牌堆（280ms 墙钟插值；REDUCED 跳）
+      if (IS_REDUCED || !cardId) return;
+      const from = seatTop(pid).clone(); from.y += 0.85;
+      const to = discGroup.position.clone(); to.y += 0.1 + discVisual.length * CARD_T;
+      flyCard(mkCard(texForCard(cardId)), from, to, 280, {
+        arc: 0.42, spin: 1.6,
+        done: m => { scene.remove(m); m.material.forEach(x => x.dispose()); markShadow(); },
+      });
+    },
     sync() { syncPiles(); syncChars(); },
     cameraShake: () => { shakeT = performance.now(); },
   };
@@ -2369,11 +2395,36 @@ function retireScene() {
   document.body.classList.remove('three3d');
 }
 /* 场景钩子的无 GL 兜底：sceneReady 为假时是 no-op */
-function sceneBoom(pid) { if (sceneReady()) window.__bcScene.boom(pid); }
+function sceneBoom(pid) { boomFx(); if (sceneReady()) window.__bcScene.boom(pid); }
 function sceneNope(pid) { if (sceneReady()) window.__bcScene.nope(pid); }
 function sceneSteal(to, from) { if (sceneReady()) window.__bcScene.steal(to, from); }
 function sceneDraw(pid) { if (sceneReady()) window.__bcScene.draw(pid); }
 function sceneShuffle() { if (sceneReady()) window.__bcScene.shuffle(); }
+function scenePlayFx(pid, cardId) { if (sceneReady() && cardId) window.__bcScene.playFx(pid, cardId); }
+
+/* ── 引爆补充反馈：震动（全路径，REDUCED 除外）+ DOM 红闪（仅无 GL 且非降级档）──
+   GL 路径复用 __bcScene.boom 内置的 flashEl 红闪；loperf/REDUCED 动效全跳；音效层在 onGameEvent，与路径无关。 */
+let boomFlashEl = null, boomFlashT = 0;
+function boomFx() {
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!reduced && navigator.vibrate) { try { navigator.vibrate([36, 26, 72]); } catch (e) {} }
+  if (sceneReady() || reduced || document.body.classList.contains('loperf')) return;
+  if (!boomFlashEl) {
+    boomFlashEl = document.createElement('div');
+    boomFlashEl.id = 'bc-boom-flash';
+    boomFlashEl.style.cssText = 'position:fixed;inset:0;z-index:30;pointer-events:none;background:radial-gradient(ellipse at center, rgba(239,68,68,0.62), rgba(120,10,10,0.28) 70%);opacity:0;';
+    document.body.appendChild(boomFlashEl);
+  }
+  boomFlashEl.style.transition = 'none';
+  boomFlashEl.style.opacity = '0.62';
+  void boomFlashEl.offsetWidth;   // 强制回流：红闪每次都从亮帧起跳
+  clearTimeout(boomFlashT);
+  boomFlashT = setTimeout(() => {
+    if (!boomFlashEl) return;
+    boomFlashEl.style.transition = 'opacity 0.32s ease';
+    boomFlashEl.style.opacity = '0';
+  }, 120);   // 亮帧保持 120ms → 320ms 淡出（全程 <500ms）
+}
 setInterval(() => { if (sceneReady()) window.__bcScene.sync(); }, 900);
 
 </script>

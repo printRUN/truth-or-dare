@@ -115,7 +115,14 @@ const D2R = Math.PI / 180;
       });
       ok(`U2[动画档] 机器人出牌 glance 下探（${dips.length} 次）`, dips.length >= 2, dips.map(d => +d.min.toFixed(3)));
     }
-    ok('U2 glance 回中性 focusK=1', Math.abs(K[K.length - 1].k - 1) < 1e-6, K[K.length - 1].k);
+    // 2026-09-22 镜头随流程轮：glance 放慢（推 750ms/停到最后一手后 950ms/回 900ms），40s 采样窗可能在末手 glance 未收尾时截止——
+    // 等回中性落定（最多 4.5s）再断言，语义不变（钉「出牌潮歇后镜头缓回全景」）。
+    let kEnd = -1;
+    try {
+      await p.waitForFunction(() => __uno.camInfo().focusK === 1, null, { timeout: 4500 });
+      kEnd = await p.evaluate(() => __uno.camInfo().focusK);
+    } catch (e) { kEnd = await p.evaluate(() => __uno.camInfo().focusK).catch(() => -1); }
+    ok('U2 glance 回中性 focusK=1', Math.abs(kEnd - 1) < 1e-6, { kEnd, tail: K.slice(-3).map(e => e.k) });
     console.log(`     （本端行动 ${myPlays} 次，JS 错误 ${errs.length}${errs.length ? ': ' + errs[0] : ''}）`);
     ok('U2 零 JS 错误', errs.length === 0, errs[0]);
     await ctx.close();

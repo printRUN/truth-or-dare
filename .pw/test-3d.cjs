@@ -289,7 +289,7 @@ const worldT = p => p.evaluate(() => document.getElementById('world3d').style.tr
       const post = await chooser.evaluate(() => ({ ...Cam.cur }));
       check(`抽卡后 1s 内 Cam.cur.z 脱离 game 常态(-56) 超过 5（${tag} 端推近卡堆）`,
         pushSeen && Math.abs(post.z + 56) > 5, `超时未达成；pre.z=${pre.z.toFixed(2)} post.z=${post.z.toFixed(2)}`);
-      await chooser.waitForTimeout(Math.max(0, 2600 - (Date.now() - clickAt)));   // 等洗牌(1400)+发牌聚焦(950)全链收尾（发牌在 +1500ms 起）
+      await chooser.waitForTimeout(Math.max(0, 2900 - (Date.now() - clickAt)));   // 等洗牌(1400)+发牌聚焦(1150)全链收尾（发牌在 +1500ms 起；2026-09-22 镜头放缓轮聚焦 950→1150，预算 2600→2900）
       const settled = await chooser.evaluate(() => ({ ...Cam.cur }));
       if (!is3dRing) check('推镜到达牌堆聚焦档（focusCam(#deck): z≈-76, s≈1.05）',
         Math.abs(settled.z + 76) < 1 && Math.abs(settled.s - 1.05) < 0.01,

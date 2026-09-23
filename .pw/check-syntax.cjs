@@ -16,7 +16,10 @@ let bad = 0, total = 0;
 const threeHashes = {};
 for (const file of FILES) {
   const short = file.split('/').pop();
-  if (!fs.existsSync(file)) { console.log(`MISSING: ${file}`); bad++; continue; }
+  if (!fs.existsSync(file)) {
+    if (short === 'bombcat.html') { console.log(`SKIP: ${file}（index 卡片外链占位未落地，合入后此 SKIP 消失）`); continue; }
+    console.log(`MISSING: ${file}`); bad++; continue;
+  }
   const src = fs.readFileSync(file, 'utf8');
   let m, i = 0;
   re.lastIndex = 0;
@@ -60,5 +63,25 @@ try {
   else if (dbSrc.includes('\r')) { bad++; console.log('dicebear-local.js 混入 CRLF（必须纯 LF）'); }
   else console.log(`dicebear-local.js OK（与 index.html 母本一致，${dbSrc.length}B）`);
 } catch (e) { bad++; console.log('dicebear-local.js SYNTAX ERROR: ' + e.message); }
+// tod↔index 孪生镜头区一致性（2026-09-22 镜头随流程轮加装）：只圈纯镜头四处——
+// Cam 全块（nudge/focus/home 常量）、focusCam、choosing 回全景行、rStep（GL 揭晓近景墙钟）。
+// 刻意不含 Cam→resetCam 全切片：index 的 tod 副本在挑战模式（punParts）上既有欠账，混进来会常红。
+try {
+  const grab = f => {
+    const s = fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
+    const cut = (a, b) => { const i = s.indexOf(a); const j = i >= 0 ? s.indexOf(b, i) : -1; return i >= 0 && j > i ? s.slice(i, j) : ''; };
+    const line = re => (s.match(re) || [])[0] || '';
+    return {
+      cam: cut('const Cam = {', '一镜到底动画编排'),
+      focusCam: cut('function focusCam(el) {', 'function resetCam(instant)'),
+      home: line(/if \(!fresh\) Cam\.home\(\d+\);[^\n]*/),
+      rStep: line(/const rStep = dt \/ \(revealTarget > revealK \? [0-9.]+ : [0-9.]+\);[^\n]*/),
+    };
+  };
+  const t = grab('D:/myidea/truth-or-dare/tod.html'), x = grab('D:/myidea/truth-or-dare/index.html');
+  if (!t.cam || !x.cam || !t.focusCam || !x.focusCam || !t.home || !x.home || !t.rStep || !x.rStep) { bad++; console.log('tod↔index 孪生镜头区锚点没找到（Cam/focusCam/home/rStep 被改动？）'); }
+  else if (JSON.stringify(t) !== JSON.stringify(x)) { bad++; console.log('tod.html 与 index.html 镜头区漂移！Cam/focusCam/home/rStep 必须两边同改'); }
+  else console.log(`tod↔index 孪生镜头区一致 ✅（cam ${t.cam.length}B + focusCam + home + rStep）`);
+} catch (e) { bad++; console.log('孪生镜头区检查异常: ' + e.message); }
 console.log(bad ? `FAILED: ${bad} problem(s)` : `ALL ${total} SCRIPT BLOCKS PARSE ✅`);
 process.exitCode = bad ? 1 : 0;

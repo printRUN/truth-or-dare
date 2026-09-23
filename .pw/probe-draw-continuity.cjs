@@ -64,7 +64,8 @@ function installSampler(p) {
 }
 function analyze(label, s) {
   console.log(`\n──── ${label} ────`);
-  console.log(`  采样 ${s.length} 帧，跨度 ${(s[s.length - 1].t - s[0].t)}ms，帧间隔中位 ${median(s.slice(1).map((v, i) => v.t - s[i].t))}ms`);
+  const med = median(s.slice(1).map((v, i) => v.t - s[i].t));
+  console.log(`  采样 ${s.length} 帧，跨度 ${(s[s.length - 1].t - s[0].t)}ms，帧间隔中位 ${med}ms`);
   let rows = [];
   for (let i = 1; i < s.length; i++) {
     const a = s[i - 1], b = s[i], dt = b.t - a.t;
@@ -74,13 +75,15 @@ function analyze(label, s) {
       ui: a.ui + (a.ui !== b.ui ? '→' + b.ui : ''), vh: a.vh + (a.vh !== b.vh ? '→' + b.vh : ''),
       from: `${a.z.toFixed(1)}/${a.x.toFixed(1)}/${a.s.toFixed(3)}`, to: `${b.z.toFixed(1)}/${b.x.toFixed(1)}/${b.s.toFixed(3)}` });
   }
-  // 正常帧（间隔 ≤ 40ms）里的最大位移
+  // 正常帧（间隔 ≤ 40ms）里的最大位移；软渲（无 ≤40ms 帧）下降级为全样本报告，不硬崩（2026-09-22 补）
   const normal = rows.filter(r => r.dt <= 40);
-  const byZ = normal.slice().sort((a, b) => b.dz - a.dz);
-  console.log(`  正常帧（≤40ms）中最大单帧 Δz=${byZ[0].dz.toFixed(2)} Δx=${Math.max(...normal.map(r => r.dx)).toFixed(2)} Δy=${Math.max(...normal.map(r => r.dy)).toFixed(2)} Δs=${Math.max(...normal.map(r => r.ds)).toFixed(4)}`);
+  const bucket = normal.length ? normal : rows;
+  const byZ = bucket.slice().sort((a, b) => b.dz - a.dz);
+  if (!normal.length) console.log('  ⚠️ 软渲环境（帧间隔中位 >40ms，无「正常帧」桶）：位移报告降级为全样本，连续性判据本机无信号，取证以真机为准');
+  console.log(`  ${normal.length ? '正常帧（≤40ms）' : '全样本（降级）'}中最大单帧 Δz=${byZ[0].dz.toFixed(2)} Δx=${Math.max(...bucket.map(r => r.dx)).toFixed(2)} Δy=${Math.max(...bucket.map(r => r.dy)).toFixed(2)} Δs=${Math.max(...bucket.map(r => r.ds)).toFixed(4)}`);
   const JUMP_Z = 8, JUMP_X = 12, JUMP_S = 0.02;
-  const jumps = rows.filter(r => (r.dz > JUMP_Z || r.dx > JUMP_X || r.ds > JUMP_S) && r.dt > 40);
-  console.log(`  瞬移候选（Δz>${JUMP_Z} 或 Δx>${JUMP_X} 或 Δs>${JUMP_S}，且帧间隔>40ms）: ${jumps.length} 处`);
+  const jumps = normal.length ? rows.filter(r => (r.dz > JUMP_Z || r.dx > JUMP_X || r.ds > JUMP_S) && r.dt > 40) : [];
+  console.log(`  瞬移候选（Δz>${JUMP_Z} 或 Δx>${JUMP_X} 或 Δs>${JUMP_S}，且帧间隔>40ms）: ${normal.length ? jumps.length + ' 处' : '跳过（软渲）'}`);
   for (const j of jumps.slice(0, 12)) {
     console.log(`    t+${j.dt}ms  Δz=${j.dz.toFixed(1)} Δx=${j.dx.toFixed(1)} Δs=${j.ds.toFixed(3)}  ${j.from} → ${j.to}  [${j.stage}] ui=${j.ui} vh=${j.vh}`);
   }
@@ -124,7 +127,7 @@ async function scenario(browser, label, vp, rotateAt, forceLand) {
 
   await installSampler(chooser);
   await chooser.evaluate(() => window.__go());
-  await chooser.click('#card-truth');
+  await chooser.evaluate(() => document.getElementById('card-truth').click());   // three3d 兼容（2026-09-22 补齐）：three3d 下 DOM 选卡 pointer-events:none，真点击会被 #cam 拦截超时；与 test-3d 同款 evaluate 级 click 契约
   if (rotateAt) {
     await chooser.waitForTimeout(rotateAt);
     console.log(`  ↻ 第 ${rotateAt}ms 转到横屏 ${vp.width > vp.height ? '(转竖屏)' : '(转横屏)'}`);

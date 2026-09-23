@@ -27,6 +27,7 @@ index.html 的首屏是**游戏中心**：三张游戏卡（🎭 真心话大冒
 - **index.html = 纯游戏中心**：early 门控只做一件事——显式 tod 意图（`?game=tod` / `#tod` / `?room=` 邀请）`location.replace('tod.html'+search+hash)` 原样转发；**回房票/tod:picked 不再劫持落地屏**（防「返回被弹回 tod」死循环，票的回房语义整体归 tod.html）。主脚本 `rejoinName` 分支加 `!window.__ARCADE__` 守卫（页内休眠引擎不许自动重join=防双活）。tod 卡 `location.href='tod.html'` 真导航。
 - **bombcat.html 从 bc worktree（feat/bombcat-lobby 0657c26）字节级拷入**——自包含单文件（无本地依赖），卡片 HEAD 探测自动转绿直连。bc 树后续演进按共存契约同步拷贝。
 - 深链入口兼容：30+ 存量探针 `index.html?game=tod` → 重定向 → tod.html（Playwright goto 自动跟随），test-3d 37/37、probe-persona-full 20/20 实证。probe-arcade ②③⑥ 已按「真导航+无返回劫持」契约改写（32 断言全绿）。
+- **2026-09-23 落位实证**：bombcat.html 本体+bc 探针（probe-bombcat-rules/probe-bombcat-ui/check-syntax-bc）拷入主树并全绿（37+25+双语法门禁）；index 的 HEAD 探测自动摘「筹备中」角标直连；probe-room-link 双页经 `?room=` 链接互 join 实证。bc worktree 后续改动以主树 bombcat.html 为准回同步（源件组装管线 .pw/build-bombcat.cjs 留在 bc 树）。
 
 ### 1.5c 随机惩罚模式（S.challenge，2026-09-20）
 
@@ -36,6 +37,14 @@ index.html 的首屏是**游戏中心**：三张游戏卡（🎭 真心话大冒
 - **契约**：『形式』+题面 ≤40 全角字（drawQuestion wrap 5 行悬崖，fs 安全带 40→30 已加）；形式级防重复（lastForm 过滤+条目级回退，cap 10）；挑战池不进题库编辑器（schema 迁移留后续）。
 - **探针**：`.pw/probe-challenge.cjs`(8951) + `.pw/probe-chal-reduced.cjs`（REDUCED 全流程）；门禁 test-3d 37/persona-full/feel/egg-react 全绿。
 
+### 1.5d 四游戏购买/选卡音效动效轮（2026-09-23，用户点名；多 agent 并行实施，镜头与游戏逻辑零改动）
+
+- **monopoly**：新音色 pop（买地弹窗弹入，配 ovl-pop CSS 上浮过冲）/flip（翻面纸感）/deal（成交戳记，噪声+暗三角双音）；buyProperty 归属标记 easeOutBack 弹跳落位 380ms×SPEED（快照重绘/中途收回立即归位防卡中间态）；抽卡翻面两拍（flip 起手+card 翻完）；收租真收款方 coin 两拍。全部 `!TURBO` 门控+REDUCED 动画全跳+loperf 关闭。
+- **uno**：draw 三层噪声化；新音色 slam（落桌）/act 族（skip 上行/rev 往返/d2、d4 下行双击）/wildOpen/colorShift；flyToPile 380ms 契约不动，飞行中 rotation.z 摆动 ×(1-kk) 收敛；落堆 pileBounce（下沉回弹 240ms，句柄叠落作废防漂移）+pileDust（10 粒一次性 Points，用完 dispose，不用 rng 流保牌局确定性）；wild-modal 弹入 CSS + 三档静态退路（html.turbo 类新增）。
+- **tod/index 孪生**：新音色 pick（660→990Hz 短上行双音，choose() 单一汇合点防双响）；选中卡光池一次性增亮脉冲 poolFlash（写入在 tickChoiceFx——pool 唯一写者；reset 不清、2.4/s 自然衰减，活过 resetChoiceCards 红线）；REDUCED 恒 0=静态退路。check-syntax 孪生断言护航。
+- **bombcat**：新音色 slam/snip（剪刀两拍）/shatter（引爆高频层，与既有 boom 叠双层）；出牌确认 flip→slam 三处；插位确认 #ins-ok snip；引爆=boomFx 震动（REDUCED 除外）+无 WebGL DOM 红闪 #bc-boom-flash（CSS 双保险禁用）+出牌 280ms 短弧线飞行 playFx（REDUCED 跳过，nope 窗以 pending.pid|t0 为键只触发一次防重放）。
+- **门禁**：check-syntax(+bc)、ev-mono-verify、probe-mono-net 17、ev-uno-verify、probe-uno-net 8、test-3d 37、probe-3d-feel、probe-arcade 32、probe-bombcat-rules 37+ui 25 全绿（ev-uno-verify U3 bodyLo 8s 界为本机软渲既有噪声，HEAD A/B 证实）。
+
 ### 1.6 大富翁（monopoly.html，独立自包含单文件）
 
 **为什么独立文件**：index.html 已 3.3MB 全门禁压身；大富翁是完全不同的游戏域。three.js r128 UMD 从 index.html 原样内联（含 SPDX 头），保持两边「单文件零外网双击即开」；返回大厅 `location.href='index.html'`（**禁 `'./'`**，file:// 下是目录列表）。
@@ -44,7 +53,7 @@ index.html 的首屏是**游戏中心**：三张游戏卡（🎭 真心话大冒
 
 **热座三件套（玩家专家 P0）**：① 交接闸（「📱 请把手机交给 XX」单按钮，机器人不插闸，setup 可关）；② 自动存档 `mono:save:v1`（**只在 beginTurn 回合起点这个安全点写**，mulberry32 状态外置 rngBox.a 可逐字节续跑；恢复走 `_resumeSkipInc` 重放本回合不重复计回合）；③ 「再来一局」保留整套玩家配置（`mono:names`）。
 
-**视觉/工程纪律**（沿用 §2）：ACES+sRGB+FogExp2 0.035+dpr 封顶；阴影只挂 DirectionalLight；格面纹理 256×256 POT+sRGB+LinearFilter；卡牌揭晓 =「镜头去卡，卡不动」（0.9s 推近 → 远边枢轴 +180° 翻面 650ms → 持读 1400ms → 420ms 退场，全墙钟 smoothstep）；名牌 Sprite 径向外偏 + 交替抬高 + 投影 <22px 隐藏；HUD 全 body 级 fixed（禁进 transform 容器）；toast 在玩家条之下避让。三套降级：REDUCED（瞬移/DOM 玻璃卡/静态聚焦）、loperf-lite（中位帧间隔 >26ms → dpr1/关阴影/停环绕）、WebGL 不可用 → 2D 列表棋盘（同一状态机）。音效 WebAudio 合成零资源（`mono:sfx`）。
+**视觉/工程纪律**（沿用 §2）：ACES+sRGB+FogExp2 0.035+dpr 封顶；阴影只挂 DirectionalLight；格面纹理 256×256 POT+sRGB+LinearFilter；卡牌揭晓 =「镜头去卡，卡不动」（1.25s 推近 → 远边枢轴 +180° 翻面 650ms → 持读 1400ms → 420ms 退场，全墙钟 smoothstep）；名牌 Sprite 径向外偏 + 交替抬高 + 投影 <22px 隐藏；HUD 全 body 级 fixed（禁进 transform 容器）；toast 在玩家条之下避让。三套降级：REDUCED（瞬移/DOM 玻璃卡/静态聚焦）、loperf-lite（中位帧间隔 >26ms → dpr1/关阴影/停环绕）、WebGL 不可用 → 2D 列表棋盘（同一状态机）。音效 WebAudio 合成零资源（`mono:sfx`）。
 
 **E2E 钩子**：`?autotest=1`（种子 20260919、动画 ×0.15、自动开局「测试员 vs 机器人甲」、`window.__mono` 访问器含 `step/buy/handoff/forcePos/forceMoney/forceJail/resolveAt/mc`）；`&turbo=1`（×0.01 + 跳过渲染与一切动画——**rAF 帧率钳制会让蒙特卡洛跑十几分钟，turbo 必须绕开**）。探针：`.pw/probe-monopoly.cjs`（8907：A 确定性对局 / B 2D 降级 / C 20 局蒙特卡洛验收线：全部终局 + 平均局长 ≤20 轮上限 + 有破产发生）。
 
@@ -79,6 +88,7 @@ index.html 的首屏是**游戏中心**：三张游戏卡（🎭 真心话大冒
 **游戏侧改造**：setup 面板 = `<div id="party-net"></div>`（默认联机表单）+ `<details class="pn-adv">高级选项</details>`（热座 seat-rows/局长/交接闸/明牌 + 「开始本地热座 🪑」）；HUD 玩家条 pchip 增加头像 `netAvatarHtml(i)`（有 av 显示 DiceBear 图，热座回落色点）；`.pn-form[hidden]/.pn-lobby[hidden]` 必须 `display:none!important`（CSS display:grid 会压过 hidden 属性——视觉评审抓过）。**tod 本体未迁移**：其 join 屏与 arcade 门禁/头像定制器/战绩体系深度耦合，本轮保持原生（组件母本即它），v2 待议。
 
 **门禁与 E2E**：check-syntax.cjs 扩为「index+monopoly+uno 内联脚本 + party-net.js 过 new Function」+ three.js sha 三方一致；probe-mono-net 增 2 断言（默认落地 24 头像联机表单、热座收进高级选项）。改 party-net.js 必须三处联跑：probe-mono-net(8911)/probe-uno-net(8913)/check-syntax。已知坑：组件 `PartyNet`/`NET_STALE_*` 是全局——宿主适配层**不得重复声明**；`P.setStarted()` 后宿主镜像靠 onState 刷新（漏触发会让 ck 检查点被 started 守卫拦掉，症状=对端收到 started 但 game 恒 null）。
+- **邀请链接三件套（2026-09-23，四游戏表单对齐 tod 口径）**：①大厅 `.pn-invite`「📋 复制邀请链接」= `origin+pathname+'?room='+房号`，剪贴板降级链 clipboard API→execCommand→失败 toast 报房号（file:// 退化为纯房号邀请文字）；②表单 `?room=` 5 位数字预填（脏参数静默忽略）；③房号输入框 maxLength 放宽 120 + paste 事件即时抽取（整段邀请链接/「房号 12345」文字），join 处理器 pnExtractRoom 兜底+回写规整值。**`localOnly`（?localnet=1）已脱离 AUTOTEST 门控**（monopoly/uno 各一行）——普通模式可开离线本地房，probe-room-link(8951) 依赖此参数。门禁：probe-room-link 21 断言（预填/脏参/复制/链接直进/粘贴抽号/不存在房间负例/双页互 join）。
 
 
 
@@ -222,12 +232,13 @@ index.html 的首屏是**游戏中心**：三张游戏卡（🎭 真心话大冒
 - Particles: CSS-based floating confetti dots
 
 ### Animation System (One-Shot Camera Feel)
+- **镜头随流程（2026-09-22，用户点名「谁动了就跟谁、跟完回整个布局、推拉缓慢防晕」；方案 .pw/brief-cam-flow.md + 挑刺专家 SHIP WITH FIXES + 双检查官终审 SHIP WITH FIXES 全吸收；取证 .pw/ev-mono-verify.cjs 重写真机档 + .pw/ev-cam-final.cjs）**：三游戏统一节奏=「行动者出场 → 镜头跟行动 → 跟完缓回全景 → 下一位」。① **monopoly**：新增 `atOverview()/approachTurn()`——换人先 `focusPawn(back)`（1100ms，大角度转身天然在全景距完成=近距不甩镜）再推近（1250ms）；唯一免脉冲例外=同一位行动者原地再进入（免罚卡/出狱续掷，azOff<75°+近景两锚贴合）；热座交接卡显示同时回全景对准下一位；`camTo` 内 az 走最短弧（atan2 绝对角直插会绕远路转一整圈）；`movePawn` 跟随阻尼 0.90→0.92 且 dist/elev/tgt.y 同款阻尼**自愈**（近景推镜被快速掷骰打断时收敛到跟随档不冻结；打断后 `rig.autoDist=false` 防 resize 把 dist 拨回全景）；揭晓推近 1.25s/回全景 1s。② **uno**：glanceAside 推 focusK 0.84@750ms（已在推近态 focusK≤0.96 不重启=连续出牌不反复推拉）、回程顺延最后一手后 950ms、900ms 缓回全景；本端真人动作镜头保持稳定（防干扰点牌，既定设计）。③ **tod**：回合交接 `Cam.home(700)`、`Cam.nudge` 1000ms、`Cam.focus` 默认 1050ms、`focusCam` 1150ms、GL 揭晓近景 rStep 墙钟推近 1.15s/拉回 0.9s（吊灯滑移同曲线自动跟随）。**不动**：Cam.glance 320×2（与换屏 640ms 面板同拍，脱拍=穿帮）、Cam.init 900（开机落位）、realign 420（转屏续接）。降级红线全保留（REDUCED/bodyLo/TURBO 瞬落）。门禁：`check-syntax.cjs` 加 tod↔index 孪生镜头区断言（Cam 块/focusCam/home 行/rStep 四区域，单边漏改必红）；`ev-mono-verify.cjs` R2a 重写 inspect 真机档（390×844，SPEED=1；旧 autotest 档走位占空比 ~5% 采不到样本）+ 新增「回合间回全景穿越」「段内 az 角速率上界」「段末收敛近景」三条负向钉死；monopoly `__mono.distAnchor()` 访问器供探针读视口锚距。已知观察项：uno 连续 <950ms 出牌链回程顺延（自限，潮歇必回全景）；uno U3 bodyLo 8s 界与 perfWatch 机制下限不匹配（预存量，另票）。
 - **一镜到底（2026-09 统一为 Cam 调度）**：所有运镜都写 `#world3d` 的 transform 字符串（`translate3d` + `rotateX/Y/Z` + `scale`），`Cam.to(pose, ms, ease)` 用 rAF 补间；**新镜头接管 = `token++`**，旧镜头（含它的 done 回调）当场作废并从当前位置续接，所以永远不会跳帧
 - **换屏 = 一镜到底 + VR 扫视**：`renderScreen()` 只在换屏时干活——`Cam.enter` 记账（REDUCED/LOWPERF 就位），`armPan(旧屏, 新屏)` 给两面挂同一组 0.64s 恒速三段滑动（旧屏 `.leaving` 绝对定位滑出、新屏 `.entering` 从 +S 滑入），`armDepth(back, delay)` 同拍武装深度参照层（`body.tx-run`），`Cam.glance` 在 playSceneEnter 内同拍武装偏头一瞥（280ms 加载延迟共享）；方向是 `SCENE_ORDER` 环上的最短路。join→lobby→game→result 连起来读是镜头在房间之间连续扫视，每一次换屏是其中一站
 - **入场时钟必须和加载层对齐**（踩过的坑）：① 入场动画只能在屏已经 `.active`（display:flex）**之后**再挂——`display:none` 期间 CSS 动画不跑，早挂会变成“一显形就已终态”或先满屏闪一帧（所以 `renderScreen` 是「先切 active → 再 `queueSceneEnter`」）；② 加载层还盖着时入场一律攒进 `pendingSceneEnter`，由 `hideLoading()` 揭开幕那一刻放——**不能只在 `prev===null` 时攒**，否则「退出房间后再加入」这种 `lastScreenName` 已是 `join` 的路径会把入场提前放在加载层后面跑完，幕一揭开只剩静态大厅（这正是「加载动画和进入显示不同步」的根因）；③ `scene-in` 的 opacity 在 22% 就坐实到 1——加载层淡出时新屏已是不透明的，揭幕不会先露一段黑底
 - **退房不等网络**：`doLeave()` 先抓一份「离开后的房间状态」，**不等 `publishState`/`clearPool` 落地**就把 `joined/S/link` 归零并 `renderScreen()` 切回加入页（退房广播与关链路丢到后台补发；失败也无所谓，心跳超时同样会清掉我）。旧版 `await link.publishState(next)` 在坏网络下会变成退房时一段没任何反馈的空白卡顿。`/rejoin` 回归锁在 `.pw/test-rejoin.cjs` 的「手动退出后不再自动回房」
-- **头个回合不抢镜**：进入牌桌时 `Cam.enter` 正在跑推进段，`runStage('choosing')` 用 `Cam.enteredAt` 判定「刚换屏」——刚换屏就不重复 `Cam.home`、把滑向持麦人的 `Cam.nudge` 拖到 1240ms（等推进段落定）；回合内交接才维持 `home(420)` + 460ms 后 `nudge`
-- **牌桌常态机位**：game = `{z:-56, rx:19, s:1}`（第三人称过肩俯视，2026-09 v6）；抽卡时 `focusCam(deck)` → `{z:-76, s:1.05}`，落牌后推卡牌 `{s:1.05}`，翻前 `Cam.shake()` 轻震；交接回合 `Cam.home(420)` 回桌心 → 460ms 后 `Cam.nudge(新持麦人)` 滑过去
+- **头个回合不抢镜**：进入牌桌时 `Cam.enter` 正在跑推进段，`runStage('choosing')` 用 `Cam.enteredAt` 判定「刚换屏」——刚换屏就不重复 `Cam.home`、把滑向持麦人的 `Cam.nudge` 拖到 1240ms（等推进段落定）；回合内交接才维持 `home(700)`（2026-09-22 镜头放缓轮 420→700）+ 460ms 后 `nudge`
+- **牌桌常态机位**：game = `{z:-56, rx:19, s:1}`（第三人称过肩俯视，2026-09 v6）；抽卡时 `focusCam(deck)` → `{z:-76, s:1.05}`，落牌后推卡牌 `{s:1.05}`，翻前 `Cam.shake()` 轻震；交接回合 `Cam.home(700)` 回整个布局（2026-09-22 镜头放缓轮 420→700）→ 460ms 后 `Cam.nudge(新持麦人)` 滑过去
 - **`Cam.focus` 的偏移必须在镜头坐标系里算**（踩过的坑）：`landforce` 旋转兜底时 `body` 整体 `rotate(90deg)`，`#world3d` 的 `translate3d` 跟着转，而 `getBoundingClientRect()` 给的是**屏幕**坐标。直接拿屏幕坐标当偏移会把 x/y 轴对调——横屏下抽卡镜头会横着平移而不是推向卡堆（`landPick()` + `--lvw/--lvh` 逻辑视口做换算；非旋转路径 `landPick` 是恒等，竖屏/真横屏数值不变）。实测同一张卡（屏幕中心 621,213）在「真横屏」与「旋转兜底」两种模式下现在算出同一个目标偏移 `[-45,-6]`
 - **横竖屏切档不切镜**：`applyLand()` 判定 `landui` 翻转时不再 `resetCam(true)` 瞬移，改 `Cam.realign()`——`focus()` 记下最近聚焦的元素，换档后按新布局重算落点续接那一段运镜，没有聚焦元素就 `home(420)` 补间回新常态。旧写法那一瞬会把在跑的运镜连同它的 done 回调一起作废：抽卡中场转屏会看到机位硬切一下（实测单帧 Δz=18、Δs=0.048 无中间帧），之后停在常态不再推镜
 - **横屏镜头平移量**：`focus()` 的位移夹紧是 `LAND.ui ? ±16/±12 : ±46/±34`——横屏下留白更紧，夹紧是为了不让世界层平移露出 `.screen` 边缘（聚焦档净投影 ≈1.0×，没有富余）。代价是横屏里卡位（`#card-section` 居中需要 x≈-45）只能拿到 -16px，卡片落在屏幕中线右侧；这是版式取舍，未改动
@@ -250,7 +261,7 @@ index.html 的首屏是**游戏中心**：三张游戏卡（🎭 真心话大冒
 - **防闪答案动画锁**：`applyState` 在 `renderScreen` 绘帧前上锁（`revealAnim`/`cardDealt`），`renderGameStatic` 的 drawing/revealed 分支在动画窗口内直接 return；`playReveal` 用 `transition:none` 瞬时归位牌背再翻，保证“答案不会先闪现再翻回去”；`clearStageTimers` 同时清打字机 timer，防止旧回合对隐藏元素补放彩带
 - **Punishment reveal**: Typewriter text effect with blinking caret, confetti burst
 - **Turn transition**: All avatars subtly pulse, winner glows
-- **Camera pan**: 由 `Cam.focus/nudge` 承担（世界层位移 ≤46px + 轻微 scale，不叠 `scrollIntoView`）；抽卡链路 deck→card 两次缓推（0.95s transform 补间），REDUCED 下全部瞬时到位
+- **Camera pan**: 由 `Cam.focus/nudge` 承担（世界层位移 ≤46px + 轻微 scale，不叠 `scrollIntoView`）；抽卡链路 deck→card 两次缓推（1.15s transform 补间，2026-09-22 镜头放缓轮 0.95→1.15），REDUCED 下全部瞬时到位
 
 ### Phase 2.75: 趣味互动（新增）
 - **😀 表情雨**：右上角互动浮窗 `#react-bar`（默认收成一颗 44px 浮标 😀，点开才展开 6 颗 emoji 按钮 👏😂😱🔥😈❤️ —— 按钮上显示的就是实际会广播出去的那个表情）在大厅/牌桌可用；展开后发送 1.4s 自动收起，无操作 9s、点屏幕其他位置、Esc 也收起。**位置经过实测**（`.pw/probe-reactdock.cjs`）：浮标固定在右上角（横屏开关下方），展开为竖排 —— 竖屏与横屏、join/lobby/game/revealed 上都与任何 `button/input/.player-card/.choice-card` 零重叠（旧版底栏在 390×844 会压住选卡与工具栏、在横屏左中会压住玩法切换）。点击 → 本机立刻飘一颗 + 房间广播（独立 topic `tod/v1/<房间>/react`，**非 retained**、qos0，不进房间状态），其他人 ~0.1-3s 内看到同样的表情从底部升起。防刷屏 320ms/颗、白名单外表情直接丢、`REACT_SEEN` 去重 + 5s 时效（本地模式 retained 回放不补放）、粒子上限 14（LOWPERF 5）且 2.4-2.6s 自清理

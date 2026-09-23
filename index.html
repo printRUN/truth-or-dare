@@ -3552,7 +3552,7 @@ const Cam = {
   },
   home(ms = 750, done) { this.to(this.baseOf(this.curScreen), ms, 'dolly', done); },
   // 把元素缓缓带到画面中心（旧 focusCam 的 3D 升级版）：位移小、只动 transform，不会糊字
-  focus(el, { push = 1.05, dur = 900, ease = 'dolly' } = {}) {
+  focus(el, { push = 1.05, dur = 1050, ease = 'dolly' } = {}) {
     if (!el || REDUCED) return;
     const r = el.getBoundingClientRect();
     if (!r.width || !r.height) return;
@@ -3569,7 +3569,7 @@ const Cam = {
     this.lastFocus = el; this.lastFocusPush = push;   // 供 realign() 换档后续接这一段运镜
     this.to({ x: b.x + Math.max(-mx, Math.min(mx, -nx * 190)), y: b.y + Math.max(-my, Math.min(my, -ny * 150)), z: b.z - 20, s: b.s * push }, dur, ease);
   },
-  nudge(el) { this.focus(el, { push: 1.035, dur: 820 }); },
+  nudge(el) { this.focus(el, { push: 1.035, dur: 1000 }); },
   // 横竖屏切档（base 表换了）：不切镜——从当前机位补间到新档。刚才正聚焦在某个元素上就按新布局
   // 重算一次落点，让跨方向的那一段一镜到底接着走；否则回新常态位。
   // 旧写法是 resetCam(true) 瞬移：那一瞬会把在跑的运镜连同它的 done 回调一起作废，
@@ -3629,7 +3629,7 @@ async function runStage(stage) {
     // 一镜到底：刚换到牌桌时不抢镜——等 Cam.enter 的推进段落定再滑向持麦人；
     // 回合内交接（相机已在牌桌上）才先回桌心再滑过去，两段接力读成一次连续机位调整。
     const fresh = performance.now() - (Cam.enteredAt || 0) < 1300;
-    if (!fresh) Cam.home(420);
+    if (!fresh) Cam.home(700);   // 回合交接先缓回整个布局（用户点名「跟完回全景、推拉缓慢防晕」），再滑向下一位
     const seat = activeCard && activeCard.closest('.player-card');
     if (seat) {
       // 慢帧率竞态修复：glance 第二段(320ms)收尾若被 rAF 饥饿拖过 1240ms，nudge 的 token 会把
@@ -3846,10 +3846,10 @@ function focusCam(el) {
   if (r && !r.width && !r.height && typeof THREE !== 'undefined' && document.body.classList.contains('three3d') && !REDUCED) {
     const b = Cam.baseOf(Cam.curScreen);
     Cam.lastFocus = el; Cam.lastFocusPush = 1.05;
-    Cam.to({ x: b.x, y: b.y, z: b.z - 20, s: b.s * 1.05 }, 950, 'dolly');
+    Cam.to({ x: b.x, y: b.y, z: b.z - 20, s: b.s * 1.05 }, 1150, 'dolly');
     return;
   }
-  Cam.focus(el, { push: 1.05, dur: 950 });
+  Cam.focus(el, { push: 1.05, dur: 1150 });
 }
 function resetCam(instant) { if (instant) Cam.jump(Cam.baseOf(Cam.curScreen)); else Cam.home(750); }
 
@@ -3928,6 +3928,7 @@ const SFX = {
       else if (name === 'combo') [660, 880, 1174].forEach((f, i) => this.tone(f, 0.18, 'square', 0.38, 0, i * 0.07));
       else if (name === 'tap') { this.tone(760, 0.05, 'sine', 0.4); this.tone(1200, 0.045, 'sine', 0.2, 0, 0.018); }
       else if (name === 'draw') { this.tone(280, 0.3, 'triangle', 0.42, 880); this.tone(960, 0.18, 'sine', 0.28, 1520, 0.16); }
+      else if (name === 'pick') { this.tone(660, 0.08, 'triangle', 0.5); this.tone(990, 0.16, 'sine', 0.38, 0, 0.06); }   // 选定音：短促上行双音（与 tap 的瞬响区分；随后 draw 280→880 同族上行接棒）
       else if (name === 'spark') [880, 1174, 1568].forEach((f, i) => this.tone(f, 0.16, 'sine', 0.32, 0, i * 0.05));
       else if (name === 'react') this.tone(560 + Math.random() * 420, 0.12, 'sine', 0.38);
       else if (name === 'pop') this.tone(620 + Math.random() * 160, 0.1, 'sine', 0.5, 1320);   // 表情气泡弹出（3D 小人头顶）：短促上滑啵
@@ -4601,6 +4602,7 @@ async function choose(type) {
   } else if (S.turn.chooserId !== myId) { toast('还没轮到你哦', 'error'); return; }
   $('card-' + type).classList.add('picked');
   setChoiceEnabled(false);
+  SFX.play('pick');   // 选定音：校验通过的瞬间拍板（DOM 与 GL raycast 两条路径都汇入 choose()，天然只响一次不双响）
   SFX.play('whoosh');
   // 第三人称拍桌：我选了，背影拍一下桌沿（一次性 keyframes 挂 .tp-inner，与前倾态 transform 不打架）
   const tp = document.getElementById('tp-back');
@@ -7023,7 +7025,7 @@ setTimeout(() => {
     m.position.set(0, 0, 0.42);
     g.add(m);
     scene.add(g);
-    return { group: g, mesh: m, pick: 0, pickTarget: 0, hov: 0, press: 0, flash: 0 };
+    return { group: g, mesh: m, pick: 0, pickTarget: 0, hov: 0, press: 0, flash: 0, poolFlash: 0 };
   }
   const cTruth = choiceCard(-0.78, true), cDare = choiceCard(0.78, false);
   const CARD_LOOK = new THREE.Vector3(0, FELT_Y + 0.05, REST.z - CARD_L);   // 翻面后卡心实际在 -1.28（远边枢轴北移一个卡长），取景对齐它
@@ -7188,6 +7190,10 @@ setTimeout(() => {
       const hovB = canPickNow && hovName === (i ? 'dare' : 'truth') ? 1.35 : 1;   // hover 增益只在能点时生效（⑫① 门禁同规）
       cc.pool.visible = choosing;
       cc.pool.material.opacity = choosing ? (canPickNow ? (0.34 + 0.16 * breathe) * hovB : 0.10) : 0;
+      if (cc.poolFlash > 0) {   // 选中 65° 抬升期的光池增亮：hover 档的一次性 flash 直接叠在基础亮度上（不新增节点，复用光池 mesh；REDUCED 恒 0=静态退路）
+        cc.pool.material.opacity = Math.min(1, cc.pool.material.opacity + 0.5 * cc.poolFlash);
+        cc.pool.visible = true;
+      }
       if (cc.flash <= 0) {   // 卡面自发光呼吸（uniform 直写；flash 白闪优先，不叠染色）
         const k = choosing ? (canPickNow ? 0.10 + 0.10 * breathe + 0.18 * cc.hov : 0.04) : 0;
         const tn = i ? [0.98, 0.45, 0.09] : [0.22, 0.74, 0.97];
@@ -7878,6 +7884,7 @@ setTimeout(() => {
       cTruth.pickTarget = truth ? 1 : -1;
       cDare.pickTarget = truth ? -1 : 1;
       cc.flash = 1;   // 牌面白闪（tickChoice 衰减）
+      cc.poolFlash = IS_REDUCED ? 0 : 1;   // 光池一次性增亮脉冲（tickChoice 衰减、tickChoiceFx 叠加写值；reset 不清，同 flash 红线）
       feltRipple(cc.group.position.x, cc.group.position.z + 0.42, truth ? 0x3b82f6 : 0xf97316);   // 选中卡的毡面炸一圈
       try { choose(truth ? 'truth' : 'dare'); } catch (err) { dbg.chooseErr = err.message; }
     } else {
@@ -8036,7 +8043,7 @@ setTimeout(() => {
       }
     }
     if (st.phase === 'shown' && inRound) revealTarget = document.body.classList.contains('egg-aim') ? 0 : 1;   // 🥚 瞄准态暂时拉远：近景机位随卡到抽卡者一侧后全员贴脸/出画没得点人（⑮「任何阶段可扔」），收瞄准镜头滑回近景
-    const rStep = dt / (revealTarget > revealK ? 0.9 : 0.7);   // 墙钟定长推镜：慢帧率设备节奏不漂
+    const rStep = dt / (revealTarget > revealK ? 1.15 : 0.9);   // 墙钟定长推镜：慢帧率设备节奏不漂；推近/拉回放缓（用户点名「缓慢防晕」）
     revealK += Math.sign(revealTarget - revealK) * Math.min(Math.abs(revealTarget - revealK), rStep);
     if (IS_REDUCED) revealK = revealTarget;
 
@@ -8229,6 +8236,7 @@ setTimeout(() => {
       cc.flash = Math.max(0, cc.flash - dt * 2.4);
       cc.mesh.material[2].emissive.setRGB(cc.flash, cc.flash, cc.flash);
     }
+    if (cc.poolFlash > 0) cc.poolFlash = Math.max(0, cc.poolFlash - dt * 2.4);   // 光池脉冲同款 2.4 速率自然衰减；resetChoiceCards 故意不清（活过 reset 红线，同上 flash）
     const dim = cc.pick < -0.001 ? 0.3 : 1;   // 未选压暗（uniform 写值即可，禁 needsUpdate——会触发重编译）
     const mats = [cc.mesh.material].flat();
     mats.forEach(mm => { if (mm.transparent && mm.opacity !== dim) mm.opacity = dim; });
