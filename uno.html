@@ -97,6 +97,11 @@
   .panel h2 { font-size: 1.25rem; margin-bottom: 4px; }
   .panel .sub { font-size: 0.8rem; color: rgba(255,255,255,0.6); margin-bottom: 16px; }
   .panel.center { text-align: center; }
+  /* 宽屏 setup 面板拉宽：party-net 表单在 ≥720px 做左右分区（对齐 tod 加入页），420px 窄盒装不下两列；只圈 #setup 不碰其他 .panel 弹层 */
+  @media (min-width:720px) {
+    #setup .panel { max-width: 960px; }
+    #setup #adv-box, #setup #rules-box { max-width: 600px; }   /* 热座/规则速览限宽：960 通栏一行百字难读 */
+  }
   .btn-primary { display: block; width: 100%; min-height: 52px; border: none; border-radius: 16px; background: linear-gradient(135deg, var(--primary), var(--accent-pink)); color: #fff; font-size: 1.02rem; font-weight: 800; cursor: pointer; }
   .btn-primary:active { transform: scale(0.98); }
   .btn-ghost { display: block; width: 100%; min-height: 44px; margin-top: 10px; border-radius: 14px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.06); color: #fff; font-size: 0.9rem; cursor: pointer; }
@@ -412,6 +417,10 @@ const P = PartyNet.create({
       if (now - (np.lastSeen || 0) > 90000) { gp.bot = true; gp.name = gp.name + '🤖'; if (n.players[i]) n.players[i].bot = true; }
     });
   },
+  onRejoin: (n, me) => {   // 座位回收（2026-09-23 防掉线双胞胎）：掉线期间被代管为机器人的座位，真人回来就还给他（prune 的逆操作）
+    if (!n.game) return;
+    n.game.players.forEach((gp, i) => { const np = n.players[i]; if (np && np.id === me.id && gp.bot) { gp.bot = false; gp.name = np.name; } });
+  },
   onStart: () => netStartGame({}),
   avSeedPrefix: 'UNO',
 });
@@ -523,8 +532,9 @@ function syncNetHUD() {
       const chip = $('pchip-' + i);
       if (chip) chip.classList.toggle('off', Date.now() - (p.lastSeen || 0) > 40000);
     });
-    $('setup').hidden = true;
   }
+  // setup 显隐统一收口（2026-09-23 防掉线双胞胎）：开局中隐藏；大厅/掉线重连失败回设置屏显示
+  $('setup').hidden = !!(onNet && NDOC && NDOC.started);
 }
 function netAvatarHtml(i) {
   const rep = NETMODE && NDOC && NDOC.players[i] && NDOC.players[i].av;
@@ -1604,6 +1614,8 @@ async function boot() {
     openGenModal(`<p style="line-height:1.9">🏠 发现上一局<br><b>${esc(lead.name)} 只剩 ${lead.hand.length} 张</b></p>`,
       [{ label: '继续对局', fn: () => { closeGenModal(); resumeGame(save); } },
        { label: '弃局重来', fn: () => { closeGenModal(); clearSave(); $('setup').hidden = false; } }]);
+  } else if ((() => { try { return !!sessionStorage.getItem('uno:netroom'); } catch (e) { return false; } })()) {
+    // 有在房票据：自动回房即将接管，不再翻出设置屏（2026-09-23 防掉线双胞胎）
   } else {
     $('setup').hidden = false;
   }

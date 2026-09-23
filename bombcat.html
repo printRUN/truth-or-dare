@@ -72,6 +72,19 @@ details.adv .adv-in { display: flex; flex-direction: column; gap: 8px; margin-to
 .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 .ghost { padding: 8px 14px; border-radius: 999px; background: var(--glass); border: 1px solid var(--glass-border); font-size: 0.82rem; color: rgba(255,255,255,0.85); }
 .join-row { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+/* 宽屏左右分区（对齐 tod 加入页）：左列昵称/房号/高级选项/CTA/链接，右列猫头像墙；窄视口保持原堆叠 */
+@media (min-width:720px) {
+  .join-box { max-width: 860px; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr); grid-template-rows: repeat(6, auto); align-items: start; align-content: start; gap: 14px 18px; }
+  .join-box > label:nth-of-type(1) { grid-column: 1; grid-row: 1; }   /* 昵称 */
+  .join-box > label:nth-of-type(2) { grid-column: 2; grid-row: 1 / span 6; align-self: start; max-height: calc(100vh - 170px); overflow-y: auto; padding-right: 2px; }   /* 猫头像墙跨行 */
+  .join-box > label:nth-of-type(3) { grid-column: 1; grid-row: 2; }   /* 房号 */
+  .join-box > details.adv { grid-column: 1; grid-row: 3; }
+  .join-box > #btn-join { grid-column: 1; grid-row: 4; }
+  .join-box > .join-row { grid-column: 1; grid-row: 5; }
+  .join-box > div { grid-column: 1; grid-row: 6; }
+  #cat-pick { grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  #cat-pick .ctile.dice { font-size: 1.6rem; }   /* 格子放大后骰子字号同步提一档 */
+}
 
 /* ── 大厅 ── */
 .room-head { margin: 14px 0 6px; display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; font-size: 1rem; }
@@ -865,8 +878,14 @@ const CAT = (() => {
         for (const p of G.players) { p.alive = true; p.left = false; p.afk = 0; }
         log('房间回到大厅');
       }
-      if (G.stage !== 'lobby') return { ok: false, err: 'spectate' };   // 局中进入 → 观战
-      if (P(id)) { P(id).name = name || P(id).name; return { ok: true }; }
+      if (P(id)) {   // 已知身份先认回座位（2026-09-23 防掉线双胞胎）：局中掉线重连不再被打成观战——hello 会补发手牌；主动离开者的手牌已清，lastSeen 续上即可
+        const p0 = P(id); p0.name = name || p0.name; p0.lastSeen = Date.now(); return { ok: true, rejoin: true };
+      }
+      if (G.stage === 'lobby') {   // 大厅同名回收：同名玩家=掉线前的自己，座位过户给新 id（局中不做——G.turn/pending/手牌索引都以旧 id 牵连，只保同标签 hello 恢复）
+        const twin = G.players.find(q => q.name === (name || '玩家') && q.id !== id);
+        if (twin) { twin.id = id; twin.lastSeen = Date.now(); return { ok: true, rejoin: true }; }
+      }
+      if (G.stage !== 'lobby') return { ok: false, err: 'spectate' };   // 全新身份局中进入 → 观战
       G.players.push({ id, name: name || '玩家', av: av || 'bc:0:x', joinedAt: Date.now(), alive: true, afk: 0, left: false, cnt: 0, lastSeen: Date.now() });
       log(`${name} 加入了房间`);
       return { ok: true };
@@ -1264,7 +1283,7 @@ const CAT = (() => {
    私密手牌经 p/<pid> 下发；hello 重试直到收到。客户端 state 按 seq 单调去重。 */
 
 let myId = sessionStorage.getItem('cat:tab-id') || '';
-if (!myId) { myId = genId(); try { sessionStorage.setItem('cat:tab-id', myId); } catch {} }
+if (!myId) { myId = genId(); try { sessionStorage.setItem('cat:tab-id', myId); } catch {} }   // 身份按标签页；跨标签掉线重开由引擎 join() 的同名回收认作同一人（2026-09-23）
 let link = null, engine = null;
 let S = null;                       // 公共态镜像
 let PRIV = { hand: [], peek: null, pendingPeek: false };
@@ -1322,11 +1341,19 @@ async function doJoin() {
       becomeHost(room);
       engine.join(myId, name, av);
       hostPublish('创建房间');
+    } else if (!engine && S.hostId === myId && S.stage === 'lobby') {
+      // 房主刷新回来（2026-09-23 防掉线双胞胎）：hostId===myId 只会命中创建者自己的标签会话，
+      // 直接接管自己的房间——续用 retained 的 seq/ver/成员表，别人发出的 join 不再无人应答
+      becomeHost(room);
+      engine.G = Object.assign(engine.G, JSON.parse(JSON.stringify(S)), { hostId: myId });
+      engine.join(myId, name, av);
+      hostPublish('房主回归');
     } else {
       sendAct({ t: 'join', name, av });
       // 手牌补发/在场心跳统一由 startTimers 的 15s hello 循环接管（此前这里的 1.5s 循环会被 startTimers 当场清掉）
     }
     startTimers();
+    try { localStorage.setItem('cat:room', JSON.stringify({ room, ts: Date.now(), local: !!$('#chk-local').checked })); } catch {}   // 回房票据（2026-09-23 防掉线双胞胎）：刷新/重开自动认回同 uid 座位；本地标志随票恢复，否则重开走公网开出平行房间
     if (S && S.stage === 'turn') { showScreen('game'); renderGame(); }   // 局中进入 → 观战视图
     else { showScreen('lobby'); renderLobby(); }
   } finally { btn.disabled = false; }
@@ -1793,7 +1820,7 @@ $('#in-room').addEventListener('paste', ev => {   // 粘整段邀请链接/文�
 });
 $('#in-room').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
 $('#btn-start').onclick = () => { sendAct({ t: 'start' }); SFX.play('deal'); };
-$('#btn-leave').onclick = () => { sendAct({ t: 'leave' }); leaveRoom(); };
+$('#btn-leave').onclick = () => { sendAct({ t: 'leave' }); leaveRoom(); try { localStorage.removeItem('cat:room'); } catch {} };   // 主动离开清回房票据：重开页面不再自动回房
 $('#btn-draw').onclick = () => { sendAct({ t: 'draw' }); SFX.play('draw'); };
 $('#btn-endturn').onclick = () => { sendAct({ t: 'end' }); };
 $('#btn-guide').onclick = () => { $('#ovl-guide').hidden = false; };
@@ -1945,7 +1972,16 @@ function cardFaceURL(cardId) {
       $('#bg').appendChild(c);
     }
   }
-  if (urlRoom) { toast('已带上房号 ' + urlRoom + '，输入名字即可加入'); try { $('#in-name').focus(); } catch (e) {} }   // 对齐 tod「发现房间」落地引导（2026-09-23）
+  if (urlRoom) { toast('已带上房号 ' + urlRoom + '，输入名字即可加入'); try { $('#in-name').focus(); } catch (e) {} }
+  try {   // 自动回房（2026-09-23 防掉线双胞胎）：同 uid 认回座位不产生第二个自己；主动离开已清票据；票据 10 分钟过期防复活死房
+    const t = JSON.parse(localStorage.getItem('cat:room') || 'null');
+    if (!urlRoom && t && t.room && Date.now() - (t.ts || 0) < 10 * 60 * 1000) {
+      $('#in-room').value = t.room;
+      const lc = document.getElementById('chk-local');
+      if (lc) lc.checked = !!t.local;   // 本地标志随票恢复（checkbox 刷新后复位）
+      doJoin();
+    }
+  } catch (e) {}   // 对齐 tod「发现房间」落地引导（2026-09-23）
 })();
 
 /* ── 调试句柄（E2E 依赖）── */
