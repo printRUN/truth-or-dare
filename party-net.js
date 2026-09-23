@@ -1611,7 +1611,7 @@ function updateMicBadges() {
     root = typeof container === 'string' ? document.getElementById(container) : container;
     if (!root || root._pn) return root; root._pn = true;
     const form = el('div', 'pn-form');
-    const name = el('input', 'pn-name'); name.maxLength = 8; name.placeholder = '你的昵称'; name.autocomplete = 'off';
+    const name = el('input', 'pn-name'); name.maxLength = 8; name.placeholder = '你的昵称'; name.autocomplete = 'off'; name.setAttribute('enterkeyhint', 'go');
     try { name.value = localStorage.getItem(key + ':netname') || ''; } catch (e) {}
     const create = el('button', 'btn-primary pn-create', '🌐 创建房间'); create.type = 'button';
     const row = el('div', 'pn-row');
@@ -1625,13 +1625,26 @@ function updateMicBadges() {
     });
     const joinB = el('button', 'btn-primary pn-join', '加入'); joinB.type = 'button';
     row.appendChild(roomIn); row.appendChild(joinB);
-    // 直进预填：邀请链接 ?room=12345 打开即带房号（数字 5 位才认，脏参数静默忽略）
-    try {
-      const qr = pnExtractRoom(decodeURIComponent(location.search));
-      if (qr) roomIn.value = qr;
-    } catch (e) {}
     const hint = el('p', 'pn-sub', '创建房间把 5 位房号发给朋友；也可直接粘贴邀请链接或「房号 12345」文字。本地热座收在「高级选项」。');
     form.appendChild(name); form.appendChild(create); form.appendChild(row); form.appendChild(hint);
+    // 直进预填（2026-09-23 对齐 tod「发现房间 X，输入名字即可加入」落地体验）：邀请链接 ?room=12345 打开即带房号
+    // （数字 5 位才认，脏参数静默忽略）；带房号落地改提示文案并聚焦名字框，名字框回车即加入。
+    try {
+      const qr = pnExtractRoom(decodeURIComponent(location.search));
+      if (qr) {
+        roomIn.value = qr;
+        hint.textContent = `已带上房号 ${qr} —— 输入名字即可加入`;
+        // 聚焦名字框：宿主 boot（说明弹层/头像 UI 装配）可能随后夺焦，短轮询重试直到焦点钉在名字框
+        let tries = 0;
+        const focusName = () => {
+          if (tries++ > 10 || !root.isConnected) return;
+          try { name.focus(); } catch (e) {}
+          if (document.activeElement !== name) setTimeout(focusName, 200);
+        };
+        setTimeout(focusName, 350);
+      }
+    } catch (e) {}
+    name.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); joinB.click(); } });
 
     const lobby = el('div', 'pn-lobby'); lobby.hidden = true;
     const code = el('div', 'pn-code', '房号 <b class="pn-code-b">-----</b>');
