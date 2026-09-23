@@ -431,6 +431,10 @@ const P = PartyNet.create({
       if (now - (np.lastSeen || 0) > 90000) { gp.bot = true; gp.name = gp.name + '🤖'; if (n.players[i]) n.players[i].bot = true; }
     });
   },
+  onRejoin: (n, me) => {   // 座位回收（2026-09-23 防掉线双胞胎）：掉线期间被代管为机器人的座位，真人回来就还给他（prune 的逆操作）
+    if (!n.game) return;
+    n.game.players.forEach((gp, i) => { const np = n.players[i]; if (np && np.id === me.id && gp.bot) { gp.bot = false; gp.name = np.name; } });
+  },
   onStart: () => netStartGame({ roundLimit: +$('net-round').value }),
   lobbyExtraHtml: `<div class="opt-row" id="net-round-row">局长
     <select id="net-round">
@@ -534,8 +538,9 @@ function syncNetHUD() {
       const chip = $('pchip-' + i);
       if (chip) chip.classList.toggle('off', Date.now() - (p.lastSeen || 0) > NET_STALE_GRAY_MS);
     });
-    $('setup').hidden = true;
   }
+  // setup 显隐统一收口（2026-09-23 防掉线双胞胎）：开局中隐藏；大厅/掉线重连失败回设置屏显示
+  $('setup').hidden = !!(onNet && NDOC && NDOC.started);
 }
 // HUD 玩家条头像（tod 配方协议；无 av 的本地热座回落色点）
 function netAvatarHtml(i) {
@@ -1788,6 +1793,8 @@ async function boot() {
     openGenModal(`<p style="line-height:1.9">🏠 发现上一局<br><b>第 ${Math.min(...save.players.filter(p => !p.bankrupt).map(p => p.turnsTaken)) + 1} 轮 · ${escapeHtml(leader.name)} 领先</b></p>`,
       [{ label: '继续对局', fn: () => { closeGenModal(); resumeGame(save); } },
        { label: '弃局重来', fn: () => { closeGenModal(); clearSave(); $('setup').hidden = false; } }]);
+  } else if ((() => { try { return !!sessionStorage.getItem('mono:netroom'); } catch (e) { return false; } })()) {
+    // 有在房票据：自动回房即将接管，不再翻出设置屏（2026-09-23 防掉线双胞胎）
   } else {
     $('setup').hidden = false;
   }

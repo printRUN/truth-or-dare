@@ -1341,8 +1341,11 @@ function updateMicBadges() {
     window.addEventListener('storage', e => { if (e.key === AV_STORE_KEY) { reloadStore(); renderMine(); } });   // 多端写库对账（F6）
   }
 
-  /* ── 实例状态（S/myId/joined/link/NDOC 与 MIC 块的既名对齐） ── */
-  let NDOC = null, S = null, myId = sessionStorage.getItem(key + ':tab') || genId();
+  /* ── 实例状态（S/myId/joined/link/NDOC 与 MIC 块的既名对齐） ──
+     身份三级降级（2026-09-23 防掉线重连双胞胎）：sessionStorage 标签票（同标签刷新）→ localStorage uid
+     （标签页被杀/浏览器重启后重开同一游戏仍认得你）→ 新 genId。sessionStorage 随标签死亡是
+     「掉线重连出现两个同样用户」的根因。 */
+  let NDOC = null, S = null, myId = sessionStorage.getItem(key + ':tab') || genId();   // 身份按标签页：同标签刷新沿用；跨标签重开靠 enter() 同名回收防双胞胎
   try { sessionStorage.setItem(key + ':tab', myId); } catch (e) {}
   let joined = false, NETMODE = false, link = null, netHBTimer = null;
   let lastKickSeq = 0, firstNetApply = true, root = null;
@@ -1381,7 +1384,8 @@ function updateMicBadges() {
         const o = old.get(p.id);
         return o && (o.lastSeen || 0) > (p.lastSeen || 0) ? Object.assign({}, p, { lastSeen: o.lastSeen }) : p;
       });
-      for (const o of old.values()) if (!d.players.some(p => p.id === o.id)) d.players.push(o);
+      const replaced = new Set(d.replaced || []);                        // 过户墓碑：旧 id 已让位给新 id，不再追加回来
+      for (const o of old.values()) if (!d.players.some(p => p.id === o.id) && !replaced.has(o.id)) d.players.push(o);
     }
     const prevIds = NDOC ? NDOC.players.map(p => p.id) : [];
     const wasStarted = NDOC && NDOC.started;
@@ -1409,7 +1413,7 @@ function updateMicBadges() {
   /* ── 房间生命周期 ── */
   async function enter(room, name, asHost) {
     NETMODE = true;
-    try { sessionStorage.setItem(key + ':netroom', room); } catch (e) {}
+    try { sessionStorage.setItem(key + ':netroom', room); sessionStorage.setItem(key + ':netname-tab', name); } catch (e) {}   // 名字入标签票据：netname 是跨标签共享的，会被后加入者覆盖（2026-09-23 教训）
     link = new RoomLink(room, prefix, key);
     if (cfg.localOnly) link.useLocal();
     else await link.open();
@@ -1418,6 +1422,17 @@ function updateMicBadges() {
     link.subscribeReact(m => { try { cfg.onReact && cfg.onReact(m); } catch (e) {} });
     const existing = asHost ? null : await probeRoom(room);
     if (!asHost && !existing) { toast('房间不存在或已过期', 'error'); leave(true); return false; }
+    // 同名回收（2026-09-23 防掉线双胞胎）：房间里有同名玩家=掉线前的自己，把座位过户给本标签的新 id——
+    // 大厅/开局中都成立（开局中被代管为机器人的座位也由此拿回）。先过户再算 mySeat，后续判定全部生效。
+    if (existing) {
+      const twin = existing.players.find(p => (p.name || '') === name && p.id !== myId);
+      if (twin) {
+        const oldId = twin.id;
+        twin.id = myId; twin.lastSeen = Date.now(); twin.bot = false;
+        existing.replaced = (existing.replaced || []).filter(x => x !== myId).concat(oldId).slice(-8);   // 过户墓碑：告知其他成员旧 id 已作废，防「成员合并」把掉线前的自己再加回来
+        if (existing.game && cfg.onRejoin) { try { cfg.onRejoin(existing, twin); } catch (e) {} }
+      }
+    }
     const mySeat = existing && existing.players.some(p => p.id === myId);
     if (existing && existing.started && !mySeat) { toast('该房间已开局，无法加入', 'error'); leave(true); return false; }
     if (existing && !existing.started && existing.players.length >= maxPlayers && !mySeat) { toast(`房间满员（${maxPlayers} 人）`, 'error'); leave(true); return false; }
@@ -1426,9 +1441,14 @@ function updateMicBadges() {
       seq: existing ? (existing.seq || 0) + 1 : 0,   // 从房间现役 seq 起步：归零会被全员守卫丢弃（幽灵加入）
       started: existing ? existing.started : false, game: existing ? existing.game : null,
       players: existing ? existing.players.slice() : [],
+      replaced: existing ? (existing.replaced || []).slice() : [],
     };
     if (!doc.players.some(p => p.id === myId)) doc.players.push({ id: myId, name, av: myAvatar(), micOn: false, micListen: true, lastSeen: Date.now() });
-    else { const me = doc.players.find(p => p.id === myId); me.lastSeen = Date.now(); me.name = name || me.name; me.av = me.av || myAvatar(); }
+    else {
+      const me = doc.players.find(p => p.id === myId); me.lastSeen = Date.now(); me.name = name || me.name; me.av = me.av || myAvatar();
+      if (me.bot) me.bot = false;   // 座位回收（2026-09-23 防掉线双胞胎）：掉线期间被代管为机器人的座位，真人回来就收回
+      if (doc.game && cfg.onRejoin) { try { cfg.onRejoin(doc, me); } catch (e) {} }   // 宿主回收游戏态座位（大富翁/UNO 的 gp.bot），随后随本 doc 一起发布
+    }
     NDOC = doc; S = doc; joined = true;
     link.publishState(doc);
     startTimers();
@@ -1476,7 +1496,7 @@ function updateMicBadges() {
     if (netHBTimer) { clearInterval(netHBTimer); netHBTimer = null; }
     if (link) { try { link.close(); } catch (e) {} link = null; }
     NDOC = null; S = null; joined = false; NETMODE = false;
-    try { sessionStorage.removeItem(key + ':netroom'); } catch (e) {}
+    try { sessionStorage.removeItem(key + ':netroom'); sessionStorage.removeItem(key + ':netname-tab'); } catch (e) {}
     if (!silent && root) { root.querySelector('.pn-lobby').hidden = true; root.querySelector('.pn-form').hidden = false; }
     try { cfg.onState && cfg.onState(null); } catch (e) {}
     renderLobby();
@@ -1712,6 +1732,17 @@ body.loperf .pn-create::after{display:none}
     root.appendChild(form); root.appendChild(lobby);
     buildAvatarUI(form);   // 必须在 form 入文档后再建：定制器构建/boot 全按 root 查询（detached 树上 querySelector 全空）
     renderLobby();
+    // 自动回房（2026-09-23 防掉线双胞胎）：本标签有在房票据（刷新/崩溃/掉线恢复）就静默重入——
+    // 同 id 命中既有座位=不产生第二个自己；主动退出已在 leave() 清票据，不会误触发。
+    // 显式打开了另一个房间的 ?room= 链接时优先尊重链接（只预填不自动回旧房）。
+    try {
+      const ticket = sessionStorage.getItem(key + ':netroom') || '';
+      const qsRoom = pnExtractRoom(decodeURIComponent(location.search));
+      if (ticket && (!qsRoom || qsRoom === ticket)) {
+        let nm = '玩家'; try { nm = sessionStorage.getItem(key + ':netname-tab') || localStorage.getItem(key + ':netname') || nm; } catch (e) {}   // 票据名优先：共享 netname 可能已被别的标签覆盖
+        enter(ticket, nm, false).catch(() => {});
+      }
+    } catch (e) {}
     return root;
   }
   function escHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
