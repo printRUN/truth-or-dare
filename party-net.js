@@ -1561,6 +1561,17 @@ function updateMicBadges() {
   .pn-cz-chip img{width:36px;height:36px}
 }
 @media (prefers-reduced-motion:reduce){.pn-avopt,.pn-cz-bg,.pn-cz-chip,.pn-avtab,.pn-btn-tiny,.pn-create,.pn-join,.pn-start,.pn-addbot,.pn-leave{transition:none!important;animation:none!important}}   /* 只列组件自有类：裸 .btn-primary/.btn-ghost 会命中宿主页面组件外的按钮 */
+/* ── 大 CTA + 药丸（2026-09-23 对齐 tod 填表页三件套：主操作=渐变大按钮+流光扫过；药丸由宿主注入 .pn-pills） ── */
+.pn-create{position:relative;overflow:hidden;align-self:stretch;padding:14px 24px;font-size:1.04rem;border-radius:16px;letter-spacing:4px;text-indent:4px;font-weight:800;border:none;color:#fff;background:linear-gradient(120deg,#8b5cf6,#ec4899 55%,#8b5cf6);box-shadow:0 10px 30px rgba(139,92,246,0.4),inset 0 2px 0 rgba(255,255,255,0.28)}
+.pn-create::after{content:'';position:absolute;top:0;bottom:0;left:-70%;width:44%;pointer-events:none;background:linear-gradient(105deg,transparent,rgba(255,255,255,0.5),transparent);transform:skewX(-18deg);animation:pn-shine 3.4s cubic-bezier(.4,0,.2,1) infinite}
+@keyframes pn-shine{0%,60%{left:-70%}88%,100%{left:132%}}
+.pn-create:hover{transform:translateY(-2px);box-shadow:0 16px 46px rgba(139,92,246,0.55),inset 0 2px 0 rgba(255,255,255,0.28)}
+.pn-create:active{transform:scale(0.98)}
+@media (prefers-reduced-motion:reduce){.pn-create::after{animation:none!important;display:none!important}}
+body.loperf .pn-create::after{display:none}
+.pn-pills{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.pn-pill{min-height:36px;padding:7px 16px;border-radius:999px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.05);color:var(--accent-cyan,#22d3ee);font-family:inherit;font-size:0.84rem;font-weight:700;cursor:pointer;transition:background .2s,border-color .2s}
+.pn-pill:hover{border-color:var(--accent-cyan,#22d3ee);background:rgba(34,211,238,0.12)}
 `;
   let cssInjected = false;
   function injectCss() {
