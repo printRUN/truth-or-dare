@@ -47,7 +47,7 @@ const ok = (name, cond, extra) => { console.log((cond ? 'PASS ' : 'FAIL ') + nam
         if (!window.__fOn) return;
         const G = __mono.state;
         const w = __mono.pawnWorld(), r = __mono.rigSnap();
-        window.__F.push({ ph: G.phase, turn: G.turn, w, r, lo: document.body.classList.contains('loperf') });
+        window.__F.push({ ph: G.phase, turn: G.turn, bot: !!(G.players[G.turn] && G.players[G.turn].bot), w, r, lo: document.body.classList.contains('loperf') });
         setTimeout(snap, 70);
       };
       snap();
@@ -62,7 +62,10 @@ const ok = (name, cond, extra) => { console.log((cond ? 'PASS ' : 'FAIL ') + nam
       })).catch(() => ({ dead: true }));
       if (vis.dead) break;
       try {
-        if (vis.buyYes) await p.click('#btn-buy-yes', { timeout: 1500 });
+        if (vis.buyYes) await p.evaluate(() => {   // 现金不足时 yes 是 disabled：点 no 兜底，防止弹窗卡死饿死后续走位样本（假红）
+          const y = document.getElementById('btn-buy-yes');
+          (y && !y.disabled ? y : document.getElementById('btn-buy-no')).click();
+        });
         else if (vis.gen) await p.evaluate(() => { const b = document.querySelector('#gen-actions button'); if (b) b.click(); });
         else if (vis.roll) await p.click('#act-roll', { timeout: 1500 });
       } catch (e) {}
@@ -70,7 +73,9 @@ const ok = (name, cond, extra) => { console.log((cond ? 'PASS ' : 'FAIL ') + nam
     }
     const F = await p.evaluate(() => { window.__fOn = false; return window.__F; }).catch(() => []);
     const loN = F.filter(e => e.lo).length;
-    const hopSamples = F.map((e, i) => Object.assign({ i }, e)).filter(e => e.ph === 'HOPPING' && !e.lo && e.w && e.w[e.turn]);
+    // 2026-09-29 镜头所有权：走位推近跟随只属于本端真人回合（actorIsLocal）——机器人座位（inspect 档默认 seat1）的
+    // HOPPING 样本镜头是冻结全景（autoDist=true），必须按采样时点的 bot 旗过滤，否则混入后 autoDist/tgt 断言全红
+    const hopSamples = F.map((e, i) => Object.assign({ i }, e)).filter(e => e.ph === 'HOPPING' && !e.lo && e.w && e.w[e.turn] && !e.bot);
     console.log(`     （R2a 竖屏 390×844：全样本 ${F.length}，降级 ${loN}，HOPPING 未降级 ${hopSamples.length}；锚距 near=${anchor.near.toFixed(2)} base=${anchor.base.toFixed(2)}）`);
     // R2a 钉「没摇骰=全景、走位才推近」（2026-09-24 用户点名）：等待期 approachTurn 停全景对准；movePawn 从全景起
     // 用 dist/elev 阻尼推近（2-3 跳落定），软渲抖动会切段 → 断言=采样带 + 段内单调推近 + 存在收敛段。
@@ -184,6 +189,107 @@ const ok = (name, cond, extra) => { console.log((cond ? 'PASS ' : 'FAIL ') + nam
     await ctx.close();
   }
 
+  // ══ R2c：竖屏真机档（inspect=1）——「他人回合镜头冻结全景」回归锁（2026-09-29 镜头所有权）══
+  // （inspect 档默认座位=seat0 真人+seat1 机器人；探针只负责点骰/弹窗推进流程，机器人回合纯旁观采样）
+  {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const p = await ctx.newPage();
+    await p.goto(`http://127.0.0.1:${PORT}/monopoly.html?inspect=1`, { waitUntil: 'domcontentloaded' });
+    await p.waitForSelector('#loader', { state: 'detached', timeout: 30000 });
+    await p.evaluate(() => { document.getElementById('adv-box').open = true; document.getElementById('skip-handoff').checked = true; });
+    await p.click('#btn-start');
+    await p.waitForFunction(() => window.__mono && __mono.state.phase === 'AWAIT_ROLL', null, { timeout: 15000 });
+    await p.evaluate(() => {
+      window.__F = []; window.__fOn = true;
+      const snap = () => {
+        if (!window.__fOn) return;
+        try {
+          const G = __mono.state;
+          window.__F.push({ ph: G.phase, turn: G.turn, bot: !!(G.players[G.turn] && G.players[G.turn].bot), r: __mono.rigSnap(), lo: document.body.classList.contains('loperf') });
+        } catch (e) {}
+        setTimeout(snap, 70);
+      };
+      snap();
+    });
+    // 推进 30s：真人回合点骰/买地/弹窗（不推进则永远停在 seat0 的 AWAIT_ROLL），机器人回合不碰任何东西
+    const t0c = Date.now();
+    while (Date.now() - t0c < 30000) {
+      const vis = await p.evaluate(() => ({
+        roll: !document.getElementById('action-bar').hidden && document.getElementById('act-roll') && document.getElementById('act-roll').offsetParent !== null,
+        buyYes: document.getElementById('btn-buy-yes') && !document.getElementById('buy-modal').hidden,
+        gen: !document.getElementById('gen-modal').hidden,
+      })).catch(() => ({ dead: true }));
+      if (vis.dead) break;
+      try {
+        if (vis.buyYes) await p.evaluate(() => {
+          const y = document.getElementById('btn-buy-yes');
+          (y && !y.disabled ? y : document.getElementById('btn-buy-no')).click();
+        });
+        else if (vis.gen) await p.evaluate(() => { const b = document.querySelector('#gen-actions button'); if (b) b.click(); });
+        else if (vis.roll) await p.click('#act-roll', { timeout: 1500 });
+      } catch (e) {}
+      await p.waitForTimeout(250);
+    }
+    const F = await p.evaluate(() => { window.__fOn = false; return window.__F; }).catch(() => []);
+    const anchor = await p.evaluate(() => __mono.distAnchor());
+    const botHops = F.filter(e => e.ph === 'HOPPING' && e.bot && !e.lo && e.r);
+    console.log(`     （R2c 竖屏 390×844：全样本 ${F.length}，机器人走位样本 ${botHops.length}，base=${anchor.base.toFixed(2)}）`);
+    ok(`R2c 采到机器人 HOPPING 未降级样本（${botHops.length} 个）`, botHops.length >= 8, botHops.length);
+    // 镜头所有权硬门：他人走位期 movePawn 不得接管镜头（autoDist 置 false=推近开始，出现即红）
+    ok('R2c 机器人走位期镜头不接管（autoDist 恒 true）', botHops.length > 0 && botHops.every(e => e.r.autoDist === true), [...new Set(botHops.map(e => e.r.autoDist))]);
+    // 只设上界：beginTurn 的 approachTurn 回景补间（1100ms）会延续进机器人前 1-2 跳，早期 dist<base 是合法瞬态
+    ok('R2c 机器人走位期 dist 不越过全景（dist < base+0.5）', botHops.length > 0 && botHops.every(e => e.r.dist < anchor.base + 0.5), botHops.map(e => +e.r.dist.toFixed(1)).slice(0, 12));
+    ok('R2c 存在冻结落定样本（|dist-base|≤0.5）', botHops.some(e => Math.abs(e.r.dist - anchor.base) <= 0.5), { base: +anchor.base.toFixed(2) });
+    await ctx.close();
+  }
+
+  // ══ R2d：押送滑行回归锁（2026-09-29 惩罚动效）——「入狱不是瞬移」══
+  // （双检查官 P0 的回归锁：滑行闭包活读 G.turn 曾让弧线一帧自废、全部门禁照绿。resolveAt 走真 resolveTile，
+  //   动画档断言弧线（maxY≥0.9=0.34 基高+0.9 弧顶）+ 落点贴监狱格 + 落监闷响；bodyLo 档按双叉约定断瞬摆+闷响。）
+  {
+    const ctx = await browser.newContext({ viewport: { width: 640, height: 520 } });
+    const p = await ctx.newPage();
+    await p.goto(`http://127.0.0.1:${PORT}/monopoly.html?inspect=1`, { waitUntil: 'domcontentloaded' });
+    await p.waitForSelector('#loader', { state: 'detached', timeout: 30000 });
+    await p.evaluate(() => { document.getElementById('adv-box').open = true; document.getElementById('skip-handoff').checked = true; });
+    await p.click('#btn-start');
+    await p.waitForFunction(() => window.__mono && __mono.state.phase === 'AWAIT_ROLL', null, { timeout: 15000 });
+    const r2d = await p.evaluate(async () => {
+      // 包一层 jail 音计数（SFX 是脚本顶层 const 对象，方法可替换）
+      const origJail = SFX.jail;
+      window.__jailN = 0;
+      SFX.jail = (...a) => { window.__jailN++; return origJail(...a); };
+      const lo0 = document.body.classList.contains('loperf');
+      const samples = [];
+      const t0 = performance.now();
+      __mono.resolveAt(0, 18);   // 真 resolveTile 路径进押送（gotojail 格）
+      while (performance.now() - t0 < 2200) {
+        const w = __mono.pawnWorld();
+        if (w && w[0]) samples.push({ y: w[0][1], x: w[0][0], z: w[0][2], t: performance.now() - t0 });
+        await new Promise(r => setTimeout(r, 40));
+      }
+      const t6 = TILES[6];
+      const end = samples[samples.length - 1];
+      return {
+        lo0, jailN: window.__jailN, n: samples.length,
+        maxY: Math.max(...samples.map(s => s.y)),
+        endDist: end ? Math.hypot(end.x - t6.x, end.z - t6.z) : -1,
+        arcSamples: samples.filter(s => s.y > 0.45).length,
+        jailed: __mono.state.players[0].jailed, pos: __mono.state.players[0].pos,
+      };
+    });
+    console.log(`     （R2d 押送滑行 640×520：样本 ${r2d.n}，maxY=${r2d.maxY.toFixed(2)}，落点距监狱格 ${r2d.endDist.toFixed(2)}，jail 音 ${r2d.jailN}，${r2d.lo0 ? 'bodyLo 档' : '动画档'}）`);
+    ok('R2d 入狱状态正确（jailed+pos=6）', r2d.jailed === true && r2d.pos === 6, r2d);
+    ok('R2d 落监闷响恰好一拍（警笛由 siren 承担，jail 是落地拍）', r2d.jailN === 1, r2d.jailN);
+    if (r2d.lo0) {   // 降级双叉：bodyLo=静态瞬摆（禁动不禁声），只锁落点与状态
+      ok('R2d bodyLo 档瞬摆落监狱格（距 tile6 <0.6）', r2d.endDist >= 0 && r2d.endDist < 0.6, +r2d.endDist.toFixed(2));
+    } else {
+      ok('R2d 动画档存在弧线样本（maxY≥0.9，瞬移不可能越过 0.34 基高）', r2d.maxY >= 0.9, +r2d.maxY.toFixed(2));
+      ok('R2d 滑行落点贴监狱格（距 tile6 <0.6）', r2d.endDist >= 0 && r2d.endDist < 0.6, +r2d.endDist.toFixed(2));
+    }
+    await ctx.close();
+  }
+
   // ══ R1：无参数真 UI 热座档——bodyLo 预热豁免 + 真实渲染下的镜头跟随全程采样 ══
   {
     const ctx = await browser.newContext({ viewport: { width: 1100, height: 800 } });
@@ -213,14 +319,14 @@ const ok = (name, cond, extra) => { console.log((cond ? 'PASS ' : 'FAIL ') + nam
       await p.waitForFunction(() => window.__mono && __mono.state.phase === 'AWAIT_ROLL', null, { timeout: 15000 });
       await p.evaluate(() => {
         window.__F = []; window.__fOn = true;
-        const snap = () => {
-          if (!window.__fOn) return;
-          try {
-            const G = __mono.state;
-            window.__F.push({ ph: G.phase, turn: G.turn, w: __mono.pawnWorld(), r: __mono.rigSnap(), lo: document.body.classList.contains('loperf') });
-          } catch (e) {}
-          setTimeout(snap, 70);
-        };
+      const snap = () => {
+        if (!window.__fOn) return;
+        try {
+          const G = __mono.state;
+          window.__F.push({ ph: G.phase, turn: G.turn, bot: !!(G.players[G.turn] && G.players[G.turn].bot), w: __mono.pawnWorld(), r: __mono.rigSnap(), lo: document.body.classList.contains('loperf') });
+        } catch (e) {}
+        setTimeout(snap, 70);
+      };
         snap();
       });
       // 真实点击驱动 45s：掷骰/买地
@@ -240,7 +346,8 @@ const ok = (name, cond, extra) => { console.log((cond ? 'PASS ' : 'FAIL ') + nam
         await p.waitForTimeout(250);
       }
       const F = await p.evaluate(() => { window.__fOn = false; return window.__F; }).catch(() => []);
-      const hop = F.map((e, i) => Object.assign({ i }, e)).filter(e => e.ph === 'HOPPING' && e.w && e.w[e.turn] && !e.lo);
+      // 同 R2a：机器人座位走位期镜头冻结全景（2026-09-29 镜头所有权），按采样时点 bot 旗过滤只锁真人走位
+      const hop = F.map((e, i) => Object.assign({ i }, e)).filter(e => e.ph === 'HOPPING' && e.w && e.w[e.turn] && !e.lo && !e.bot);
       const anchor1 = await p.evaluate(() => __mono.distAnchor());
       const loN = F.filter(e => e.lo).length;
       console.log(`     （R1 游戏段 640×520：hop 样本 ${hop.length}，全样本 ${F.length}，降级 ${loN}——负载下按设计走阶梯）`);
