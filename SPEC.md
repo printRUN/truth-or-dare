@@ -108,6 +108,24 @@ index.html 的首屏是**游戏中心**：三张游戏卡（🎭 真心话大冒
 
 **回归锁（ev-mono-verify.cjs 同提交落地，缺一必红）**：R2a/R1 采样器打**采样时点 bot 旗**并从走位断言样本中过滤机器人座位（inspect 档默认 seat1=机器人，混入后 autoDist/tgt 断言必红；AWAIT_ROLL 零容忍与全景驻留断言保持全量=更强）；新增 **R2c** 竖屏真机档（390×844，探针只点骰/买地/弹窗推进流程，机器人回合纯旁观）：机器人 HOPPING 样本 ≥8 + `autoDist` 恒 true + `dist < base+0.5`（只设上界：approachTurn 回景补间延续进前 1-2 跳是合法瞬态）+ 存在 `|dist-base|≤0.5` 冻结落定样本。probe-monopoly（autotest&loperf=bodyLo 全静态分支）/probe-mono-replay（回放计数不受印章影响）/R2b（全窗口只涉真人）逐条核对不受本轮影响。
 
+### 1.6c 大富翁多地图（2026-09-29，用户点名「增加多个地图让用户选择，比如环游世界、全国美食等，创意功能点一直要有」；完整工作流：玩家模拟真机走查→挑刺专家 SHIP WITH FIXES（F1-F12 全吸收）→实施→双检查官终审）
+
+**MAPS 注册表三图**（24 格 kind 布局/引擎数学/坐标不动，名字换新+价格沿用 PROP_PRICE+主题+角格玩法）：`classic 都市风云`（默认基线=原版逐字节，`buildClassicGroups()` 冻结字面量；**冻结字面量须与真实布局一致——边内 slot2=特殊格，机会在 index 3**）；`world 环游世界`（4 洲地标：富士山/吴哥窟/泰姬陵/大堡礁、尼罗河/撒哈拉/金字塔/马赛草原、威尼斯/巴黎铁塔/圣托里尼/极光村、大峡谷/好莱坞/马丘比丘/尼亚加拉；深海蓝主题）；`food 全国美食`（4 菜系：臭豆腐/煎饼果子/糖葫芦/螺蛳粉、肉夹馍/油泼面/大盘鸡/羊肉泡馍、肠粉/早茶/烧鹅/煲仔饭、麻婆豆腐/担担面/水煮鱼/火锅；暖夜市主题）。**色彩纪律**：三图共用 classic 四色相（amber/red/green/blue），主题差异交毡面/雾/中心盘承担——零撞 PLAYER_COLORS。命名 ≤4 字（5 字截断变 4+…）。
+
+**创意玩法点（参数经挑刺 EV 审计修正）**：
+- **✈️ 机场（world，替换 12 号角格）**：¥400 随机飞 起点领过路费/监狱探监/入狱角（飞 18 连锁押送滑行进监狱——明码赌局，格面与规则弹窗同文案）；原案 ¥600 期望收益 ≈ −533（理性玩家永不点=死内容）故降 ¥400。**F1 纪律：机场分支禁止内嵌 resolveTile 递归**（每个分支恰好一次 afterResolve，否则双推进回合）；`glideFly` 航线滑行（900ms 弧高 1.5+起飞音+落地哒，slideTok 代际锁）。
+- **🛂 护照集章（world）**：落非角格=到访所在大洲（`p.visited[4]`，resolveTile 入口统一打点）；过/抵起点按**本圈**去重到访洲数 ×¥200 发奖后清空（原案累计制两圈后退化为人人 +800/圈纯通胀，F10 改本圈去重制）。
+- **🏮 夜市（food，替换 12 号角格）**：¥400 换免罚卡，**已有卡不卖、现金不足只逛**（原案 ¥300<赎金 ¥500 近乎严格占优=无脑必买，F9 提价）。**F2 牌堆守恒（P0）**：夜市卡来源记账 `p.marketCards`，用卡时**不回** chest 牌堆（牌堆卡用后回堆）——不变量 `deck+disc+(手持−夜市卡)=8`，违者复利污染全桌抽卡分布。
+- **😋 回头客（food）**：落自家餐馆 **100%** 触发 +地价 8%（原案 50%+10% 期望仅 +5% 无存在感且半数回合什么都没发生，玩家模拟建议改确定性反馈；零 rng 消耗，classic 种子流不受扰）。
+
+**架构契约**：`MAPS`+`applyMap(id)`（in-place 重建 GROUPS/TILES 保留 const 读点）+`rebuildBoardVisuals()`（**F4 dispose 纪律**：旧格面纹理/材质/几何、ownerMarks、中心盘全量释放；`tableMesh`/`centerDisc` 模块句柄提升，`applyTheme()` 原地改毡面/背景/雾色不重建）；**applyMap 在 boot() 开头填 classic**（模块初始化期调用踩 scene/G 的 TDZ——本次实测 ReferenceError P0）；`applyGameSnapshot`/`resumeGame` 在 buildPawns/pawnSlot/ownerMarks 循环**之前** applyMap（快照/存档带 `map` 字段，缺省回落 classic 且同图零成本不重建）；`startGame(cfg.map||CUR_MAP_ID)`（rematch 两路沿用当前图——NDOC.game 已被置 null 不能回读，F11）。**过/抵起点四路合一 `arriveGo(p)`**（movePawn 动/静态两分支+机会卡 a.goto+机场飞 0；GO_PAY+护照结算）。
+
+**传输/入口**：`gameSnapshot` 增 `map`+一次性 `flight:{i,from,to}`（beginTurn 清除）；观战端把 flight 编译成 **fly 回放 op**（复用 replayGlide+落地哒；无字段旧快照接受走位降级——否则 12→0 被 diff 误演成 12 格散步）。入口：setup 三选卡（`mono:map` 偏好记忆，AUTOTEST 钉 classic 不读偏好）；联机大厅房主下拉（`lobbyExtraHtml` 全员注入 → `syncNetHUD` 收口非房主/已开局隐藏；`onStart` 空值守卫防旧混版端 throw）；存档 `mono:save:v1` 增 `map`+players `visited`/`marketCards`（白名单缺字段=旧档兼容 classic，F3）。规则弹窗/续档提示/2D 降级板/买地弹窗全部随图走 TILES/GROUPS 单一来源（顺修 2D 板 prop 格 `undefined` emoji 存量 bug）。
+
+**回归锁**：新探针 `.pw/probe-mono-maps.cjs`（8965，22 断言）：classic 逐字节保真、选卡 UI 默认 classic、world/food 图板重建、机场扣费与落点收敛（飞 18 终态 pos=6+jailed）、护照 GO+集章 +1400 同拍、夜市换卡+牌堆守恒+已有卡不卖、回头客 +8% 确定性、存档带图、2D 降级（`--disable-webgl` 独立 browser 实例）、联机双端快照带图。六门禁（probe-monopoly 28/ev-mono-verify/probe-mono-replay 8/probe-mono-net 17/probe-persona-mono 46/check-syntax）跑 classic 必须零改动全绿——三条新机制全部 kind/地图门控且 classic 路径 rng 消耗流不变。
+
+**已知限制（备案）**：旧版本对端无 map 字段→视觉失同步（本仓库不支持同局混版，既有限制）；观战端换图瞬间的排队 buy 回放可能盖新图印章（纯观感）；对局中禁止换图（只有开局/重开边界允许 applyMap）。
+
 ### 1.7 UNO（uno.html，第三款游戏）与跨分支跳转（2026-09-19，UNO 轮）
 
 **游戏中心扩到 4 卡**（≥700px 2×2，max-width 680）：🎭 tod / 🎲 monopoly / 🃏 uno / 💣 炸弹猫（feat/bombcat-lobby 分支的 bombcat.html，自带「回游戏中心」链接）。**graceful jump**：file:// 直跳 fail-open（双击即开卖点）；http(s) HEAD 探测 1500ms（405/501 按存在算 + GET 兜底），失败挂「🚧 未开放」角标 + 降饱和仍可点；结果只存页面级 memo；**AbortSignal.timeout 缺席的老浏览器直跳 + 预探测 try/catch（防炸整个主脚本块）**。

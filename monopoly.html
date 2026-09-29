@@ -113,6 +113,13 @@
   .opt-row { display: flex; align-items: center; gap: 8px; font-size: 0.88rem; margin: 10px 0; }
   .opt-row select { min-height: 38px; padding: 4px 10px; border-radius: 10px; border: 1px solid var(--glass-border); background: rgba(20,18,40,0.9); color: #fff; font-size: 0.88rem; }
   .opt-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary); }
+  /* 地图三选卡（一行三列，竖屏不挤坏——玩家模拟走查结论）：emoji+图名竖排，创意一句话选中后显示 */
+  .map-picker { display: flex; gap: 8px; margin: 6px 0 4px; }
+  .map-card { flex: 1; min-width: 0; min-height: 64px; padding: 7px 4px; border-radius: 12px; border: 1.5px solid var(--glass-border); background: rgba(255,255,255,0.04); color: #fff; cursor: pointer; text-align: center; font-size: 0.78rem; }
+  .map-card .mc-emoji { display: block; font-size: 1.25rem; line-height: 1.3; }
+  .map-card .mc-name { display: block; font-weight: 700; margin-top: 2px; }
+  .map-card.on { border-color: var(--accent-cyan); background: rgba(34,211,238,0.09); box-shadow: 0 0 0 1px var(--accent-cyan), 0 0 14px rgba(34,211,238,0.22); }
+  .map-line { font-size: 0.72rem; color: rgba(255,255,255,0.62); line-height: 1.5; min-height: 1.1em; margin-bottom: 4px; }
   #round-est { font-size: 0.76rem; color: rgba(255,255,255,0.55); }
   #rules-box { margin: 12px 0; border: 1px solid var(--glass-border); border-radius: 12px; overflow: hidden; }
   #rules-box summary { padding: 9px 12px; font-size: 0.86rem; cursor: pointer; list-style: none; }
@@ -259,6 +266,10 @@
     <div class="seat-add" id="seat-add">
       <button id="seat-minus" type="button">－ 减一人</button>
       <button id="seat-plus" type="button">＋ 加一人</button>
+    </div>
+    <div class="opt-row" style="display:block">🗺 地图
+      <div id="map-picker" class="map-picker"></div>
+      <div id="map-line" class="map-line"></div>
     </div>
     <div class="opt-row">局长
       <select id="round-limit">
@@ -412,6 +423,7 @@ const SFX = (() => {
     siren() { tone(660, 660, 0.16, 'square', 0.1); tone(494, 494, 0.16, 'square', 0.1, 0.16); tone(660, 660, 0.16, 'square', 0.09, 0.32); },   // 押送警笛三拍（入狱滑行起手）
     ding() { tone(988, 988, 0.07, 'triangle', 0.14); tone(1319, 1319, 0.1, 'triangle', 0.14, 0.08); },   // 双数奖励叮（区别于 coin 的进账语境）
     land() { noise(0.05, 0.16, 1500); tone(160, 110, 0.08, 'sine', 0.2); },   // 骰子落定哒（roll 是起手，这是落定拍）
+    fly() { tone(280, 980, 0.4, 'sine', 0.12); tone(220, 760, 0.4, 'triangle', 0.08, 0.03); noise(0.35, 0.07, 2600); },   // 机场起飞：上升轰鸣+气流擦音
     // 连麦压低（duck）：连麦模块在开麦/收听时调用，压动作音效总线减少串音
     duckMusic(f, ms = 300) {
       const c = ensure(); if (!c || !master) return;
@@ -446,12 +458,21 @@ const P = PartyNet.create({
     if (!n.game) return;
     n.game.players.forEach((gp, i) => { const np = n.players[i]; if (np && np.id === me.id && gp.bot) { gp.bot = false; gp.name = np.name; } });
   },
-  onStart: () => netStartGame({ roundLimit: +$('net-round').value }),
+  onStart: () => netStartGame({
+    roundLimit: +$('net-round').value,
+    map: (document.getElementById('net-map') || {}).value || CUR_MAP_ID,   // 空值守卫（挑刺 F11）：旧混版端无此元素时不 throw
+  }),
   lobbyExtraHtml: `<div class="opt-row" id="net-round-row">局长
     <select id="net-round">
       <option value="15">15 轮（约 10 分钟）</option>
       <option value="20" selected>20 轮（约 15 分钟）</option>
       <option value="0">不限（纯破产制）</option>
+    </select></div>
+    <div class="opt-row" id="net-map-row">🗺 地图（房主定）
+    <select id="net-map">
+      <option value="classic">🏙️ 都市风云 · 经典街区</option>
+      <option value="world">✈️ 环游世界 · 机场+护照</option>
+      <option value="food">🍜 全国美食 · 夜市+回头客</option>
     </select></div>`,
   avSeedPrefix: 'MONO',
 });
@@ -490,11 +511,14 @@ function gameSnapshot() {
   return JSON.parse(JSON.stringify({
     phase: G.phase, players: G.players, owners: G.owners, decks: G.decks,
     turn: G.turn, doubles: G.doubles, roundLimit: G.roundLimit, skipHandoff: G.skipHandoff, seed: G.seed,
+    map: CUR_MAP_ID, flight: G.flight || null,   // 图板身份 + 一次性航程（观战端编译 fly 回放 op；beginTurn 清除）
   }));
 }
 // 远端棋局快照 → 本地 G（静态重绘，不播动画；交战动作只发生在行动者设备上）
 function applyGameSnapshot(g, doc) {
   if (TURBO || !g || !Array.isArray(g.players)) return;
+  const wantMap = g.map || 'classic';   // 旧 retained 文档/旧版本对端无 map 字段 → 回落 classic（中途入房前重建图板：pawnSlot/render2D/买地弹窗都读 TILES）
+  if (wantMap !== CUR_MAP_ID) applyMap(wantMap, false);   // 恢复现场不写偏好（终审 F-A）
   // 观战回放基线：上一份快照的逐玩家位现金/位置/狱/破产 + 归属表（行动者本端 G 已随动作更新 → diff 恒零，回声不重播）
   const canReplay = netReplayArmed && g.phase !== 'OVER' && G.gl && !REDUCED && !bodyLo
     && G.players && G.players.length === g.players.length;
@@ -527,14 +551,17 @@ function applyGameSnapshot(g, doc) {
   }
   if (prevPhase !== 'OVER' && g.phase === 'OVER') { focusPawn(championIdx(), true); showResult(); }   // 结算屏回景对准冠军（P3-6 两端化）
   render2D(); updateHUD();
-  // 快照 diff → 回放操作（移动逐格跳 / 入狱滑行 / 成交弹跳 / 现金浮层 / 破产横幅），队尾串行播出
+  // 快照 diff → 回放操作（移动逐格跳 / 航线飞行 / 入狱滑行 / 成交弹跳 / 现金浮层 / 破产横幅），队尾串行播出
   if (prev) {
     const ops = [];
     for (let i = 0; i < G.players.length; i++) {
       const p = G.players[i], q = prev[i];
       if (p.bankrupt) continue;
       if (p.pos !== q.pos) {
-        if (p.jailed && !q.jailed) ops.push({ type: 'jail', i, from: q.pos });   // 被押送（gotojail 格/三连双/机会卡）：滑行不合走位语义
+        // 机场航线（world）：一次快照带一次性 flight 字段，按 fly 长弧回放；否则 pos 跨远边会被误演成 12 格散步。
+        // 落 18 时终态 pos=6+jailed，flight 不匹配 → 落入 jail 押送语义（12→6 一镜到底）
+        if (g.flight && g.flight.i === i && g.flight.to === p.pos && g.flight.from === q.pos && !(p.jailed && !q.jailed)) ops.push({ type: 'fly', i, from: q.pos, to: p.pos });
+        else if (p.jailed && !q.jailed) ops.push({ type: 'jail', i, from: q.pos });   // 被押送（gotojail 格/三连双/机会卡）：滑行不合走位语义
         else ops.push({ type: 'move', i, from: q.pos, to: p.pos, steps: (p.pos - q.pos + 24) % 24 });
       }
     }
@@ -561,9 +588,10 @@ function applyGameSnapshot(g, doc) {
    applyGameSnapshot 把快照 diff 编译成回放操作入队，串行播出。行动者本端零 diff（动作时已播过本地动画）。
    静态退路：!G.gl / REDUCED / bodyLo / TURBO / OVER 不生成操作，维持瞬时落位。 */
 let replayQ = [], replaying = false, replayCur = null, replayCount = 0, netReplayArmed = false;
-function replayClaimed(i) {   // 该棋子已有在飞/排队的位置动画
-  return (!!replayCur && replayCur.i === i && (replayCur.type === 'move' || replayCur.type === 'jail'))
-    || replayQ.some(op => (op.type === 'move' || op.type === 'jail') && op.i === i);
+function replayClaimed(i) {   // 该棋子已有在飞/排队的位置动画（含机场航线 fly：HANDOFF 快照若在其回放窗口内落位会截断弧线）
+  const posOp = t => t === 'move' || t === 'jail' || t === 'fly';
+  return (!!replayCur && replayCur.i === i && posOp(replayCur.type))
+    || replayQ.some(op => op.i === i && posOp(op.type));
 }
 function replayEnqueue(ops) {
   if (!ops.length) return;
@@ -583,6 +611,7 @@ async function replayDrain() {
 }
 async function playReplayOp(op) {
   if (op.type === 'move') { await replayWalk(op.i, op.from, op.to, op.steps); return; }
+  if (op.type === 'fly') { SFX.fly(); await replayGlide(op.i, op.from, op.to, SFX.land); return; }   // 机场航线长弧（world）
   if (op.type === 'jail') { SFX.siren(); await replayGlide(op.i, op.from, 6); return; }   // 押送警笛与行动者端同拍（落地闷响在 replayGlide 收尾）
   if (op.type === 'buy') {
     const j = G.players[op.o], t = TILES[op.t], mk = ownerMarks[op.t];
@@ -625,7 +654,7 @@ function replayWalk(i, from, to, steps) {
   });
 }
 // 入狱滑行：单弧线直接滑进监狱格（逐格跳对「被押送」不合语义；机会卡的 a.goto 传送也走这条——远端呈现为滑行而非长走位）
-function replayGlide(i, from, to) {
+function replayGlide(i, from, to, land) {   // 观战端滑行：押送（jail 闷响）/ 航线（fly 落地哒）共用几何
   return new Promise(res => {
     const grp = pawnObjs[i];
     if (!grp) { res(); return; }
@@ -640,7 +669,7 @@ function replayGlide(i, from, to) {
       const kk = k * k * (3 - 2 * k);
       grp.position.set(sx + (ex - sx) * kk, 0.34 + Math.sin(k * Math.PI) * 0.9, sz + (ez - sz) * kk);
       if (k < 1) requestAnimationFrame(step);
-      else { placePawn(i, to, true); layoutPlates(); SFX.jail(); render2D(); res(); }
+      else { placePawn(i, to, true); layoutPlates(); (land || SFX.jail)(); render2D(); res(); }
     };
     requestAnimationFrame(step);
   });
@@ -651,7 +680,7 @@ function netStartGame(cfg) {
   const players = doc.players.map(p => ({ name: p.name, bot: !!p.bot }));
   P.setStarted();   // 先落开局标志并发布，startGame 内的检查点会携带首份棋局快照
   clearSave();      // 联机局不落本地热座存档
-  startGame({ players, roundLimit: cfg.roundLimit || 20, skipHandoff: true });
+  startGame({ players, roundLimit: cfg.roundLimit || 20, skipHandoff: true, map: cfg.map });
 }
 // 房主接管补跑（组件已按 isHost/bot/seq 守卫并延迟调度）：把代管座位的回合推进起来
 function netHostKick() {
@@ -672,6 +701,9 @@ function syncNetHUD() {
   }
   // setup 显隐统一收口（2026-09-23 防掉线双胞胎）：开局中隐藏；大厅/掉线重连失败回设置屏显示
   $('setup').hidden = !!(onNet && NDOC && NDOC.started);
+  // 地图行（挑刺 F11）：lobbyExtraHtml 对全员注入——非房主/已开局时隐藏（房主定图）
+  const mapRow = document.getElementById('net-map-row');
+  if (mapRow) mapRow.hidden = !(onNet && NDOC && !NDOC.started && isHost());
 }
 // HUD 玩家条头像（tod 配方协议；无 av 的本地热座回落色点）
 function netAvatarHtml(i) {
@@ -694,13 +726,49 @@ async function netBootAutotest() {
 
 /* ═════════════════════════ 2. 棋盘数据 ═════════════════════════ */
 // 24 格环形（7×7 边框）：角 0/6/12/18，每边 5 格 = 4 地产 + 1 特殊。
-// 地产 4 色组（避开 HUD 紫/粉/青/金；组条加白点数量作色盲冗余）
-const GROUPS = [
-  { color: '#f59e0b', dots: 1, names: ['老城区', '小巷集市', '旧仓库', '码头街'] },
-  { color: '#ef4444', dots: 2, names: ['大学路', '咖啡巷', '书店街', '剧院街'] },
-  { color: '#22c55e', dots: 3, names: ['金融街', '商贸广场', '电视塔', '会展中心'] },
-  { color: '#3b82f6', dots: 4, names: ['科技园', '云端大厦', '星光大道', '环球中心'] },
-];
+// 多地图（2026-09-29，SPEC §1.6c）：MAPS 注册表 + applyMap 重建——kind 布局/引擎数学不动，只换名字/主题/角格玩法。
+// 色彩纪律（挑刺 F 建议）：三图共用 classic 四色相（amber/red/green/blue），主题差异交给毡面/雾/中心盘，零撞 PLAYER_COLORS 风险。
+function buildClassicGroups() {   // classic 组数据逐字冻结：AUTOTEST/六门禁跑 classic，必须与历史行为逐字节一致
+  return [
+    { color: '#f59e0b', dots: 1, names: ['老城区', '小巷集市', '旧仓库', '码头街'] },
+    { color: '#ef4444', dots: 2, names: ['大学路', '咖啡巷', '书店街', '剧院街'] },
+    { color: '#22c55e', dots: 3, names: ['金融街', '商贸广场', '电视塔', '会展中心'] },
+    { color: '#3b82f6', dots: 4, names: ['科技园', '云端大厦', '星光大道', '环球中心'] },
+  ];
+}
+const MAPS = {
+  classic: {
+    name: '都市风云', emoji: '🏙️', tagline: '经典街区 · 原味大富翁',
+    theme: { felt: 0x1d1523, bg: 0x0a0a1a, fog: 0x0a0a1a, label: '大富翁', emoji2: '🎲' },
+    line: '原味规则：买地收租，集齐同色租金 ×3',
+    groups: null,   // 由 buildClassicGroups() 逐字提供
+    corner12: { name: '免费停车', emoji: '☕' },
+  },
+  world: {
+    name: '环游世界', emoji: '✈️', tagline: '环游世界 · 航班与护照',
+    theme: { felt: 0x11202e, bg: 0x08131e, fog: 0x08131e, label: '环游世界', emoji2: '🌍' },
+    line: '✈️ 机场 ¥400 随机飞：起点领钱 / 监狱探监 / 入狱角当心！· 🛂 本圈每到访一大洲，过起点 +¥200',
+    groups: [
+      { color: '#f59e0b', dots: 1, names: ['富士山', '吴哥窟', '泰姬陵', '大堡礁'] },
+      { color: '#ef4444', dots: 2, names: ['尼罗河', '撒哈拉', '金字塔', '马赛草原'] },
+      { color: '#22c55e', dots: 3, names: ['威尼斯', '巴黎铁塔', '圣托里尼', '极光村'] },
+      { color: '#3b82f6', dots: 4, names: ['大峡谷', '好莱坞', '马丘比丘', '尼亚加拉'] },
+    ],
+    corner12: { name: '机场', emoji: '✈️' },
+  },
+  food: {
+    name: '全国美食', emoji: '🍜', tagline: '舌尖发财 · 夜市与回头客',
+    theme: { felt: 0x2a1610, bg: 0x190d07, fog: 0x190d07, label: '全国美食', emoji2: '🍜' },
+    line: '🏮 夜市 ¥400 换免罚卡（已有卡不卖）· 😋 落自家餐馆必有回头客，+地价 8%',
+    groups: [
+      { color: '#f59e0b', dots: 1, names: ['臭豆腐', '煎饼果子', '糖葫芦', '螺蛳粉'] },
+      { color: '#ef4444', dots: 2, names: ['肉夹馍', '油泼面', '大盘鸡', '羊肉泡馍'] },
+      { color: '#22c55e', dots: 3, names: ['肠粉', '早茶', '烧鹅', '煲仔饭'] },
+      { color: '#3b82f6', dots: 4, names: ['麻婆豆腐', '担担面', '水煮鱼', '火锅'] },
+    ],
+    corner12: { name: '夜市', emoji: '🏮' },
+  },
+};
 const PROP_PRICE = [[1000, 1200, 1400, 1600], [1800, 2000, 2200, 2400], [2600, 2800, 3000, 3200], [3400, 3600, 3800, 4000]];
 const RENT_RATE = 0.4, SET_MULT = 3, TAX = 1000, GO_PAY = 1000, START_CASH = 10000, JAIL_FINE = 500;
 const PLAYER_COLORS = ['#22d3ee', '#f472b6', '#8b5cf6', '#4ade80'];
@@ -715,26 +783,36 @@ function tileCoord(i) {
   if (i === 18) return { x: 3, z: -3 };
   return { x: 3, z: -3 + (i - 18) };
 }
-const TILES = (() => {
-  const arr = [];
+const GROUPS = [];   // in-place 重建（挑刺 F5）：保留 const 语义，免改 30 处读点
+const TILES = [];
+let CUR_MAP_ID = 'classic';
+function applyMap(id, persist = true) {   // 换图：重建 TILES/GROUPS 数据 + （GL 档）重绘图板/主题；对局中只允许开局/重开边界调用
+  const m = MAPS[id] || MAPS.classic;
+  const target = MAPS[id] ? id : 'classic';
+  if (target === CUR_MAP_ID && TILES.length === 24) return;   // 已是本图：零成本免重绘（rematch/续局路径）
+  CUR_MAP_ID = target;
+  GROUPS.length = 0;
+  (m.groups || buildClassicGroups()).forEach(g => GROUPS.push({ color: g.color, dots: g.dots, names: g.names.slice() }));
+  TILES.length = 0;
   for (let i = 0; i < 24; i++) {
     const c = tileCoord(i);
-    if (i === 0) arr.push({ kind: 'go', name: '起点', emoji: '🏁', x: c.x, z: c.z });
-    else if (i === 6) arr.push({ kind: 'jail', name: '监狱', emoji: '🚔', x: c.x, z: c.z });
-    else if (i === 12) arr.push({ kind: 'parking', name: '免费停车', emoji: '☕', x: c.x, z: c.z });
-    else if (i === 18) arr.push({ kind: 'gotojail', name: '入狱', emoji: '🚨', x: c.x, z: c.z });
+    if (i === 0) TILES.push({ kind: 'go', name: '起点', emoji: '🏁', x: c.x, z: c.z });
+    else if (i === 6) TILES.push({ kind: 'jail', name: '监狱', emoji: '🚔', x: c.x, z: c.z });
+    else if (i === 12) TILES.push({ kind: 'parking', name: m.corner12.name, emoji: m.corner12.emoji, x: c.x, z: c.z });
+    else if (i === 18) TILES.push({ kind: 'gotojail', name: '入狱', emoji: '🚨', x: c.x, z: c.z });
     else {
       const side = i < 6 ? 0 : i < 12 ? 1 : i < 18 ? 2 : 3;
       const slot = i < 6 ? i - 1 : i < 12 ? i - 7 : i < 18 ? i - 13 : i - 19;   // 边内 0-4
-      if (slot === 2) arr.push({ kind: side === 0 || side === 3 ? 'chance' : side === 1 ? 'chest' : 'tax', name: side === 2 ? '所得税' : side === 1 ? '命运' : '机会', emoji: side === 2 ? '💸' : side === 1 ? '🎁' : '❓', x: c.x, z: c.z });
+      if (slot === 2) TILES.push({ kind: side === 0 || side === 3 ? 'chance' : side === 1 ? 'chest' : 'tax', name: side === 2 ? '所得税' : side === 1 ? '命运' : '机会', emoji: side === 2 ? '💸' : side === 1 ? '🎁' : '❓', x: c.x, z: c.z });
       else {
         const gi = slot < 2 ? slot : slot - 1;   // 地产在边内的 0-3 序
-        arr.push({ kind: 'prop', group: side, gi, name: GROUPS[side].names[gi], price: PROP_PRICE[side][gi], x: c.x, z: c.z });
+        TILES.push({ kind: 'prop', group: side, gi, name: GROUPS[side].names[gi], price: PROP_PRICE[side][gi], x: c.x, z: c.z });
       }
     }
   }
-  return arr;
-})();
+  if (persist) try { localStorage.setItem('mono:map', CUR_MAP_ID); } catch (e) {}   // 仅用户选择/真开局落偏好；恢复现场（boot 首填/续档/快照）不写（终审 F-A：否则 boot 首填 classic 会洗掉偏好）
+  rebuildBoardVisuals();
+}
 const propIdxOfGroup = g => TILES.map((t, i) => t.kind === 'prop' && t.group === g ? i : -1).filter(i => i >= 0);
 
 const CARDS = {
@@ -779,6 +857,7 @@ let lastInteract = Date.now();
 
 /* ═════════════════════════ 4. Three.js 场景 ═════════════════════════ */
 let renderer, scene, camera, dirLight;
+let tableMesh = null, centerDisc = null;   // 多地图主题化句柄（挑刺 F4）：毡面/中心盘原地改色不重建
 let tileMeshes = [], ownerMarks = [], pawnObjs = [], plateSprites = [], diceObjs = [];
 let cardMesh = null, cardPivot = null;
 const D2R = Math.PI / 180;
@@ -884,16 +963,18 @@ function initScene() {
   dirLight.shadow.camera.left = -6; dirLight.shadow.camera.right = 6;
   dirLight.shadow.camera.top = 6; dirLight.shadow.camera.bottom = -6;
   scene.add(dirLight);
-  // 桌面（紫黑暖调毡面 #1d1523）
+  // 桌面（紫黑暖调毡面 #1d1523；多地图主题化后颜色由 applyTheme 原地改，不重建——挑刺 F4 句柄提升）
   const table = new THREE.Mesh(
     new THREE.CylinderGeometry(8, 8.4, 0.5, 48),
     new THREE.MeshStandardMaterial({ color: 0x1d1523, roughness: 0.95, metalness: 0 })
   );
   table.position.y = -0.05; table.receiveShadow = true; scene.add(table);
+  tableMesh = table;
   buildBoard();
   buildCenter();
   buildDice();
   buildCard();
+  applyTheme();
   sizeScene();
   addEventListener('resize', sizeScene);
   return true;
@@ -963,6 +1044,7 @@ function buildBoard() {
   });
 }
 function buildCenter() {
+  const th = MAPS[CUR_MAP_ID].theme;
   const tex = mkTex(512, 512, (ctx, w, h) => {
     const gd = ctx.createRadialGradient(w / 2, h / 2, 40, w / 2, h / 2, 250);
     gd.addColorStop(0, '#2a2050'); gd.addColorStop(1, '#120e24');
@@ -973,8 +1055,8 @@ function buildCenter() {
     ctx.beginPath(); ctx.arc(w / 2, h / 2, 160, 0, 7); ctx.stroke();
     ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = '900 110px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
-    ctx.fillText('大富翁', w / 2, h / 2 - 26);
-    ctx.font = '64px serif'; ctx.fillText('🎲', w / 2, h / 2 + 80);
+    ctx.fillText(th.label, w / 2, h / 2 - 26);
+    ctx.font = '64px serif'; ctx.fillText(th.emoji2, w / 2, h / 2 + 80);
   });
   const disc = new THREE.Mesh(
     new THREE.CircleGeometry(2.1, 48),
@@ -982,6 +1064,32 @@ function buildCenter() {
   );
   disc.rotation.x = -Math.PI / 2; disc.position.y = 0.315;
   scene.add(disc);
+  centerDisc = disc;
+}
+function applyTheme() {   // 主题三色原地改（挑刺 F4）：毡面/背景/雾随图切换，不重建几何
+  if (!scene) return;
+  const th = MAPS[CUR_MAP_ID].theme;
+  if (tableMesh) tableMesh.material.color.set(th.felt);
+  if (scene.background && scene.background.isColor) scene.background.set(th.bg);
+  if (scene.fog) scene.fog.color.set(th.fog);
+}
+function rebuildBoardVisuals() {   // 换图重绘（挑刺 F4 dispose 纪律）：旧格面/归属标记/中心盘全量释放后再建
+  if (!G.gl || !scene) return;
+  tileMeshes.forEach(grp => {
+    if (!grp) return;
+    scene.remove(grp);
+    grp.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(mt => { if (mt.map) mt.map.dispose(); mt.dispose(); });
+    });
+  });
+  tileMeshes = [];
+  ownerMarks.forEach(mk => { if (!mk) return; scene.remove(mk); mk.geometry.dispose(); mk.material.dispose(); });
+  ownerMarks = [];
+  if (centerDisc) { scene.remove(centerDisc); centerDisc.geometry.dispose(); centerDisc.material.map.dispose(); centerDisc.material.dispose(); centerDisc = null; }
+  buildBoard();
+  buildCenter();
+  applyTheme();
 }
 function dieFaceTex(v) {
   return mkTex(128, 128, (ctx, w, h) => {
@@ -1193,7 +1301,8 @@ function saveGame() {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       v: 1, at: Date.now(), phase: G.phase, turn: G.turn, doubles: G.doubles,
       roundLimit: G.roundLimit, skipHandoff: G.skipHandoff, rngA: rngBox.a, seed: G.seed,
-      players: G.players.map(p => ({ name: p.name, bot: p.bot, colorIdx: p.colorIdx, cash: p.cash, pos: p.pos, jailed: p.jailed, jailTurns: p.jailTurns, jailCards: p.jailCards, bankrupt: p.bankrupt, turnsTaken: p.turnsTaken })),
+      map: CUR_MAP_ID,   // 多地图（SPEC §1.6c）：旧档无此字段按 classic 回落
+      players: G.players.map(p => ({ name: p.name, bot: p.bot, colorIdx: p.colorIdx, cash: p.cash, pos: p.pos, jailed: p.jailed, jailTurns: p.jailTurns, jailCards: p.jailCards, bankrupt: p.bankrupt, turnsTaken: p.turnsTaken, visited: p.visited || [], marketCards: p.marketCards || 0 })),
       owners: G.owners,
       decks: G.decks,
     }));
@@ -1218,10 +1327,11 @@ function aliveIdx() { return G.players.map((p, i) => p.bankrupt ? -1 : i).filter
 function currentPlayer() { return G.players[G.turn]; }
 
 function startGame(cfg) {
+  applyMap(cfg.map || CUR_MAP_ID);   // 开局定图（rematch/联机不传时沿用当前图——挑刺 F11：NDOC.game 已被置 null 不能回读）
   G.roundLimit = cfg.roundLimit; G.skipHandoff = cfg.skipHandoff;
   G.players = cfg.players.map((p, i) => ({
     name: p.name, bot: !!p.bot, colorIdx: i, cash: START_CASH, pos: 0,
-    jailed: false, jailTurns: 0, jailCards: 0, bankrupt: false, turnsTaken: 0,
+    jailed: false, jailTurns: 0, jailCards: 0, bankrupt: false, turnsTaken: 0, visited: [], marketCards: 0,
   }));
   G.owners = new Array(24).fill(null);
   ownerMarks.forEach(m => { if (m) m.visible = false; });
@@ -1241,6 +1351,7 @@ function startGame(cfg) {
 function beginTurn() {
   const p = currentPlayer();
   if (!p || p.bankrupt) { advanceTurn(); return; }
+  G.flight = null;   // 航程一次性：跨回合必清（快照不再携带，观战 fly op 只播一次）
   if (G._resumeSkipInc) G._resumeSkipInc = false;   // 存档恢复重放本回合：turnsTaken 已计过，别再 +1
   else p.turnsTaken++;
   G.phase = 'HANDOFF';
@@ -1374,7 +1485,7 @@ function movePawn(steps) {
   G.phase = 'HOPPING'; updateHUD();
   if (!G.gl || REDUCED || bodyLo || TURBO) {
     let np = (p.pos + steps) % 24;
-    if (p.pos + steps >= 24) { gainMoney(p, GO_PAY, '🏁 过起点'); }
+    if (p.pos + steps >= 24) { arriveGo(p); }
     p.pos = np;
     placePawn(G.turn, np, true); layoutPlates(); render2D();
     return Promise.resolve();
@@ -1391,7 +1502,7 @@ function movePawn(steps) {
       const from = p.pos;
       p.pos = (p.pos + 1) % 24;
       const to = p.pos;
-      if (to === 0) gainMoney(p, GO_PAY, '🏁 过起点');
+      if (to === 0) arriveGo(p);
       SFX.step(steps - left);
       const grp = pawnObjs[G.turn];
       const [x0, z0] = [TILES[from].x, TILES[from].z];
@@ -1467,7 +1578,8 @@ function payFine() {
 function useJailCard() {
   const p = currentPlayer();
   p.jailCards--; p.jailed = false; p.jailTurns = 0;
-  G.decks.chestDisc.push(CARDS.chest.findIndex(c => c.act.jailCard));   // 卡回命运弃牌堆
+  if (p.marketCards > 0) p.marketCards--;   // 夜市购入的卡：用掉即消失，不回牌堆（守恒不变量 deck+disc+手持=8，挑刺 F2）
+  else G.decks.chestDisc.push(CARDS.chest.findIndex(c => c.act.jailCard));   // 牌堆抽的卡：回命运弃牌堆
   toast('🃏 免罚卡生效，继续掷骰', 'gain');
   updateHUD(); enterHumanTurn();
 }
@@ -1477,6 +1589,11 @@ async function resolveTile() {
   G.phase = 'RESOLVE'; updateHUD();
   netCkpt();
   const t = TILES[p.pos];
+  if (CUR_MAP_ID === 'world' && p.pos % 6 !== 0) {   // 🛂 护照集章（world）：落非角格=到访所在大洲，过起点按本圈集章数发奖
+    const side = p.pos < 6 ? 0 : p.pos < 12 ? 1 : p.pos < 18 ? 2 : 3;
+    if (!p.visited) p.visited = [];
+    p.visited[side] = true;
+  }
   if (t.kind === 'prop') {
     const owner = G.owners[p.pos];
     if (owner === null || owner === undefined) {
@@ -1489,6 +1606,7 @@ async function resolveTile() {
         return;   // 弹窗回调里 afterResolve
       }
     } else if (owner === G.turn) {
+      if (CUR_MAP_ID === 'food') gainMoney(p, Math.round(t.price * 0.08), '😋 回头客盈门');   // 全国美食：落自家餐馆必有回头客（确定性反馈，无 rng）
       toast(`🏠 回自己的 ${t.name} 坐坐`);
       await sleep(500); afterResolve();
     } else {
@@ -1518,10 +1636,72 @@ async function resolveTile() {
     toast('🚔 探监中（只是路过）');
     await sleep(500); afterResolve();
   } else if (t.kind === 'parking') {
-    toast('☕ 喝杯咖啡歇口气');
-    await sleep(500); afterResolve();
+    await resolveParkingTile(p);   // 角格玩法随图分发（classic 咖啡 / world 机场 / food 夜市）
   } else {
     afterResolve();
+  }
+}
+async function resolveParkingTile(p) {   // 12 号角格按图分发（2026-09-29 多地图）。
+  // F1 纪律：任何分支只允许一次 afterResolve，禁止内嵌 resolveTile 递归（否则双推进回合）
+  if (CUR_MAP_ID === 'world') {   // ✈️ 机场：¥400 随机航线飞 起点领钱/监狱探监/入狱角（明码赌局，格面文案同款）
+    const COST = 400;
+    if (p.cash < COST) { toast('✈️ 机场：现金不足 ¥400，只能望着航班叹气'); await sleep(600); afterResolve(); return; }
+    charge(p, COST, null);
+    if (p.bankrupt) { afterResolve(); return; }
+    const dest = [0, 6, 18][rint(3)];
+    toast(dest === 0 ? '✈️ 登机 → 起点（过路费照领！）' : dest === 6 ? '✈️ 登机 → 监狱（探监，安全的）' : '✈️ 登机 → 入狱角（当心…）');
+    const from = p.pos, pi = G.turn;
+    p.pos = dest;
+    G.flight = { i: pi, from, to: dest };   // 一次性航程：快照携带，观战端编译成 fly 回放 op（beginTurn 清除）
+    await sleep(400);
+    await glideFly(pi, from, dest);
+    if (dest === 0) { arriveGo(p); afterResolve(); }
+    else if (dest === 6) { toast('🛬 平安落地监狱角：探监中（只是路过）'); afterResolve(); }
+    else { sendToJail(); afterResolve(); }   // 落入狱角：押送滑行 18→6 由 sendToJail 接手
+    return;
+  }
+  if (CUR_MAP_ID === 'food') {   // 🏮 夜市：¥400 换免罚卡（已有卡不卖、现金不足只逛——挑刺 F9 定价防套利）
+    if (p.jailCards > 0) toast('🏮 夜市：手上已有免罚卡，老板摆摆手不卖');
+    else if (p.cash < 400) toast('🏮 夜市：现金不足 ¥400，闻闻香味就走');
+    else {
+      charge(p, 400, null);
+      if (!p.bankrupt) { p.jailCards++; p.marketCards = (p.marketCards || 0) + 1; toast('🏮 夜市扫货 ¥400 → 免罚卡到手！', 'gain'); SFX.card(); }
+    }
+    updateHUD();
+    await sleep(600); afterResolve();
+    return;
+  }
+  toast('☕ 喝杯咖啡歇口气');
+  await sleep(500); afterResolve();
+}
+function glideFly(pi, from, to) {   // 航线滑行（观战回放 fly op 同款几何）：弧高 1.5 长弧，slideTok 代际锁
+  return new Promise(res => {
+    const grp = pawnObjs[pi];
+    if (!grp) { res(); return; }
+    if (!G.gl || REDUCED || bodyLo || TURBO) { placePawn(pi, to, true); layoutPlates(); SFX.land(); render2D(); res(); return; }   // 静态退路：禁动不禁声
+    SFX.fly();
+    const [sx, sz] = pawnSlot(pi, from);
+    const [ex, ez] = pawnSlot(pi, to);
+    const t0 = performance.now(), dur = 900;
+    const my = (slideTok[pi] = (slideTok[pi] || 0) + 1);
+    const step = now => {
+      if (!grp || slideTok[pi] !== my) { res(); return; }
+      const k = Math.min(1, (now - t0) / (dur * SPEED));
+      const kk = k * k * (3 - 2 * k);
+      grp.position.set(sx + (ex - sx) * kk, 0.34 + Math.sin(k * Math.PI) * 1.5, sz + (ez - sz) * kk);
+      grp.rotation.z = Math.sin(k * Math.PI) * 0.09;
+      if (k < 1) requestAnimationFrame(step);
+      else { grp.rotation.z = 0; placePawn(pi, to, true); layoutPlates(); SFX.land(); render2D(); res(); }
+    };
+    requestAnimationFrame(step);
+  });
+}
+function arriveGo(p, why = '🏁 过起点') {   // 过/抵起点统一结算（挑刺 F6 四路合一）：GO_PAY + world 护照本圈集章奖励，发奖后清空本圈；why 参数保 classic 卡牌文案逐字（终审 F-B2）
+  gainMoney(p, GO_PAY, why);
+  if (CUR_MAP_ID === 'world' && p.visited) {
+    const n = p.visited.filter(Boolean).length;
+    if (n > 0) gainMoney(p, n * 200, `🛂 护照集章 ×${n} 洲`);
+    p.visited = [];
   }
 }
 function afterResolve() {
@@ -1685,7 +1865,7 @@ async function drawCard(kind) {
   }
   if (a.goto) {
     p.pos = a.goto; placePawn(G.turn, 0, !G.gl); layoutPlates();
-    gainMoney(p, GO_PAY, '🏁 抵达起点');
+    arriveGo(p, '🏁 抵达起点');   // 抵达起点与过起点同权（classic 文案逐字保留；world 护照集章也在此时清空结算）
   }
   if (a.jail) sendToJail();
   updateHUD(); render2D();
@@ -1743,7 +1923,8 @@ function botAct() {
   if (p.jailed) {
     if (p.jailCards) {
       p.jailCards--; p.jailed = false; p.jailTurns = 0;
-      G.decks.chestDisc.push(CARDS.chest.findIndex(c => c.act.jailCard));
+      if (p.marketCards > 0) p.marketCards--;   // 夜市卡不回牌堆（同 useJailCard 守恒记账）
+      else G.decks.chestDisc.push(CARDS.chest.findIndex(c => c.act.jailCard));
       toast('🃏 免罚卡生效'); updateHUD();
       doRoll(false); return;
     }
@@ -1821,15 +2002,28 @@ $('btn-quit').addEventListener('click', () => {
     [{ label: '确定离开', fn: () => { location.href = 'index.html'; } }, { label: '继续玩', fn: closeGenModal }]);
 });
 $('btn-rules-top').addEventListener('click', () => {
-  openGenModal(`<div style="text-align:left"><b>📜 规则速览</b><ul style="padding-left:20px;line-height:1.9;font-size:0.85rem;margin-top:8px">
+  openGenModal(`<div style="text-align:left"><b>📜 规则速览${CUR_MAP_ID !== 'classic' ? ' · ' + MAPS[CUR_MAP_ID].name : ''}</b><ul style="padding-left:20px;line-height:1.9;font-size:0.85rem;margin-top:8px">
     <li>过起点 +¥1000；无主地可买</li><li>租金=地价40%，集齐同色×3</li><li>双数再掷；三连双入狱</li>
     <li>监狱三选一：赌双数/¥500/🃏</li><li>所得税 ¥1000</li><li>局长打满按现金+地价排名</li>
-    <li>付不起=破产，最后存活胜</li></ul></div>`, [{ label: '明白了', fn: closeGenModal }]);
+    <li>付不起=破产，最后存活胜</li>${CUR_MAP_ID !== 'classic' ? `<li style="color:var(--gold)">${MAPS[CUR_MAP_ID].line}</li>` : ''}</ul></div>`, [{ label: '明白了', fn: closeGenModal }]);
 });
 $('btn-sfx').addEventListener('click', () => { $('btn-sfx').textContent = SFX.toggle() ? '🔊' : '🔇'; });
 $('btn-sfx').textContent = SFX.on ? '🔊' : '🔇';
 
 /* ═════════════════════════ 12. SETUP ═════════════════════════ */
+let mapSel = 'classic';
+function renderMapPicker() {   // 地图三选卡（热座）：AUTOTEST 钉 classic 不读偏好（探针基线零变化）
+  const box = $('map-picker'); if (!box) return;
+  box.innerHTML = Object.entries(MAPS).map(([id, m]) =>
+    `<button type="button" class="map-card ${id === mapSel ? 'on' : ''}" data-map="${id}" aria-label="${m.name}"><span class="mc-emoji">${m.emoji}</span><span class="mc-name">${m.name}</span></button>`).join('');
+  box.querySelectorAll('.map-card').forEach(b => b.addEventListener('click', () => {
+    mapSel = b.dataset.map; SFX.tap();
+    try { localStorage.setItem('mono:map', mapSel); } catch (e) {}
+    renderMapPicker();
+  }));
+  const line = $('map-line');
+  if (line) line.textContent = `${MAPS[mapSel].tagline} · ${MAPS[mapSel].line}`;
+}
 const seatState = [];
 function defaultName(i) {
   const names = ['小明', '小红', '阿强', '婷婷'];
@@ -1867,7 +2061,7 @@ $('btn-start').addEventListener('click', () => {
   if (!players.some(p => !p.bot)) players[0].bot = false;   // 热座至少留 1 真人（纯围观用 2D 投屏等未来方案）
   try { localStorage.setItem('mono:names', JSON.stringify(players.map(p => p.name))); } catch (e) {}
   try { localStorage.setItem('mono:last', 'monopoly'); } catch (e) {}
-  startGame({ players, roundLimit: +$('round-limit').value, skipHandoff: $('skip-handoff').checked });
+  startGame({ players, roundLimit: +$('round-limit').value, skipHandoff: $('skip-handoff').checked, map: mapSel });
 });
 $('btn-back-arcade').addEventListener('click', () => { location.href = 'index.html'; });
 $('skip-handoff').addEventListener('change', () => { try { localStorage.setItem('mono:nohandoff', $('skip-handoff').checked ? '1' : '0'); } catch (e) {} });
@@ -1882,7 +2076,7 @@ function render2D() {
     const here = G.players.some((p, j) => !p.bankrupt && p.pos === i && j === G.turn);
     const strip = t.kind === 'prop' ? `<span class="strip" style="background:${GROUPS[t.group].color}"></span>` : '<span class="strip" style="background:rgba(255,255,255,0.2)"></span>';
     const who = G.players.filter((p, j) => !p.bankrupt && p.pos === i).map(p => escapeHtml(p.name)).join('、');
-    return `<div class="t2 ${here ? 'here' : ''}">${strip}<span class="t2-name">${t.emoji} ${t.name}</span>
+    return `<div class="t2 ${here ? 'here' : ''}">${strip}<span class="t2-name">${t.emoji || '🏠'} ${t.name}</span>
       <span class="t2-price">${t.kind === 'prop' ? fmt(t.price) + ' · 租' + fmt(t.price * RENT_RATE) : ''}</span>
       <span class="t2-owner">${o !== null && o !== undefined ? '🏠 ' + escapeHtml(G.players[o].name) : ''}</span>
       ${who ? `<span class="t2-owner">📍 ${who}</span>` : ''}</div>`;
@@ -1949,6 +2143,9 @@ function hideLoader() {
 }
 async function boot() {
   if (LOPERF_FORCED) setBodyLo(true);   // E2E：跳帧渲染，纯状态机+UI 断言（软渲真渲染既慢又脆，见 SPEC 1.6）
+  let bootMap = 'classic';   // AUTOTEST 恒 classic（六门禁基线）；真机恢复上次玩的图（终审 F-A：首调 persist=false，先填图后读偏好会被首填洗掉）
+  if (!AUTOTEST) { try { const sm = localStorage.getItem('mono:map'); if (sm && MAPS[sm]) bootMap = sm; } catch (e) {} }
+  applyMap(bootMap, false);
   const t0 = performance.now();
   setLoader(20, '搭建棋盘...');
   const ok = initScene();
@@ -1964,11 +2161,14 @@ async function boot() {
     seatState.length = 0;
     seatState.push({ name: '测试员', bot: false }, { name: '机器人甲', bot: true });
     renderSeats();
+    renderMapPicker();   // AUTOTEST 钉 classic：mapSel 初值即 classic，不读偏好（探针基线零变化）
   } else {
     try { if (localStorage.getItem('mono:nohandoff') === '1') $('skip-handoff').checked = true; } catch (e) {}
     try { if (!localStorage.getItem('mono:rulesSeen')) { $('rules-box').open = true; localStorage.setItem('mono:rulesSeen', '1'); } } catch (e) {}
+    mapSel = CUR_MAP_ID;   // 偏好已在 boot 开头应用（终审 F-A：这里只对齐选卡高亮）
     seatState.push({ name: defaultName(0), bot: false }, { name: defaultName(1), bot: true });
     renderSeats();
+    renderMapPicker();
   }
   updateHUD();
   await sleep(120);
@@ -1985,7 +2185,8 @@ async function boot() {
   }
   if (save) {
     const leader = save.players.reduce((a, b) => (b.cash > a.cash ? b : a), save.players[0]);
-    openGenModal(`<p style="line-height:1.9">🏠 发现上一局<br><b>第 ${Math.min(...save.players.filter(p => !p.bankrupt).map(p => p.turnsTaken)) + 1} 轮 · ${escapeHtml(leader.name)} 领先</b></p>`,
+    const mname = MAPS[save.map] ? MAPS[save.map].name : '都市风云';
+    openGenModal(`<p style="line-height:1.9">🏠 发现上一局（${mname}）<br><b>第 ${Math.min(...save.players.filter(p => !p.bankrupt).map(p => p.turnsTaken)) + 1} 轮 · ${escapeHtml(leader.name)} 领先</b></p>`,
       [{ label: '继续对局', fn: () => { closeGenModal(); resumeGame(save); } },
        { label: '弃局重来', fn: () => { closeGenModal(); clearSave(); $('setup').hidden = false; } }]);
   } else if ((() => { try { return !!sessionStorage.getItem('mono:netroom'); } catch (e) { return false; } })()) {
@@ -1995,6 +2196,7 @@ async function boot() {
   }
 }
 function resumeGame(s) {
+  applyMap(s.map || 'classic', false);   // 先重建图板再摆棋子；恢复现场不写偏好（终审 F-A）
   G.roundLimit = s.roundLimit; G.skipHandoff = s.skipHandoff;
   G.players = s.players.map((p, i) => Object.assign({}, p, { colorIdx: p.colorIdx != null ? p.colorIdx : i }));
   G.owners = s.owners.slice();
@@ -2024,6 +2226,8 @@ if (AUTOTEST || qs.get('inspect') === '1') {   // inspect=1：真机路径（SPE
     forceJail: i => { G.players[i].jailed = true; G.players[i].jailTurns = 0; G.players[i].pos = 6; placePawn(i, 6, true); updateHUD(); },
     resolveAt: async (i, tile) => { G.turn = i; G.doubles = 0; G.players[i].pos = tile % 24; if (pawnObjs[i]) placePawn(i, G.players[i].pos, true); render2D(); await resolveTile(); },
     sceneInfo: () => ({ gl: G.gl, bodyLo, tiles: tileMeshes.length, pawns: pawnObjs.length, plates: plateSprites.length, dice: diceObjs.length }),
+    map: () => ({ id: CUR_MAP_ID, name: MAPS[CUR_MAP_ID].name, tileNames: TILES.map(t => t.name), prices: TILES.map(t => t.price || 0), groups: GROUPS.map(g => g.color), corner12: TILES[12].name, theme: MAPS[CUR_MAP_ID].theme.label }),   // 多地图探针口（SPEC §1.6c）
+    arriveGo: pi => { const p = G.players[pi]; if (p) arriveGo(p); },   // 过/抵起点统一结算直呼（护照集章探针断言口）
     rigSnap: () => ({ az: rig.az, elev: rig.elev, dist: rig.dist, focusK: rig.focusK, autoDist: rig.autoDist, tgt: { x: rig.tgt.x, y: rig.tgt.y, z: rig.tgt.z } }),
     distAnchor: () => ({ near: G.gl && camera ? nearDist() : 0, base: G.gl && camera ? baseDist() : 0 }),   // 探针用：当前视口的近景/全景锚距
     pawnWorld: () => pawnObjs.map(p => (p ? [p.position.x, p.position.y, p.position.z] : null)),
