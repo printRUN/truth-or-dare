@@ -334,26 +334,30 @@ async function driveGame(host, join, tag, maxActions, needPlays) {
   await smallPg.setViewportSize({ width: 375, height: 667 });
   await smallPg.bringToFront(); await sleep(800); await raf(smallPg);
   await shot(smallPg, 'h1-' + smallName + '-small');
-  const opened = await smallPg.evaluate(() => { const b = document.getElementById('act-hand'); if (b && b.getBoundingClientRect().width) { b.click(); return 'bar'; } const c = document.getElementById('btn-handoff-go'); if (c && !document.getElementById('handoff').hidden) { c.click(); return 'gate'; } return 'none'; });
-  await sleep(700);
-  const strip = await smallPg.evaluate(() => {
-    const ovl = document.getElementById('hand-ovl'), s = document.getElementById('hand-strip');
-    if (!ovl || !ovl.classList.contains('show')) return { open: false };
-    s.scrollLeft = s.scrollWidth;
-    return { open: true, sw: s.scrollWidth, cw: s.clientWidth, cards: s.children.length };
+  // 去浮层轮:小屏 3D 手牌全端化——H1 改断言「3D 手牌常驻可见」;H2 改 3D 贴桌流出牌(可出牌显示序 → cardScreenPos → act-play)
+  const smallCards = await smallPg.evaluate(() => {
+    const G = window.__uno.state;
+    return { turn: G.turn, myTurn: window.__uno.net().myTurn, cards: window.__uno.cards().filter(c => c.owner === G.turn) };
   });
-  ok(strip.open && strip.cards >= 1, `H1 小屏(375×667) 手牌层可开（${strip.cards} 张，需滚动=${strip.sw > strip.cw}），入口=${opened}@${smallName}`, { id: 'H1', title: '小屏手牌层打不开' });
-  await shot(smallPg, 'h2-' + smallName + '-small-strip-end');
-  const smallPlay = await smallPg.evaluate(() => {
-    const G = window.__uno.state, n = window.__uno.net();
-    if (!(n.myTurn && G.phase === 'AWAIT_ACTION')) return 'not-my-turn';
-    const els = [...document.querySelectorAll('#hand-strip .hcard.playable')];
-    if (els.length) { els[els.length - 1].click(); return 'clicked-last-playable'; }
-    return 'no-playable';
-  });
+  ok(smallCards.cards.length >= 1 && smallCards.cards.every(c => c.face), `H1 小屏(375×667) 3D 手牌常驻可见（${smallCards.cards.length} 张）@${smallName}`, { id: 'H1', title: '小屏 3D 手牌不可见' });
+  await shot(smallPg, 'h2-' + smallName + '-small-3dhand');
+  const smallPlay = await (async () => {
+    const k = await smallPg.evaluate(() => {
+      const G = window.__uno.state, n = window.__uno.net();
+      if (!(n.myTurn && G.phase === 'AWAIT_ACTION')) return -1;
+      const cards = __uno.cards().filter(c => c.owner === G.turn).sort((a, b) => a.x - b.x);
+      return cards.findIndex(c => c.play);   // 显示序(按 x 升序)下第一张可出牌
+    });
+    if (k < 0) return 'not-my-turn-or-no-playable';
+    const pos = await smallPg.evaluate(k => { __uno.forceRender && __uno.forceRender(); return __uno.cardScreenPos(k); }, k);
+    await smallPg.mouse.click(Math.round(pos.x), Math.round(pos.y));
+    await smallPg.waitForFunction(() => { const b = document.getElementById('act-play'); return b && b.style.display !== 'none'; }, null, { timeout: 8000 });
+    await smallPg.click('#act-play');
+    return 'played-3d-table';
+  })();
   console.log('  ℹ️ H2 小屏出牌点击：' + smallPlay);
   await sleep(900); await settleModals(smallPg); await shot(smallPg, 'h3-' + smallName + '-small-after-play');
-  ok(smallPlay !== 'not-my-turn' || true, 'H2 小屏出牌点击路径执行（结果见上一行）');
+  ok(smallPlay !== 'not-my-turn-or-no-playable' || true, 'H2 小屏出牌点击路径执行（结果见上一行）');
 
   // ══ I. 错误收集 ══
   const runtimeErrs = await Promise.all([host, join].map(pg => pg.evaluate(() => window.__errs || [])));

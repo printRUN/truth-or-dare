@@ -42,6 +42,19 @@ async function evClick(page, qs, tries) {
   return false;
 }
 
+async function cardClick(p, idx, tries) {   // 3D 手牌全端化:GL 局 DOM 手牌退役,坐标点 3D 卡(handScreenPos 已做归属校验,防 hits[0] 距离序点错牌)
+  for (let i = 0; i < (tries || 5); i++) {
+    const pos = await p.evaluate(ix => window.__cat.handScreenPos(ix), idx).catch(() => null);
+    if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
+      await p.mouse.click(pos.x, pos.y);
+      await p.waitForTimeout(280);   // 抬起动画 190ms:不等落定就点下一张,在飞卡会横穿下一张的校验点,click 事件期 raycast 命中别张(toggle 错)
+      return true;
+    }
+    await p.waitForTimeout(400);
+  }
+  throw new Error('handScreenPos(' + idx + ')=null');
+}
+
 async function clk(page, tag, qs, timeout) {
   try { await page.click(qs, { timeout: timeout || 8000 }); return; }
   catch (e) {
@@ -138,11 +151,12 @@ async function joinSpectate(page, name, room) {
 
   // A 出攻击 → B nope 反制（攻击牌索引动态查）
   const atkIdx = await pA.evaluate(() => __cat.hand.findIndex(c => c === 'attack:0'));
-  await pA.click(`#bc-hand .hcard[data-i="${atkIdx}"]`);
+  await cardClick(pA, atkIdx);
   await pA.waitForFunction(() => !document.querySelector('#btn-play').disabled, null, { timeout: 6000 });
   await pA.click('#btn-play');
   await pB.waitForFunction(() => !document.querySelector('#bc-nope').hidden, null, { timeout: 8000 });
   ok(true, 'B 看到 nope 横幅（倒计时环 + 休想按钮）');
+  await pB.screenshot({ path: path.join(ROOT, '.pw', 'shots', 'bombcat-nope-holder.png') });   // 持 nope 者视角:独立横幅醒目度取证（视觉终审必修3）
   await pA.screenshot({ path: path.join(ROOT, '.pw', 'shots', 'bombcat-nope.png') });
   for (let i = 0; i < 8; i++) {   // nope act 偶发丢投递：以「日志出现休想」为准重试
     await pB.evaluate(() => { const b = document.querySelector('#btn-nope'); if (b && !document.querySelector('#bc-nope').hidden) b.click(); });
@@ -167,7 +181,7 @@ async function joinSpectate(page, name, room) {
 
   // B 打恩惠 → A 选牌给出（nope 已消耗，favor 索引动态查）
   const favIdx = await pB.evaluate(() => __cat.hand.findIndex(c => CAT.kindOf(c) === 'favor'));
-  await pB.click(`#bc-hand .hcard[data-i="${favIdx}"]`);
+  await cardClick(pB, favIdx);
   await pB.waitForFunction(() => !document.querySelector('#btn-play').disabled, null, { timeout: 6000 });
   await clk(pB, 'B-play', '#btn-play');
   await pB.waitForSelector('#ovl-target:not([hidden])', { timeout: 6000 });
@@ -245,7 +259,7 @@ async function joinSpectate(page, name, room) {
   await pA.waitForFunction(() => __cat.hand.length >= 2, null, { timeout: 8000 });
   const tacoIdx = await pA.evaluate(() => __cat.hand.map((c, i) => [CAT.kindOf(c), i]).filter(x => x[0] === 'taco').map(x => x[1]));
   if (tacoIdx.length >= 2) {
-    for (const i of tacoIdx.slice(0, 2)) await pA.click(`#bc-hand .hcard[data-i="${i}"]`);
+    for (const i of tacoIdx.slice(0, 2)) await cardClick(pA, i);
     await pA.click('#btn-play');
     await pA.waitForSelector('#ovl-target:not([hidden])', { timeout: 6000 });
     await pA.click('#ovl-target .tgt');

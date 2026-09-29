@@ -54,33 +54,45 @@ const cd = (c, v) => ({ c, v });
     ok('A1 自动开局 1 真人+1 机器人，起手 7 张', st.n === 2 && st.h0 === 7 && st.h1 === 7 && st.names[0] === '测试员', st.names);
     ok('A1 动作条出现（AWAIT_ACTION）', st.phase === 'AWAIT_ACTION' && st.bar);
 
-    // A2 出牌合法性：可出 2 张、不可出 1 张（r5/b7/wW，当前红）
-    await p.evaluate(() => { __uno.state.cur = 'r'; __uno.state.discard = [cd('r', '3')]; __uno.forceHand(0, [cd('r', '5'), cd('b', '7'), cd('w', 'W')]); });
-    await p.click('#act-hand');
-    await p.waitForSelector('#hand-ovl.show', { timeout: 10000 });
-    st = await p.evaluate(() => ({ play: document.querySelectorAll('.hcard.playable').length, dim: document.querySelectorAll('.hcard.dim').length }));
-    ok('A2 合法性高亮：可出 2 / 压暗 1', st.play === 2 && st.dim === 1, st);
-    await p.keyboard.press('Escape');
-    await p.evaluate(() => document.getElementById('hand-ovl').classList.remove('show'));
+    // 去浮层轮:3D 贴桌流——镜头回位+forceRender 刷矩阵,按显示序点桌牌抬起,#act-play 确认打出
+    const camRest = () => p.waitForFunction(() => __uno.camInfo().focusK >= 0.99 && __uno.state.phase === 'AWAIT_ACTION' && __uno.state.turn === 0, { timeout: 25000 });
+    const dispIdxOf = pair => p.evaluate(w => {
+      const co = { r: 0, y: 1, g: 2, b: 3, w: 4 };
+      const vo = v => (/^[0-9]$/.test(v) ? +v : { S: 10, R: 11, D2: 12, W: 13, W4: 14 }[v]);
+      const hand = __uno.state.players[0].hand;
+      const idx = hand.findIndex(cd => cd.c === w[0] && cd.v === w[1]);
+      if (idx < 0) return -1;
+      const sig = cd => co[cd.c] * 100 + vo(cd.v);
+      return hand.filter(cd => sig(cd) < sig(hand[idx])).length;   // 显示序=签名小于自身的张数(与 placeHandCards/cardScreenPos 同序)
+    }, pair);
+    const tablePlay = async pair => {
+      await camRest();
+      const di = await dispIdxOf(pair);
+      const pos = await p.evaluate(k => { __uno.forceRender(); return __uno.cardScreenPos(k); }, di);
+      await p.mouse.click(Math.round(pos.x), Math.round(pos.y));
+      await p.waitForFunction(() => { const b = document.getElementById('act-play'); return b && b.style.display !== 'none' && !b.disabled; }, { timeout: 8000 });
+      await p.click('#act-play');
+    };
 
-    // A3 +4 强限：手中有当前色 → W4 灰；没有 → 可出
+    // A2 出牌合法性：可出 2 张、不可出 1 张（r5/b7/wW，当前红）——去浮层轮:口径改 cards().play(3D 可玩性 live 计算)
+    await p.evaluate(() => { __uno.state.cur = 'r'; __uno.state.discard = [cd('r', '3')]; __uno.forceHand(0, [cd('r', '5'), cd('b', '7'), cd('w', 'W')]); });
+    st = await p.evaluate(() => {
+      const ps = __uno.cards().filter(c => c.owner === 0);
+      return { play: ps.filter(c => c.play).length, dim: ps.length - ps.filter(c => c.play).length };
+    });
+    ok('A2 合法性：可出 2 / 压暗 1', st.play === 2 && st.dim === 1, st);
+
+    // A3 +4 强限：手中有当前色 → W4 灰；没有 → 可出（cards().play 口径,live 计算）
     await p.evaluate(() => __uno.forceHand(0, [cd('r', '2'), cd('w', 'W4')]));
-    await p.click('#act-hand');
-    st = await p.evaluate(() => [...document.querySelectorAll('.hcard')].map(e => e.classList.contains('playable') ? 1 : 0));
+    st = await p.evaluate(() => __uno.cards().filter(c => c.owner === 0).map(c => c.play ? 1 : 0));
     ok('A3 +4 强限：有当前色时 W4 不可出', st[0] === 1 && st[1] === 0, st);
-    await p.evaluate(() => document.getElementById('hand-ovl').classList.remove('show'));   // 第一段断言完关浮层（否则下个 act-hand 点击被 z70 拦截）
-    await p.waitForTimeout(120);
     await p.evaluate(() => __uno.forceHand(0, [cd('b', '2'), cd('w', 'W4')]));
-    await p.click('#act-hand');   // 重新打开浮层（上一段已关闭，strip 里是旧 DOM）
-    await p.waitForFunction(() => document.querySelectorAll('#hand-strip .hcard')[1] && document.querySelectorAll('#hand-strip .hcard')[1].classList.contains('playable'), { timeout: 8000 });
-    await p.evaluate(() => document.getElementById('hand-ovl').classList.remove('show'));
-    ok('A3 +4 强限：无当前色时可出', true);
+    st = await p.evaluate(() => __uno.cards().filter(c => c.owner === 0).map(c => c.play ? 1 : 0));
+    ok('A3 +4 强限：无当前色时可出', st[0] === 0 && st[1] === 1, st);
 
     // A4 万能选色：出 W → 弹四色 → 选蓝 → cur=b
     await p.evaluate(() => { __uno.state.discard = [cd('r', '3')]; __uno.state.cur = 'r'; __uno.forceHand(0, [cd('w', 'W'), cd('r', '2')]); });   // 垫一张：出 W 不触发胜利
-    await p.click('#act-hand');
-    await p.waitForSelector('#hand-ovl.show', { timeout: 8000 });
-    await p.click('.hcard[data-k="0"]');
+    await tablePlay(['w', 'W']);   // 3D 贴桌流(A4)
     await p.waitForSelector('#wild-modal:not([hidden])', { timeout: 8000 });
     await p.evaluate(() => __uno.chooseColor('b'));
     await p.waitForFunction(() => __uno.state.cur === 'b' && __uno.state.turn === 1, { timeout: 15000 });
@@ -91,18 +103,14 @@ const cd = (c, v) => ({ c, v });
     // A5 +2 罚摸并轮空：真人出 D2 → 机器人摸 2 → 回到真人
     const botBefore = await p.evaluate(() => __uno.state.players[1].hand.length);
     await p.evaluate(() => { __uno.state.cur = 'r'; __uno.state.discard = [cd('r', '3')]; __uno.forceHand(0, [cd('r', 'D2'), cd('g', '4')]); });   // 垫一张防"打完即胜"
-    await p.click('#act-hand');
-    await p.waitForSelector('#hand-ovl.show', { timeout: 8000 });
-    await p.click('.hcard[data-k="0"]');
+    await tablePlay(['r', 'D2']);   // 3D 贴桌流(A5)
     await p.waitForFunction(() => __uno.state.turn === 0 && __uno.state.phase === 'AWAIT_ACTION', { timeout: 20000 });
     st = await p.evaluate(b => ({ bot: __uno.state.players[1].hand.length, top: __uno.state.discard[__uno.state.discard.length - 1].v }), botBefore);
     ok('A5 +2 罚摸并轮空', st.bot === botBefore + 2 && st.top === 'D2', st);
 
     // A6 UNO 窗口：出牌剩 1 张 → 按钮出现；不喊 → 机器人抓包罚 2
     await p.evaluate(() => { __uno.state.cur = 'r'; __uno.state.discard = [cd('r', '3')]; __uno.forceHand(0, [cd('r', '8'), cd('g', '4')]); });   // 垫一张防"打完即胜"
-    await p.click('#act-hand');
-    await p.waitForSelector('#hand-ovl.show', { timeout: 8000 });
-    await p.click('.hcard[data-k="0"]');
+    await tablePlay(['r', '8']);   // 3D 贴桌流(A6)
     await p.waitForFunction(() => __uno.state.unoWin && __uno.state.unoWin.who === 0 && !__uno.state.unoWin.penalized, { timeout: 10000 });
     st = await p.evaluate(() => ({ show: document.getElementById('btn-uno').classList.contains('show') }));
     ok('A6 剩 1 张 UNO 按钮脉冲', st.show);
@@ -114,9 +122,7 @@ const cd = (c, v) => ({ c, v });
 
     // A7 喊 UNO 免罚：出牌剩 1 → 点 UNO → 无罚
     await p.evaluate(() => { __uno.state.cur = 'r'; __uno.state.discard = [cd('r', '3')]; __uno.forceHand(0, [cd('r', '8'), cd('g', '4')]); });   // 垫一张防"打完即胜"
-    await p.click('#act-hand');
-    await p.waitForSelector('#hand-ovl.show', { timeout: 8000 });
-    await p.click('.hcard[data-k="0"]');
+    await tablePlay(['r', '8']);   // 3D 贴桌流(A7)
     await p.waitForFunction(() => __uno.state.unoWin && __uno.state.unoWin.who === 0 && !__uno.state.unoWin.penalized, { timeout: 10000 });
     await p.click('#btn-uno', { force: true });   // 脉冲动画永不'稳定'，force 绕过 actionability
     st = await p.evaluate(() => ({ h: __uno.state.players[0].hand.length, pen: __uno.state.unoWin && __uno.state.unoWin.penalized }));
@@ -125,9 +131,7 @@ const cd = (c, v) => ({ c, v });
 
     // A8 胜局不挨罚：直接出最后一张 → 结算浮层、无抓包
     await p.evaluate(() => { __uno.state.cur = 'r'; __uno.state.discard = [cd('r', '3')]; __uno.forceHand(0, [cd('r', '9')]); });
-    await p.click('#act-hand');
-    await p.waitForSelector('#hand-ovl.show', { timeout: 8000 });
-    await p.click('.hcard[data-k="0"]');
+    await tablePlay(['r', '9']);   // 3D 贴桌流(A8)
     await p.waitForFunction(() => __uno.state.phase === 'OVER', { timeout: 15000 });
     st = await p.evaluate(() => ({
       over: __uno.state.phase, hidden: document.getElementById('result-overlay').hidden,
@@ -198,9 +202,10 @@ const cd = (c, v) => ({ c, v });
     }));
     ok('B1 gl-off + 2D 牌桌呈现', st.glOff && st.d2 && st.canvasHidden, st);
     await p.evaluate(() => { __uno.state.cur = 'r'; __uno.state.discard = [cd('r', '3')]; __uno.forceHand(0, [cd('r', '5')]); });
-    await p.click('#act-hand');
+    await p.click('#act-hand');   // GL-off:2D 浮层是唯一手牌面(去浮层轮保留)
     await p.waitForSelector('#hand-ovl.show', { timeout: 8000 });
-    await p.click('.hcard[data-k="0"]');
+    await p.click('.hcard[data-k="0"]', { position: { x: 12, y: 45 } });
+    await p.click('#ovl-play');
     await p.waitForFunction(() => __uno.state.discard[__uno.state.discard.length - 1].v === '5', { timeout: 15000 });
     ok('B2 2D 出牌走通（弃牌顶更新）', true);
     ok('B 零 pageerror', errs.length === 0, errs.join(';'));

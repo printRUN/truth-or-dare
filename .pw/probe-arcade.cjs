@@ -101,7 +101,7 @@ const ok = (name, cond, extra) => { results.push([cond ? 'PASS' : 'FAIL', name +
     }));
     ok('④ ?game=tod 直落 join', st.active === 'screen-join', st.active);
     ok('④ __ARCADE__=false', st.arcade === false);
-    ok('④ 无 arcade-nav（返回链接不显）', st.nav === false);
+    ok('④ 有 arcade-nav（tod 单页返回游戏中心恒显，2026-09-24 起）', st.nav === true);
     ok('④ 相机落位 join（z-40/rx2.2 不回归）', st.world.includes('-40px') && st.world.includes('rotateX(2.2deg)'), st.world.slice(0, 80));
     await ctx.close();
   }

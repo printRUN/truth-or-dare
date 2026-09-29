@@ -1,11 +1,11 @@
 // 加载门控取证探针：填房号进房时「加载效果必须播完才揭幕」（2026-09-17 用户点名）
 //   注意端点：applyState→renderScreen 会在加载层还盖着时就把 #screen-lobby 切 .active
 //   （幕下换屏是设计行为），所以断言端点是 hideLoading 的调用时刻，不是 lobby.active。
-//   A. 建房（本地模式）：点「加入」→ hideLoading ≥ 2300ms（一整轮 2.4s 翻牌时长门；阈值留 150ms 是因为 hideMs 的零点取在 doJoin 启动之后，系统性少算零点后偏移）
-//   B. 填房号加入：同上门时长断言 + hideLoading 那一拍翻牌动画 currentTime % 2400 ≈ 0（揭幕对齐正面 0% 帧）
+//   A. 建房（本地模式）：点「加入」→ hideLoading ≥ 1200ms（一整轮 1.2s 翻牌时长门；阈值记 1050ms=1200-150，hideMs 的零点取在 doJoin 启动之后，系统性少算零点后偏移）
+//   B. 填房号加入：同上门时长断言 + hideLoading 那一拍翻牌动画 currentTime % 1200 ≈ 0（揭幕对齐正面 0% 帧）
 //   C. 揭幕后加载层 300ms 内真的移除（不留僵尸层）
 //   D. 错误路径（房间不存在）不被时长门拖住，toast 照常出现
-//   E. prefers-reduced-motion：loader 动画被关掉时只剩时长门，依然 ≥2250ms（同 context 内自建自加）
+//   E. prefers-reduced-motion：loader 动画被关掉时只剩时长门，依然 ≥1050ms（同 context 内自建自加）
 // 用法: node probe-loader-gate.cjs <标签>
 const PW = 'C:/Users/Admin/AppData/Local/npm-cache/_npx/705bc6b22212b352/node_modules/playwright';
 const { chromium } = require(PW);
@@ -35,6 +35,9 @@ function chk(name, ok, detail) {
 async function prep(p) {
   await p.goto(URL_, { waitUntil: 'domcontentloaded' });
   await p.waitForSelector('#screen-join.active', { timeout: 20000 });
+  // 页面提速后（2026-09-24），加入屏可在启动过场揭幕（script eval+1200ms）之前就绪：
+  // 先等启动揭幕落幕（overlay 300ms 后自摘），再装 hideLoading 钩子，否则启动揭幕会被误计进 join 门
+  await p.waitForSelector('#loading-overlay', { state: 'detached', timeout: 5000 }).catch(() => {});
   await p.evaluate(() => {
     try { closeGuide(); } catch {}
     try { localStorage.setItem('tod:perf', 'full'); } catch {}
@@ -53,6 +56,7 @@ async function clickJoin(p) {
       window.__hideLog.push({
         t: Date.now(),
         flipMs: anims.length && anims[0].currentTime != null ? Number(anims[0].currentTime) : null,
+        stack: (new Error().stack || '').split('\n').slice(2, 4).join(' | '),
       });
       return orig.apply(this, arguments);
     };
@@ -65,6 +69,7 @@ async function clickJoin(p) {
   await p.waitForFunction(() => window.__hideLog && window.__hideLog.some(e => e.t >= window.__t0Real), { timeout: 25000 });
   const log = await p.evaluate(() => window.__hideLog.filter(e => e.t >= window.__t0Real));
   await p.waitForSelector('#screen-lobby.active', { timeout: 15000 }).catch(() => {});
+  if (process.env.GATE_STACK) console.log('  [stack]', log.map(e => Math.round(e.t - t0Real) + 'ms: ' + (e.stack || '').replace(/http:\/\/[^ ]+/, '')).join('  ||  '));
   return { hideMs: log[log.length - 1].t - t0Real, flipMs: log[log.length - 1].flipMs, hideCount: log.length };
 }
 
@@ -79,7 +84,7 @@ async function clickJoin(p) {
     await host.fill('#input-name', '阿凯');
     console.log('A. 建房（本地模式）');
     const a = await clickJoin(host);
-    chk('建房 hideLoading ≥2250ms', a.hideMs >= 2250, `${a.hideMs}ms`);
+    chk('建房 hideLoading ≥1050ms', a.hideMs >= 1050, `${a.hideMs}ms`);
     chk('建房 hideLoading 恰好一次', a.hideCount === 1, `count=${a.hideCount}`);
     await host.screenshot({ path: `${ROOT}/.pw/shots/loader-gate-lobby.png` });
 
@@ -90,10 +95,10 @@ async function clickJoin(p) {
     await guest.fill('#input-room', room);
     console.log('B. 填房号加入');
     const b = await clickJoin(guest);
-    chk('加入 hideLoading ≥2250ms', b.hideMs >= 2250, `${b.hideMs}ms`);
+    chk('加入 hideLoading ≥1050ms', b.hideMs >= 1050, `${b.hideMs}ms`);
     chk('加入 hideLoading 恰好一次', b.hideCount === 1, `count=${b.hideCount}`);
-    const into = b.flipMs == null ? -1 : Math.round(b.flipMs) % 2400;
-    chk('揭幕对齐翻牌 0% 帧（into ≤150 或 ≥2250）', into >= 0 && (into <= 150 || into >= 2250), `flip=${b.flipMs}ms into=${into}ms`);
+    const into = b.flipMs == null ? -1 : Math.round(b.flipMs) % 1200;
+    chk('揭幕对齐翻牌 0% 帧（into ≤150 或 ≥1050）', into >= 0 && (into <= 150 || into >= 1050), `flip=${b.flipMs}ms into=${into}ms`);
     await guest.screenshot({ path: `${ROOT}/.pw/shots/loader-gate-join-lobby.png` });
 
     console.log('C. 揭幕后加载层移除');
@@ -107,7 +112,8 @@ async function clickJoin(p) {
     // ── D：错误路径不额外拖揭幕（房间不存在 → toast + 加载层收起）──
     console.log('D. 房间不存在错误路径');
     await guest.evaluate(() => { try { sessionStorage.removeItem('tod:tab'); } catch {} });
-    await guest.evaluate(() => { location.href = `${location.origin}/`; });
+    // 拆分后裸 / 落地 arcade 屏：回 tod 要带 ?game=tod（重定向语义，Playwright 自动跟随）
+    await guest.evaluate(() => { location.href = `${location.origin}/?game=tod`; });
     await guest.waitForSelector('#screen-join.active', { timeout: 20000 });
     await prep(guest);
     await guest.fill('#input-name', '阿强');
@@ -128,21 +134,21 @@ async function clickJoin(p) {
     chk('错误路径 toast 出现且加载层已收起', dHid, `overlay._hid=${dHid}, ${dMs}ms（含 3200+1500 重试窗）`);
     await ctx.close();
 
-    // ── E：REDUCED（动画全关）只剩时长门，依然 ≥2250ms（同 context 自建自加）──
+    // ── E：REDUCED（动画全关）只剩时长门，依然 ≥1050ms（同 context 自建自加）──
     console.log('E. prefers-reduced-motion 退路');
     const ctx3 = await browser.newContext({ viewport: { width: 900, height: 800 }, reducedMotion: 'reduce' });
     const h3 = await ctx3.newPage();
     await prep(h3);
     await h3.fill('#input-name', '阿静');
     const r3 = await clickJoin(h3);
-    chk('REDUCED 建房 hideLoading ≥2250ms', r3.hideMs >= 2250, `${r3.hideMs}ms`);
+    chk('REDUCED 建房 hideLoading ≥1050ms', r3.hideMs >= 1050, `${r3.hideMs}ms`);
     const room3 = await h3.evaluate(() => S.room);
     const g3 = await ctx3.newPage();
     await prep(g3);
     await g3.fill('#input-name', '阿默');
     await g3.fill('#input-room', room3);
     const e = await clickJoin(g3);
-    chk('REDUCED 加入 hideLoading ≥2250ms', e.hideMs >= 2250, `${e.hideMs}ms`);
+    chk('REDUCED 加入 hideLoading ≥1050ms', e.hideMs >= 1050, `${e.hideMs}ms`);
     await ctx3.close();
   } finally {
     await browser.close();

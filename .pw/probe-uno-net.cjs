@@ -40,6 +40,23 @@ const ok = (c, msg) => { if (c) { pass++; console.log('  ✅', msg); } else { fa
   ok(j1.hands.every(n => n === 7), `join 收到开局快照（手牌 ${JSON.stringify(j1.hands)}）`);
   ok(j1.discard >= 1, `首翻牌已置 ${j1.discard}`);
 
+  // B2. 手牌常驻+隐私（2026-09-24 常驻轮）：非本端回合，本端南位手牌明牌(z=2.3)、行动者(对手)恒背；
+  // join 端一把抓两个方向：自己的牌 face=true，对手的牌 face=false。
+  await join.waitForFunction(() => {
+    const n = window.__uno.net(); const G = window.__uno.state;
+    return n.doc.started && G.phase === 'AWAIT_ACTION' && n.doc.players[G.turn] && n.doc.players[G.turn].id !== n.myId;
+  }, null, { timeout: 20000 });
+  const vis = await join.evaluate(() => {
+    const n = window.__uno.net();
+    const seat = n.doc.players.findIndex(pl => pl.id === n.myId);
+    return { seat, turn: window.__uno.state.turn,
+      cards: window.__uno.cards().filter(c => c.owner === seat || c.owner === window.__uno.state.turn) };
+  });
+  ok(vis.seat >= 0 && vis.seat !== vis.turn, `join 座位=${vis.seat} 非行动者(行动者=${vis.turn})`);
+  ok(vis.cards.length > 0 && vis.cards.every(c => c.face === (c.owner === vis.seat)),
+    '常驻+隐私:南位只明本端手牌,行动者恒背 ' + JSON.stringify(vis.cards));
+  ok(vis.cards.some(c => c.owner === vis.seat && c.face && c.z === 2.3), '本端手牌常驻南位(z=2.3 明牌)');
+
   // C. 对局推进：当前回合的真人自己行动（出能出的牌/摸牌过），等快照同步
   let plays = 0;
   for (let round = 0; round < 8 && plays < 3; round++) {
