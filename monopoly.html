@@ -158,6 +158,23 @@
   @keyframes shake-it { 0%,100% { transform: none; } 25% { transform: translate(4px, -2px); } 50% { transform: translate(-3px, 2px); } 75% { transform: translate(2px, 3px); } }
   body.shaking #mono-canvas, body.shaking #players-bar, body.shaking #action-bar { animation: shake-it 0.26s ease-in-out 1; }
 
+  /* 扣款轻震（惩罚反馈；幅度减半、不含 #action-bar 防误触，与 shaking 互斥由 JS 保证） */
+  @keyframes jolt-it { 0%,100% { transform: none; } 30% { transform: translate(2px, -1px); } 60% { transform: translate(-2px, 1px); } }
+  body.jolt #mono-canvas, body.jolt #players-bar { animation: jolt-it 0.18s ease-in-out 1; }
+
+  /* 成交印章（购买仪式感；JS 侧 TURBO/REDUCED/bodyLo 早退，这里再给 loperf 双保险） */
+  #deal-stamp { position: fixed; left: 50%; top: 42%; z-index: 45; transform: translate(-50%, -50%) rotate(-12deg); pointer-events: none;
+    font-weight: 900; font-size: clamp(1.4rem, 6vw, 2rem); color: var(--accent-pink); background: rgba(10,10,26,0.55);
+    border: 3px double var(--accent-pink); border-radius: 10px; padding: 0.45em 1.1em; text-shadow: 0 2px 12px rgba(0,0,0,0.8);
+    animation: stamp-in 0.9s ease-out 1 both; }
+  @keyframes stamp-in {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(2.2) rotate(-12deg); }
+    38% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-12deg); }
+    62% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-12deg); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(0.96) rotate(-12deg); }
+  }
+  body.loperf #deal-stamp { display: none; }
+
   /* REDUCED 降级卡（REDUCED 揭晓替代 3D 飞卡） */
   #card-dom .card-face { padding: 18px; border-radius: 16px; background: linear-gradient(160deg, #241b44, #14102a); border: 1px solid var(--glass-border); }
   #card-dom .card-kind { font-size: 0.78rem; color: var(--gold); margin-bottom: 8px; }
@@ -181,7 +198,7 @@
 
   /* REDUCED / loperf-lite 退路 */
   @media (prefers-reduced-motion: reduce) {
-    .loader-ico, .pchip.active, #result-veil, #result-winner, .pod, .mfloat, #bust-banner, #buy-modal .panel, #gen-modal .panel, body.shaking #mono-canvas, body.shaking #players-bar, body.shaking #action-bar { animation: none !important; }
+    .loader-ico, .pchip.active, #result-veil, #result-winner, .pod, .mfloat, #bust-banner, #buy-modal .panel, #gen-modal .panel, body.shaking #mono-canvas, body.shaking #players-bar, body.shaking #action-bar, body.jolt #mono-canvas, body.jolt #players-bar, #deal-stamp { animation: none !important; }
     .pchip.active { box-shadow: 0 0 0 1.5px var(--accent-cyan); }
     .pod { opacity: 1; transform: none; }
     #loader { transition: none; }
@@ -391,6 +408,10 @@ const SFX = (() => {
     pop() { tone(340, 560, 0.07, 'sine', 0.09); },   // 弹窗弹出轻音
     flip() { noise(0.08, 0.1, 2200); },              // 卡牌翻面起手：纸感轻擦（揭示两拍之一）
     deal() { noise(0.06, 0.16, 900); tone(523, 523, 0.1, 'triangle', 0.13); tone(784, 784, 0.16, 'triangle', 0.13, 0.09); },   // 买地成交：戳记+暖双音（三角波+闷戳，区别于 coin/pay）
+    step(i = 0) { const f = 300 + (i % 8) * 24; tone(f, f * 0.87, 0.05, 'sine', 0.055); },   // 逐跳脚步嘀嗒：音量低于 pop，音高随连跳微升
+    siren() { tone(660, 660, 0.16, 'square', 0.1); tone(494, 494, 0.16, 'square', 0.1, 0.16); tone(660, 660, 0.16, 'square', 0.09, 0.32); },   // 押送警笛三拍（入狱滑行起手）
+    ding() { tone(988, 988, 0.07, 'triangle', 0.14); tone(1319, 1319, 0.1, 'triangle', 0.14, 0.08); },   // 双数奖励叮（区别于 coin 的进账语境）
+    land() { noise(0.05, 0.16, 1500); tone(160, 110, 0.08, 'sine', 0.2); },   // 骰子落定哒（roll 是起手，这是落定拍）
     // 连麦压低（duck）：连麦模块在开麦/收听时调用，压动作音效总线减少串音
     duckMusic(f, ms = 300) {
       const c = ensure(); if (!c || !master) return;
@@ -498,12 +519,13 @@ function applyGameSnapshot(g, doc) {
       ownerMarks[i].material.needsUpdate = true;
     }
   });
-  // 观战镜头：换人或行动者位移了就把镜头转向行动者（back=全景档，不抢近景）；行动者正在走位回放时让位（走位自带镜头跟随）
-  if (G.gl && !REDUCED && !bodyLo && G.phase !== 'OVER' && !(animIdx.has(G.turn) || replayClaimed(G.turn))
+  // 观战镜头：换人或行动者位移了且镜头偏离全景时，拉回全景对准行动者（back=全景档，不抢近景；2026-09-29 起
+  // 他人回合镜头默认冻结全景——只在被走位回放带偏/自己回合刚收近景时补这一拍回景，不做无谓转镜）
+  if (G.gl && !REDUCED && !bodyLo && G.phase !== 'OVER' && !atOverview() && !(animIdx.has(G.turn) || replayClaimed(G.turn))
       && (G.turn !== prevTurn || (prevPos !== undefined && G.players[G.turn] && G.players[G.turn].pos !== prevPos))) {
     focusPawn(G.turn, true);
   }
-  if (prevPhase !== 'OVER' && g.phase === 'OVER') showResult();
+  if (prevPhase !== 'OVER' && g.phase === 'OVER') { focusPawn(championIdx(), true); showResult(); }   // 结算屏回景对准冠军（P3-6 两端化）
   render2D(); updateHUD();
   // 快照 diff → 回放操作（移动逐格跳 / 入狱滑行 / 成交弹跳 / 现金浮层 / 破产横幅），队尾串行播出
   if (prev) {
@@ -561,13 +583,14 @@ async function replayDrain() {
 }
 async function playReplayOp(op) {
   if (op.type === 'move') { await replayWalk(op.i, op.from, op.to, op.steps); return; }
-  if (op.type === 'jail') { SFX.jail(); await replayGlide(op.i, op.from, 6); return; }
+  if (op.type === 'jail') { SFX.siren(); await replayGlide(op.i, op.from, 6); return; }   // 押送警笛与行动者端同拍（落地闷响在 replayGlide 收尾）
   if (op.type === 'buy') {
     const j = G.players[op.o], t = TILES[op.t], mk = ownerMarks[op.t];
     if (mk) { mk.visible = true; mk.material.color.set(PLAYER_COLORS[j.colorIdx]); mk.material.needsUpdate = true; }
     if (mk && !TURBO) SFX.deal();
     SFX.pay();
     bounceOwnerMark(op.t);
+    dealStamp(`成交！${t.name}`);
     toast(`🏠 ${j.name} 买下 ${t.name}（${fmt(t.price)}）`, 'loss');
     return;
   }
@@ -575,18 +598,17 @@ async function playReplayOp(op) {
   if (op.type === 'bust') { bustBanner(G.players[op.i], null, 0); SFX.bust(); return; }
   if (op.type === 'call') { op.fn(); return; }
 }
-// 走位回放：movePawn 的 hop 循环同款（260ms×SPEED 单跳、正弦弧高、镜头连续跟随），但只动棋子不碰 G——
-// 现金/过起点收益已由快照携带，回放再改状态会毒化下一份 diff。
+// 走位回放：movePawn 的 hop 循环同款（260ms×SPEED 单跳、正弦弧高），但只动棋子不碰 G 也不碰镜头——
+// 现金/过起点收益已由快照携带，回放再改状态会毒化下一份 diff；回放恒为他人动作，镜头冻结在全景（2026-09-29 镜头所有权）。
 function replayWalk(i, from, to, steps) {
   return new Promise(res => {
     const grp = pawnObjs[i];
     if (!grp) { res(); return; }
     placePawn(i, from, true);
     let left = steps, pos = from;
-    rig.token++; rig.autoDist = false;
-    const mv = { last: 0 };
     const hop = () => {
       const fromT = pos; pos = (pos + 1) % 24; const toT = pos;
+      SFX.step(steps - left);
       const [sx, sz] = pawnSlot(i, fromT);
       const [ex, ez] = pawnSlot(i, toT);
       const t0 = performance.now(), dur = 260;
@@ -594,16 +616,6 @@ function replayWalk(i, from, to, steps) {
         const k = Math.min(1, (now - t0) / (dur * SPEED));
         const kk = k * k * (3 - 2 * k);
         grp.position.set(sx + (ex - sx) * kk, 0.34 + Math.sin(k * Math.PI) * 0.35, sz + (ez - sz) * kk);
-        // 镜头连续跟随棋子（与 movePawn 同款阻尼）
-        const dz = 1 - Math.pow(0.92, Math.min(100, now - (mv.last || now)) / 16.7);
-        mv.last = now;
-        rig.az += shortestArc(Math.atan2(grp.position.x - TGT.x, grp.position.z - TGT.z) - rig.az) * dz;
-        rig.tgt.x += (grp.position.x * 0.8 - rig.tgt.x) * dz;
-        rig.tgt.z += (grp.position.z * 0.8 - rig.tgt.z) * dz;
-        rig.dist += (nearDist() - rig.dist) * dz;
-        rig.elev += (55 * D2R - rig.elev) * dz;
-        rig.tgt.y += (TGT.y - rig.tgt.y) * dz;
-        camApply();
         if (k < 1) requestAnimationFrame(step);
         else { left--; if (left > 0) hop(); else { placePawn(i, to, true); layoutPlates(); render2D(); res(); } }
       };
@@ -621,13 +633,14 @@ function replayGlide(i, from, to) {
     const [sx, sz] = pawnSlot(i, from);
     const [ex, ez] = pawnSlot(i, to);
     const t0 = performance.now(), dur = 700;
-    rig.token++; rig.autoDist = false;
+    const my = (slideTok[i] = (slideTok[i] || 0) + 1);   // 观战回放滑行同样不碰镜头（2026-09-29 镜头所有权）：被 placePawn 接管即弃权
     const step = now => {
+      if (slideTok[i] !== my) { res(); return; }
       const k = Math.min(1, (now - t0) / (dur * SPEED));
       const kk = k * k * (3 - 2 * k);
       grp.position.set(sx + (ex - sx) * kk, 0.34 + Math.sin(k * Math.PI) * 0.9, sz + (ez - sz) * kk);
       if (k < 1) requestAnimationFrame(step);
-      else { placePawn(i, to, true); layoutPlates(); render2D(); res(); }
+      else { placePawn(i, to, true); layoutPlates(); SFX.jail(); render2D(); res(); }
     };
     requestAnimationFrame(step);
   });
@@ -840,6 +853,12 @@ function approachTurn(pi, done) {   // 等待期全景档（2026-09-24 用户点
   const az = Math.atan2(p.position.x - TGT.x, p.position.z - TGT.z);
   if (atOverview() && Math.abs(shortestArc(az - rig.az)) < 10 * D2R) { if (done) done(); return; }   // 已在全景且对准本行动者：免一拍空转
   focusPawn(pi, true, done);
+}
+
+function actorIsLocal() {   // 镜头/近景所有权（2026-09-29 用户点名「镜头只在自己的回合运动，他人的默认全局地图」）：
+  // 联机=轮到本端真人才算「自己」（房主代跑的机器人座位不算）；本地热座=行动者非机器人（真人间交接共用本机）
+  const p = currentPlayer();
+  return NETMODE ? netIsMyTurn() : !!(p && !p.bot);
 }
 
 function initScene() {
@@ -1056,6 +1075,8 @@ function buildPawns() {
 }
 function placePawn(i, tileIdx, instant) {
   const grp = pawnObjs[i]; if (!grp) return;
+  slideTok[i] = (slideTok[i] || 0) + 1;   // 快照/落位真相优先：作废该棋子在飞的滑行动画（入狱押送/观战回放滑行）
+  grp.rotation.z = 0;   // 被作废的滑行可能停在下坠滚转半途：落位即归正（唯一 z 旋转来源就是滑行动画）
   const t = TILES[tileIdx];
   const [x, z] = pawnSlot(i, tileIdx);
   if (instant || !G.gl) { grp.position.set(x, 0.34, z); return; }
@@ -1228,8 +1249,8 @@ function beginTurn() {
   if (NETMODE) setTimeout(() => { if (G.phase === 'HANDOFF') netCkpt(); }, 900);   // 防丢自愈：心跳与检查点并发撞 seq 吞掉本快照时（行动者未接管，本端仍停在 HANDOFF）重发一次
   if (p.bot) {
     $('handoff').hidden = true;
-    approachTurn(G.turn);   // 等待期停在全景对准机器人行动者（摇骰前不推近；走位时 movePawn 从全景推近跟随）
-    toast(`🤖 ${p.name} 行动中…`);
+    approachTurn(G.turn);   // 等待期停在全景对准机器人行动者（摇骰前不推近；本端真人走位时 movePawn 才从全景推近跟随）
+    toast(`🤖 ${p.name} 行动中…`); SFX.pop();   // 回合归属提示音：热座漏读 toast 也听得出换人
     if (!(NETMODE && !isHost())) setTimeout(() => botAct(), (500 + rint(600)) * SPEED);   // 联机：机器人由房主代跑，其他端等快照
   } else if (NETMODE && netIsMyTurn()) {
     enterHumanTurn();
@@ -1242,6 +1263,7 @@ function beginTurn() {
     $('btn-handoff-go').textContent = `我是 ${p.name}，开始回合`;
     $('handoff').hidden = false;
     hideActions();
+    SFX.pop();   // 交接卡出现提示音
     focusPawn(G.turn, true);   // 交接期镜头回全景并对准下一位行动者（跟完上一家先回整个布局，推拉放缓）
   }
 }
@@ -1301,12 +1323,12 @@ async function doRoll(jailAttempt) {
   if (d1 === d2) {
     G.doubles++;
     if (G.doubles >= 3) {
-      toast('⚡ 三连双数！钢琴手铐伺候'); SFX.jail();
+      toast('⚡ 三连双数！钢琴手铐伺候');   // 落狱音由 sendToJail 滑行（警笛起手+落监闷响）统一承担，此处不再叠 jail 音
       sendToJail();
       afterResolve();
       return;
     }
-    toast('✨ 双数！再来一次', 'gain');
+    toast('✨ 双数！再来一次', 'gain'); SFX.ding();
   } else G.doubles = 0;
   await movePawn(d1 + d2);
   await resolveTile();
@@ -1314,7 +1336,7 @@ async function doRoll(jailAttempt) {
 
 function animateDice(d1, d2) {
   if (!G.gl) return Promise.resolve();
-  if (REDUCED || bodyLo || TURBO) { diceObjs.forEach((m, i) => { m.quaternion.copy(quatFor(i ? d2 : d1)); }); return Promise.resolve(); }
+  if (REDUCED || bodyLo || TURBO) { diceObjs.forEach((m, i) => { m.quaternion.copy(quatFor(i ? d2 : d1)); }); SFX.land(); return Promise.resolve(); }
   return new Promise(res => {
     const t0 = performance.now(), dur = 800;
     const starts = diceObjs.map(m => ({ p: m.position.clone(), q: m.quaternion.clone() }));
@@ -1339,6 +1361,7 @@ function animateDice(d1, d2) {
       if (k < 1) requestAnimationFrame(step);
       else {
         if (d1 === d2) diceObjs.forEach(m => { m.material.forEach && 0; });   // 双数白闪由 emissive 材质略过（pip 材质数组无 emissive——保持简单）
+        SFX.land();
         res();
       }
     };
@@ -1358,14 +1381,18 @@ function movePawn(steps) {
   }
   return new Promise(res => {
     let left = steps;
-    rig.token++;   // 整段镜头跟随：取消在飞补间（含等待期的全景对准）；走完不回中（tgt≈棋子×0.8 正好给买地弹窗取景，下回合 approachTurn 重设回全景）
-    rig.autoDist = false;   // 推近从这里才开始（摇骰前镜头停在全景）：dist/elev 阻尼从全景值收敛到跟随档，2-3 跳落定；期间 resize 不覆写 dist（终审 P2-2）
+    const local = actorIsLocal();   // 镜头只在本方回合运动（2026-09-29）：他人（机器人/代跑座位）走位时镜头冻结在全景，棋子照样逐格跳
+    if (local) {
+      rig.token++;   // 整段镜头跟随：取消在飞补间（含等待期的全景对准）；走完不回中（tgt≈棋子×0.8 正好给买地弹窗取景，下回合 approachTurn 重设回全景）
+      rig.autoDist = false;   // 推近从这里才开始（摇骰前镜头停在全景）：dist/elev 阻尼从全景值收敛到跟随档，2-3 跳落定；期间 resize 不覆写 dist（终审 P2-2）
+    }
     const mv = { last: 0 };
     const hop = () => {
       const from = p.pos;
       p.pos = (p.pos + 1) % 24;
       const to = p.pos;
       if (to === 0) gainMoney(p, GO_PAY, '🏁 过起点');
+      SFX.step(steps - left);
       const grp = pawnObjs[G.turn];
       const [x0, z0] = [TILES[from].x, TILES[from].z];
       const [x1, z1] = [TILES[to].x, TILES[to].z];
@@ -1376,17 +1403,19 @@ function movePawn(steps) {
         const k = Math.min(1, (now - t0) / (dur * SPEED));
         const kk = k * k * (3 - 2 * k);
         grp.position.set(sx + (ex - sx) * kk, 0.34 + Math.sin(k * Math.PI) * 0.35, sz + (ez - sz) * kk);
-        // 镜头连续跟随棋子（dt 归一阻尼，帧率无关；12 步长步数不再逐跳甩镜）。
-        // dist/elev/tgt.y 同款阻尼自愈：近景推镜被快节奏掷骰/双数再掷打断时收敛到跟随档，不冻结在中间值
-        const dz = 1 - Math.pow(0.92, Math.min(100, now - (mv.last || now)) / 16.7);
-        mv.last = now;
-        rig.az += shortestArc(Math.atan2(grp.position.x - TGT.x, grp.position.z - TGT.z) - rig.az) * dz;
-        rig.tgt.x += (grp.position.x * 0.8 - rig.tgt.x) * dz;
-        rig.tgt.z += (grp.position.z * 0.8 - rig.tgt.z) * dz;
-        rig.dist += (nearDist() - rig.dist) * dz;
-        rig.elev += (55 * D2R - rig.elev) * dz;
-        rig.tgt.y += (TGT.y - rig.tgt.y) * dz;
-        camApply();
+        if (local) {
+          // 镜头连续跟随棋子（dt 归一阻尼，帧率无关；12 步长步数不再逐跳甩镜）。
+          // dist/elev/tgt.y 同款阻尼自愈：近景推镜被快节奏掷骰/双数再掷打断时收敛到跟随档，不冻结在中间值
+          const dz = 1 - Math.pow(0.92, Math.min(100, now - (mv.last || now)) / 16.7);
+          mv.last = now;
+          rig.az += shortestArc(Math.atan2(grp.position.x - TGT.x, grp.position.z - TGT.z) - rig.az) * dz;
+          rig.tgt.x += (grp.position.x * 0.8 - rig.tgt.x) * dz;
+          rig.tgt.z += (grp.position.z * 0.8 - rig.tgt.z) * dz;
+          rig.dist += (nearDist() - rig.dist) * dz;
+          rig.elev += (55 * D2R - rig.elev) * dz;
+          rig.tgt.y += (TGT.y - rig.tgt.y) * dz;
+          camApply();
+        }
         if (k < 1) requestAnimationFrame(step);
         else {
           left--;
@@ -1400,13 +1429,34 @@ function movePawn(steps) {
   });
 }
 
+const slideTok = {};   // 棋子滑行代际锁：入狱押送滑行 vs 快照无条件落位（placePawn）互踩时，后来者作废先行者
 function sendToJail() {
   const p = currentPlayer();
+  const pi = G.turn;   // 滑行 rAF 闭包的生命期跨过 advanceTurn（三条入狱路径都在 sendToJail 返回后立即推进回合）：必须捕获行动者下标，禁活读 G.turn（双检查官 P0）
   p.jailed = true; p.jailTurns = 0; G.doubles = 0;
+  const from = p.pos;
   p.pos = 6;
-  placePawn(G.turn, 6, !G.gl); layoutPlates();
-  SFX.jail();
   render2D();
+  if (!G.gl || REDUCED || bodyLo || TURBO) { placePawn(pi, 6, true); layoutPlates(); SFX.jail(); render2D(); return; }   // 静态退路：禁动不禁声
+  // 押送滑行（2026-09-29 惩罚动效）：弧线拖到监狱格，替代旧瞬移（顺修 P3-3「入狱棋子凭空消失」）；起手警笛、落监闷响
+  SFX.siren();
+  if (!atOverview())   // 本端刚走完近景（他人回合镜头本就在全景，不动）：拉回全景对准监狱格，滑行全程入画
+    camTo({ az: Math.atan2(TILES[6].x - TGT.x, TILES[6].z - TGT.z), elev: REF_ELEV, dist: baseDist(), focusK: 1, tgt: { x: TGT.x, y: TGT.y, z: TGT.z } }, 1100);
+  const grp = pawnObjs[pi];
+  const [sx, sz] = pawnSlot(pi, from);
+  const [ex, ez] = pawnSlot(pi, 6);
+  const t0 = performance.now(), dur = 700;
+  const my = (slideTok[pi] = (slideTok[pi] || 0) + 1);
+  const step = now => {
+    if (!grp || slideTok[pi] !== my) return;   // 被快照落位/新滑行接管：弃权（真相优先）
+    const k = Math.min(1, (now - t0) / (dur * SPEED));
+    const kk = k * k * (3 - 2 * k);
+    grp.position.set(sx + (ex - sx) * kk, 0.34 + Math.sin(k * Math.PI) * 0.9, sz + (ez - sz) * kk);
+    grp.rotation.z = Math.sin(k * Math.PI) * 0.09;   // 弧顶滚转：与走位 hop（弧高 0.35/260ms）拉开辨识度
+    if (k < 1) requestAnimationFrame(step);
+    else { grp.rotation.z = 0; placePawn(pi, 6, true); layoutPlates(); SFX.jail(); render2D(); }
+  };
+  requestAnimationFrame(step);
 }
 function payFine() {
   const p = currentPlayer();
@@ -1506,6 +1556,10 @@ function charge(p, v, creditor) {
     p.cash -= v;
     if (creditor) { creditor.cash += v; moneyFloat(G.players.indexOf(creditor), v); if (!TURBO) SFX.coin(); }   // 收租方进账轻音：与付款方 pay 形成两拍层次（仅真收租路径；turbo 静默）
     moneyFloat(i, -v);
+    if (!TURBO && !REDUCED && !bodyLo && !document.body.classList.contains('shaking')) {   // 扣款轻震（惩罚反馈）：破产走 bustBanner 的重震，两者互斥
+      document.body.classList.add('jolt');
+      setTimeout(() => document.body.classList.remove('jolt'), 180 * SPEED);
+    }
     if (creditor) toast(`${p.name} 支付 ${fmt(v)} 给 ${creditor.name}`, 'loss');
   } else {
     const rest = p.cash;
@@ -1525,9 +1579,18 @@ function bustBanner(p, creditor, owed) {
   const b = $('bust-banner');
   b.textContent = `💀 ${p.name} 破产出局！` + (creditor ? `（还欠 ${fmt(owed)}）` : '');
   b.classList.add('show');
+  document.body.classList.remove('jolt');   // 与扣款轻震互斥：重震接管
   document.body.classList.add('shaking');
   setTimeout(() => b.classList.remove('show'), 1800 * SPEED);
   setTimeout(() => document.body.classList.remove('shaking'), 400 * SPEED);
+}
+function dealStamp(text) {   // 成交印章（2026-09-29 购买仪式感，F1）：REDUCED/loperf/TURBO 不盖（金额由 toast/浮字承载）
+  if (TURBO || REDUCED || bodyLo) return;
+  const old = document.getElementById('deal-stamp'); if (old) old.remove();
+  const el = document.createElement('div');
+  el.id = 'deal-stamp'; el.textContent = text;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 900 * SPEED);
 }
 function botQuote(kind) {
   const arr = BOT_QUOTES[kind];
@@ -1557,6 +1620,7 @@ function buyProperty() {
   if (mk) { mk.visible = true; mk.material.color.set(PLAYER_COLORS[p.colorIdx]); mk.material.needsUpdate = true; }
   if (mk && !TURBO) SFX.deal();   // 成交戳记音（付款 pay 之外的第二拍；turbo 蒙特卡洛静默不拖慢）
   bounceOwnerMark(p.pos);
+  dealStamp(`成交！${t.name}`);
   updateHUD(); render2D();
   afterResolve();
 }
@@ -1584,7 +1648,7 @@ async function drawCard(kind) {
   const p = currentPlayer();
   SFX.card();
   await revealCard(kind, card.text);
-  if (card.act.jailCard) { p.jailCards++; toast('🎫 免罚卡入手（狱中可用来立即出狱）', 'gain'); }
+  if (card.act.jailCard) { p.jailCards++; toast('🎫 免罚卡入手（狱中可用来立即出狱）', 'gain'); SFX.card(); }
   else G.decks[kind + 'Disc'].push(cardIdx);
   const a = card.act;
   if (AUTOTEST) G._lastCard = { kind, idx: cardIdx, act: a };
@@ -1630,10 +1694,18 @@ async function drawCard(kind) {
 }
 function revealCard(kind, text) {
   if (TURBO) return Promise.resolve();   // 蒙特卡洛：不揭晓直接结算
-  if (!G.gl || REDUCED || bodyLo) {
+  if (!G.gl || REDUCED || bodyLo || !actorIsLocal()) {
+    // 非本端（机器人/代跑座位）回合：全景下 3D 牌面读不清 → 走 DOM 卡面，1800ms 自动收牌不打断机器人节奏；
+    // 本端真人静态档仍等点击（REDUCED 禁动不禁读）
     return new Promise(res => {
       openGenModal(`<div class="card-face"><div class="card-kind">${kind === 'chance' ? '❓ 机会' : '🎁 命运'}</div><div class="card-text">${text}</div></div>`,
         [{ label: '知道了', fn: () => { closeGenModal(); res(); } }]);
+      const my = genSeq;
+      if (!actorIsLocal()) setTimeout(() => {
+        if ($('gen-modal').hidden) return;
+        if (genSeq !== my) { res(); return; }   // 卡面被规则/退出弹窗顶掉：不再闭锁，放行 drawCard（终审备忘：防 res 泄漏挂死）
+        closeGenModal(); res();
+      }, 1800 * SPEED);
     });
   }
   return new Promise(res => {
@@ -1688,8 +1760,13 @@ function botAct() {
 function assetsOf(i) {
   return G.players[i].cash + G.owners.reduce((s, o, ti) => s + (o === i ? TILES[ti].price : 0), 0);
 }
+function championIdx() {   // 资产榜首（破产垫底）；结算回景与 showResult 共用（2026-09-29 P3-6 两端化）
+  return G.players.map((p, i) => ({ i, asset: p.bankrupt ? -1 : assetsOf(i) }))
+    .sort((a, b) => b.asset - a.asset)[0].i;
+}
 function endGame(kind) {
   G.phase = 'OVER'; hideActions(); clearSave();
+  focusPawn(championIdx(), true);   // 结算屏镜头回全景对准冠军（veil-in 1s 与回景补间同拍到位；P3-6）
   showResult();
   SFX.win();
   updateHUD();
@@ -1722,7 +1799,9 @@ $('btn-rematch').addEventListener('click', () => {
 $('btn-result-home').addEventListener('click', () => { location.href = 'index.html'; });
 
 /* ═════════════════════════ 11. 通用弹窗 / 退出 ═════════════════════════ */
+let genSeq = 0;   // 弹窗代际：他人回合揭卡的自动收牌定时器凭此不误关后继新弹窗
 function openGenModal(bodyHtml, actions) {
+  genSeq++;
   $('gen-body').innerHTML = bodyHtml;
   $('gen-actions').innerHTML = '';
   actions.forEach((a, i) => {
@@ -1848,10 +1927,10 @@ function perfWatch(now) {
 /* ═════════════════════════ 15. 主循环 & boot ═════════════════════════ */
 function tick(now) {
   perfWatch(now);
-  // idle 环绕只在该端「等别人行动」且处于全景（tgt 回桌心）时转：近景保持注视当前行动者不漂移
+  // idle 环绕只在本端自己的回合且处于全景（tgt 回桌心）时转（2026-09-29 镜头所有权）：他人回合镜头完全冻结；近景保持注视不漂移
   if (G.gl && !bodyLo && !REDUCED && G.phase === 'AWAIT_ROLL' && Date.now() - lastInteract > 3000
       && !$('action-bar').classList.contains('show') && $('buy-modal').hidden && $('gen-modal').hidden
-      && (!$('handoff').hidden || !NETMODE || !netIsMyTurn())
+      && actorIsLocal()
       && Math.hypot(rig.tgt.x - TGT.x, rig.tgt.z - TGT.z) < 0.05) {
     rig.az += (4 * D2R) * (now - (tick.last || now)) / 1000;   // idle 环绕 +4°/s
     camApply();
