@@ -126,6 +126,16 @@ index.html 的首屏是**游戏中心**：三张游戏卡（🎭 真心话大冒
 
 **已知限制（备案）**：旧版本对端无 map 字段→视觉失同步（本仓库不支持同局混版，既有限制）；观战端换图瞬间的排队 buy 回放可能盖新图印章（纯观感）；对局中禁止换图（只有开局/重开边界允许 applyMap）。
 
+### 1.6d 大富翁场景与卡片精美化（2026-10-01，用户点名「将场景和卡片都做成更加精美」；完整工作流：玩家模拟审美取证→挑刺专家 SHIP WITH FIXES 11 条全吸收→实施→双检查官双双 SHIP）
+
+**两个 P0 bug 修复（玩家模拟实锤，比打磨更优先）**：①`buildCard` 从未 `cardPivot.add(cardMesh)`——**3D 牌从未存在于场景图**，抽卡=镜头对空桌推近两秒；②DOM 卡面样式锁在 `#card-dom` 作用域（该元素全文档不存在），`revealCard` 注入 `#gen-body` 的卡面完全裸奔（无背景无边框裸文本）。修后者时二次踩坑：选择器先写成 `.gen-body`（类选择器匹配不到 id）——**类/ID 选择器与 DOM 对不上时 computed style 一查便知**；另 CSS 里误用 `//` 注释会被解析器错误恢复吞掉后一条规则（.ovl 失效→画布拦截弹窗点击、probe A4 假红），CSS 注释必须块注释。
+
+**卡片（K）**：3D 揭卡重写为**双面卡**——face 子旋转 +π/2（pivot 0 时面朝下藏住）/back 子 -π/2（盖着=金框背花+骰徽，不剧透），revealCard 关键帧 0→π 不动（R2 镜头断言安全）；两 mesh FrontSide 反向共面（任一视角只光栅化一个，无 z-fight/透明排序问题），back 抬 2mm；贴图 512×512（旧 512×1024 贴正方形=纵向压扁 2:1，因牌从未显示而潜伏）；`setCardOpacity` 双面同步淡出（漏一面=鬼影）；正面=纸噪点+kind 色粗框+金发丝内线+四角菱花+缎带 chip+双环徽记+暗底正文面板（自动缩字 40→30+wrapLines 最大 4 行…截断）。DOM 卡面 `#gen-body .card-face` 系与 3D 同族语言（渐变/双框/菱花/缎带/正文 1.08rem·1.8）。
+
+**场景（S）**：中心盘 Circle→Cylinder(2.1,2.1,0.115) 加厚（**材质数组 [侧裙/顶面/底]**——单材质会让顶面贴图 UV 整圈裹上裙边；position.y=0.2575→顶面 0.315 老位置/底面 0.20 落毡面），顶面 1024 `mkTexMip`（**新增变体开 mipmap，mkTex 本体全局禁 mip 是格面/名牌/骰面既定采样契约不许动**）+rim 色环系+12 刻度+8% emoji 大水印（解「假骰子」观感）+**地图名两份对置贴外环带**（四向直排会在盘心挤成米字花——取证后改两份；shrink-to-fit）；`MAPS.theme` 增 center0/center1/rim per-map（classic 紫金/world 冷青/food 暖棕解撞色）；毡面程序织物纹理（512 逐像素噪点+织纹+vignette+金环收边，applyTheme 重建+旧图 dispose——**挂 map 后 color 必须回白**否则 map×color 相乘染黑，首次挂 map 需 needsUpdate 重编译）；格面顶面精修（纸噪点+组色条带渐变光泽+白点加环+名字投影+价格药丸+特殊格柔光垫+组色四边描边——**侧面染色的材质数组方案被否：BoxGeometry 6 group=24 格 +120 draw call**，描边是零成本替代）；骰面圆角象牙渐变+pip 径向渐变+环高光；名牌深色玻璃胶囊+玩家色描边（sprite scale 不动保 plateVisibility 22px 契约）；行动者脚下光环 turnRing（tick 驱动读 pawnObjs 实况平滑跟随，y=0.39 高于格顶 0.381，bankrupt/OVER/GL-off 守卫，+1 draw call）；「XX的回合」提亮 0.85/700+浮字/骰读四向描边。
+
+**门禁与验收**：六门禁全绿（probe-monopoly 28/probe-mono-maps/probe-mono-replay 8/probe-mono-net 17/probe-persona-mono 46/check-syntax）+ ev-mono-verify 静置单跑 ALL PASS（高负载下 R2c 采样量假红=已知环境噪声，静置复验）；改前/改后截图对照（.pw/shots/vis-* vs vis2-*/vis3-*）三个 P0 全部实证解决。**备案留下一轮**：翻牌中程牌身下缘插入中心盘（中心枢轴既有数学，修法=翻牌期临时抬 pivot 或改背缘铰链）；骰底 y=0.30 沉盘顶 0.015（y=0.525 即平）；卡面 512 无 mip 浅仰角微虚（可单独 mkTexMip）；弹窗 blur/渐变按钮改版/结算屏（UI 体系四游戏共享件，独立轮）。
+
 ### 1.7 UNO（uno.html，第三款游戏）与跨分支跳转（2026-09-19，UNO 轮）
 
 **游戏中心扩到 4 卡**（≥700px 2×2，max-width 680）：🎭 tod / 🎲 monopoly / 🃏 uno / 💣 炸弹猫（feat/bombcat-lobby 分支的 bombcat.html，自带「回游戏中心」链接）。**graceful jump**：file:// 直跳 fail-open（双击即开卖点）；http(s) HEAD 探测 1500ms（405/501 按存在算 + GET 兜底），失败挂「🚧 未开放」角标 + 降饱和仍可点；结果只存页面级 memo；**AbortSignal.timeout 缺席的老浏览器直跳 + 预探测 try/catch（防炸整个主脚本块）**。
