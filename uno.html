@@ -855,7 +855,7 @@ function buildPiles() {
   drawMesh.position.set(-1.15, 0.34, 0); drawMesh.rotation.x = -Math.PI / 2 + 0.42;
   drawMesh.rotation.z = 0.1; scene.add(drawMesh);
   drawMesh.children[1].visible = false; drawMesh.children[0].rotation.y = 0;   // 牌库恒显 UNO 背面(原亮着红0牌面,看着像第二张弃牌)
-  const dl = [-0.35, 0.22, 0.05];   // 弃牌堆垫片:顶牌下压两张旧牌,有「堆」的厚度
+  const dl = [0.06, -0.09, 0.04];   // 弃牌堆垫片:顶牌下压两张旧牌,有「堆」的厚度
   dl.forEach((rz, i) => {
     const u = new THREE.Mesh(cardGeo(), new THREE.MeshStandardMaterial({ map: getBackTex(), roughness: 0.75 }));
     u.position.set(0.35 - 0.014 * (i + 1), 0.34 - 0.016 * (i + 1), 0.008 * (i + 1));
@@ -875,7 +875,7 @@ function refreshDeckStack() {   // 抽牌堆多张叠加:厚度随牌库余量�
   for (let i = 1; i <= bucket; i++) {
     const m = new THREE.Mesh(cardGeo(), new THREE.MeshStandardMaterial({ map: getBackTex(), roughness: 0.75 }));
     m.position.set(-1.15 + (i % 2 ? 0.014 : -0.01), 0.34 - 0.016 * i, 0.014 * i);
-    m.rotation.x = -Math.PI / 2 + 0.42; m.rotation.z = 0.1 + (i % 2 ? 1 : -1) * (0.04 + i * 0.015);
+    m.rotation.x = -Math.PI / 2 + 0.42; m.rotation.z = 0.1 + (i % 2 ? 1 : -1) * (0.02 + i * 0.012);
     scene.add(m); deckUnderlays.push(m);
   }
 }
@@ -979,8 +979,8 @@ function flushDealFx() {   // 手牌重建(摸牌/出牌/快照/forceHand)时中
   });
 }
 const DECK_POS = { x: -1.15, y: 0.45, z: 0 };   // 共用抽牌堆:所有人的发牌/摸牌都从这一堆出(2026-09-28 用户澄清「大家的抽取的牌堆为同一个」,撤私人牌堆)
-function spawnDealFly(fromX, fromY, fromZ, toX, toY, toZ, onLand) {   // 一张背面牌从 from 飞向 to(弧线),落地回调
-  const fly = new THREE.Mesh(cardGeo(), new THREE.MeshStandardMaterial({ map: getBackTex(), roughness: 0.7 }));
+function spawnDealFly(fromX, fromY, fromZ, toX, toY, toZ, faceCd, onLand) {   // 一张牌从 from 飞向 to(弧线):faceCd=牌对象则以牌面飞(自己的牌不翻面),null=扣背
+  const fly = new THREE.Mesh(cardGeo(), new THREE.MeshStandardMaterial({ map: faceCd ? cardFaceTex(faceCd) : getBackTex(), roughness: 0.7 }));
   fly.position.set(fromX, fromY, fromZ);
   fly.rotation.x = -Math.PI / 2 + 0.5;
   scene.add(fly);
@@ -1004,30 +1004,31 @@ function animInitialDeal() {   // 发牌:按轮发次序从牌库飞向各人座
   for (let r = 0; r < 7; r++) for (let s2 = 0; s2 < nP; s2++) {
     const seat = ((south + s2 * G.dir) % nP + nP) % nP;   // 发牌轮转=出牌方向(顺时针局顺时针发),不是座位下标序
     const mine = cardGroups.filter(g => g.owner === seat);
-    if (mine[r]) order.push({ g: mine[r].group, seat });   // cardGroups 存包装对象,取 .group
+    if (mine[r]) order.push({ g: mine[r].group, seat, cd: mine[r].cardRef });   // cardGroups 存包装对象,取 .group/.cardRef
   }
-  if (!G.gl || REDUCED || bodyLo || TURBO || !order.length) return;   // 降级档跳动画,但次序恒记录(方向断言仍可依)
-  dealFx.lastOrder = order.map(o => o.seat);
+  dealFx.lastOrder = order.map(o => o.seat);   // 次序恒记录(必须在守卫前:bodyLo/降级档跳动画时方向断言仍有据可依——并行覆盖丢失过两次)
+  if (!G.gl || REDUCED || bodyLo || TURBO || !order.length) return;
   dealFx.active = true;
   order.forEach(o => {
     dealFx.hidden.add(o.g);
-    o.g.children[1].visible = false;
-    o.g.rotation.y = Math.PI;   // 先全部扣着
+    o.g.children[0].visible = false;
+    o.g.children[1].visible = false;   // 在途全隐:自己的牌以牌面飞,无翻面
   });
   const my = ++dealFx.token;
   const reveal = (o, i) => {
+    const fu = handFaceUp(G.players[o.seat], o.seat);
     if (dealFx.token !== my) {   // 已被摸牌/重摆接管:这张立即按归属亮出,不再飞行
       dealFx.hidden.delete(o.g);
-      const fu = handFaceUp(G.players[o.seat], o.seat);
+      o.g.children[0].visible = true;
       o.g.children[1].visible = fu;
       o.g.rotation.y = fu ? 0 : Math.PI;
       return;
     }
     const g = o.g;
-    spawnDealFly(DECK_POS.x, DECK_POS.y, DECK_POS.z, g.position.x, 0.4, g.position.z, () => {
+    spawnDealFly(g.position.x, 0.4, g.position.z, fu ? o.cd : null, () => {
       if (dealFx.token !== my) return;
       dealFx.hidden.delete(g);
-      const fu = handFaceUp(G.players[o.seat], o.seat);
+      g.children[0].visible = true;
       g.children[1].visible = fu;
       g.rotation.y = fu ? 0 : Math.PI;
       if (i === order.length - 1) dealFx.active = false;
@@ -1037,27 +1038,29 @@ function animInitialDeal() {   // 发牌:按轮发次序从牌库飞向各人座
 }
 function animDrawTo(pi, n) {   // 收牌(摸牌/罚摸):n 张从牌库飞向该玩家座位,飞抵才并入手牌亮出
   if (!G.gl || REDUCED || bodyLo || TURBO || n <= 0) return;
-  const mine = cardGroups.filter(g => g.owner === pi).map(g => g.group).slice(-n);   // 取 .group(包装对象无 children)
+  const mine = cardGroups.filter(g => g.owner === pi).slice(-n);   // 包装对象 {group, cardRef}
   if (mine.length < n) return;
   const south = pi === southOwner();
   dealFx.active = true;
   const my = ++dealFx.token;
   const seat = seatPos(pi);
   const from = DECK_POS;   // 共用抽牌堆:所有人从这里摸
-  mine.forEach((g, i) => {
-    dealFx.hidden.add(g);
-    g.children[1].visible = false;
+  mine.forEach((w, i) => {
+    dealFx.hidden.add(w.group);
+    w.group.children[0].visible = false;
+    w.group.children[1].visible = false;   // 在途全隐:自己的牌以牌面飞向手牌,无翻面
     setTimeout(() => {
-      if (dealFx.token !== my) { dealFx.hidden.delete(g); g.children[1].visible = south; return; }
-      spawnDealFly(from.x, from.y, from.z, seat.x, 0.4, seat.z, () => {
-        if (dealFx.token !== my) return;
-        dealFx.hidden.delete(g);
-        g.children[1].visible = south;
+      const reveal = () => {
+        dealFx.hidden.delete(w.group);
+        w.group.children[0].visible = true;
+        w.group.children[1].visible = south;
         if (i === mine.length - 1) dealFx.active = false;
-      });
+      };
+      if (dealFx.token !== my) { reveal(); return; }
+      spawnDealFly(from.x, from.y, from.z, seat.x, 0.4, seat.z, south ? w.cardRef : null, () => reveal());
     }, i * 140);
   });
-}   // 一镜到底:抬起/落下的卡片位姿补间(全局代际——任何重摆 bump token 立即作废,布局是唯一真相)
+}
 const tweeningGroups = new Set();   // 在途补间的卡:拾取时让位给静态邻牌(飞行途中的大卡会挡住点选)
 function tweenCardRaise(g, to, ms) {   // 选中卡在「扇位」与「抬起预览」之间墙钟 smoothstep 滑变(位置/倾角/缩放同步),REDUCED/bodyLo/TURBO 不进入
   const my = (raiseAnims.get(g) || 0) + 1;
@@ -1091,7 +1094,7 @@ function placeHandCards(groups, p, pi, faceUp, instant) {
   // 贴桌几何:牌绕中心枢轴倾斜 θ,下缘下沉 (CARD_H/2)·sinθ —— y 必须 ≥ 毡面 0.20 + 下沉量 + 余隙,否则切进桌面
   const restY = 0.2 + (CARD_H / 2) * fanScale * Math.sin(0.42) + 0.015;   // ≈0.362,与牌堆(0.34/0.42)同语言:躺在桌沿;缩扇(fanScale<1)下沉量随实际卡高折算,大扇下缘不悬空
   const kSelScale = Math.max(fanScale, innerWidth < 700 ? 1.6 : 1.15);   // 抬起=看全脸(替代 2D 浮层职责):小屏放大到 1.6 倍保证预览可读,PC 1.15 轻微放大
-  const riseY = 0.84 + (CARD_H / 2) * kSelScale * Math.sin(0.98);   // 0.84=rest 牌顶 0.69+余隙;下缘=0.84 ≥ rest 上缘,drop 项随 kSelScale 折算
+  const riseY = 1.14 + (CARD_H / 2) * kSelScale * Math.sin(0.98);   // 0.84→1.14:抬起牌整体再抬 0.3,投影基本让出扇形点击区(修复点邻牌被大卡劫持);下缘仍 ≥1.14 > rest 上缘
   const selCard = selIdx >= 0 ? p.hand[selIdx] : null;
   const canTween = !instant && !REDUCED && !bodyLo && !TURBO;   // 一镜到底只在真机动效档播放;快照重建/降级/探针档直接落定(静态退路红线)
   groups.forEach(g => raiseAnims.set(g, (raiseAnims.get(g) || 0) + 1));   // 任何重摆作废该卡在途抬起动画:布局是唯一真相
@@ -1104,18 +1107,21 @@ function placeHandCards(groups, p, pi, faceUp, instant) {
     if (isFan) {
       const fanC = isSouth ? { x: 0, z: 2.3 } : { x: pos.x, z: pos.z };   // 热座行动者在自己座位开扇,南位扇照旧
       const tx = fanC.x + (t - 0.5) * step * (n - 1);
-      const ty = kSel ? riseY : restY;
+      const ty = (kSel ? riseY : restY) + k * 0.0012;   // 微层差:共面扇形叠压区 z-fighting(穿模/透视花屏),每张抬高 0.0012 让深度缓冲干净分辨
       const trx = -Math.PI / 2 + (kSel ? 0.98 : 0.42);
       const trz = -(t - 0.5) * maxAngle * 0.5;
       const ts = kSel ? kSelScale : fanScale;
       const wasRaised = !kSel && g.position.y > (restY + riseY) / 2;   // 刚抬起的牌正被收下:走落下补间而不是瞬移
-      if (canTween && (kSel || wasRaised)) tweenCardRaise(g, { x: tx, y: ty, rx: trx, rz: trz, s: ts }, kSel ? 460 : 380);
-      g.position.x = tx;
-      g.position.y = ty;
-      g.position.z = fanC.z;
-      g.rotation.x = trx;
-      g.rotation.z = trz;
-      g.scale.setScalar(ts);
+      const animating = canTween && (kSel || wasRaised);
+      if (animating) tweenCardRaise(g, { x: tx, y: ty, rx: trx, rz: trz, s: ts }, kSel ? 460 : 380);   // 补间期间绝不落终态:先瞬移终态、下一帧跳回起点插值 = 闪烁的根源
+      else {
+        g.position.x = tx;
+        g.position.y = ty;
+        g.position.z = fanC.z;
+        g.rotation.x = trx;
+        g.rotation.z = trz;
+        g.scale.setScalar(ts);
+      }
     } else {
       g.position.set(pos.x + (k % 2 ? 0.03 : -0.03), 0.36 + k * 0.03, pos.z + Math.floor(k / 2) * 0.024);   // 错位阶梯:对手牌堆有厚度可数张,不再是单片
       g.rotation.x = -Math.PI / 2 + 0.35;
@@ -1456,12 +1462,27 @@ async function playCard(pi, k, chosenColor) {
   if (!cd) return;
   cancelUnoWindow();
   G.phase = 'ANIMATING'; hideActions(); updateHUD();
+  let gFly = null;
+  if (G.gl) {   // 摘出打出的实体卡组:一镜到底从当前位置连飞(抬起预览位/扇位),不消失重生
+    const gi = cardGroups.findIndex(e => e.owner === pi && e.cardRef === cd);
+    if (gi >= 0) gFly = cardGroups.splice(gi, 1)[0].group;
+  }
   p.hand.splice(k, 1);
   G.discard.push(cd);
-  if (G.gl) { layoutHand(pi, true); flyToPile(pi, seatPos(pi)); glanceAside(pi); }   // seat 必传:联机 bot 行动时 pi≠南位,flyToPile 非南分支要读 seat
+  if (G.gl) {
+    layoutHand(pi, true);
+    if (gFly && !REDUCED && !bodyLo && !TURBO) flyGroupToPile(gFly);
+    else { if (gFly) { scene.remove(gFly); disposeCard(gFly); } flyToPile(pi, seatPos(pi)); }   // seat 必传:联机 bot 行动时 pi≠南位,flyToPile 非南分支要读 seat
+    glanceAside(pi);
+  }
   SFX.play();
   if (G.gl) await sleep(420); else { await sleep(60); SFX.slam(); }   // 2D 退路同样在落定瞬间给「啪」感（3D 由 flyToPile 落地回调触发）
   G.phase = 'RESOLVE';
+  if (!isWild(cd) && G.cur !== cd.c) {   // 规则修复:数字/功能牌出牌后当前色跟着变(此前只有 wild 才 setColor,出红7后 G.cur 仍停在上一个颜色)
+    G.cur = cd.c;
+    setColor(cd.c);
+    SFX.colorShift();
+  }
   let skipNext = false, drawN = 0;
   if (cd.v === 'S') { skipNext = true; toast('🚫 ' + p.name + ' 跳过下家', 'gain'); SFX.act('skip'); }
   else if (cd.v === 'R') {
@@ -1751,16 +1772,35 @@ function pileDust() {   // 落堆尘埃：一圈暖色微粒扩散淡出，一�
   };
   requestAnimationFrame(step);
 }
+function pileLanded() {   // 落堆既有效果:顶牌换面+亮正面+随机压角+「啪」+回弹+尘埃
+  pileMesh._flying = false;   // 先清在途标志:updateHUD 的同步立即恢复接管
+  pileMesh.children[1].visible = true;
+  pileMesh.children[0].visible = false;   // 正面点亮后背面隐藏:消除共面双绘
+  pileMesh.children[1].material.map = cardFaceTex(topCard());   // 取当下顶牌:重叠飞行/延迟落地自动纠到最新
+  pileMesh.children[1].material.needsUpdate = true;
+  pileMesh.rotation.z = (rnd() - 0.5) * 0.5;
+  SFX.slam(); pileBounce(); pileDust();   // 落堆「啪」+ 下沉回弹 + 尘埃（动效在 REDUCED/bodyLo/TURBO 自动跳过，音效不占帧）
+}
+function flyGroupToPile(g) {   // 一镜到底出牌:打出的「实体卡」从其当前位置(扇位/抬起预览位)连续飞向牌堆,不消失重生
+  pileMesh._flying = true;
+  const from = { x: g.position.x, y: g.position.y, z: g.position.z, rx: g.rotation.x, rz: g.rotation.z, s: g.scale.x };
+  const to = { x: pileMesh.position.x, y: 0.4, z: pileMesh.position.z };
+  const t0 = performance.now(), dur = 380;
+  const step = now => {
+    const kk = Math.min(1, (now - t0) / dur), e = kk * kk * (3 - 2 * kk);
+    g.position.set(from.x + (to.x - from.x) * e, from.y + Math.sin(kk * Math.PI) * 0.22 + (to.y - from.y) * e, from.z + (to.z - from.z) * e);
+    g.rotation.x = from.rx + (-Math.PI / 2 + 0.42 - from.rx) * e;
+    g.rotation.z = from.rz * (1 - e);
+    g.scale.setScalar(from.s + (1 - from.s) * e);
+    if (kk < 1) requestAnimationFrame(step);
+    else { scene.remove(g); disposeCard(g); pileLanded(); }
+  };
+  requestAnimationFrame(step);
+}
 function flyToPile(pi, seat) {
   const cd = topCard();
   const land = () => {
-    pileMesh._flying = false;   // 先清在途标志:updateHUD 的同步立即恢复接管
-    pileMesh.children[1].visible = true;
-    pileMesh.children[0].visible = false;   // 正面点亮后背面隐藏:消除共面双绘
-    pileMesh.children[1].material.map = cardFaceTex(topCard());   // 取当下顶牌:重叠飞行/延迟落地自动纠到最新
-    pileMesh.children[1].material.needsUpdate = true;
-    pileMesh.rotation.z = (rnd() - 0.5) * 0.5;
-    SFX.slam(); pileBounce(); pileDust();   // 落堆「啪」+ 下沉回弹 + 尘埃（动效在 REDUCED/bodyLo/TURBO 自动跳过，音效不占帧）
+    pileLanded();
   };
   pileMesh._flying = true;   // 在途标志:updateHUD 的顶牌同步见飞牌落地即换,避免半空时堆面提前揭示
   if (REDUCED || bodyLo || TURBO) { land(); return; }
@@ -1981,15 +2021,9 @@ function pickHand(ev) {
   const mineHit = h => { let t = h.object; while (t.parent && !mine.some(mm => mm.group === t)) t = t.parent; return mine.find(mm => mm.group === t); };
   let entry = mineHit(hits[0]);
   if (!entry) return;
-  const isRaised = e => !!tableSel && e.cardRef && e.cardRef.c === tableSel.c && e.cardRef.v === tableSel.v;
-  if (isRaised(entry)) {
-    const altHit = hits.map(mineHit).find(e2 => e2 && !isRaised(e2));   // 抬起中的大卡悬在邻牌上方:点邻牌露条时射线先打到大卡——切选意图优先,让位给最近的一张非抬起牌
-    if (altHit) entry = altHit;
-  }
-  if (!entry) return;
+  // 拾取=像素级精准:命中列表按距离排序,点到的就是眼前可见的那张(抬起牌悬空期点它本体=收下,点邻牌可见部分=切选)
   const k = p.hand.indexOf(entry.cardRef);
   if (k < 0) return;
-  // 贴桌轮:点牌=选中抬起预览(不可出也可看全脸),再点同张=收下;打出走「打出这张」确认按钮。压缩浮层已退役:3D 手牌(排序+缩扇+抬起放大)全端通用,浮层仅 GL-off 保留
   // 贴桌轮:点牌=选中抬起预览(不可出也可看全脸),再点同张=收下;打出走「打出这张」确认按钮
   const cd = p.hand[k];
   const same = tableSel && tableSel.c === cd.c && tableSel.v === cd.v;
