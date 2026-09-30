@@ -82,6 +82,15 @@
   #action-who { font-size: 0.78rem; color: rgba(255,255,255,0.6); }
   .jail-hint { font-size: 0.74rem; color: rgba(255,255,255,0.55); text-align: center; }
 
+  /* 策划效果轮:UNO 喊名窗口边缘红光脉冲 + 结算彩带 */
+  body.uno-urgent #uno-canvas { animation: urgent-pulse 0.9s ease-in-out infinite alternate; }
+  @keyframes urgent-pulse { from { box-shadow: inset 0 0 42px rgba(239,68,68,0.2); } to { box-shadow: inset 0 0 82px rgba(239,68,68,0.4); } }
+  #result-confetti { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+  #result-confetti i { position: absolute; top: -3vh; width: 9px; height: 15px; opacity: 0.9; animation: confetti-fall linear infinite; }
+  @keyframes confetti-fall { to { transform: translateY(108vh) rotate(680deg); } }
+  body.loperf #uno-canvas, html.turbo #uno-canvas { animation: none; }   /* 红光脉冲的 loperf/TURBO 静态退路(REDUCED 由媒体块覆盖) */
+  body.loperf #result-confetti, html.turbo #result-confetti { display: none; }
+
   #hand-ovl { position: fixed; inset: 0; z-index: 70; display: none; flex-direction: column; align-items: center; justify-content: flex-end; gap: 12px; background: rgba(4,4,12,0.66); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); padding-bottom: max(40px, env(safe-area-inset-bottom)); }
   #hand-ovl.show { display: flex; }
   #hand-strip { display: flex; flex-wrap: wrap; justify-content: center; row-gap: 10px; max-width: 94vw; padding: 14px 42px; border-radius: 18px; background: rgba(16,14,34,0.94); border: 1px solid var(--glass-border); }   /* 堆叠不滚动:排宽超容器才换行;padding-inline 42px 容纳行首张 -38px 负边距的探出 */
@@ -167,6 +176,8 @@
 
   @media (prefers-reduced-motion: reduce) {
     .loader-ico, .pchip.active, #result-veil, #result-winner, .pod, #btn-uno.show, #dir-chip .dico, #wild-modal .panel { animation: none !important; transition: none !important; }
+    #uno-canvas, #result-confetti i { animation: none !important; }
+    #result-confetti { display: none; }
     .hcard.sel { transition: none; }   /* 贴桌轮:抬起是看全脸的功能载体,REDUCED 只去过渡、保留位移 */
     .pchip.active { box-shadow: 0 0 0 1.5px var(--accent-cyan); }
     .pod { opacity: 1; transform: none; }
@@ -288,6 +299,7 @@
 
 <div id="result-overlay" class="ovl" hidden>
   <div id="result-veil"></div>
+  <div id="result-confetti"></div>
   <div id="result-box">
     <h2>🏁 本局结算</h2>
     <div id="result-winner"></div>
@@ -858,7 +870,7 @@ function buildPiles() {
   const dl = [0.06, -0.09, 0.04];   // 弃牌堆垫片:顶牌下压两张旧牌,有「堆」的厚度
   dl.forEach((rz, i) => {
     const u = new THREE.Mesh(cardGeo(), new THREE.MeshStandardMaterial({ map: getBackTex(), roughness: 0.75 }));
-    u.position.set(0.35 - 0.014 * (i + 1), 0.34 - 0.016 * (i + 1), 0.008 * (i + 1));
+    u.position.set(0.35 - 0.026 * (i + 1), 0.34 - 0.028 * (i + 1), 0.012 * (i + 1));
     u.rotation.x = -Math.PI / 2 + 0.42; u.rotation.z = rz;
     scene.add(u); discardUnderlays.push(u);
   });
@@ -874,8 +886,8 @@ function refreshDeckStack() {   // 抽牌堆多张叠加:厚度随牌库余量�
   deckUnderlays = [];
   for (let i = 1; i <= bucket; i++) {
     const m = new THREE.Mesh(cardGeo(), new THREE.MeshStandardMaterial({ map: getBackTex(), roughness: 0.75 }));
-    m.position.set(-1.15 + (i % 2 ? 0.014 : -0.01), 0.34 - 0.016 * i, 0.014 * i);
-    m.rotation.x = -Math.PI / 2 + 0.42; m.rotation.z = 0.1 + (i % 2 ? 1 : -1) * (0.02 + i * 0.012);
+    m.position.set(-1.15 + (i % 2 ? 0.028 : -0.024), 0.34 - 0.03 * i, 0.02 * i);   // 层间大落差:每层下缘/侧缘露出 ~0.03,叠成可见阶梯
+    m.rotation.x = -Math.PI / 2 + 0.42; m.rotation.z = 0.1 + (i % 2 ? 1 : -1) * (0.05 + i * 0.02);
     scene.add(m); deckUnderlays.push(m);
   }
 }
@@ -905,6 +917,16 @@ function buildRings() {
 function setColor(c) {
   G.cur = c;
   Object.entries(colorRings).forEach(kv => { mmSet(kv[1], kv[0] === c); });
+  const target = colorRings[c];
+  if (target && !REDUCED && !bodyLo && !TURBO) {   // 换色涟漪:新色环 1→1.5→1 扩散波
+    const t0 = performance.now();
+    const rip = now => {
+      const k = Math.min(1, (now - t0) / 420);
+      target.scale.setScalar(1 + Math.sin(k * Math.PI) * 0.5);
+      if (k < 1) requestAnimationFrame(rip);
+    };
+    requestAnimationFrame(rip);
+  }
   const chip = $('color-chip');
   chip.classList.add('show');
   chip.querySelector('.cdot').style.background = COLORS[c];
@@ -1188,6 +1210,7 @@ function refreshSeatFx() {   // 座位名牌(名字·牌数)+行动指示环:每
     scene.add(sp); seatFx.labels.push(sp);
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.42, 36), new THREE.MeshBasicMaterial({ color: PLAYER_COLORS[p.colorIdx], transparent: true, opacity: seat === G.turn ? 0.95 : 0.12, side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2; ring.position.set(pos.x, 0.212, pos.z);
+    ring._active = seat === G.turn;   // 行动者环:tick 呼吸脉冲用
     scene.add(ring); seatFx.rings.push(ring);
   });
 }
@@ -1490,6 +1513,7 @@ async function playCard(pi, k, chosenColor) {
     if (G.players.length === 2) { skipNext = true; toast('🔁 两人局：反转当跳过', 'gain'); }
     else toast('🔁 反转！方向变' + (G.dir === 1 ? '顺时针' : '逆时针'), 'gain');
     setColor(G.cur); SFX.act('rev');
+    if (dirRing) dirRing._boostUntil = performance.now() + 1600;   // 反转可视化:方向环 4 倍速爆发 1.6s
   } else if (cd.v === 'D2') { drawN = 2; SFX.act('d2'); }
   else if (cd.v === 'W4') { drawN = 4; SFX.act('d4'); }
   if (isWild(cd) && chosenColor) { setColor(chosenColor); toast('🌈 ' + p.name + ' 把颜色改成' + CNAME[chosenColor] + '色' + (drawN ? `，下家摸 ${drawN}` : ''), 'gain'); SFX.colorShift(); }
@@ -1658,6 +1682,19 @@ function showResult(stall) {   // 结算屏渲染（onWin/endGame/远端快照�
     `<div class="pod"><span class="rank">${['🥇', '🥈', '🥉', '4'][n] || n + 1}</span>
      <span class="dot" style="background:${PLAYER_COLORS[r.p.colorIdx]}"></span>
      <span>${esc(r.p.name)}${r.p.bot ? ' 🤖' : ''}</span><span class="pts tabnum">${r.p.hand.length} 张 · ${r.pts} 分</span></div>`).join('');
+  const cf = document.getElementById('result-confetti');
+  cf.innerHTML = '';
+  if (!stall && !REDUCED && !bodyLo && !TURBO) {   // 胜利彩带:14 条四色纸屑(REDUCED/loperf/TURBO 静态退路)
+    const cols = ['#f97316', '#ef4444', '#fbbf24', '#22d3ee'];
+    for (let i = 0; i < 14; i++) {
+      const t = document.createElement('i');
+      t.style.left = (4 + Math.random() * 92) + 'vw';
+      t.style.background = cols[i % 4];
+      t.style.animationDuration = (2.6 + Math.random() * 2.6) + 's';
+      t.style.animationDelay = (Math.random() * 1.4) + 's';
+      cf.appendChild(t);
+    }
+  }
   $('result-overlay').hidden = false;
   SFX.win(); updateHUD();
 }
@@ -1891,7 +1928,13 @@ function tick(now) {
   perfWatch(now);
   tickUnoWindow(now);
   if (G.gl) {
-    dirRing.rotation.z += (G.dir === 1 ? 0.4 : -0.4) * (now - (tick.last || now)) / 1000;
+    const boost = dirRing._boostUntil && now < dirRing._boostUntil ? 4 : 1;   // 反转爆发期 4 倍速
+    dirRing.rotation.z += (G.dir === 1 ? 0.4 : -0.4) * boost * (now - (tick.last || now)) / 1000;
+    document.body.classList.toggle('uno-urgent', !!(G.unoWin && !G.unoWin.penalized));   // 喊名窗口:边缘红光脉冲(REDUCED/loperf 由 CSS 退路静态化)
+    if (!REDUCED && !bodyLo) {   // 行动者指示环呼吸
+      const amp = 0.75 + Math.sin(now / 300) * 0.2;
+      seatFx.rings.forEach(r => { if (r._active) r.material.opacity = amp; });
+    }
     if (!TURBO && !(AUTOTEST && bodyLo) && renderer) renderer.render(scene, camera);
   }
   tick.last = now;

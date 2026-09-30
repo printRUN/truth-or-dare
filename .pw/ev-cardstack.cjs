@@ -112,8 +112,8 @@ const GL_STUB = `(() => {
   ok(strip.sw <= strip.cw + 1, `堆叠不滚动：scrollWidth ${strip.sw} ≤ clientWidth ${strip.cw}`);
   await shot(p2, 'ev-cards-uno-overlay15.png');
 
-  /* ── C. 炸弹猫：12 张手牌 → #bc-hand ── */
-  console.log('— C. 炸弹猫长手牌 —');
+  /* ── C. 炸弹猫：12 张手牌 → #bc-hand(GL_STUB:DOM 手牌只在 2D 退路存在——3D 局已退役,堆叠 CSS 断言迁到退路上下文) ── */
+  console.log('— C. 炸弹猫长手牌(GL-off) —');
   const bcJoin = async (page, name, room) => {
     await page.goto(`${BASE}/bombcat.html` + (room ? '?room=' + room : ''), { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => document.querySelector('#btn-join') && !document.querySelector('#btn-join').disabled, null, { timeout: 20000 });
@@ -123,7 +123,9 @@ const GL_STUB = `(() => {
     await page.click('#btn-join');
     await page.waitForSelector('#screen-lobby.active', { timeout: 20000 });
   };
-  const pA = await ctx.newPage(); const pB = await ctx.newPage(); const pC = await ctx.newPage();
+  const ctxC = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  const pA = await ctxC.newPage(); const pB = await ctxC.newPage(); const pC = await ctxC.newPage();
+  [pA, pB, pC].forEach(pg => pg.addInitScript(GL_STUB));
   [pA, pB, pC].forEach(p => p.on('pageerror', e => console.log('  [bc pageerror]', e.message.slice(0, 100))));
   await bcJoin(pA, '猫大', '');
   const room = (await pA.textContent('#share-room')).trim();
