@@ -54,7 +54,7 @@
   @keyframes chip-breath { from { box-shadow: 0 0 0 1.5px rgba(34,211,238,1), 0 0 16px rgba(34,211,238,0.45); } to { box-shadow: 0 0 0 1.5px rgba(34,211,238,0.45), 0 0 6px rgba(34,211,238,0.15); } }
   .pchip.dead { opacity: 0.45; filter: grayscale(0.8); }
   .pchip { position: relative; }
-  .mfloat { position: absolute; left: 50%; top: -4px; transform: translateX(-50%); font-weight: 800; font-size: 0.9rem; pointer-events: none; animation: mfloat-up 0.8s ease-out forwards; text-shadow: 0 1px 6px rgba(0,0,0,0.8); }
+  .mfloat { position: absolute; left: 50%; top: -4px; transform: translateX(-50%); font-weight: 800; font-size: 0.9rem; pointer-events: none; animation: mfloat-up 0.8s ease-out forwards; text-shadow: 0 1px 0 rgba(0,0,0,0.9), 0 -1px 0 rgba(0,0,0,0.9), 1px 0 0 rgba(0,0,0,0.9), -1px 0 0 rgba(0,0,0,0.9), 0 2px 8px rgba(0,0,0,0.8); }   /* 精美化 S7：四向描边防压格面字时糊掉 */
   @keyframes mfloat-up { from { opacity: 1; margin-top: 0; } to { opacity: 0; margin-top: -26px; } }
   #round-chip { position: fixed; top: calc(max(8px, env(safe-area-inset-top)) + 8px); right: 10px; z-index: 31; font-size: 0.72rem; padding: 4px 10px; border-radius: 999px; background: rgba(10,10,26,0.72); border: 1px solid var(--glass-border); }
   #btn-quit, #btn-rules-top, #btn-sfx { position: fixed; z-index: 31; top: auto; }
@@ -69,7 +69,7 @@
   #toast.loss { border-color: rgba(244,114,182,0.5); color: var(--accent-pink); }
 
   /* 骰子大字读数（3D 骰子是仪式，DOM 是主读数） */
-  #dice-readout { position: fixed; left: 50%; bottom: 128px; transform: translateX(-50%); z-index: 35; font-size: 1.6rem; font-weight: 900; text-shadow: 0 2px 12px rgba(0,0,0,0.8); opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+  #dice-readout { position: fixed; left: 50%; bottom: 128px; transform: translateX(-50%); z-index: 35; font-size: 1.6rem; font-weight: 900; text-shadow: 0 2px 0 rgba(0,0,0,0.85), 0 -1px 0 rgba(0,0,0,0.85), 1px 0 0 rgba(0,0,0,0.85), -1px 0 0 rgba(0,0,0,0.85), 0 2px 14px rgba(0,0,0,0.8); opacity: 0; transition: opacity 0.2s; pointer-events: none; }
   #dice-readout.show { opacity: 1; }
 
   /* 动作条（仅本人回合可见） */
@@ -81,7 +81,7 @@
   .btn-sub { min-height: 44px; padding: 8px 18px; border-radius: 14px; border: 1px solid var(--glass-border); background: rgba(10,10,26,0.72); color: #fff; font-size: 0.9rem; cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
   .btn-sub:disabled { opacity: 0.4; cursor: default; }
   .jail-hint { font-size: 0.74rem; color: rgba(255,255,255,0.55); text-align: center; }
-  #action-who { font-size: 0.78rem; color: rgba(255,255,255,0.6); }
+  #action-who { font-size: 0.8rem; font-weight: 700; color: rgba(255,255,255,0.85); }   /* 精美化 S7：热座「谁的回合」提亮（旧 0.6 白叠紫底发粉糊） */
 
   /* 全屏浮层（setup / handoff / result / 弹窗） */
   .ovl { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(4,4,12,0.6); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); overflow-y: auto; }
@@ -182,10 +182,20 @@
   }
   body.loperf #deal-stamp { display: none; }
 
-  /* REDUCED 降级卡（REDUCED 揭晓替代 3D 飞卡） */
-  #card-dom .card-face { padding: 18px; border-radius: 16px; background: linear-gradient(160deg, #241b44, #14102a); border: 1px solid var(--glass-border); }
-  #card-dom .card-kind { font-size: 0.78rem; color: var(--gold); margin-bottom: 8px; }
-  #card-dom .card-text { font-size: 1.05rem; line-height: 1.7; }
+  /* 抽卡 DOM 卡面（精美化 K2）：旧样式锁在 #card-dom 作用域（元素不存在=裸奔），改 .gen-body 作用域与 3D 牌同语言 */
+  #gen-body .card-face { position: relative; padding: 22px 20px 20px; border-radius: 18px; text-align: center;
+    background: linear-gradient(168deg, #2c2254, #191233 58%, #120e24);
+    border: 2px solid rgba(251,191,36,0.55); outline: 1px solid rgba(251,191,36,0.22); outline-offset: -7px;
+    box-shadow: 0 18px 44px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.08); }
+  #gen-body .card-face::before { content: ''; position: absolute; inset: 5px; border-radius: 13px; pointer-events: none;
+    background:
+      radial-gradient(circle at 14px 14px, rgba(251,191,36,0.5) 2.2px, transparent 3px),
+      radial-gradient(circle at calc(100% - 14px) 14px, rgba(251,191,36,0.5) 2.2px, transparent 3px),
+      radial-gradient(circle at 14px calc(100% - 14px), rgba(251,191,36,0.5) 2.2px, transparent 3px),
+      radial-gradient(circle at calc(100% - 14px) calc(100% - 14px), rgba(251,191,36,0.5) 2.2px, transparent 3px); }
+  #gen-body .card-kind { display: inline-block; font-size: 0.8rem; font-weight: 900; letter-spacing: 0.35em; text-indent: 0.35em;
+    color: var(--gold); padding: 4px 16px; margin-bottom: 12px; border: 1.5px solid rgba(251,191,36,0.7); border-radius: 999px; background: rgba(251,191,36,0.1); }
+  #gen-body .card-text { font-size: 1.08rem; line-height: 1.8; color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,0.6); }
 
   /* 2D 降级棋盘（WebGL 不可用：列表化棋盘，同一状态机） */
   #board2d { position: fixed; inset: 0; z-index: 10; display: none; overflow-y: auto; padding: 110px 14px 140px; }
@@ -739,14 +749,14 @@ function buildClassicGroups() {   // classic 组数据逐字冻结：AUTOTEST/�
 const MAPS = {
   classic: {
     name: '都市风云', emoji: '🏙️', tagline: '经典街区 · 原味大富翁',
-    theme: { felt: 0x1d1523, bg: 0x0a0a1a, fog: 0x0a0a1a, label: '大富翁', emoji2: '🎲' },
+    theme: { felt: 0x1d1523, bg: 0x0a0a1a, fog: 0x0a0a1a, label: '大富翁', emoji2: '🎲', center0: '#2e2458', center1: '#151030', rim: '#8b6cf0' },
     line: '原味规则：买地收租，集齐同色租金 ×3',
     groups: null,   // 由 buildClassicGroups() 逐字提供
     corner12: { name: '免费停车', emoji: '☕' },
   },
   world: {
     name: '环游世界', emoji: '✈️', tagline: '环游世界 · 航班与护照',
-    theme: { felt: 0x11202e, bg: 0x08131e, fog: 0x08131e, label: '环游世界', emoji2: '🌍' },
+    theme: { felt: 0x11202e, bg: 0x08131e, fog: 0x08131e, label: '环游世界', emoji2: '🌍', center0: '#123048', center1: '#0a1a28', rim: '#22d3ee' },
     line: '✈️ 机场 ¥400 随机飞：起点领钱 / 监狱探监 / 入狱角当心！· 🛂 本圈每到访一大洲，过起点 +¥200',
     groups: [
       { color: '#f59e0b', dots: 1, names: ['富士山', '吴哥窟', '泰姬陵', '大堡礁'] },
@@ -758,7 +768,7 @@ const MAPS = {
   },
   food: {
     name: '全国美食', emoji: '🍜', tagline: '舌尖发财 · 夜市与回头客',
-    theme: { felt: 0x2a1610, bg: 0x190d07, fog: 0x190d07, label: '全国美食', emoji2: '🍜' },
+    theme: { felt: 0x2a1610, bg: 0x190d07, fog: 0x190d07, label: '全国美食', emoji2: '🍜', center0: '#3d2417', center1: '#1c1009', rim: '#f59e0b' },
     line: '🏮 夜市 ¥400 换免罚卡（已有卡不卖）· 😋 落自家餐馆必有回头客，+地价 8%',
     groups: [
       { color: '#f59e0b', dots: 1, names: ['臭豆腐', '煎饼果子', '糖葫芦', '螺蛳粉'] },
@@ -858,8 +868,9 @@ let lastInteract = Date.now();
 /* ═════════════════════════ 4. Three.js 场景 ═════════════════════════ */
 let renderer, scene, camera, dirLight;
 let tableMesh = null, centerDisc = null;   // 多地图主题化句柄（挑刺 F4）：毡面/中心盘原地改色不重建
+let turnRing = null;   // 行动者脚下光环（精美化 S6，终审 F-4：y=0.39 高于格顶 0.381，tick 驱动）
 let tileMeshes = [], ownerMarks = [], pawnObjs = [], plateSprites = [], diceObjs = [];
-let cardMesh = null, cardPivot = null;
+let cardMesh = null, cardPivot = null, cardBackMesh = null;   // 双面卡：face 正面 / back 背花（精美化 K1）
 const D2R = Math.PI / 180;
 const rig = { az: 0, elev: 42 * D2R, dist: 7.2, focusK: 1, token: 0, raf: 0, tgt: { x: 0, y: 0.3, z: 0 }, autoDist: true };
 const TGT = { x: 0, y: 0.3, z: 0 };
@@ -970,6 +981,12 @@ function initScene() {
   );
   table.position.y = -0.05; table.receiveShadow = true; scene.add(table);
   tableMesh = table;
+  turnRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.2, 0.27, 32),
+    new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false })
+  );
+  turnRing.rotation.x = -Math.PI / 2; turnRing.position.y = 0.39; turnRing.visible = false;
+  scene.add(turnRing);
   buildBoard();
   buildCenter();
   buildDice();
@@ -998,6 +1015,11 @@ function mkTex(w, h, draw) {
   return t;
 }
 const truncate = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s;
+function shadeColor(hex, k) {   // hex 变亮/变暗（k>0 亮 k<0 暗）；格面条带渐变用
+  const c = new THREE.Color(hex);
+  if (k >= 0) c.lerp(new THREE.Color(0xffffff), k); else c.multiplyScalar(1 + k);
+  return '#' + c.getHexString();
+}
 function buildBoard() {
   const base = new THREE.MeshStandardMaterial({ color: 0x0d0a18, roughness: 0.9 });
   const geo = new THREE.BoxGeometry(0.92, 0.08, 0.92);
@@ -1008,23 +1030,49 @@ function buildBoard() {
     box.position.y = 0.04; box.receiveShadow = true;
     grp.add(box);
     const tex = mkTex(256, 256, (ctx, w, h) => {
+      // 纸面底 + 细噪点（精美化 S3：替代纯线性渐变的「未完成感」）
       const gd = ctx.createLinearGradient(0, 0, 0, h);
-      gd.addColorStop(0, '#171226'); gd.addColorStop(1, '#0f0c1a');
+      gd.addColorStop(0, '#191330'); gd.addColorStop(1, '#100c1c');
       ctx.fillStyle = gd; ctx.fillRect(0, 0, w, h);
+      for (let i = 0; i < 260; i++) { ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.02})`; ctx.fillRect(Math.random() * w, Math.random() * h, 1.2, 1.2); }
+      // 圆角内板 + 组色暗描边（终审 F-5a：侧面染色的零 draw call 替代——四边 1px 描边在低仰角勾出格块颜色）
+      if (t.kind === 'prop') { ctx.strokeStyle = GROUPS[t.group].color; ctx.globalAlpha = 0.45; ctx.lineWidth = 3; ctx.strokeRect(1.5, 1.5, w - 3, h - 3); ctx.globalAlpha = 1; }
       if (t.kind === 'prop') {
-        ctx.fillStyle = GROUPS[t.group].color; ctx.fillRect(0, 0, w, 30);
+        // 组色条带：渐变 + 顶部光泽高线 + 白点加环
+        const sg = ctx.createLinearGradient(0, 0, 0, 34);
+        sg.addColorStop(0, GROUPS[t.group].color); sg.addColorStop(1, shadeColor(GROUPS[t.group].color, -0.25));
+        ctx.fillStyle = sg; ctx.fillRect(4, 4, w - 8, 30);
+        ctx.fillStyle = 'rgba(255,255,255,0.32)'; ctx.fillRect(4, 4, w - 8, 5);
         ctx.fillStyle = '#fff';
         const dots = GROUPS[t.group].dots;
-        for (let d = 0; d < dots; d++) { ctx.beginPath(); ctx.arc(w - 16 - d * 20, 15, 6, 0, 7); ctx.fill(); }
-        ctx.fillStyle = '#fff'; ctx.font = '700 40px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
+        for (let d = 0; d < dots; d++) {
+          ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(w - 16 - d * 20, 19, 6.5, 0, 7); ctx.stroke();
+          ctx.beginPath(); ctx.arc(w - 16 - d * 20, 19, 5, 0, 7); ctx.fill();
+        }
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.font = '700 40px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
+        ctx.fillText(truncate(t.name, 5), w / 2 + 2, h / 2 - 10);
+        ctx.fillStyle = '#fff';
         ctx.fillText(truncate(t.name, 5), w / 2, h / 2 - 12);
-        ctx.fillStyle = 'rgba(255,255,255,0.72)'; ctx.font = '600 34px "Noto Sans SC","PingFang SC",sans-serif';
-        ctx.fillText('¥' + t.price, w / 2, h / 2 + 38);
+        // 价格药丸
+        ctx.font = '600 30px "Noto Sans SC","PingFang SC",sans-serif';
+        const pw = ctx.measureText('¥' + t.price).width + 24;
+        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        roundRectPath(ctx, w / 2 - pw / 2, h / 2 + 16, pw, 40, 20); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1.5;
+        roundRectPath(ctx, w / 2 - pw / 2, h / 2 + 16, pw, 40, 20); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText('¥' + t.price, w / 2, h / 2 + 38);
       } else {
+        // 特殊格：柔光垫 + emoji + 名字
+        const eg = ctx.createRadialGradient(w / 2, h / 2 - 22, 8, w / 2, h / 2 - 22, 62);
+        eg.addColorStop(0, 'rgba(251,191,36,0.22)'); eg.addColorStop(1, 'rgba(251,191,36,0)');
+        ctx.fillStyle = eg; ctx.fillRect(0, 0, w, h);
         ctx.font = '52px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(t.emoji, w / 2, h / 2 - 26);
-        ctx.fillStyle = '#fff'; ctx.font = '700 34px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
+        ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.font = '700 34px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
+        ctx.fillText(truncate(t.name, 5), w / 2 + 2, h / 2 + 32);
+        ctx.fillStyle = '#fff';
         ctx.fillText(truncate(t.name, 5), w / 2, h / 2 + 30);
       }
     });
@@ -1043,33 +1091,101 @@ function buildBoard() {
     scene.add(mk); ownerMarks[i] = mk;
   });
 }
-function buildCenter() {
+function mkTexMip(w, h, draw) {   // mipmap 变体（终审 F-8）：只给中心盘用——mkTex 本体全局禁 mip 是格面/名牌/骰面的既定采样契约，不许动
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.encoding = THREE.sRGBEncoding;
+  t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true;
+  t.anisotropy = 4;
+  return t;
+}
+function buildCenter() {   // 精美化 S1（终审 F-7/F-9/F-10）：加厚圆盘（材质数组 [侧裙/顶面/底]）+ 1024 mipmap 顶面 + 四向对置地图名（环形镜头任一方位都有接近正读的一份）
   const th = MAPS[CUR_MAP_ID].theme;
-  const tex = mkTex(512, 512, (ctx, w, h) => {
-    const gd = ctx.createRadialGradient(w / 2, h / 2, 40, w / 2, h / 2, 250);
-    gd.addColorStop(0, '#2a2050'); gd.addColorStop(1, '#120e24');
+  const tex = mkTexMip(1024, 1024, (ctx, w, h) => {
+    const c = w / 2;
+    const gd = ctx.createRadialGradient(c, c, 60, c, c, 500);
+    gd.addColorStop(0, th.center0); gd.addColorStop(1, th.center1);
     ctx.fillStyle = gd; ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = 'rgba(139,92,246,0.5)'; ctx.lineWidth = 6;
-    ctx.beginPath(); ctx.arc(w / 2, h / 2, 200, 0, 7); ctx.stroke();
-    ctx.strokeStyle = 'rgba(34,211,238,0.35)';
-    ctx.beginPath(); ctx.arc(w / 2, h / 2, 160, 0, 7); ctx.stroke();
-    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = '900 110px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
-    ctx.fillText(th.label, w / 2, h / 2 - 26);
-    ctx.font = '64px serif'; ctx.fillText(th.emoji2, w / 2, h / 2 + 80);
+    // 环系：rim 色宽环 + 金发丝线 + 12 刻度
+    ctx.strokeStyle = th.rim; ctx.globalAlpha = 0.5; ctx.lineWidth = 10;
+    ctx.beginPath(); ctx.arc(c, c, 392, 0, 7); ctx.stroke();
+    ctx.globalAlpha = 0.35; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(c, c, 316, 0, 7); ctx.stroke();
+    ctx.globalAlpha = 0.55; ctx.strokeStyle = 'rgba(251,191,36,0.9)'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(c, c, 404, 0, 7); ctx.stroke();
+    for (let i = 0; i < 12; i++) {
+      const a = i * Math.PI / 6;
+      ctx.beginPath();
+      ctx.moveTo(c + Math.cos(a) * 318, c + Math.sin(a) * 318);
+      ctx.lineTo(c + Math.cos(a) * 334, c + Math.sin(a) * 334);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    // 主题 emoji：8% alpha 大水印（弱化成纹理，解「假骰子」观感）
+    ctx.globalAlpha = 0.08; ctx.font = '560px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(th.emoji2, c, c + 20);
+    ctx.globalAlpha = 1;
+    // 地图名两份对置贴外环带（取证修正：四向直排在盘心挤成米字花——盘心让给水印，文字贴外环；字号 shrink-to-fit）
+    const label = th.label;
+    let fs = 92;
+    ctx.font = `900 ${fs}px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif`;
+    while (ctx.measureText(label).width > w - 480 && fs > 56) { fs -= 4; ctx.font = `900 ${fs}px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif`; }
+    for (const q of [0, Math.PI]) {
+      ctx.save();
+      ctx.translate(c, c);
+      ctx.rotate(q);
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.fillText(label, 0, -392 + 4);
+      ctx.fillStyle = 'rgba(255,255,255,0.94)';
+      ctx.fillText(label, 0, -392);
+      ctx.restore();
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '600 40px "Noto Sans SC","PingFang SC",sans-serif';
+    ctx.fillText('· 大富翁 ·', c, c + 262);
   });
+  const sideMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(th.center1).multiplyScalar(0.9), roughness: 0.85 });
+  const topMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 });
   const disc = new THREE.Mesh(
-    new THREE.CircleGeometry(2.1, 48),
-    new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 })
+    new THREE.CylinderGeometry(2.1, 2.1, 0.115, 48),
+    [sideMat, topMat, sideMat]   // Cylinder group 序 [side/top/bottom]：侧裙纯色防顶面贴图 UV 裙边拉花（终审 F-7）
   );
-  disc.rotation.x = -Math.PI / 2; disc.position.y = 0.315;
+  disc.position.y = 0.2575;   // 顶面=0.315（老位置不动：骰底 0.30 穿帮线/格顶 0.381 无交叠，终审 F-10）；底面=0.20 正落毡面，无悬空
   scene.add(disc);
   centerDisc = disc;
 }
-function applyTheme() {   // 主题三色原地改（挑刺 F4）：毡面/背景/雾随图切换，不重建几何
+function feltTex(feltHex) {   // 程序织物毡面（精美化 S2）：底色亮化 8% + 逐像素噪点 + 织纹 + vignette + 盘外金环收边（512 一次性成本 ~10ms，终审确认可接受）
+  const c = document.createElement('canvas'); c.width = 512; c.height = 512;
+  const ctx = c.getContext('2d');
+  const base = new THREE.Color(feltHex).multiplyScalar(1.08);
+  ctx.fillStyle = '#' + base.getHexString();
+  ctx.fillRect(0, 0, 512, 512);
+  const img = ctx.getImageData(0, 0, 512, 512), d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const n = (Math.random() - 0.5) * 14 + Math.sin((i / 4) % 512 / 2) * 3;   // 噪点+横向织纹
+    d[i] = Math.max(0, Math.min(255, d[i] + n));
+    d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n));
+    d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n));
+  }
+  ctx.putImageData(img, 0, 0);
+  const g = ctx.createRadialGradient(256, 256, 180, 256, 256, 330);
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.42)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 512, 512);
+  ctx.strokeStyle = 'rgba(251,191,36,0.28)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(256, 256, 158, 0, 7); ctx.stroke();   // 盘外金环收边（盘半径 2.1/桌 8.4 ≈ 纹理 0.25 半径 → 128px；环画 158 遮环外一寸）
+  const t = new THREE.CanvasTexture(c);
+  t.encoding = THREE.sRGBEncoding; t.minFilter = THREE.LinearFilter; t.generateMipmaps = false; t.anisotropy = 4;
+  return t;
+}
+function applyTheme() {   // 主题（精美化 S2 + 终审 F-6）：毡面织物纹理挂 map 后 color 必须回白（map×color 相乘会染黑）；背景/雾原地改色不重建
   if (!scene) return;
   const th = MAPS[CUR_MAP_ID].theme;
-  if (tableMesh) tableMesh.material.color.set(th.felt);
+  if (tableMesh) {
+    if (tableMesh.material.map) tableMesh.material.map.dispose();
+    tableMesh.material.map = feltTex(th.felt);
+    tableMesh.material.color.set(0xffffff);
+    tableMesh.material.needsUpdate = true;   // map 槽 null→有值改 shader define，必须重编译
+  }
   if (scene.background && scene.background.isColor) scene.background.set(th.bg);
   if (scene.fog) scene.fog.color.set(th.fog);
 }
@@ -1086,18 +1202,30 @@ function rebuildBoardVisuals() {   // 换图重绘（挑刺 F4 dispose 纪律）
   tileMeshes = [];
   ownerMarks.forEach(mk => { if (!mk) return; scene.remove(mk); mk.geometry.dispose(); mk.material.dispose(); });
   ownerMarks = [];
-  if (centerDisc) { scene.remove(centerDisc); centerDisc.geometry.dispose(); centerDisc.material.map.dispose(); centerDisc.material.dispose(); centerDisc = null; }
+  if (centerDisc) { scene.remove(centerDisc); centerDisc.geometry.dispose(); (Array.isArray(centerDisc.material) ? centerDisc.material : [centerDisc.material]).forEach(mt => { if (mt.map) mt.map.dispose(); mt.dispose(); }); centerDisc = null; }
   buildBoard();
   buildCenter();
   applyTheme();
 }
-function dieFaceTex(v) {
+function dieFaceTex(v) {   // 精美化 S4：圆角方 + 暖象牙渐变 + 微斑驳 + pip 径向渐变加环高光（替代生白盒黑大点）
   return mkTex(128, 128, (ctx, w, h) => {
-    ctx.fillStyle = '#f5f1e6'; ctx.fillRect(0, 0, w, h);
+    const gd = ctx.createLinearGradient(0, 0, 0, h);
+    gd.addColorStop(0, '#faf6ea'); gd.addColorStop(1, '#e8e0cc');
+    ctx.fillStyle = gd; ctx.fillRect(0, 0, w, h);
+    for (let i = 0; i < 40; i++) { ctx.fillStyle = `rgba(120,100,70,${Math.random() * 0.05})`; ctx.beginPath(); ctx.arc(Math.random() * w, Math.random() * h, 0.8, 0, 7); ctx.fill(); }
+    ctx.strokeStyle = 'rgba(90,70,40,0.35)'; ctx.lineWidth = 3;
+    roundRectPath(ctx, 3, 3, w - 6, h - 6, 18); ctx.stroke();
     ctx.fillStyle = '#1a1a2e';
-    const r = 10, off = 32, c = w / 2;
+    const off = 30, c = w / 2;
     const pos = { 1: [[c, c]], 2: [[off, off], [w - off, w - off]], 3: [[off, off], [c, c], [w - off, w - off]], 4: [[off, off], [w - off, off], [off, w - off], [w - off, w - off]], 5: [[off, off], [w - off, off], [c, c], [off, w - off], [w - off, w - off]], 6: [[off, off], [w - off, off], [off, c], [w - off, c], [off, w - off], [w - off, w - off]] }[v];
-    pos.forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); });
+    pos.forEach(([x, y]) => {
+      const pg = ctx.createRadialGradient(x - 2, y - 2, 1, x, y, 11);
+      pg.addColorStop(0, '#3a3a52'); pg.addColorStop(1, '#12121f');
+      ctx.fillStyle = pg;
+      ctx.beginPath(); ctx.arc(x, y, 10, 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y - 1, 8, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();   // 顶部环高光
+    });
   });
 }
 function buildDice() {
@@ -1116,44 +1244,119 @@ function quatFor(v) {
 }
 function buildCard() {
   cardPivot = new THREE.Group();
-  cardPivot.position.set(-0.46, 0.33, 0);   // 远边枢轴（北侧）
-  cardMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.9, 0.9),
-    new THREE.MeshStandardMaterial({ transparent: true, opacity: 0, roughness: 0.6, emissive: 0x1a1428, emissiveIntensity: 0.4, side: THREE.DoubleSide })
-  );
-  cardMesh.position.set(0.46, 0, 0);        // 平面相对枢轴回正
-  cardMesh.rotation.x = -Math.PI / 2;
-  cardPivot.rotation.x = 0;                 // 盖着（父 0 + 子 -90° = 法线朝下）；翻到 PI 即面朝上
+  cardPivot.position.set(-0.46, 0.33, 0);   // 枢轴落点与子 mesh offset(+0.46) 抵消 = 中心枢轴（翻牌绕牌心，注释曾谎称远边枢轴，终审 F 修正）
+  const cardGeo = new THREE.PlaneGeometry(0.9, 0.9);
+  // 双面卡（2026-10-01 精美化，终审 F-1 极性）：face 子 +π/2（pivot 0 时面朝下藏住、翻到 π 朝上）；back 子 -π/2（盖着时背花朝上）。
+  // 双 mesh 各 FrontSide 反向共面：任一视角恰好光栅化一个，无 z-fight 无透明排序问题
+  cardMesh = new THREE.Mesh(cardGeo, new THREE.MeshStandardMaterial({ transparent: true, opacity: 0, roughness: 0.55, emissive: 0x1a1428, emissiveIntensity: 0.35, side: THREE.FrontSide }));
+  cardMesh.position.set(0.46, 0, 0);
+  cardMesh.rotation.x = Math.PI / 2;
+  cardBackMesh = new THREE.Mesh(cardGeo, new THREE.MeshStandardMaterial({ transparent: true, opacity: 0, roughness: 0.6, emissive: 0x12101f, emissiveIntensity: 0.3, side: THREE.FrontSide }));
+  cardBackMesh.position.set(0.46, 0.002, 0);   // 微抬 2mm 防共面闪烁
+  cardBackMesh.rotation.x = -Math.PI / 2;
+  cardBackMesh.material.map = cardBackTex();
+  cardBackMesh.material.needsUpdate = true;
+  cardPivot.add(cardMesh, cardBackMesh);   // P0 修复：旧版从未挂进场景图——抽卡=空桌镜头两秒（玩家模拟实锤）
+  cardPivot.rotation.x = 0;                 // 盖着（背花朝上）；翻到 PI 即正面朝上
   cardPivot.visible = false;
   scene.add(cardPivot);
 }
-function setCardFace(kind, text) {
-  const tex = mkTex(512, 1024, (ctx, w, h) => {
+function cardBackTex() {   // 卡背：深藏青底金双线框 + 中心骰徽 + 四角花（盖着时的仪式感，不剧透正面）
+  return mkTex(512, 512, (ctx, w, h) => {
     const gd = ctx.createLinearGradient(0, 0, 0, h);
-    gd.addColorStop(0, '#2a2050'); gd.addColorStop(1, '#120e24');
+    gd.addColorStop(0, '#1c1633'); gd.addColorStop(1, '#0e0b1c');
     ctx.fillStyle = gd; ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = kind === 'chance' ? 'rgba(251,191,36,0.75)' : 'rgba(34,211,238,0.75)';
-    ctx.lineWidth = 10; ctx.strokeRect(18, 18, w - 36, h - 36);
-    ctx.textAlign = 'center';
-    ctx.fillStyle = kind === 'chance' ? '#fbbf24' : '#22d3ee';
-    ctx.font = '900 92px "Noto Sans SC","PingFang SC",sans-serif';
-    ctx.fillText(kind === 'chance' ? '机会' : '命运', w / 2, 200);
-    ctx.font = '160px serif'; ctx.fillText(kind === 'chance' ? '❓' : '🎁', w / 2, 420);
-    ctx.fillStyle = '#fff'; ctx.font = '700 56px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
-    wrapText(ctx, text, w / 2, 600, w - 120, 84);
+    ctx.strokeStyle = 'rgba(251,191,36,0.85)'; ctx.lineWidth = 8; ctx.strokeRect(22, 22, w - 44, h - 44);
+    ctx.strokeStyle = 'rgba(251,191,36,0.4)'; ctx.lineWidth = 2; ctx.strokeRect(42, 42, w - 84, h - 84);
+    // 四角菱花
+    ctx.fillStyle = 'rgba(251,191,36,0.55)';
+    [[56, 56], [w - 56, 56], [56, h - 56], [w - 56, h - 56]].forEach(([x, y]) => {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4); ctx.fillRect(-9, -9, 18, 18); ctx.restore();
+    });
+    // 中心徽记：双环 + 骰子五点
+    ctx.strokeStyle = 'rgba(251,191,36,0.7)'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(w / 2, h / 2, 96, 0, 7); ctx.stroke();
+    ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(w / 2, h / 2, 80, 0, 7); ctx.stroke();
+    ctx.fillStyle = 'rgba(251,191,36,0.9)';
+    [[-34, -34], [34, 34], [-34, 34], [34, -34], [0, 0]].forEach(([dx, dy]) => {
+      ctx.beginPath(); ctx.arc(w / 2 + dx, h / 2 + dy, 14, 0, 7); ctx.fill();
+    });
+    ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '700 34px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillText('大富翁', w / 2, h / 2 + 150);
+  });
+}
+function setCardOpacity(v) {   // 淡出/复位双面同步（终审 F-3：漏一面=鬼影残留）
+  if (cardMesh) { cardMesh.material.opacity = v; }
+  if (cardBackMesh) { cardBackMesh.material.opacity = v; }
+}
+function setCardFace(kind, text) {
+  const gold = kind === 'chance';
+  const c0 = gold ? '#fbbf24' : '#22d3ee', c1 = gold ? 'rgba(251,191,36,' : 'rgba(34,211,238,';
+  const tex = mkTex(512, 512, (ctx, w, h) => {   // 512×512 方形（终审 F-2：旧 512×1024 贴正方形=纵向压扁 2:1，从未显形因牌从未显示）
+    // 纸面：丝绢渐变 + 角部 vignette + 细噪点
+    const gd = ctx.createLinearGradient(0, 0, 0, h);
+    gd.addColorStop(0, '#2c2254'); gd.addColorStop(0.6, '#191233'); gd.addColorStop(1, '#120e24');
+    ctx.fillStyle = gd; ctx.fillRect(0, 0, w, h);
+    for (let i = 0; i < 900; i++) { ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.025})`; ctx.fillRect(Math.random() * w, Math.random() * h, 1.5, 1.5); }
+    // 双线框：外圈 kind 色粗线 + 内圈金发丝线；四角菱花
+    ctx.strokeStyle = c1 + '0.85)'; ctx.lineWidth = 7; ctx.strokeRect(20, 20, w - 40, h - 40);
+    ctx.strokeStyle = 'rgba(251,191,36,0.45)'; ctx.lineWidth = 1.5; ctx.strokeRect(38, 38, w - 76, h - 76);
+    ctx.fillStyle = c1 + '0.8)';
+    [[50, 50], [w - 50, 50], [50, h - 50], [w - 50, h - 50]].forEach(([x, y]) => { ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4); ctx.fillRect(-6, -6, 12, 12); ctx.restore(); });
+    // 顶部 kind 缎带 chip
+    const label = gold ? '机 会' : '命 运';
+    ctx.font = '900 44px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
+    const tw = ctx.measureText(label).width;
+    const rw = tw + 56;
+    ctx.fillStyle = c1 + '0.16)';
+    roundRectPath(ctx, w / 2 - rw / 2, 58, rw, 64, 32); ctx.fill();
+    ctx.strokeStyle = c1 + '0.9)'; ctx.lineWidth = 2.5;
+    roundRectPath(ctx, w / 2 - rw / 2, 58, rw, 64, 32); ctx.stroke();
+    ctx.fillStyle = c0; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(label, w / 2, 92);
+    // 徽记：双环 + emoji
+    ctx.strokeStyle = c1 + '0.55)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(w / 2, 226, 62, 0, 7); ctx.stroke();
+    ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(w / 2, 226, 52, 0, 7); ctx.stroke();
+    ctx.font = '58px serif'; ctx.fillText(gold ? '❓' : '🎁', w / 2, 230);
+    // 正文：暗色圆角面板 + 自动缩字号 + 溢出截断（终审附注：最长文案防贴底）
+    let fs = 40, lines;
+    ctx.font = `700 ${fs}px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif`;
+    for (;;) {
+      lines = wrapLines(ctx, text, w - 130);
+      const widest = Math.max(...lines.map(ln => ctx.measureText(ln.replace(/…$/, '')).width));
+      if ((widest <= w - 130 && lines.length <= 3) || fs <= 30) break;
+      fs -= 2;
+      ctx.font = `700 ${fs}px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif`;
+    }
+    const lh = fs + 18, boxH = Math.min(lines.length, 4) * lh + 26;
+    ctx.fillStyle = 'rgba(8,6,18,0.55)';
+    roundRectPath(ctx, 65, 306, w - 130, boxH, 14); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.textBaseline = 'top';
+    lines.slice(0, 4).forEach((ln, i) => ctx.fillText(ln, w / 2, 306 + 16 + i * lh));
   });
   if (cardMesh.material.map) cardMesh.material.map.dispose();
   cardMesh.material.map = tex;
   cardMesh.material.needsUpdate = true;
-  cardMesh.material.opacity = 1;
+  setCardOpacity(1);
 }
-function wrapText(ctx, text, cx, y, maxW, lh) {
-  let line = '', yy = y;
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function wrapLines(ctx, text, maxW) {   // 折行 + 最大 4 行截断（超长文案以…收尾，防画出画布）
+  const lines = []; let line = '';
   for (const ch of text) {
-    if (ctx.measureText(line + ch).width > maxW) { ctx.fillText(line, cx, yy); line = ch; yy += lh; }
+    if (ctx.measureText(line + ch).width > maxW) { lines.push(line); line = ch; if (lines.length >= 4) break; }
     else line += ch;
   }
-  ctx.fillText(line, cx, yy);
+  if (lines.length < 4 && line) lines.push(line);
+  if (lines.length >= 4) { const last = lines[3]; if (ctx.measureText(last).width > maxW - 20) { while (last.length > 1 && ctx.measureText(last + '…').width > maxW) last = last.slice(0, -1); } lines[3] = last + '…'; }
+  return lines;
 }
 function buildPawns() {
   pawnObjs.forEach(p => { p.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); scene.remove(p); }); pawnObjs = [];
@@ -1168,11 +1371,20 @@ function buildPawns() {
     grp.add(body, head);
     scene.add(grp); pawnObjs[i] = grp;
     const tex = mkTex(256, 64, (ctx, w, h) => {
-      ctx.fillStyle = PLAYER_COLORS[p.colorIdx];
-      ctx.beginPath(); ctx.arc(18, h / 2, 9, 0, 7); ctx.fill();
+      // 深色玻璃胶囊 + 玩家色描边（精美化 S5：裸白字在浅毡上对比脆弱，终审/取证 vis-x6/x7）
+      const pc = PLAYER_COLORS[p.colorIdx];
+      ctx.fillStyle = 'rgba(10,8,20,0.78)';
+      roundRectPath(ctx, 3, 6, w - 6, h - 12, 24); ctx.fill();
+      ctx.strokeStyle = pc; ctx.globalAlpha = 0.9; ctx.lineWidth = 2.5;
+      roundRectPath(ctx, 3, 6, w - 6, h - 12, 24); ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = pc;
+      ctx.beginPath(); ctx.arc(22, h / 2, 9, 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(22, h / 2, 9, 0, 7); ctx.stroke();
       ctx.fillStyle = '#fff'; ctx.font = '700 30px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
       ctx.textBaseline = 'middle';
-      ctx.fillText(truncate(p.name, 4), 34, h / 2 + 1);
+      ctx.fillText(truncate(p.name, 4), 38, h / 2 + 1);
     });
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
     sp.scale.set(0.86, 0.215, 1);
@@ -1897,15 +2109,15 @@ function revealCard(kind, text) {
       SFX.flip();   // 翻面起手：纸感轻擦（揭示两拍之一）
       const flip = now => {
         const k = Math.min(1, (now - t0) / (flipDur * SPEED));
-        cardPivot.rotation.x = Math.PI * k;   // 远边枢轴 +180°：0(盖着)→PI(面朝上)
+        cardPivot.rotation.x = Math.PI * k;   // 中心枢轴 +180°：0(盖着=背花)→PI(正面朝上)
         if (k < 1) requestAnimationFrame(flip);
         else { SFX.card(); setTimeout(() => {   // 翻完揭示：与抽卡起手同音呼应（两拍之二）
           const t1 = performance.now(), outDur = 420;
           const out = now2 => {
             const k2 = Math.min(1, (now2 - t1) / (outDur * SPEED));
-            cardMesh.material.opacity = 1 - k2;
+            setCardOpacity(1 - k2);
             if (k2 < 1) requestAnimationFrame(out);
-            else { cardPivot.visible = false; cardMesh.material.opacity = 1; rig.autoDist = true; camTo({ elev: REF_ELEV, dist: baseDist(), focusK: 1 }, 1000); res(); }
+            else { cardPivot.visible = false; setCardOpacity(1); rig.autoDist = true; camTo({ elev: REF_ELEV, dist: baseDist(), focusK: 1 }, 1000); res(); }
           };
           requestAnimationFrame(out);
         }, 1400 * SPEED); }
@@ -2130,6 +2342,16 @@ function tick(now) {
     camApply();
   }
   tick.last = now;
+  // 行动者光环（精美化 S6，终审 F-4 守卫组）：读 pawnObjs 实况位置随走位平滑跟随；OVER/破产/GL-off 隐藏
+  if (G.gl && renderer && turnRing) {
+    const gp = pawnObjs[G.turn], pl = G.players[G.turn];
+    const show = gp && pl && !pl.bankrupt && G.phase !== 'OVER';
+    turnRing.visible = !!show;
+    if (show) {
+      turnRing.position.set(gp.position.x, 0.39, gp.position.z);
+      turnRing.material.color.set(PLAYER_COLORS[pl.colorIdx]);
+    }
+  }
   plateVisibility();
   if (!TURBO && !(AUTOTEST && bodyLo) && renderer) renderer.render(scene, camera);   // turbo/loperf=1 只推状态机，不画（软渲每帧 100ms+ 会拖死探针）
   requestAnimationFrame(tick);
