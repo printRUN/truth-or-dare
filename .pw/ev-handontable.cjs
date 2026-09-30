@@ -67,61 +67,67 @@ const server = http.createServer((req, res) => {
     await pB.bringToFront();
     await pB.waitForTimeout(800);
 
+    /* 3D 手牌全端化:DOM 手牌/放大窗在 GL 局退役,断言迁到 3D 卡(handScreenPos/Box,_sel) */
     const m = await pB.evaluate(() => {
-      const hand = document.querySelector('#bc-hand').getBoundingClientRect();
+      const handEl = document.querySelector('#bc-hand');
+      const domHidden = getComputedStyle(handEl).display === 'none';
       const acts = document.querySelector('#bc-actions').getBoundingClientRect();
-      const plates = [...document.querySelectorAll('.nplate')].map(el => { const r = el.getBoundingClientRect(); return { top: Math.round(r.top), text: el.textContent.slice(0, 8) }; });
-      const overlap = plates.filter(pr => !(pr.top > hand.bottom)).length;
+      const n = __cat.hand.length;
+      const boxes = [];
+      for (let i = 0; i < n; i++) boxes.push(__cat.handScreenBox(i));
+      const okBox = boxes.filter(Boolean);
       return {
-        vh: innerHeight, handTop: Math.round(hand.top), handBottom: Math.round(hand.bottom),
-        gapToBottom: Math.round(innerHeight - hand.bottom),
-        actsBottom: Math.round(acts.bottom), actionsBelowHand: acts.top >= hand.bottom - 2,
-        three3d: document.body.classList.contains('three3d'), plates: overlap, nPlates: plates.length,
+        vh: innerHeight, three3d: document.body.classList.contains('three3d'), domHidden, n,
+        boxes: okBox,
+        lowest: okBox.length ? Math.max(...okBox.map(b => b.y1)) : 0,
+        actsTop: Math.round(acts.top),
+        posOk: okBox.length === n && okBox.every(b => b.y0 >= 0 && b.x0 >= 0 && b.x1 <= innerWidth + 1 && b.y1 <= innerHeight + 1),
       };
     });
-    console.log('  bombcat 量测:', JSON.stringify(m));
+    console.log('  bombcat 量测:', JSON.stringify({ ...m, boxes: m.boxes.length }));
     ok(m.three3d, 'GL 牌桌激活');
-    ok(m.gapToBottom <= 90, `手牌贴屏幕底（牌底距视口底 ${m.gapToBottom}px ≤90）`);
-    ok(m.actionsBelowHand, '确认按钮排在手牌下方（抬牌不压按钮）');
-    await pB.click('#bc-hand .hcard', { position: { x: 12, y: 50 }, timeout: 8000 }).catch(() => {});
-    await pB.waitForTimeout(400);
+    ok(m.domHidden, 'DOM 手牌退役（3D 手牌全端化,body.three3d 下 #bc-hand 隐藏）');
+    ok(m.posOk && m.n >= 4, `3D 手牌 ${m.n} 张全部在视口内`);
+    ok(m.lowest <= m.actsTop + 2, `手牌不压按钮排（牌底 ${Math.round(m.lowest)} ≤ 按钮顶 ${m.actsTop}）`);
+    const boxBefore = await pB.evaluate(() => __cat.handScreenBox(1));
+    const clickPos = await pB.evaluate(() => __cat.handScreenPos(1));
+    await pB.mouse.click(Math.round(clickPos.x), Math.round(clickPos.y));
+    await pB.waitForTimeout(500);
     const sel = await pB.evaluate(() => {
-      const el = document.querySelector('#bc-hand .hcard.sel');
-      if (!el) return null;
-      const tr = getComputedStyle(el).transform;
-      let ty = 0; const mm = tr.match(/matrix\(([^)]+)\)/);
-      if (mm) ty = parseFloat(mm[1].split(',').pop());
-      const r = el.getBoundingClientRect();
-      const cover = [...document.querySelectorAll('#bc-hand .hcard')].filter(c => c !== el && !c.classList.contains('sel')).some(c => {
-        const cr = c.getBoundingClientRect();
-        const ix = Math.max(0, Math.min(r.right, cr.right) - Math.max(r.left, cr.left));
-        const iy = Math.max(0, Math.min(r.bottom, cr.bottom) - Math.max(r.top, cr.top));
-        return ix > 6 && iy > 6;
-      });
-      return { ty, h: Math.round(r.height), covered: cover, fullVisible: !cover };
+      const b = __cat.handScreenBox(1);
+      return { selN: __cat._sel.size, raised: b ? b.y0 : null, inView: b ? (b.y0 >= 0 && b.x0 >= 0 && b.x1 <= innerWidth + 1 && b.y1 <= innerHeight + 1) : false };
     });
-    console.log('  bombcat 选中态:', JSON.stringify(sel));
-    ok(sel && sel.ty <= -60, `选中卡向上抬升（translateY ${sel ? Math.round(sel.ty) : '?'}px ≤-60）`);
-    ok(sel && sel.fullVisible, '选中卡完整可见（无邻牌遮盖）');
+    console.log('  bombcat 选中态:', JSON.stringify({ ...sel, before: boxBefore ? Math.round(boxBefore.top) : null }));
+    ok(sel.selN === 1, '点牌选中（_sel=1）');
+    ok(sel.raised !== null && boxBefore && sel.raised <= boxBefore.y0 - 20, `选中卡向上抬升（top ${boxBefore ? boxBefore.y0 : '?'}→${sel.raised !== null ? sel.raised : '?'}px）`);
+    ok(sel.inView, '选中卡完整可见（在视口内）');
     await pB.screenshot({ path: path.join(ROOT, '.pw', 'shots', before ? 'hot-bc-before.png' : 'hot-bc-after.png') });
     if (!before) {
       /* 点牌查看:选中即出放大窗(整卡名称+描述);点空白处=选中全部收下 */
-      const peek1 = await pB.evaluate(() => { const pk = document.getElementById('bc-peek'); return pk ? { hidden: pk.hidden, src: (pk.querySelector('img').getAttribute('src') || '') } : null; });
-      ok(peek1 && !peek1.hidden && peek1.src.startsWith('data:image'), '点牌后放大查看窗显示整卡（名称+描述可读）');
+      const peek1 = await pB.evaluate(() => { const pk = document.getElementById('bc-peek'); return pk ? getComputedStyle(pk).display : 'none'; });
+      ok(peek1 === 'none', 'GL 局放大查看窗退役（3D 抬起即看全脸,body.three3d 下 #bc-peek 隐藏）');
       await pB.screenshot({ path: path.join(ROOT, '.pw', 'shots', 'hot-bc-peek.png') });
-      await pB.evaluate(() => { const el = [...document.querySelectorAll('#bc-hand .hcard')].find(e => !e.classList.contains('sel')); if (el) el.click(); });
-      await pB.waitForTimeout(300);
-      const twoSel = await pB.evaluate(() => document.querySelectorAll('#bc-hand .hcard.sel').length);
+      const pos2 = await pB.evaluate(() => { for (let i = 0; i < __cat.hand.length; i++) { if (!__cat._sel.has(i)) { const q = __cat.handScreenPos(i); if (q) return q; } } return null; });
+      if (pos2) await pB.mouse.click(Math.round(pos2.x), Math.round(pos2.y));
+      await pB.waitForTimeout(400);
+      const twoSel = await pB.evaluate(() => __cat._sel.size);
       ok(twoSel === 2, '第二张加入多选（组合仍可选）');
-      await pB.mouse.click(350, 160);   // 手牌区外空白（GL 桌面上方）
+      const blank = await pB.evaluate(() => {   // 找真空白:从左上角向右下扫,跳过一切可交互/排除元素
+        for (let y = 40; y < 300; y += 40) for (let x = 30; x < 650; x += 60) {
+          const el = document.elementFromPoint(x, y);
+          if (!el) continue;
+          const bad = el.closest('button,.hcard,#bc-hand,#bc-actions,.ovl,#bc-nope,#react-dock,a,input,.nplate,#bc-log');
+          if (!bad) return { x, y };
+        }
+        return { x: 30, y: 40 };
+      });
+      await pB.mouse.click(blank.x, blank.y);   // 真空白处
       await pB.waitForTimeout(350);
       const afterClear = await pB.evaluate(() => ({
-        selN: document.querySelectorAll('#bc-hand .hcard.sel').length,
-        peekHidden: (() => { const pk = document.getElementById('bc-peek'); return !pk || pk.hidden; })(),
+        selN: __cat._sel.size,
         btnDisabled: document.getElementById('btn-play').disabled,
       }));
       ok(afterClear.selN === 0, '点空白处=选中全部收下（卡片回手牌行）');
-      ok(afterClear.peekHidden, '点空白处=放大查看窗隐藏');
       ok(afterClear.btnDisabled, '收下后「打出选中」回不可用');
     }
     await ctx.close();
@@ -158,11 +164,19 @@ const server = http.createServer((req, res) => {
       await qB.bringToFront();
       await qB.waitForTimeout(2200);
       const mL = await qB.evaluate(() => {
-        const hand = document.querySelector('#bc-hand').getBoundingClientRect();
-        return { vh: innerHeight, gapToBottom: Math.round(innerHeight - hand.bottom), handTopPct: Math.round(hand.top / innerHeight * 100) };
+        const acts = document.querySelector('#bc-actions').getBoundingClientRect();
+        const n = __cat.hand.length;
+        const boxes = [];
+        for (let i = 0; i < n; i++) boxes.push(__cat.handScreenBox(i));
+        const okBox = boxes.filter(Boolean);
+        const handTop = okBox.length ? Math.min(...okBox.map(b => b.y0)) : null;
+        return { vh: innerHeight, domHidden: getComputedStyle(document.querySelector('#bc-hand')).display === 'none',
+          n, inView: okBox.length === n && okBox.every(b => b.y0 >= 0 && b.y1 <= innerHeight + 1),
+          handTopPct: handTop !== null ? Math.round(handTop / innerHeight * 100) : -1, actsTop: Math.round(acts.top),
+          lowest: okBox.length ? Math.max(...okBox.map(b => b.y1)) : 0 };
       });
       console.log('  bombcat 矮屏量测:', JSON.stringify(mL));
-      if (!before) ok(mL.gapToBottom <= 60 && mL.handTopPct >= 45, `矮屏：手牌仍贴底且不过度吃屏（gap ${mL.gapToBottom}px, 手牌顶 ${mL.handTopPct}%）`);
+      if (!before) ok(mL.domHidden && mL.inView && mL.lowest <= mL.actsTop + 2 && mL.handTopPct >= 40, `矮屏：3D 手牌全在视口内且不压按钮排（牌顶 ${mL.handTopPct}%, 牌底 ${Math.round(mL.lowest)} ≤ 按钮顶 ${mL.actsTop}）`);
       else console.log('  · [改前记录] 矮屏 gap=' + mL.gapToBottom);
       await qB.screenshot({ path: path.join(ROOT, '.pw', 'shots', before ? 'hot-bc-short-before.png' : 'hot-bc-short-after.png') });
       await ctxL.close();
@@ -190,7 +204,15 @@ const server = http.createServer((req, res) => {
 
     if (!before) {
       /* 改后语义：点桌牌=抬起预览（不打出）→ 确认按钮才打出 */
-      const camRest = () => p.waitForFunction(() => __uno.camInfo().focusK >= 0.99 && __uno.state.phase === 'AWAIT_ACTION' && __uno.state.turn === 0, { timeout: 25000 });   // 镜头补间与回合解耦:glanceAside 推近回位约2.6s,没回到全景时投影点击会错位
+      const camRest = async () => {   // 镜头回位+轮到你;颜色规则修好后 bot 更合法、局更快结束——OVER 则重开一局再继续
+        await p.waitForFunction(() => __uno.camInfo().focusK >= 0.99 && ((__uno.state.phase === 'AWAIT_ACTION' && __uno.state.turn === 0) || __uno.state.phase === 'OVER'), { timeout: 25000 });
+        const over = await p.evaluate(() => window.__uno.state.phase === 'OVER');
+        if (over) {
+          await p.evaluate(() => { const b = document.getElementById('btn-rematch'); if (b) b.click(); });
+          await p.waitForFunction(() => __uno.state.phase === 'AWAIT_ACTION' && __uno.state.turn === 0, null, { timeout: 25000 });
+          await p.waitForFunction(() => __uno.camInfo().focusK >= 0.99, null, { timeout: 25000 });
+        }
+      };   // 镜头补间与回合解耦:glanceAside 推近回位约2.6s,没回到全景时投影点击会错位
       await camRest();
       const pos = await p.evaluate(() => __uno.cardScreenPos(0));   // 第一张（红5，可出）
       await p.evaluate(() => Promise.race([new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))), new Promise(r => setTimeout(r, 300))])).catch(() => {});   // 渲染两帧让 matrixWorld 随新位置更新(产品侧 pickHand 也已强制同步,这里是双保险)
