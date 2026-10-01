@@ -136,6 +136,14 @@ index.html 的首屏是**游戏中心**：三张游戏卡（🎭 真心话大冒
 
 **门禁与验收**：六门禁全绿（probe-monopoly 28/probe-mono-maps/probe-mono-replay 8/probe-mono-net 17/probe-persona-mono 46/check-syntax）+ ev-mono-verify 静置单跑 ALL PASS（高负载下 R2c 采样量假红=已知环境噪声，静置复验）；改前/改后截图对照（.pw/shots/vis-* vs vis2-*/vis3-*）三个 P0 全部实证解决。**备案留下一轮**：翻牌中程牌身下缘插入中心盘（中心枢轴既有数学，修法=翻牌期临时抬 pivot 或改背缘铰链）；骰底 y=0.30 沉盘顶 0.015（y=0.525 即平）；卡面 512 无 mip 浅仰角微虚（可单独 mkTexMip）；弹窗 blur/渐变按钮改版/结算屏（UI 体系四游戏共享件，独立轮）。
 
+### 1.6e 大富翁货币 3D 化 + 收支一镜到底（2026-10-02，用户点名「钱改为更有纸币的 3D 感觉，消费和获得都有一镜到底过渡动画，更强游戏感，其他地方头脑风暴整改添加」；完整工作流：策划方案→玩家模拟/挑刺专家并行评审（agent 网络验证超时两次，转实施后终审重试成功）→实施→双检查官（代码 SHIP/业务 SHIP WITH FIXES 1 项 P2 已修））
+
+**钞票引擎（程序化零资源）**：`noteTex(denom)` 三面额纸币 256×128（¥1000 金红/¥500 紫/¥100 青——**配色承担面额语义**；花纹双线框+双面额角标+骰徽+「大富翁银行」+序列号+纸噪点+微织纹横线，缓存 3 张）；`acquireNoteStack` 池化钞票束 ≤10（顶面贴图 plane+2 纸边 under-plane 假厚度，`rotation.order='YXZ'`——yaw 自旋在外、俯仰放平在内；busy 标记三条释放路径闭合：flight pop/scatter fade/rain fade，无空闲且池满返回 null=视觉降级不断声音时序）；`flyNotes(from,to,amount,onArrive)` 一镜到底（金额→面额分解 ≤3 束错峰 60ms，700ms×SPEED 弧线 0.9+自旋+摇摆+起飞 scale-in，落地 pop 1→1.45→0 淡出 260ms；**REDUCED/bodyLo/TURBO → onArrive 立即兜底**=禁动不禁声、印章/声音时序永不回退）。**铁律**：零 rig 写入（镜头所有权）、零 G 写入（纯视觉层，快照无 flight 字段——两端各自本地触发）、抖动全 Math.random（**不消耗 rngBox 种子流**）。`pawnNotePos`（棋子头顶+0.5，隐身破产者回退最后格位上空）。
+
+**动线挂点**：付租 payer→creditor 棋子（收方 coin 挂钞票落地拍，双浮字即时=金额真相）；税/罚款/夜市/机场 payer→桌心银行 `BANK_POS`；进账 银行→pawn（**coin→cash 到账纸拍**——贴合纸币主题；狱中双数出狱保留 coin 未动=语境区分）；**买地 buyer→地块上空，SFX.deal+dealStamp 后置为落地高潮拍**（状态写入仍同步=探针无感；实测点击→章 1076ms）；观战回放 money op（d<0 玩家→银行/d>0 银行→玩家——**快照 diff 不含对手映射的近似动线**，成对「经银行」航班符合桌游心智；buy op buyer→地块+落地 deal/章/bounce 与行动者端同拍）；**破产散钞** noteScatter（6 束抛物线+重力 6.5+毡面 y0.26 弹跳衰减+1.3s 淡出——「散尽家财」情绪拍，bustBanner 先于 pawn 隐身取真实最后位）；**终局钞雨** noteRain（9 束起落 y1.9~2.7 压进可读区+落地摇摆，1s 后 showResult 加冕节拍——业务终审 P2 修复：旧 3.0~4.2 在揭幕窗内到不了可读高度；NETMODE 观战端快照 OVER 路径仍立即=两端时间差备案）。REDUCED 块删除 `.mfloat{opacity:0}`（降档浮字字面可见，动画本已禁、静态 900ms 自灭无运动负担）。
+
+**门禁与验收**：六门禁全绿（probe-monopoly 28/probe-mono-maps/probe-mono-replay 8/probe-mono-net 17/ev-mono-verify/probe-persona-mono 46）+check-syntax；实拍证据 .pw/shots/cash-flight-mid.png（飞行中钞票）/cash-stamp-land.png（落地拍成交章）；双检查官插桩实测（时戳/池压测 busy 零泄漏/13 次混发/铁律扫描）。**实施期自查抓 bug**：noteScatter 的 vx/vz 误声明 const 再赋值（×6 散钞全炸"Assignment to constant variable"）——散钞/航班类模拟循环里凡有弹跳衰减的速度变量一律 let。**备案留下一轮**：棋子旁现金钞堆（随 cash 增减叠/撤）、破产清算仪式（房产标记逐个飞回银行）、大额收租低音重拍、钞票贴图 512+面额字号加大（近景读清）、noteScatter 重力参数乘 √SPEED（autotest 档一致性）、TURBO 下 cash 声门控（旧 coin 同为不门控，维持 parity）。
+
 ### 1.7 UNO（uno.html，第三款游戏）与跨分支跳转（2026-09-19，UNO 轮）
 
 **游戏中心扩到 4 卡**（≥700px 2×2，max-width 680）：🎭 tod / 🎲 monopoly / 🃏 uno / 💣 炸弹猫（feat/bombcat-lobby 分支的 bombcat.html，自带「回游戏中心」链接）。**graceful jump**：file:// 直跳 fail-open（双击即开卖点）；http(s) HEAD 探测 1500ms（405/501 按存在算 + GET 兜底），失败挂「🚧 未开放」角标 + 降饱和仍可点；结果只存页面级 memo；**AbortSignal.timeout 缺席的老浏览器直跳 + 预探测 try/catch（防炸整个主脚本块）**。
