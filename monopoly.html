@@ -38,6 +38,15 @@
   .loader-box p { font-size: 0.82rem; color: rgba(255,255,255,0.6); min-height: 1.2em; }
   .loader-bar { width: 180px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.12); margin: 14px auto 0; overflow: hidden; }
   .loader-bar i { display: block; height: 100%; width: 0; border-radius: 2px; background: linear-gradient(90deg, var(--accent-cyan), var(--primary)); transition: width 0.3s ease; }
+  /* warp-in arrival（W1③）：从游戏中心点卡起飞落地——boot 读 tod:warp 票后由 JS 挂类（读后即删）。
+     挂点=#loader .loader-box（评审 #6）：scale 1.5→1 + 主题青 glow 一闪 400ms；揭幕时序（900ms 最低展示）零改动。 */
+  .loader-box { position: relative; }
+  .loader-box.warp-in { animation: warp-in-mono 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  @keyframes warp-in-mono {
+    from { transform: scale(1.5); filter: drop-shadow(0 0 0 rgba(34,211,238,0)); }
+    60% { filter: drop-shadow(0 0 22px rgba(34,211,238,0.85)); }
+    to { transform: scale(1); filter: drop-shadow(0 0 0 rgba(34,211,238,0)); }
+  }
 
   /* ═══ 3D 画布（body 直挂，无 transform 包裹——fixed 包含块红线） ═══ */
   #mono-canvas { position: fixed; inset: 0; z-index: 0; display: block; width: 100%; height: 100%; touch-action: none; }
@@ -219,9 +228,11 @@
     .pchip.active { box-shadow: 0 0 0 1.5px var(--accent-cyan); }
     .pod { opacity: 1; transform: none; }
     #loader { transition: none; }
+    .loader-box.warp-in { animation: none !important; transform: none !important; }   /* warp-in 退路：REDUCED 不挂（JS 同门禁，双保险） */
     /* .mfloat 静态可见（业务终审 P3：REDUCED 下 mfloat-up 动画已禁，浮字 900ms 自灭无运动负担——金额信息不因降档丢失） */
   }
   body.loperf .pchip.active { animation: none; box-shadow: 0 0 0 1.5px var(--accent-cyan); }
+  body.loperf .loader-box.warp-in { animation: none; transform: none; }   /* warp-in 退路：loperf 不挂（JS 同门禁，双保险） */
   body.loperf #result-veil { display: none; }
   body.loperf .pchip, body.loperf .btn-sub, body.loperf .btn-main, body.loperf .ovl, body.loperf #toast { backdrop-filter: none; -webkit-backdrop-filter: none; }
   body.loperf .pod { opacity: 1; transform: none; animation: none; }
@@ -530,7 +541,7 @@ function gameSnapshot() {
 function applyGameSnapshot(g, doc) {
   if (TURBO || !g || !Array.isArray(g.players)) return;
   const wantMap = g.map || 'classic';   // 旧 retained 文档/旧版本对端无 map 字段 → 回落 classic（中途入房前重建图板：pawnSlot/render2D/买地弹窗都读 TILES）
-  if (wantMap !== CUR_MAP_ID) applyMap(wantMap, false);   // 恢复现场不写偏好（终审 F-A）
+  if (applyMap(wantMap, false)) boardEntrance();   // 快照换图重建=joiner/重连者首次见到桌面 → 播落场（首份快照 netReplayArmed=false 无回放 op，零竞态；恢复现场不写偏好，终审 F-A）
   // 观战回放基线：上一份快照的逐玩家位现金/位置/狱/破产 + 归属表（行动者本端 G 已随动作更新 → diff 恒零，回声不重播）
   const canReplay = netReplayArmed && g.phase !== 'OVER' && G.gl && !REDUCED && !bodyLo
     && G.players && G.players.length === g.players.length;
@@ -551,8 +562,7 @@ function applyGameSnapshot(g, doc) {
   G.owners.forEach((o, i) => {
     if (o != null && ownerMarks[i]) {
       ownerMarks[i].visible = true;
-      ownerMarks[i].material.color.set(PLAYER_COLORS[G.players[o].colorIdx]);
-      ownerMarks[i].material.needsUpdate = true;
+      setHouseColor(ownerMarks[i], G.players[o].colorIdx);
     }
   });
   // 观战镜头：换人或行动者位移了且镜头偏离全景时，拉回全景对准行动者（back=全景档，不抢近景；2026-09-29 起
@@ -627,13 +637,15 @@ async function playReplayOp(op) {
   if (op.type === 'jail') { SFX.siren(); await replayGlide(op.i, op.from, 6); return; }   // 押送警笛与行动者端同拍（落地闷响在 replayGlide 收尾）
   if (op.type === 'buy') {
     const j = G.players[op.o], t = TILES[op.t], mk = ownerMarks[op.t];
-    if (mk) { mk.visible = true; mk.material.color.set(PLAYER_COLORS[j.colorIdx]); mk.material.needsUpdate = true; }
+    if (mk) { mk.visible = true; setHouseColor(mk, j.colorIdx); }
     SFX.pay();
-    // 观战端同拍一镜到底：buyer→地块，成交章/戳记音/标记弹跳挂落地高潮拍
+    // 观战端同拍一镜到底：buyer→地块钞票航班 → 房子天降 → 房子落地帧章/戳记音/标记
     flyNotes(pawnNotePos(op.o), { x: t.x, y: 0.78, z: t.z }, t.price, () => {
-      if (mk && !TURBO) SFX.deal();
       bounceOwnerMark(op.t);
-      dealStamp(`成交！${t.name}`);
+      setTimeout(() => {
+        if (mk && !TURBO) SFX.deal();
+        dealStamp(`成交！${t.name}`);
+      }, (canFlyNotes() ? 340 : 0) * SPEED);
     });
     toast(`🏠 ${j.name} 买下 ${t.name}（${fmt(t.price)}）`, 'loss');
     return;
@@ -807,10 +819,10 @@ function tileCoord(i) {
 const GROUPS = [];   // in-place 重建（挑刺 F5）：保留 const 语义，免改 30 处读点
 const TILES = [];
 let CUR_MAP_ID = 'classic';
-function applyMap(id, persist = true) {   // 换图：重建 TILES/GROUPS 数据 + （GL 档）重绘图板/主题；对局中只允许开局/重开边界调用
+function applyMap(id, persist = true) {   // 换图：重建 TILES/GROUPS 数据 + （GL 档）重绘图板/主题；对局中只允许开局/重开边界调用。返回是否实际重建
   const m = MAPS[id] || MAPS.classic;
   const target = MAPS[id] ? id : 'classic';
-  if (target === CUR_MAP_ID && TILES.length === 24) return;   // 已是本图：零成本免重绘（rematch/续局路径）
+  if (target === CUR_MAP_ID && TILES.length === 24) return false;   // 已是本图：零成本免重绘（rematch/续局路径）
   CUR_MAP_ID = target;
   GROUPS.length = 0;
   (m.groups || buildClassicGroups()).forEach(g => GROUPS.push({ color: g.color, dots: g.dots, names: g.names.slice() }));
@@ -833,6 +845,7 @@ function applyMap(id, persist = true) {   // 换图：重建 TILES/GROUPS 数据
   }
   if (persist) try { localStorage.setItem('mono:map', CUR_MAP_ID); } catch (e) {}   // 仅用户选择/真开局落偏好；恢复现场（boot 首填/续档/快照）不写（终审 F-A：否则 boot 首填 classic 会洗掉偏好）
   rebuildBoardVisuals();
+  return true;
 }
 const propIdxOfGroup = g => TILES.map((t, i) => t.kind === 'prop' && t.group === g ? i : -1).filter(i => i >= 0);
 
@@ -1093,13 +1106,28 @@ function buildBoard() {
     grp.position.set(t.x, 0.3, t.z);
     scene.add(grp);
     tileMeshes[i] = grp;
-    // 地块归属标记（买下出现，破产收回）
-    const mk = new THREE.Mesh(
-      new THREE.BoxGeometry(0.2, 0.12, 0.2),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x222222, roughness: 0.5 })
-    );
-    mk.visible = false; mk.position.set(t.x, 0.44, t.z);
-    scene.add(mk); ownerMarks[i] = mk;
+    // 地块归属标记（买下出现，破产收回）——E2 3D 房子：底座+四棱锥顶（终审：总高 0.26、原点在底部 y=0.381；
+    // 墙=玩家色 lerp 白 0.12 + emissive×0.22 校正暖光洗色，顶=shadeColor(-0.35)；userData.mats 双材质供快照/买地路径两连 set）
+    const hw = new THREE.MeshStandardMaterial({ roughness: 0.55 });
+    const hr = new THREE.MeshStandardMaterial({ roughness: 0.6 });
+    const house = new THREE.Group();
+    const hb = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.09, 0.18), hw);
+    hb.position.y = 0.045; hb.castShadow = true;
+    const hrMesh = new THREE.Mesh(new THREE.ConeGeometry(0.115, 0.13, 4), hr);
+    hrMesh.position.y = 0.155; hrMesh.rotation.y = Math.PI / 4; hrMesh.castShadow = true;
+    house.add(hb, hrMesh);
+    house.userData.mats = [hw, hr];
+    house.visible = false; house.position.set(t.x, 0.381, t.z);
+    scene.add(house); ownerMarks[i] = house;
+    if (i === 0) {   // E4 起点旗杆：内角朝桌心偏 0.3（棋子 pawnSlot 一律外圈让 0.3，内角必空；随 tile0 落场升起）
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.022, 0.55, 8), new THREE.MeshStandardMaterial({ color: 0xcfd6e4, roughness: 0.4, metalness: 0.3 }));
+      pole.position.set(-0.21, 0.356, -0.21);   // 局部 y 基准=格顶 0.081（格内角朝桌心对角偏移；castShadow 关细柱投影噪点）
+      pole.castShadow = false;
+      const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.12), new THREE.MeshBasicMaterial({ color: 0xfbbf24, side: THREE.DoubleSide }));
+      flag.position.set(-0.31, 0.55, -0.21);
+      flag.rotation.y = Math.PI / 4;
+      grp.add(pole, flag);
+    }
   });
 }
 function mkTexMip(w, h, draw) {   // mipmap 变体（终审 F-8）：只给中心盘用——mkTex 本体全局禁 mip 是格面/名牌/骰面的既定采样契约，不许动
@@ -1211,9 +1239,10 @@ function rebuildBoardVisuals() {   // 换图重绘（挑刺 F4 dispose 纪律）
     });
   });
   tileMeshes = [];
-  ownerMarks.forEach(mk => { if (!mk) return; scene.remove(mk); mk.geometry.dispose(); mk.material.dispose(); });
+  ownerMarks.forEach(mk => { if (!mk) return; scene.remove(mk); mk.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(mt => mt.dispose()); }); });   // E2 房子=Group：traverse 释放（旧 Mesh 直卸对 Group 是 undefined.dispose）
   ownerMarks = [];
   if (centerDisc) { scene.remove(centerDisc); centerDisc.geometry.dispose(); (Array.isArray(centerDisc.material) ? centerDisc.material : [centerDisc.material]).forEach(mt => { if (mt.map) mt.map.dispose(); mt.dispose(); }); centerDisc = null; }
+  if (jailCage) { scene.remove(jailCage); jailCage.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); jailCage = null; jailCageState = false; }   // E3 铁笼随图重建（终审 P6 生命周期镜像 ownerMarks）
   buildBoard();
   buildCenter();
   applyTheme();
@@ -1473,6 +1502,65 @@ function updateHUD() {
     rc.textContent = `第 ${Math.min(cur, G.roundLimit)}/${G.roundLimit} 轮`;
   } else rc.hidden = true;
   $('hud-tools').hidden = G.phase === 'BOOT' || G.phase === 'SETUP' || G.phase === 'OVER';
+  syncJailCages();   // E3 监狱铁笼真相同步（keyed 幂等：常态零工作）
+}
+/* ── E3 监狱铁笼（2026-10-02 全元素 3D 化）：有人服刑 → 监狱格罩铁笼，「谁蹲着」首次上棋盘 ──
+   笼心=监狱格格心（终审 P5：勿取活体 pawn 坐标——押送滑行中途会建在半空；半径 0.34<格半宽 0.46 柱底全部落在格顶）；
+   落扣 +0.8y/240ms+xz squash（禁动档静态可见）；收笼升起+缩隐 280ms；不加第三拍音（警笛+闷响已满）。 */
+let jailCage = null, jailCageState = false;
+function buildJailCage() {
+  const grp = new THREE.Group();
+  const barMat = new THREE.MeshStandardMaterial({ color: 0x9aa2b8, roughness: 0.35, metalness: 0.55 });
+  for (let b = 0; b < 6; b++) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.5, 0.03), barMat);
+    const a = b * Math.PI / 3 + Math.PI / 6;
+    bar.position.set(Math.cos(a) * 0.34, 0.25, Math.sin(a) * 0.34);
+    grp.add(bar);
+  }
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.022, 8, 24), barMat);
+  ring.rotation.x = Math.PI / 2; ring.position.y = 0.5;
+  grp.add(ring);
+  grp.position.set(TILES[6].x, 0.381, TILES[6].z);
+  grp.visible = false;
+  scene.add(grp);
+  return grp;
+}
+function syncJailCages() {
+  if (!G.gl || !scene) return;
+  const want = G.phase !== 'OVER' && G.players.some(p => p && p.jailed && !p.bankrupt);
+  if (want === jailCageState) return;
+  jailCageState = want;
+  if (want) {
+    if (!jailCage) jailCage = buildJailCage();
+    jailCage.visible = true;
+    if (canFlyNotes()) {   // 落扣
+      jailCage.position.y = 0.381 + 0.8;
+      const t0 = performance.now();
+      const step = now => {
+        if (!jailCage || !jailCage.visible) return;
+        const k = Math.min(1, (now - t0) / (240 * SPEED));
+        jailCage.position.y = 0.381 + 0.8 * (1 - k * k);
+        const s = 1 + 0.12 * (1 - k);
+        jailCage.scale.set(s, 1, s);
+        if (k < 1) requestAnimationFrame(step);
+        else { jailCage.position.y = 0.381; jailCage.scale.set(1, 1, 1); }
+      };
+      requestAnimationFrame(step);
+    } else jailCage.position.y = 0.381;
+  } else if (jailCage) {
+    if (canFlyNotes()) {   // 收笼：升起+缩隐（出狱=破笼而出，接 movePawn）
+      const t0 = performance.now();
+      const step = now => {
+        if (!jailCage || !jailCage.visible) return;
+        const k = Math.min(1, (now - t0) / (280 * SPEED));
+        jailCage.scale.setScalar(Math.max(0.001, 1 - k));
+        jailCage.position.y = 0.381 + 0.35 * k;
+        if (k < 1) requestAnimationFrame(step);
+        else { jailCage.visible = false; jailCage.scale.set(1, 1, 1); jailCage.position.y = 0.381; }
+      };
+      requestAnimationFrame(step);
+    } else jailCage.visible = false;
+  }
 }
 function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function moneyFloat(i, delta) {
@@ -1549,6 +1637,57 @@ function shuffleDeck(kind) {
 function aliveIdx() { return G.players.map((p, i) => p.bankrupt ? -1 : i).filter(i => i >= 0); }
 function currentPlayer() { return G.players[G.turn]; }
 
+/* ── E1 开局落场（2026-10-02 全元素 3D 化）：桌面自组装的一镜到底 ──
+   单 rAF 总循环四拍编排（终审：任一时刻 ≤2 套运动）：中心盘 scale-in 0-220ms → 24 格错峰 28ms 落场（+1.6y/300ms，末位 ~950ms 落定）
+   → 棋子/名牌 scale pop 950-1150ms → 骰子坠落 1160-1380ms 收 SFX.land。
+   纪律：fire-and-forget 不堵 beginTurn 链；零 rig 写入；**pawn/名牌只动 scale**（hop/滑行只写 position，零冲突，pawnWorld 读位不受扰）；
+   AUTOTEST/REDUCED/bodyLo/TURBO 完全跳过（终审 P8/P10：调用面只收口 startGame 与快照换图重建两处，boot/续档不播）。 */
+let entranceTok = 0;
+function boardEntrance() {
+  if (!G.gl || !scene || REDUCED || bodyLo || TURBO || AUTOTEST) return;
+  const my = ++entranceTok;
+  const tiles = tileMeshes.filter(Boolean);
+  const startY = 0.3 + 1.6;
+  tiles.forEach(grp => { grp.position.y = startY; });
+  if (centerDisc) centerDisc.scale.setScalar(0.001);
+  diceObjs.forEach(m => { m.position.y = 0.51 + 2.0; });
+  pawnObjs.forEach(p => { if (p) p.scale.setScalar(0.001); });
+  plateSprites.forEach(s => { if (s) s.scale.set(0.001, 0.001, 1); });
+  const t0 = performance.now();
+  let landed = false;
+  const step = now => {
+    if (my !== entranceTok) return;   // 重开局/换图换代：旧循环立即退场
+    const el = now - t0;
+    let active = false;
+    if (centerDisc) {   // 拍一：中心盘
+      const k = Math.min(1, el / (220 * SPEED));
+      centerDisc.scale.setScalar(Math.max(0.001, k * k * (3 - 2 * k)));
+      if (k < 1) active = true;
+    }
+    tiles.forEach((grp, i) => {   // 拍二：瓦片错峰落场
+      const k = Math.min(1, Math.max(0, (el - (100 + i * 28) * SPEED) / (300 * SPEED)));
+      if (k < 1) active = true;
+      grp.position.y = k >= 1 ? 0.3 : startY - 1.6 * k * k;
+    });
+    const pk = Math.min(1, Math.max(0, (el - 950 * SPEED) / (200 * SPEED)));   // 拍三：棋子/名牌 pop（只动 scale）
+    if (pk < 1) active = true;
+    const ps = Math.max(0.001, pk * pk * (3 - 2 * pk));
+    pawnObjs.forEach(p => { if (p) p.scale.setScalar(ps); });
+    plateSprites.forEach(s => { if (s) s.scale.set(0.86 * ps, 0.215 * ps, 1); });
+    if (G.phase !== 'ROLLING') {   // 拍四：骰子坠落（终审 P2：掷骰开始即让位，animateDice 逐帧绝对写接管）
+      const dk = Math.min(1, Math.max(0, (el - 1160 * SPEED) / (220 * SPEED)));
+      if (dk < 1) active = true;
+      diceObjs.forEach(m => { m.position.y = 0.51 + 2.0 * (1 - dk * dk); });
+      if (dk >= 1 && !landed) { landed = true; SFX.land(); }
+    } else { diceObjs.forEach(m => { m.position.y = 0.51; }); landed = true; }
+    if (active) requestAnimationFrame(step);
+    else {
+      pawnObjs.forEach(p => { if (p) p.scale.setScalar(1); });
+      plateSprites.forEach(s => { if (s) s.scale.set(0.86, 0.215, 1); });
+    }
+  };
+  requestAnimationFrame(step);
+}
 function startGame(cfg) {
   applyMap(cfg.map || CUR_MAP_ID);   // 开局定图（rematch/联机不传时沿用当前图——挑刺 F11：NDOC.game 已被置 null 不能回读）
   G.roundLimit = cfg.roundLimit; G.skipHandoff = cfg.skipHandoff;
@@ -1567,6 +1706,7 @@ function startGame(cfg) {
   $('setup').hidden = true; $('result-overlay').hidden = true;
   if (G.gl) { buildPawns(); layoutPlates(); }
   else render2D();
+  boardEntrance();   // E1 开局落场：fire-and-forget，beginTurn 链零改动
   updateHUD();
   netCkpt();
   beginTurn();
@@ -2217,29 +2357,52 @@ function buyProperty() {
   moneyFloat(G.turn, -t.price); SFX.pay();
   toast(`🏠 ${p.name} 买下 ${t.name}（${fmt(t.price)}）`, 'loss');
   const mk = ownerMarks[p.pos];
-  if (mk) { mk.visible = true; mk.material.color.set(PLAYER_COLORS[p.colorIdx]); mk.material.needsUpdate = true; }
-  bounceOwnerMark(p.pos);
-  // 买地一镜到底：buyer→地块上空；成交章+deal 音后置为落地高潮拍（状态写入仍同步，探针无感；静态/降档立即=旧行为）
+  if (mk) { mk.visible = true; setHouseColor(mk, p.colorIdx); }
+  // 买地一镜到底：buyer→地块钞票航班 → 落地 → 房子天降建造 → 房子落地帧盖章+戳记音（状态写入仍同步，探针无感；静态/降档立即=旧行为）
   flyNotes(pawnNotePos(G.turn), { x: t.x, y: 0.78, z: t.z }, t.price, () => {
-    if (mk && !TURBO) SFX.deal();   // 成交戳记音（付款 pay 之外的第二拍；turbo 蒙特卡洛静默不拖慢）
-    dealStamp(`成交！${t.name}`);
+    bounceOwnerMark(p.pos);
+    setTimeout(() => {
+      if (mk && !TURBO) SFX.deal();   // 成交戳记音（付款 pay 之外的第二拍；turbo 蒙特卡洛静默不拖慢）
+      dealStamp(`成交！${t.name}`);
+    }, (canFlyNotes() ? 340 : 0) * SPEED);
   });
   updateHUD(); render2D();
   afterResolve();
 }
-function bounceOwnerMark(tileIdx) {   // 成交落位：归属标记 easeOutBack 过冲 0→≈1.15→1（观战回放的 buy 操作同款）；REDUCED/bodyLo/TURBO 维持瞬时落位（静态退路）
+function setHouseColor(mk, ci) {   // E2 归属上色：墙=玩家色 lerp 白 0.12+emissive×0.22（校正暖光/ACES 洗色，玩家模拟实测原纯色读不出）、顶=shadeColor(-0.35)
+  const pc = PLAYER_COLORS[ci];
+  const [wall, roof] = mk.userData.mats;
+  wall.color.set(pc).lerp(new THREE.Color(0xffffff), 0.12);
+  wall.emissive.set(pc).multiplyScalar(0.22);
+  roof.color.set(shadeColor(pc, -0.35));
+  roof.emissive.set(pc).multiplyScalar(0.1);
+}
+function bounceOwnerMark(tileIdx) {   // E2 天降建造（原 easeOutBack 弹跳升级）：+0.85y 260ms easeIn 落地 + 挤压回弹 140ms；REDUCED/bodyLo/TURBO 早退（调用方已同步置落位态）
   const mk = ownerMarks[tileIdx];
   if (!mk || !G.gl || REDUCED || bodyLo || TURBO) return;
-  const t0 = performance.now(), dur = 380, c1 = 2.2;
-  mk.scale.set(0.01, 0.01, 0.01);
-  const land = now => {
-    if (!mk.visible) { mk.scale.set(1, 1, 1); return; }   // 动画中标记被收回（快照重绘/破产清算）：立即归位，防卡中间态
-    const k = Math.min(1, (now - t0) / (dur * SPEED)), u = k - 1;
-    const s = k < 1 ? 1 + (c1 + 1) * u * u * u + c1 * u * u : 1;   // easeOutBack，峰值 ≈1.15
-    mk.scale.set(s, s, s);
-    if (k < 1) requestAnimationFrame(land);
+  const baseY = 0.381;
+  mk.position.y = baseY + 0.85;
+  const t0 = performance.now(), dur = 260;
+  const drop = now => {
+    if (!mk.visible) { mk.position.y = baseY; mk.scale.set(1, 1, 1); return; }   // 中途被清算收回：y 一并归位防悬空（终审 P3）
+    const k = Math.min(1, (now - t0) / (dur * SPEED));
+    mk.position.y = baseY + 0.85 * (1 - k * k);
+    if (k < 1) requestAnimationFrame(drop);
+    else {
+      mk.position.y = baseY;
+      const p0 = performance.now(), pd = 140;
+      const squash = now2 => {
+        if (!mk.visible) { mk.scale.set(1, 1, 1); return; }
+        const k2 = Math.min(1, (now2 - p0) / (pd * SPEED));
+        const s = Math.sin(k2 * Math.PI);
+        mk.scale.set(1 + 0.15 * s, 1 - 0.3 * s, 1 + 0.15 * s);
+        if (k2 < 1) requestAnimationFrame(squash);
+        else mk.scale.set(1, 1, 1);
+      };
+      requestAnimationFrame(squash);
+    }
   };
-  requestAnimationFrame(land);
+  requestAnimationFrame(drop);
 }
 async function drawCard(kind) {
   if (!G.decks[kind].length) {
@@ -2403,7 +2566,7 @@ $('btn-rematch').addEventListener('click', () => {
   const cfg = { players: G.players.map(p => ({ name: p.name, bot: p.bot })), roundLimit: G.roundLimit, skipHandoff: G.skipHandoff, seed: (Math.random() * 0xffffffff) >>> 0 };
   startGame(cfg);
 });
-$('btn-result-home').addEventListener('click', () => { location.href = 'index.html'; });
+$('btn-result-home').addEventListener('click', () => { warpBackTicket(); location.href = 'index.html'; });
 
 /* ═════════════════════════ 11. 通用弹窗 / 退出 ═════════════════════════ */
 let genSeq = 0;   // 弹窗代际：他人回合揭卡的自动收牌定时器凭此不误关后继新弹窗
@@ -2425,7 +2588,7 @@ function closeGenModal() { $('gen-modal').hidden = true; }
 $('btn-quit').addEventListener('click', () => {
   const inGame = G.phase !== 'SETUP' && G.phase !== 'OVER' && G.phase !== 'BOOT';
   openGenModal(`<p style="line-height:1.8">${inGame ? '对局已自动保存，下次进入可继续。<br>确定离开？' : '返回游戏中心？'}</p>`,
-    [{ label: '确定离开', fn: () => { location.href = 'index.html'; } }, { label: '继续玩', fn: closeGenModal }]);
+    [{ label: '确定离开', fn: () => { warpBackTicket(); location.href = 'index.html'; } }, { label: '继续玩', fn: closeGenModal }]);
 });
 $('btn-rules-top').addEventListener('click', () => {
   openGenModal(`<div style="text-align:left"><b>📜 规则速览${CUR_MAP_ID !== 'classic' ? ' · ' + MAPS[CUR_MAP_ID].name : ''}</b><ul style="padding-left:20px;line-height:1.9;font-size:0.85rem;margin-top:8px">
@@ -2489,7 +2652,7 @@ $('btn-start').addEventListener('click', () => {
   try { localStorage.setItem('mono:last', 'monopoly'); } catch (e) {}
   startGame({ players, roundLimit: +$('round-limit').value, skipHandoff: $('skip-handoff').checked, map: mapSel });
 });
-$('btn-back-arcade').addEventListener('click', () => { location.href = 'index.html'; });
+$('btn-back-arcade').addEventListener('click', () => { warpBackTicket(); location.href = 'index.html'; });
 $('skip-handoff').addEventListener('change', () => { try { localStorage.setItem('mono:nohandoff', $('skip-handoff').checked ? '1' : '0'); } catch (e) {} });
 
 /* ═════════════════════════ 13. 2D 降级棋盘 ═════════════════════════ */
@@ -2564,6 +2727,7 @@ function tick(now) {
     if (show) {
       turnRing.position.set(gp.position.x, 0.39, gp.position.z);
       turnRing.material.color.set(PLAYER_COLORS[pl.colorIdx]);
+      turnRing.scale.setScalar(pl.jailed ? 0.72 : 1);   // 囚犯行动者：光环收缩进铁笼内（终审：ring r0.2-0.27 与笼 r0.34 同高穿插）
     }
   }
   plateVisibility();
@@ -2642,11 +2806,23 @@ function resumeGame(s) {
   G._resumeSkipInc = true;
   $('setup').hidden = true;
   if (G.gl) buildPawns();
-  G.owners.forEach((o, i) => { if (o != null && ownerMarks[i]) { ownerMarks[i].visible = true; ownerMarks[i].material.color.set(PLAYER_COLORS[G.players[o].colorIdx]); ownerMarks[i].material.needsUpdate = true; } });
+  G.owners.forEach((o, i) => { if (o != null && ownerMarks[i]) { ownerMarks[i].visible = true; setHouseColor(ownerMarks[i], G.players[o].colorIdx); } });
   G.players.forEach((p, i) => { if (p.bankrupt && pawnObjs[i]) { pawnObjs[i].visible = false; if (plateSprites[i]) plateSprites[i].visible = false; } });
   render2D(); updateHUD();
   beginTurn();   // 从当前玩家回合起点安全恢复
 }
+/* warp-in arrival（W1③）：从游戏中心点卡起飞落地——读 tod:warp 票（<4000ms 新鲜且 g=monopoly）
+   → #loader .loader-box 挂 warp-in（scale 1.5→1 + 青色 glow 一闪）。读后即删票（防下次冷启动误播）；
+   无票/过期=现状零改动；揭幕时序（900ms 最低展示）零改动；REDUCED/loperf 不挂。 */
+(function () {
+  let w = null;
+  try { w = JSON.parse(localStorage.getItem('tod:warp') || 'null'); } catch (e) {}
+  try { localStorage.removeItem('tod:warp'); } catch (e) {}
+  if (!w || w.g !== 'monopoly' || Date.now() - (w.t || 0) > 4000 || REDUCED || bodyLo) return;
+  const box = document.querySelector('#loader .loader-box');
+  if (box) box.classList.add('warp-in');
+})();
+function warpBackTicket() { try { localStorage.setItem('tod:warp-back', JSON.stringify({ t: Date.now() })); } catch (e) {} }   // 返回游戏中心的 pull-back 票（index boot 读：<2500ms 新鲜才播 drop-back，读后即删）
 requestAnimationFrame(tick);
 boot();
 
