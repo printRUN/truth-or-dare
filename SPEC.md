@@ -156,6 +156,16 @@ index.html 的首屏是**游戏中心**：三张游戏卡（🎭 真心话大冒
 
 **门禁与验收**：六门禁全绿（probe-monopoly 28/probe-mono-maps/probe-mono-replay 8/probe-mono-net 17/ev-mono-verify/probe-persona-mono 46）+check-syntax；实拍 .pw/shots/e3d2-*（entrance-mid 骰子坠拍/cage-zoom 铁笼双囚/house-zoom 青墙房+章+金旗）；代码检查官逐毫秒核对动画链常量+「假绿」审查（六门禁是回归断言不覆盖 E1-E4 存在性——由实拍承担）；业务检查官对照改前取证（e3d-01/11/13/15）判三状态棋盘可读性全部兑现、对局净增耗时≈0（全 fire-and-forget）。**实施期自查 P0**：ownerMarks Group 化后 rebuild 旧 dispose 崩（applyMap 全炸 setup 卡死）——**Mesh→Group 升级必须同步升级释放路径**。**备案留下一轮**：全套盖二楼/房顶升级（SET_MULT×3 天际线化——两 agent 共认最值）、破产棋子倒地（rotation.z→π/2 变灰，与 1.6e 清算备案同轮）、双数冲击环、出狱「笼门摆开」、syncJailCages rAF 加代际锁（双翻转理论窗口）、落扣 squash 方向修正（落地帧 xz 张开）、入场终态门禁断言化。
 
+### 1.6g 大富翁天际线轮（2026-10-02，用户「可以直接实施」§1.6f 备案清单；与并行会话现金域轮（§1.6e 备案的钞堆/大额重拍/清算仪式）同工作树并行实施——本节只含 3D 元素域，提交用索引分离术只圈定本人 hunks；破产棋子倒地让位并行清算仪式未做）
+
+**E5 盖二楼天际线（§1.6f 备案转正，两轮终审共认最值）**：集齐同色组（SET_MULT×3）→ 该组四格房子**长出二楼**——租金×3 从文字变天际线。`syncHouseLevels()` 挂 updateHUD 尾（与铁笼同纪律：真相在 G.owners 的 keyed diff，动画只做建造拍；`houseLvl{}` 按 tileIdx 记账，清算/快照/重开全路径经 updateHUD 收敛）；建造动画 `upgradeHouse` =顶抬起（+0.165·sin 半程）→ 二楼墙 Box(0.13,0.08,0.13) 空降（复用墙材质=换色自动同步）→ 顶落定 ROOF_Y2=0.235（层高常数 ROOF_Y1/FLOOR2_Y/ROOF_Y2）；`userData.lvlTok` 每层代际——清算/快照改写层数时在飞建造立即弃权；REDUCED/bodyLo/TURBO 静态升舱（禁动不禁信息）。`__mono.boards()` 探针口（tilesY/pawnSX/houseGroups/levels）。
+
+**E7 双数冲击环**：掷出双数→骰落点金环扩散一次（RingGeometry 复用 turnRing 语言，0.5→2.4 缩放+0.5→0 淡出 350ms；单例池外自到期；降档静默——浮字「✨双数」已承载）。
+
+**铁笼加固（终审备忘转正）**：`cageTok` 代际锁（双翻转窗口内旧收笼循环不得压掉新落笼；收笼终帧加 `!jailCageState` 复核）；落扣 squash 方向修正=下落纯自由落体、**落地帧 xz 张开+y 压缩**（1+0.14s/1-0.1s，业务终审 P3-a：旧版下落中收窄方向反了）。
+
+**回归锁**：ev-mono-verify R2b 增两条——开局落场终态（24 格 y=0.3 全落+棋子 scale=1+房子 Group 化+层数基准 1；`__mono.boards()` 直读，E1-E4 存在性从纯实拍升级为门禁断言）。六门禁全绿（28/maps/replay 8/net 17/verify/persona 46）；实拍 .pw/shots/sky-two-floor.png（琥珀组四格两层楼 vs 其他格单层天际线）/sky-build-mid.png（建造中段）。**备案留下一轮**：三楼（双套？规则无此概念，候选=酒店级塔楼配收租×3 已满的进账音变化）、破产棋子倒地（待并行清算仪式合入后补）、出狱「笼门摆开」。
+
 ### 1.7 UNO（uno.html，第三款游戏）与跨分支跳转（2026-09-19，UNO 轮）
 
 **游戏中心扩到 4 卡**（≥700px 2×2，max-width 680）：🎭 tod / 🎲 monopoly / 🃏 uno / 💣 炸弹猫（feat/bombcat-lobby 分支的 bombcat.html，自带「回游戏中心」链接）。**graceful jump**：file:// 直跳 fail-open（双击即开卖点）；http(s) HEAD 探测 1500ms（405/501 按存在算 + GET 兜底），失败挂「🚧 未开放」角标 + 降饱和仍可点；结果只存页面级 memo；**AbortSignal.timeout 缺席的老浏览器直跳 + 预探测 try/catch（防炸整个主脚本块）**。
