@@ -158,6 +158,11 @@ const ok = (name, cond, extra) => { console.log((cond ? 'PASS ' : 'FAIL ') + nam
     const a0 = await p.evaluate(() => __mono.distAnchor());
     ok('R2b 等骰期全景 focusK=1 elev≈42° tgt 回桌心（approachTurn 停全景，摇骰前不推近）', Math.abs(r0.focusK - 1) < 1e-6 && Math.abs(r0.elev * 57.3 - 42) < 0.5 && Math.hypot(r0.tgt.x, r0.tgt.z) < 0.05, r0);
     ok('R2b 等骰期 dist≈baseDist（全景完整入画；旧「开局推近 4.8」废止）', Math.abs(r0.dist - a0.base) < 0.3, { dist: +r0.dist.toFixed(2), base: +a0.base.toFixed(2) });
+    // E1 落场终态 + E5 房子 Group 化回归锁（2026-10-02 全元素 3D 轮）：入场 1.38s 播完后桌面必须全员归位
+    await p.waitForTimeout(1700);
+    const ent = await p.evaluate(() => __mono.boards());
+    ok('R2b 开局落场终态（24 格全落 y=0.3、棋子 scale=1）', ent.tilesY.length === 24 && ent.tilesY.every(y => y === 0.3) && ent.pawnSX.length === 2 && ent.pawnSX.every(s => s === 1), { bad: ent.tilesY.filter(y => y !== 0.3).length, pawn: ent.pawnSX });
+    ok('R2b 房子 Group 化（userData.mats 在、层数基准 1）', ent.houseGroups && ent.levels.every(l => l === 1), { houseGroups: ent.houseGroups, levels: ent.levels });
     // resize（autoDist=true 路径）：全景 dist 按新纵横比重算跟踪（sizeScene 的职责面）
     await p.setViewportSize({ width: 1100, height: 780 });
     await p.waitForTimeout(300);

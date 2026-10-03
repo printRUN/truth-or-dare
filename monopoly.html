@@ -1117,6 +1117,7 @@ function buildBoard() {
     hrMesh.position.y = 0.155; hrMesh.rotation.y = Math.PI / 4; hrMesh.castShadow = true;
     house.add(hb, hrMesh);
     house.userData.mats = [hw, hr];
+    house.userData.roof = hrMesh;   // E5 盖二楼：顶抬起→二楼墙空降→顶落定（同格天降小号重播）
     house.visible = false; house.position.set(t.x, 0.381, t.z);
     scene.add(house); ownerMarks[i] = house;
     if (i === 0) {   // E4 起点旗杆：内角朝桌心偏 0.3（棋子 pawnSlot 一律外圈让 0.3，内角必空；随 tile0 落场升起）
@@ -1503,6 +1504,7 @@ function updateHUD() {
   } else rc.hidden = true;
   $('hud-tools').hidden = G.phase === 'BOOT' || G.phase === 'SETUP' || G.phase === 'OVER';
   syncJailCages();   // E3 监狱铁笼真相同步（keyed 幂等：常态零工作）
+  syncHouseLevels();   // E5 盖二楼天际线真相同步（同纪律：真相在 G.owners，动画只做建造拍）
 }
 /* ── E3 监狱铁笼（2026-10-02 全元素 3D 化）：有人服刑 → 监狱格罩铁笼，「谁蹲着」首次上棋盘 ──
    笼心=监狱格格心（终审 P5：勿取活体 pawn 坐标——押送滑行中途会建在半空；半径 0.34<格半宽 0.46 柱底全部落在格顶）；
@@ -1525,41 +1527,116 @@ function buildJailCage() {
   scene.add(grp);
   return grp;
 }
+let cageTok = 0;   // 铁笼动画代际（终审备忘：双翻转窗口内旧收笼循环不得压掉新落笼）
 function syncJailCages() {
   if (!G.gl || !scene) return;
   const want = G.phase !== 'OVER' && G.players.some(p => p && p.jailed && !p.bankrupt);
   if (want === jailCageState) return;
   jailCageState = want;
+  const my = ++cageTok;
   if (want) {
     if (!jailCage) jailCage = buildJailCage();
     jailCage.visible = true;
-    if (canFlyNotes()) {   // 落扣
+    if (canFlyNotes()) {   // 落扣：自由落体 + 落地帧 xz 张开 squash（业务终审 P3-a：旧版下落中收窄方向反了）
       jailCage.position.y = 0.381 + 0.8;
+      jailCage.scale.set(1, 1, 1);
       const t0 = performance.now();
       const step = now => {
-        if (!jailCage || !jailCage.visible) return;
+        if (my !== cageTok || !jailCage || !jailCage.visible) return;
         const k = Math.min(1, (now - t0) / (240 * SPEED));
         jailCage.position.y = 0.381 + 0.8 * (1 - k * k);
-        const s = 1 + 0.12 * (1 - k);
-        jailCage.scale.set(s, 1, s);
         if (k < 1) requestAnimationFrame(step);
-        else { jailCage.position.y = 0.381; jailCage.scale.set(1, 1, 1); }
+        else {
+          jailCage.position.y = 0.381;
+          const p0 = performance.now();
+          const sq = now2 => {
+            if (my !== cageTok || !jailCage || !jailCage.visible) return;
+            const k2 = Math.min(1, (now2 - p0) / (110 * SPEED));
+            const s = Math.sin(k2 * Math.PI);
+            jailCage.scale.set(1 + 0.14 * s, 1 - 0.1 * s, 1 + 0.14 * s);
+            if (k2 < 1) requestAnimationFrame(sq);
+            else jailCage.scale.set(1, 1, 1);
+          };
+          requestAnimationFrame(sq);
+        }
       };
       requestAnimationFrame(step);
-    } else jailCage.position.y = 0.381;
+    } else { jailCage.position.y = 0.381; jailCage.scale.set(1, 1, 1); }
   } else if (jailCage) {
     if (canFlyNotes()) {   // 收笼：升起+缩隐（出狱=破笼而出，接 movePawn）
       const t0 = performance.now();
       const step = now => {
-        if (!jailCage || !jailCage.visible) return;
+        if (my !== cageTok) return;
         const k = Math.min(1, (now - t0) / (280 * SPEED));
         jailCage.scale.setScalar(Math.max(0.001, 1 - k));
         jailCage.position.y = 0.381 + 0.35 * k;
         if (k < 1) requestAnimationFrame(step);
-        else { jailCage.visible = false; jailCage.scale.set(1, 1, 1); jailCage.position.y = 0.381; }
+        else if (my === cageTok && !jailCageState) { jailCage.visible = false; jailCage.scale.set(1, 1, 1); jailCage.position.y = 0.381; }
       };
       requestAnimationFrame(step);
-    } else jailCage.visible = false;
+    } else { jailCage.visible = false; jailCage.scale.set(1, 1, 1); jailCage.position.y = 0.381; }
+  }
+}
+/* ── E5 盖二楼天际线（2026-10-02 备案转正，两轮终审共认最值）：集齐同色组 → 该组四格房子长出二楼 ──
+   SET_MULT ×3 的租金天际线化。syncHouseLevels 挂 updateHUD（keyed diff，与铁笼同纪律：真相在 G.owners，动画只做建造拍）；
+   建造动画=顶抬起→二楼墙空降→顶落定（天降语言小号重播）；lvlTok 防清算/快照与在飞建造互踩；REDUCED/bodyLo/TURBO 静态升舱。 */
+const ROOF_Y1 = 0.155, FLOOR2_Y = 0.13, ROOF_Y2 = 0.235;
+let houseLvl = {};
+function setHouseLevel(mk, lvl, instant) {   // 设定房子层数终态（truth 写入；动画帧禁入）
+  mk.userData.lvlTok = (mk.userData.lvlTok || 0) + 1;
+  const roof = mk.userData.roof;
+  if (lvl === 2) {
+    if (!mk.userData.floor2) {
+      const f2 = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.08, 0.13), mk.userData.mats[0]);
+      f2.position.y = FLOOR2_Y; f2.castShadow = true;
+      mk.add(f2);
+      mk.userData.floor2 = f2;
+    }
+    mk.userData.floor2.visible = true;
+    roof.position.y = ROOF_Y2;
+  } else {
+    if (mk.userData.floor2) { mk.remove(mk.userData.floor2); mk.userData.floor2 = null; }
+    roof.position.y = ROOF_Y1;
+  }
+  mk.userData.level = lvl;
+  if (instant) mk.userData.lvlTok = (mk.userData.lvlTok || 0);   // instant 路径无在飞动画可作废
+}
+function upgradeHouse(mk) {   // 二楼建造拍：顶抬起 250ms → 二楼墙空降 260ms（+150ms 起）→ 顶落定 200ms（+300ms 起）
+  setHouseLevel(mk, 2, true);
+  const roof = mk.userData.roof, f2 = mk.userData.floor2;
+  const my = mk.userData.lvlTok;
+  roof.position.y = ROOF_Y1;
+  f2.position.y = 1.1;
+  const t0 = performance.now();
+  const step = now => {
+    if (mk.userData.lvlTok !== my) return;   // 清算/快照改写层数：在飞建造立即弃权
+    const el = now - t0;
+    const k1 = Math.min(1, Math.max(0, el / (250 * SPEED)));
+    if (k1 < 1) roof.position.y = ROOF_Y1 + 0.165 * Math.sin(k1 * Math.PI * 0.5);
+    const k2 = Math.min(1, Math.max(0, (el - 150 * SPEED) / (260 * SPEED)));
+    if (k2 > 0) f2.position.y = 1.1 - (1.1 - FLOOR2_Y) * k2 * k2;
+    const k3 = Math.min(1, Math.max(0, (el - 300 * SPEED) / (200 * SPEED)));
+    if (k1 >= 1 && k3 > 0) roof.position.y = 0.32 - (0.32 - ROOF_Y2) * (k3 * k3 * (3 - 2 * k3));
+    if (k3 < 1) requestAnimationFrame(step);
+    else { roof.position.y = ROOF_Y2; f2.position.y = FLOOR2_Y; }
+  };
+  requestAnimationFrame(step);
+}
+function syncHouseLevels() {
+  if (!G.gl || !scene) return;
+  for (let g = 0; g < 4; g++) {
+    const idxs = propIdxOfGroup(g);
+    const o = G.owners[idxs[0]];
+    const full = o != null && idxs.every(i => G.owners[i] === o);
+    idxs.forEach(ti => {
+      const want = full ? 2 : 1;
+      if ((houseLvl[ti] || 1) === want) return;
+      houseLvl[ti] = want;
+      const mk = ownerMarks[ti];
+      if (!mk) return;
+      if (want === 2 && canFlyNotes() && mk.visible) upgradeHouse(mk);
+      else setHouseLevel(mk, want, true);
+    });
   }
 }
 function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -1577,6 +1654,26 @@ function diceReadout(d1, d2) {
   el.textContent = `${d1} + ${d2} = ${d1 + d2}` + (d1 === d2 ? ' ✨双数' : '');
   el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 900 * SPEED);
+}
+let shockRing = null;
+function doubleShock() {   // E7 双数冲击环：骰落点金环扩散一次（双数限定频率自控；单 rAF 自到期，池外单例同 turnRing 纪律）
+  if (!canFlyNotes()) return;
+  if (!shockRing) {
+    shockRing = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.38, 32), new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }));
+    shockRing.rotation.x = -Math.PI / 2; shockRing.visible = false;
+    scene.add(shockRing);
+  }
+  shockRing.visible = true;
+  shockRing.position.set(0, 0.39, 1.3);   // 双骰落点中点
+  const t0 = performance.now();
+  const step = now => {
+    const k = Math.min(1, (now - t0) / (350 * SPEED));
+    shockRing.scale.setScalar(0.5 + 1.9 * k);
+    shockRing.material.opacity = 0.5 * (1 - k);
+    if (k < 1) requestAnimationFrame(step);
+    else shockRing.visible = false;
+  };
+  requestAnimationFrame(step);
 }
 function showActions() {
   const p = G.players[G.turn], bar = $('action-bar');
@@ -1773,6 +1870,7 @@ async function doRoll(jailAttempt) {
   SFX.roll();
   await animateDice(d1, d2);
   diceReadout(d1, d2);
+  if (d1 === d2) doubleShock();   // E7 双数冲击环（降档静默：浮动数字已承载）
   if (jailAttempt) {
     if (d1 === d2) {
       p.jailed = false; p.jailTurns = 0;
@@ -2838,6 +2936,7 @@ if (AUTOTEST || qs.get('inspect') === '1') {   // inspect=1：真机路径（SPE
     forceJail: i => { G.players[i].jailed = true; G.players[i].jailTurns = 0; G.players[i].pos = 6; placePawn(i, 6, true); updateHUD(); },
     resolveAt: async (i, tile) => { G.turn = i; G.doubles = 0; G.players[i].pos = tile % 24; if (pawnObjs[i]) placePawn(i, G.players[i].pos, true); render2D(); await resolveTile(); },
     sceneInfo: () => ({ gl: G.gl, bodyLo, tiles: tileMeshes.length, pawns: pawnObjs.length, plates: plateSprites.length, dice: diceObjs.length }),
+    boards: () => ({ tilesY: tileMeshes.map(g => +g.position.y.toFixed(2)), pawnSX: pawnObjs.map(p => +(p.scale.x).toFixed(2)), houseGroups: ownerMarks.every(m => !!(m && m.userData && m.userData.mats)), levels: ownerMarks.map(m => (m && m.userData.level) || 1) }),   // E1 落场终态 + E5 天际线层数探针口
     map: () => ({ id: CUR_MAP_ID, name: MAPS[CUR_MAP_ID].name, tileNames: TILES.map(t => t.name), prices: TILES.map(t => t.price || 0), groups: GROUPS.map(g => g.color), corner12: TILES[12].name, theme: MAPS[CUR_MAP_ID].theme.label }),   // 多地图探针口（SPEC §1.6c）
     arriveGo: pi => { const p = G.players[pi]; if (p) arriveGo(p); },   // 过/抵起点统一结算直呼（护照集章探针断言口）
     rigSnap: () => ({ az: rig.az, elev: rig.elev, dist: rig.dist, focusK: rig.focusK, autoDist: rig.autoDist, tgt: { x: rig.tgt.x, y: rig.tgt.y, z: rig.tgt.z } }),
