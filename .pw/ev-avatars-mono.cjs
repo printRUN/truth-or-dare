@@ -47,11 +47,11 @@ const norm = a => Math.atan2(Math.sin(a), Math.cos(a));
   await host.evaluate(() => window.__mono.net().start({}));
   await host.waitForFunction(() => window.__mono.net().doc.started && window.__mono.state.players.length === 2, null, { timeout: 15000 });
   await join.waitForFunction(() => window.__mono.net().doc.started && window.__mono.state.players.length === 2, null, { timeout: 15000 });
-  await host.waitForFunction(() => window.__mono.faces().every(f => f && f.loaded && !f.fb && f.hasMap), null, { timeout: 15000 });
-  await join.waitForFunction(() => window.__mono.faces().every(f => f && f.loaded && !f.fb && f.hasMap), null, { timeout: 15000 });
+  await host.waitForFunction(() => window.__mono.faces().every(f => f && f.loaded && !f.fb && f.hair), null, { timeout: 15000 });
+  await join.waitForFunction(() => window.__mono.faces().every(f => f && f.loaded && !f.fb && f.hair), null, { timeout: 15000 });
 
   const fH = await host.evaluate(() => window.__mono.faces());
-  ok(fH.length === 2 && fH.every(f => f.loaded && !f.fb && f.hasMap), `host 端双棋子真头像到位（loaded&&!fb&&hasMap：${JSON.stringify(fH.map(f => [f.key.split('|')[0], f.loaded]))}）`);
+  ok(fH.length === 2 && fH.every(f => f.loaded && !f.fb && /^#[0-9a-f]{6}$/.test(f.hair)), `host 端双棋子真头像发色到位（loaded&&!fb+hair：${JSON.stringify(fH.map(f => [f.key.split('|')[0], f.hair]))}）`);
   ok(fH.every(f => /^\d\|data:image\/svg/.test(f.key)), `faceKey=色座|解析后URI（${fH.map(f => f.key.slice(0, 16) + '…').join(',')}）`);
   const docH = await host.evaluate(() => window.__mono.net().doc.players.map(p => p.av));
   ok(docH[0] === AV_HOST && docH[1] === AV_JOIN, '房间文档携带双方 av（表单选择原样广播）');
@@ -76,7 +76,7 @@ const norm = a => Math.atan2(Math.sin(a), Math.cos(a));
   // 纹理跨重建存活：buildPawns 全量重建后 faces() 仍全员有图（独占所有权守卫）
   await host.evaluate(() => window.__mono.remapPawns());
   const fR = await host.evaluate(() => window.__mono.faces());
-  ok(fR.every(f => f && f.loaded && f.hasMap), 'remapPawns 重建后全员头像存活（缓存未被打爆）');
+  ok(fR.every(f => f && f.loaded && /^#[0-9a-f]{6}$/.test(f.hair)), 'remapPawns 重建后全员发色存活（palette 缓存未被打爆）');
 
   // 截图证据（全景）：先挪两子到同屏可读格
   await host.evaluate(() => { window.__mono.forcePos(0, 12); window.__mono.forcePos(1, 14); });
@@ -86,13 +86,13 @@ const norm = a => Math.atan2(Math.sin(a), Math.cos(a));
 
   // 观战端同步：join 端也是真头像（两端独立管线各挂一次）
   const fJ = await join.evaluate(() => window.__mono.faces());
-  ok(fJ.every(f => f && f.loaded && !f.fb && f.hasMap), 'join 端双棋子真头像到位（双端独立接线）');
+  ok(fJ.every(f => f && f.loaded && !f.fb && /^#[0-9a-f]{6}$/.test(f.hair)), 'join 端双棋子真头像发色到位（双端独立接线）');
   await join.screenshot({ path: path.join(SHOTS, 'ava-mono-net-join.png') });
 
   // ── B. 热座档：无 av → 程序化 fallback 脸（确定性绘制；全桌统一有脸）──
   const hs = await ctx.newPage(); watch(hs, 'hotseat');
   await hs.goto(`http://127.0.0.1:${PORT}/monopoly.html?autotest=1&q=hs`, { waitUntil: 'domcontentloaded' });
-  await hs.waitForFunction(() => window.__mono && window.__mono.faces().length === 2 && window.__mono.faces().every(f => f && f.fb && f.hasMap && f.loaded), null, { timeout: 15000 });
+  await hs.waitForFunction(() => window.__mono && window.__mono.faces().length === 2 && window.__mono.faces().every(f => f && f.fb && f.loaded && /^#[0-9a-f]{6}$/.test(f.hair)), null, { timeout: 15000 });
   const fHS = await hs.evaluate(() => window.__mono.faces());
   ok(fHS.every(f => f.fb && /^fb:\d$/.test(f.key)), `热座双棋子程序化脸（key=${fHS.map(f => f.key).join(',')}）`);
   await hs.evaluate(() => { window.__mono.forcePos(0, 12); window.__mono.forcePos(1, 14); });

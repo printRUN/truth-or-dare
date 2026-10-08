@@ -96,3 +96,7 @@
 工程 [P1]：缓存条目加 `loaded`/`fb` 标志并透出访问器——占位纹理天生有 map，hasMap 是空断言；NETMODE 档断言 `loaded && !fb`，热座档 `fb===true`。
 工程 [P2]：yaw 断言= rigSnap+pawnWorld 现算期望值 diff<0.02rad 两帧（idle 环绕下无「收敛」态）；**门禁禁像素断言**（软渲假红红线），像素采样降为截图附件。
 工程 [P2]：遮挡实证=ev-avatars-uno 截 4 人局全景+加冕位两帧，预案授权 ×1.28→1.32；门禁补 ev-mono-fall.cjs + ev-uno-result.cjs（并行会话新探针，覆盖我触碰的 buildPawns/updateHUD）；插入位=buildPawns 头球段在 grp.userData.mat(:1423) 之后不重排 W3 行、tick yaw 在 syncCashStacksFrame(:3195) 后渲染行前、uno 调用在 refreshDeckStack(:1348) 后；9061/9063 已核实空闲；crossOrigin 必须设在 src 赋值前。
+
+## 8. 二阶重构：真 3D 几何处（同日，用户看后点名「不要贴图，需要更加逼真的显示」）
+
+一阶的脸贴片（CanvasTexture 圆片糊球）被用户否了——**贴片退役，头=全几何**：皮肤球 + 发壳（顶盖 0.27π + 收窄后脑壳）+ 眉 + 眼球（球白+瞳孔+高光点）+ 鼻锥 + 微笑弧 + 耳，全部 MeshStandardMaterial 吃场景光；monopoly 加肩位嵌锥顶（y0.375 去棒棒糖间隙），uno 加肩+颈（真半身像轮廓，头 r0.16）。头像图的新角色=**发色来源**（hairFromImage：四角均值=背景色排除 + 上半区优先/全图兜底采样 + 较暗 45% 均值 + HSL 钳位 L∈[0.26,0.38]——描边画风最暗 45% 会聚到纯黑描边，明度钳中段保「发色」不保「黑头盔」；提取失败/坏图 → fallbackHair=玩家色深化）+ 名牌圆头像仍 carry 真实头像。**全部不透明几何=alphaTest/贴图裁切问题整类消失**，fallAndFade 淡出改 headMats[] 全套同步。三次实测迭代：46° 俯角下五官必须放球面 ~30° 仰角带（俯视才正对镜头）、发际线在眉上、发色明度钳中段。门禁：ev-avatars-mono 13 / ev-avatars-uno 11 + 回归 ev-mono-fall 29 / probe-monopoly 28 / probe-uno 21 / ev-uno-seats 9 / mono-net 17 / uno-net 11 全绿。

@@ -1483,17 +1483,114 @@ function repaintPlateAva(i, p, e, key) {   // 名牌头像重绘单出口（独�
   if (old) old.dispose();
   sp.userData.avaKey = key + ((e.loaded || e.fb) ? '!ok' : '');
 }
+/* ── 真 3D 头部（头像轮二阶，用户点名「不要贴图，要更逼真」）：脸贴片退役，头=全几何——
+   皮肤球+发壳（顶盖+后脑）+眉+眼球（瞳孔+高光）+鼻+微笑+耳，全部吃场景光（Standard，不再是无光贴片）；
+   头像图的角色=发色来源（顶部暗色主色提取）+名牌圆头像仍 carry 真实头像 ── */
+const paletteCache = new Map();   // key 同 faceTexCache → {hair:'#hex', loaded, fb}
+function fallbackHair(colorIdx) {   // 无 av/提取失败：玩家色深化（确定性，禁 rng）
+  const c = new THREE.Color(PLAYER_COLORS[colorIdx]);
+  const hsl = {};
+  c.getHSL(hsl);
+  c.setHSL(hsl.h, Math.min(0.55, hsl.s), 0.22 + hsl.l * 0.1);
+  return '#' + c.getHexString();
+}
+function hairFromImage(img) {   // 上半区暗色主色：先采四角均值=背景色，排除近背景像素后取较暗 45% 均值（发/五官），HSL 钳进发色域（L≤0.34 保与肤色对比）；同源 dataURL 无污染，CDN 回退 try/catch → null
+  try {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 16;
+    const ctx = cv.getContext('2d');
+    ctx.drawImage(img, 0, 0, 16, 16);
+    const d = ctx.getImageData(0, 0, 16, 16).data;
+    const at = (x, y) => { const i = (y * 16 + x) * 4; return [d[i] / 255, d[i + 1] / 255, d[i + 2] / 255, d[i + 3] / 255]; };
+    let br = 0, bg = 0, bb = 0, bn = 0;
+    [[0, 0], [15, 0], [0, 15], [15, 15]].forEach(([x, y]) => { const p = at(x, y); if (p[3] < 128) return; br += p[0]; bg += p[1]; bb += p[2]; bn++; });
+    const bgc = bn ? [br / bn, bg / bn, bb / bn] : null;
+    const dist = p => bgc ? Math.hypot(p[0] - bgc[0], p[1] - bgc[1], p[2] - bgc[2]) : 1;
+    const scan = (y0, y1) => { const out = []; for (let y = y0; y < y1; y++) for (let x = 0; x < 16; x++) { const p = at(x, y); if (p[3] < 128 || dist(p) < 0.15) continue; out.push([p[0], p[1], p[2], (p[0] + p[1] + p[2]) / 3]); } return out; };
+    let px = scan(0, 8);   // 优先上半区（人像发区）
+    if (px.length < 8) px = scan(0, 16);   // 兜底全图（背景居多的画风上半区可能被排空）
+    px.sort((a, b) => a[3] - b[3]);
+    const take = px.slice(0, Math.max(3, Math.floor(px.length * 0.45)));
+    let r = 0, g = 0, b = 0;
+    take.forEach(p2 => { r += p2[0]; g += p2[1]; b += p2[2]; });
+    const c = new THREE.Color(r / take.length, g / take.length, b / take.length);
+    const hsl = {};
+    c.getHSL(hsl);
+    c.setHSL(hsl.h, Math.max(0.32, Math.min(0.8, hsl.s)), Math.max(0.26, Math.min(0.38, hsl.l)));   // 描边画风最暗 45% 会聚到纯黑描边——明度钳中段保「发色」不是「黑头盔」
+    return '#' + c.getHexString();
+  } catch (e) { return null; }
+}
+function applyHeadPalette(grp, e) {   // palette 到头材质单出口（hairMat 同时是眉的材质实例——一写双更）
+  if (grp && grp.userData.hairMat && e && e.loaded && e.hair) grp.userData.hairMat.color.set(e.hair);
+}
+function acquirePalette(colorIdx, uri) {
+  const key = uri ? colorIdx + '|' + uri : 'fb:' + colorIdx;
+  let e = paletteCache.get(key);
+  if (e) return e;
+  e = { key, hair: fallbackHair(colorIdx), loaded: !uri, fb: !uri };
+  const notify = () => { e.loaded = true; pawnObjs.forEach((g2, i) => { if (g2 && g2.userData.faceKey === e.key && G.players[i]) applyHeadPalette(g2, e); }); };
+  if (uri) {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';   // 必须先于 src（CDN 回退路径防画布污染；本地 dataURL 无感）
+    img.onload = () => { const hair = hairFromImage(img); if (hair) e.hair = hair; else e.fb = true; notify(); };
+    img.onerror = () => { e.fb = true; notify(); };   // 解码失败/CDN 回退离线：fallback 发色（玩家色深化）
+    img.src = uri;
+  }
+  if (paletteCache.size >= 16) paletteCache.delete(paletteCache.keys().next().value);
+  paletteCache.set(key, e);
+  return e;
+}
+function buildAvatarHead(r, colorIdx) {   // 全几何头像头：+z 为脸朝向；返回 {grp, hairMat, skin, mats, parts}
+  const g = new THREE.Group();
+  const skin = new THREE.MeshStandardMaterial({ color: 0xe9bb90, roughness: 0.55 });
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 18), skin);
+  skull.castShadow = true;
+  g.add(skull);
+  const hairMat = new THREE.MeshStandardMaterial({ color: fallbackHair(colorIdx), roughness: 0.8 });
+  const hairTop = new THREE.Mesh(new THREE.SphereGeometry(r * 1.045, 24, 10, 0, Math.PI * 2, 0, Math.PI * 0.27), hairMat);   // 顶盖（0.27π=发际线在眉上方，46° 俯角相机下面部占头部主体）
+  const hairBack = new THREE.Mesh(new THREE.SphereGeometry(r * 1.04, 24, 14, Math.PI * 0.72, Math.PI * 1.56, Math.PI * 0.2, Math.PI * 0.52), hairMat);   // 后脑壳（收窄不裹脸侧）
+  hairTop.castShadow = hairBack.castShadow = true;
+  g.add(hairTop, hairBack);
+  const earGeo = new THREE.SphereGeometry(r * 0.16, 10, 8);
+  const earL = new THREE.Mesh(earGeo, skin); earL.position.set(-r * 0.98, r * 0.16, 0); earL.scale.set(0.55, 1, 0.8);
+  const earR = earL.clone(); earR.position.x = r * 0.98;
+  g.add(earL, earR);
+  const eyeWhite = new THREE.MeshStandardMaterial({ color: 0xf6f3ea, roughness: 0.3 });
+  const iris = new THREE.MeshStandardMaterial({ color: 0x2a2438, roughness: 0.25 });
+  const glint = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  [-1, 1].forEach(s => {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(r * 0.17, 14, 12), eyeWhite);
+    eye.position.set(s * r * 0.30, r * 0.48, r * 0.80);
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(r * 0.095, 10, 8), iris);
+    pupil.position.set(0, 0, r * 0.115);
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(r * 0.036, 6, 6), glint);
+    dot.position.set(-r * 0.033, r * 0.05, r * 0.18);
+    eye.add(pupil, dot);
+    g.add(eye);
+    const brow = new THREE.Mesh(new THREE.BoxGeometry(r * 0.28, r * 0.05, r * 0.04), hairMat);
+    brow.position.set(s * r * 0.27, r * 0.66, r * 0.70);
+    brow.rotation.z = -s * 0.12;
+    g.add(brow);
+  });
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(r * 0.095, r * 0.24, 10), skin);
+  nose.rotation.x = Math.PI / 2;
+  nose.position.set(0, r * 0.2, r * 0.955);
+  g.add(nose);
+  const mouth = new THREE.Mesh(new THREE.TorusGeometry(r * 0.17, r * 0.028, 8, 18, Math.PI * 0.75), new THREE.MeshBasicMaterial({ color: 0x8a4a3a }));
+  mouth.rotation.z = Math.PI * 1.125;   // 弧段转到下半=微笑
+  mouth.position.set(0, -r * 0.12, r * 0.975);
+  g.add(mouth);
+  return { grp: g, hairMat, skin, mats: [skin, hairMat, eyeWhite, iris, glint, mouth.material], parts: { skull: 1, hair: 2, eyes: 2, brows: 2, ears: 2, nose: 1, mouth: 1 } };
+}
 function syncPawnFaces() {   // updateHUD 尾 diff：avKey 变了才换脸/重绘名牌（心跳幂等常态零成本）；锚 per-pawn userData——buildPawns 每局重跑，模块级 sig 会让第二局裸头
   if (!G.gl) return;
   G.players.forEach((p, i) => {
-    const grp = pawnObjs[i]; if (!grp || !grp.userData.faceMat) return;
+    const grp2 = pawnObjs[i]; if (!grp2 || !grp2.userData.hairMat) return;
     const av = (NETMODE && NDOC && NDOC.players[i] && NDOC.players[i].av) || '';
     const uri = av ? P.avatarUri(av) : '';
     const key = uri ? p.colorIdx + '|' + uri : 'fb:' + p.colorIdx;
-    if (grp.userData.faceKey !== key) {
-      grp.userData.faceKey = key;
-      const e = acquireFaceTex(p.colorIdx, uri);
-      if (grp.userData.faceMat.map !== e.tex) { grp.userData.faceMat.map = e.tex; grp.userData.faceMat.needsUpdate = true; }
+    if (grp2.userData.faceKey !== key) {   // 头像轮二阶：头=真几何（发色走 palette），名牌仍画真实头像
+      grp2.userData.faceKey = key;
+      applyHeadPalette(grp2, acquirePalette(p.colorIdx, uri));
     }
     const sp = plateSprites[i];
     if (sp) {
@@ -1518,15 +1615,12 @@ function buildPawns() {
     const mat = new THREE.MeshStandardMaterial({ color: PLAYER_COLORS[p.colorIdx], roughness: 0.4, metalness: 0.1 });
     const body = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.15, 0.34, 20), mat);
     body.position.y = 0.17; body.castShadow = true;
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.095, 18, 14), mat);
-    head.castShadow = true;
-    const headGrp = new THREE.Group();   // 头+脸独立组（头像轮）：billboard yaw 写这里
-    headGrp.position.y = 0.4;
-    const face = new THREE.Mesh(new THREE.SphereGeometry(0.102, 20, 14, Math.PI / 2 - 0.7, 1.4, Math.PI / 2 - 0.7, 1.4),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, alphaTest: 0.5 }));   // 同心贴片 r=头×1.075（tod 月牙边终值）；map 由 syncPawnFaces 挂（挂图后 color 白=map×color 不染）
-    headGrp.add(head, face);
+    const headGrp = new THREE.Group();   // 头独立组（头像轮二阶）：billboard yaw 写这里；真 3D 几何处头（脸贴片退役，头像图只贡献发色，名牌圆头像 carry 真实头像）
+    headGrp.position.y = 0.375;   // 头嵌锥顶（去棒棒糖间隙）
+    const head = buildAvatarHead(0.1, p.colorIdx);
+    headGrp.add(head.grp);
     grp.add(body, headGrp);
-    grp.userData.headGrp = headGrp; grp.userData.faceMat = face.material; grp.userData.faceKey = '';   // 头像锚（破产淡出/复位的材质同步锚）
+    grp.userData.headGrp = headGrp; grp.userData.hairMat = head.hairMat; grp.userData.headMats = head.mats; grp.userData.faceKey = '';   // 头像锚（palette 同步 + 淡出拍同步淡头）
     scene.add(grp); pawnObjs[i] = grp;
     const tex = mkTex(256, 64, (ctx, w, h) => paintPlate(ctx, w, h, p, null));   // 头像轮：名牌绘制提取为 paintPlate（syncPawnFaces 重绘同源）
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
@@ -3329,9 +3423,9 @@ if (AUTOTEST || qs.get('inspect') === '1') {   // inspect=1：真机路径（SPE
     rigSnap: () => ({ az: rig.az, elev: rig.elev, dist: rig.dist, focusK: rig.focusK, autoDist: rig.autoDist, tgt: { x: rig.tgt.x, y: rig.tgt.y, z: rig.tgt.z } }),
     faces: () => pawnObjs.map((g, i) => {
       if (!g) return null;
-      const e = faceTexCache.get(g.userData.faceKey);
-      return { i, key: g.userData.faceKey || '', hasMap: !!(g.userData.faceMat && g.userData.faceMat.map), loaded: !!(e && e.loaded), fb: !!(e && e.fb), yaw: g.userData.headGrp ? +g.userData.headGrp.rotation.y.toFixed(3) : null, headY: g.userData.headGrp ? +g.userData.headGrp.position.y.toFixed(3) : null };
-    }),   // 头像轮取证：占位纹理天生有 map，loaded/fb 才是真图/程序化脸判据
+      const e = paletteCache.get(g.userData.faceKey);
+      return { i, key: g.userData.faceKey || '', hair: g.userData.hairMat ? '#' + g.userData.hairMat.color.getHexString() : null, loaded: !!(e && e.loaded), fb: !!(e && e.fb), yaw: g.userData.headGrp ? +g.userData.headGrp.rotation.y.toFixed(3) : null };
+    }),   // 头像轮二阶取证：头=真几何（loaded&&!fb=发色来自头像提取；fb=程序化发色），yaw=billboard
     platesAva: () => plateSprites.map(s => s ? s.userData.avaKey : null),   // 头像轮：名牌头像绘制键（'!ok' 后缀=已用 decode 完成的图重绘）
     camPos: () => camera.position.toArray(),
     remapPawns: () => buildPawns(),   // 纹理缓存跨重建存活断言用（acquireFaceTex 独占所有权守卫）
