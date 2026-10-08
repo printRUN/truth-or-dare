@@ -707,6 +707,16 @@ function mkTex(w, h, draw) {
   t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
   return t;
 }
+function mkTexMip(w, h, draw) {   // mipmap 变体（头像轮新增）：照片类连续色调要 mip（全景缩小必闪烁）——mkTex 本体禁 mip 契约（卡面/铭牌/骰面）不动
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.encoding = THREE.sRGBEncoding;
+  t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true;
+  t.anisotropy = 4;
+  return t;
+}
+
 function shade(hex, k) {
   const n = parseInt(hex.slice(1), 16);
   const f = v => Math.max(0, Math.min(255, Math.round(v * (1 + k))));
@@ -1249,6 +1259,92 @@ function disposeLabel(sp) {   // 旧铭牌退役：geometry+faceMat+map 即时 d
   if (sp.userData.faceMat) { if (sp.userData.faceMat.map) sp.userData.faceMat.map.dispose(); sp.userData.faceMat.dispose(); }
   if (sp.userData.shadow) { scene.remove(sp.userData.shadow); sp.userData.shadow.geometry.dispose(); sp.userData.shadow.material.dispose(); }
 }
+/* ═══ 座位 3D 头像半身像（SPEC §1.12）：独立系统不碰 refreshSeatFx（该函数正被并行改造）。
+   av 源=NETMODE NDOC.players[i].av（G.players 来自 game 快照，无 av 字段）。基座钉桌面真实顶面 y=0.20
+  （桌 Cylinder 中心−0.05+半高 0.25，行动环 y0.212 即既证），径向 seatPos×1.28（R2.6→3.33<桌 6.4）；
+   真实 castShadow（seatFx 柔影 −0.042 埋桌里的教训不复制）；south 不建（自我中心渲染，与铭牌同语义）；
+   脸朝南固定 yaw=0（uno 相机唯一且固定南侧，无 billboard 需求）；纹理缓存独占所有权：bust 退役禁卸 .map ═══ */
+const seatAva = { sig: '', busts: [] };
+const avaTexCache = new Map();   // key `${colorIdx}|${uri}` | `fb:${colorIdx}` → {tex,canvas,loaded,fb}
+function paintAva(cv, img, colorIdx, hasAv) {   // 256² 同 monopoly paintFace 参数（视觉终审定稿）：真实头像=白底+contain+5px 蚀刻圆裁+玩家色描边；无 av=确定性程序化脸（禁 rng）
+  const w = cv.width, c = w / 2, ctx = cv.getContext('2d'), pc = PLAYER_COLORS[colorIdx];
+  ctx.clearRect(0, 0, w, w);
+  if (!hasAv) {
+    ctx.fillStyle = pc; ctx.beginPath(); ctx.arc(c, c, c, 0, 7); ctx.fill();
+    ctx.fillStyle = shade(pc, 0.3); ctx.beginPath(); ctx.arc(c, c, c - 11, 0, 7); ctx.fill();
+    ctx.fillStyle = '#1b1430';
+    ctx.beginPath(); ctx.arc(c - 26, c - 14, 9, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(c + 26, c - 14, 9, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#1b1430'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(c, c + 6, 30, 0.4, Math.PI - 0.4); ctx.stroke();
+    return;
+  }
+  ctx.fillStyle = '#f5efe4'; ctx.beginPath(); ctx.arc(c, c, c, 0, 7); ctx.fill();
+  if (img && (img.naturalWidth || img.width)) {   // 无固有尺寸 SVG：宽高 0 → 除 0=Infinity，drawImage 规范性空转（tod naturalWidth 兜底同款）
+    const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+    const s = Math.min(w / iw, w / ih), dw = iw * s, dh = ih * s;
+    ctx.drawImage(img, c - dw / 2, c - dh / 2, dw, dh);
+  }
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.beginPath(); ctx.arc(c, c, c - 5, 0, 7); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.strokeStyle = pc; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(c, c, c - 2.5, 0, 7); ctx.stroke();
+}
+function acquireAvaTex(colorIdx, uri) {
+  const key = uri ? colorIdx + '|' + uri : 'fb:' + colorIdx;
+  let e = avaTexCache.get(key);
+  if (e) return e;
+  const tex = mkTexMip(256, 256, ctx => paintAva(ctx.canvas, null, colorIdx, !!uri));
+  e = { tex, canvas: tex.image, loaded: !uri, fb: !uri };
+  if (uri) {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';   // 必须先于 src 赋值（CDN 回退路径防画布污染；本地 dataURL 无感）
+    img.onload = () => { e.loaded = true; paintAva(e.canvas, img, colorIdx, true); tex.needsUpdate = true; };
+    img.onerror = () => { paintAva(e.canvas, null, colorIdx, false); e.fb = true; tex.needsUpdate = true; };   // 解码失败/CDN 回退离线：降级程序化脸（终审 P1：保占位=无字空白奶油盘）
+    img.src = uri;
+  }
+  if (avaTexCache.size >= 16) avaTexCache.delete(avaTexCache.keys().next().value);
+  avaTexCache.set(key, e);
+  return e;
+}
+function disposeBust(g) {   // material.dispose 不连带纹理——缓存独占所有权（对比 disposeLabel 的 faceMat.map.dispose：bust 纹理跨重建存活）
+  g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+  scene.remove(g);
+}
+function refreshSeatAvatars() {
+  if (!G.gl || !scene || G.phase === 'BOOT' || G.phase === 'SETUP') return;
+  const south = southOwner();
+  const sig = G.players.map((p, i) => `${i}:${(NETMODE && NDOC && NDOC.players[i] && NDOC.players[i].av) || ''}:${south}`).join('|');
+  if (sig === seatAva.sig) return;
+  seatAva.sig = sig;
+  seatAva.busts.forEach(disposeBust);
+  seatAva.busts = [];
+  G.players.forEach((p, seat) => {
+    if (seat === south) return;
+    const av = (NETMODE && NDOC && NDOC.players[seat] && NDOC.players[seat].av) || '';
+    const uri = av ? P.avatarUri(av) : '';
+    const e = acquireAvaTex(p.colorIdx, uri);
+    const grp = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color: PLAYER_COLORS[p.colorIdx], roughness: 0.55 });
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.20, 0.06, 20), mat);
+    base.position.y = 0.03;
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.15, 0.30, 16), mat);
+    body.position.y = 0.21;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 18, 14), mat);
+    head.position.y = 0.51;
+    const face = new THREE.Mesh(new THREE.SphereGeometry(0.150, 20, 14, Math.PI / 2 - 0.7, 1.4, Math.PI / 2 - 0.7, 1.4),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, alphaTest: 0.5, map: e.tex }));   // 贴片 r=头×1.071（tod 月牙边终值语言）；占位→真图由缓存 canvas 原位重绘（needsUpdate 广播全部使用者）
+    face.position.y = 0.51;
+    base.castShadow = body.castShadow = head.castShadow = true;   // 真实投影：dirLight ±5.5 覆盖座位弧
+    grp.add(base, body, head, face);
+    const pos = seatPos(seat);
+    grp.position.set(pos.x * 1.28, 0.20, pos.z * 1.28);
+    grp.userData.faceKey = uri ? p.colorIdx + '|' + uri : 'fb:' + p.colorIdx;
+    grp.userData.faceEntry = e;
+    scene.add(grp);
+    seatAva.busts.push(grp);
+  });
+}
 function refreshSeatFx() {   // 座位名牌(名字·牌数)+行动指示环:每个座位一个固定「座位感」,轮到谁谁的环亮
   if (!G.gl || !scene || G.phase === 'BOOT' || G.phase === 'SETUP') return;
   // sig 拆键（§5-7）：纹理键 name|count|south（**去 turn**——turn 进纹理键会每回合全量重建+重播 pop）；
@@ -1338,6 +1434,7 @@ function updateHUD() {
   }
   refreshSeatFx();
   refreshDeckStack();
+  refreshSeatAvatars();   // 头像轮：座位 3D 半身像（独立系统，sig 幂等常态零成本）
 }
 function showActions() {
   const p = G.players[G.turn], bar = $('action-bar');
@@ -2433,6 +2530,13 @@ if (AUTOTEST || qs.get('inspect') === '1') {   // inspect=1：真机路径（SPE
   window.__uno = {
     state: G,
     camInfo: () => ({ pos: camera.position.toArray(), az: rig.az, elev: rig.elev, focusK: rig.focusK, tgt: { x: rig.tgt.x, y: rig.tgt.y, z: rig.tgt.z }, gl: G.gl, lo: document.body.classList.contains('loperf') }),
+    avatars: () => ({   // 头像轮取证：占位纹理天生有 map，loaded/fb 才是真图/程序化脸判据
+      sig: seatAva.sig,
+      seats: seatAva.busts.map(g => {
+        const e = g.userData.faceEntry;
+        return { x: +g.position.x.toFixed(2), y: +g.position.y.toFixed(2), z: +g.position.z.toFixed(2), key: g.userData.faceKey, hasMap: !!(g.children[3] && g.children[3].material.map), loaded: !!(e && e.loaded), fb: !!(e && e.fb) };
+      })
+    }),
     deckN: () => G.deck.length,
     discardTop: () => topCard(),
     forceHand: (i, cards) => { G.players[i].hand = cards.map(cd => ({ ...cd })); if (G.gl) layoutHand(i, true); render2D(); updateHUD(); },

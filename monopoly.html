@@ -1400,6 +1400,116 @@ function wrapLines(ctx, text, maxW) {   // 折行 + 最大 4 行截断（超长�
   if (lines.length >= 4) { const last = lines[3]; if (ctx.measureText(last).width > maxW - 20) { while (last.length > 1 && ctx.measureText(last + '…').width > maxW) last = last.slice(0, -1); } lines[3] = last + '…'; }
   return lines;
 }
+/* ═══ 玩家头像 3D 化（SPEC §1.12）：棋子脸贴片 + 名牌头像。av 源=NETMODE NDOC.players[i].av（game 快照玩家无 av 字段）；
+   纹理缓存独占所有权——名牌另开独立实例 drawImage 重绘，禁共享缓存 tex 过 buildPawns 名牌重建的 dispose 路径 ═══ */
+const faceTexCache = new Map();   // key `${colorIdx}|${uri}`（蚀刻描边色烧进画布，同 av 不同色座必须分键）| `fb:${colorIdx}`（热座程序化脸）→ {tex,canvas,loaded,fb}
+function paintFace(cv, img, colorIdx, hasAv) {   // 256²：真实头像=白底+contain 整图+5px 蚀刻圆裁+玩家色描边（tod circleMask 同语言）；无 av=确定性程序化脸（禁 rng：外环原色/内盘增亮/深色五官，视觉终审定稿参数）
+  const w = cv.width, c = w / 2, ctx = cv.getContext('2d'), pc = PLAYER_COLORS[colorIdx];
+  ctx.clearRect(0, 0, w, w);
+  if (!hasAv) {
+    ctx.fillStyle = pc; ctx.beginPath(); ctx.arc(c, c, c, 0, 7); ctx.fill();
+    ctx.fillStyle = shadeColor(pc, 0.3); ctx.beginPath(); ctx.arc(c, c, c - 11, 0, 7); ctx.fill();
+    ctx.fillStyle = '#1b1430';
+    ctx.beginPath(); ctx.arc(c - 26, c - 14, 9, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(c + 26, c - 14, 9, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#1b1430'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(c, c + 6, 30, 0.4, Math.PI - 0.4); ctx.stroke();
+    return;
+  }
+  ctx.fillStyle = '#f5efe4'; ctx.beginPath(); ctx.arc(c, c, c, 0, 7); ctx.fill();
+  if (img && (img.naturalWidth || img.width)) {   // 无固有尺寸 SVG：宽高 0 → 除 0=Infinity，drawImage 规范性空转（tod naturalWidth 兜底同款）
+    const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+    const s = Math.min(w / iw, w / ih), dw = iw * s, dh = ih * s;
+    ctx.drawImage(img, c - dw / 2, c - dh / 2, dw, dh);
+  }
+  ctx.globalCompositeOperation = 'destination-in';   // 5px 蚀刻内缩圆（×1.075 贴片配 5px 内缩=tod 已验收的月牙余量）
+  ctx.beginPath(); ctx.arc(c, c, c - 5, 0, 7); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.strokeStyle = pc; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(c, c, c - 2.5, 0, 7); ctx.stroke();
+}
+function acquireFaceTex(colorIdx, uri) {
+  const key = uri ? colorIdx + '|' + uri : 'fb:' + colorIdx;
+  let e = faceTexCache.get(key);
+  if (e) return e;
+  const tex = mkTexMip(256, 256, ctx => paintFace(ctx.canvas, null, colorIdx, !!uri));   // 照片类内容要 mip（全景 4-6px 无 mip 必闪烁）——格面/名牌/骰面的 mkTex 禁 mip 契约不动
+  e = { tex, canvas: tex.image, loaded: !uri, fb: !uri };
+  if (uri) {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';   // 必须先于 src 赋值（CDN 回退路径防画布污染；本地 dataURL 无感）
+    img.onload = () => {
+      e.loaded = true; paintFace(e.canvas, img, colorIdx, true); tex.needsUpdate = true;
+      plateSprites.forEach((sp, i) => {   // 等待期没有下一次 updateHUD：已按占位画过的名牌直接补拍真图
+        if (sp && sp.userData.avaKey === key && G.players[i]) repaintPlateAva(i, G.players[i], e, key);
+      });
+    };
+    img.onerror = () => {   // 解码失败/CDN 回退离线：降级程序化脸（终审 P1：保占位=无字空白奶油盘）
+      paintFace(e.canvas, null, colorIdx, false); e.fb = true; tex.needsUpdate = true;
+      plateSprites.forEach((sp, i) => { if (sp && sp.userData.avaKey === key && G.players[i]) repaintPlateAva(i, G.players[i], e, key); });
+    };
+    img.src = uri;
+  }
+  if (faceTexCache.size >= 16) faceTexCache.delete(faceTexCache.keys().next().value);
+  faceTexCache.set(key, e);
+  return e;
+}
+function paintPlate(ctx, w, h, p, avaCanvas) {   // 深色玻璃胶囊 + 玩家色描边（精美化 S5 原样提取）；有头像画 r11 圆头像替代 r9 色点（drawImage 缓存 canvas=独立纹理实例）
+  const pc = PLAYER_COLORS[p.colorIdx];
+  ctx.fillStyle = 'rgba(10,8,20,0.78)';
+  roundRectPath(ctx, 3, 6, w - 6, h - 12, 24); ctx.fill();
+  ctx.strokeStyle = pc; ctx.globalAlpha = 0.9; ctx.lineWidth = 2.5;
+  roundRectPath(ctx, 3, 6, w - 6, h - 12, 24); ctx.stroke();
+  ctx.globalAlpha = 1;
+  if (avaCanvas) {
+    ctx.save();
+    ctx.beginPath(); ctx.arc(22, h / 2, 11, 0, 7); ctx.clip();
+    ctx.drawImage(avaCanvas, 11, h / 2 - 11, 22, 22);
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(22, h / 2, 11, 0, 7); ctx.stroke();
+  } else {
+    ctx.fillStyle = pc;
+    ctx.beginPath(); ctx.arc(22, h / 2, 9, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(22, h / 2, 9, 0, 7); ctx.stroke();
+  }
+  ctx.fillStyle = '#fff'; ctx.font = '700 30px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(truncate(p.name, 4), 38, h / 2 + 1);
+}
+function repaintPlateAva(i, p, e, key) {   // 名牌头像重绘单出口（独立 mkTex 实例 drawImage 缓存 canvas——禁共享缓存 tex 过 buildPawns 名牌重建的 dispose 路径）
+  const sp = plateSprites[i]; if (!sp) return;
+  const old = sp.material.map;
+  sp.material.map = mkTex(256, 64, (ctx, w, h) => paintPlate(ctx, w, h, p, (e.loaded || e.fb) ? e.canvas : null));
+  if (old) old.dispose();
+  sp.userData.avaKey = key + ((e.loaded || e.fb) ? '!ok' : '');
+}
+function syncPawnFaces() {   // updateHUD 尾 diff：avKey 变了才换脸/重绘名牌（心跳幂等常态零成本）；锚 per-pawn userData——buildPawns 每局重跑，模块级 sig 会让第二局裸头
+  if (!G.gl) return;
+  G.players.forEach((p, i) => {
+    const grp = pawnObjs[i]; if (!grp || !grp.userData.faceMat) return;
+    const av = (NETMODE && NDOC && NDOC.players[i] && NDOC.players[i].av) || '';
+    const uri = av ? P.avatarUri(av) : '';
+    const key = uri ? p.colorIdx + '|' + uri : 'fb:' + p.colorIdx;
+    if (grp.userData.faceKey !== key) {
+      grp.userData.faceKey = key;
+      const e = acquireFaceTex(p.colorIdx, uri);
+      if (grp.userData.faceMat.map !== e.tex) { grp.userData.faceMat.map = e.tex; grp.userData.faceMat.needsUpdate = true; }
+    }
+    const sp = plateSprites[i];
+    if (sp) {
+      const e = acquireFaceTex(p.colorIdx, uri);
+      if (sp.userData.avaKey !== key + ((e.loaded || e.fb) ? '!ok' : '')) repaintPlateAva(i, p, e, key);   // 图 decode 完成前先色点/占位（onload 里 repaintPlateAva 直接补拍，不依赖下一次 updateHUD）
+    }
+  });
+}
+function syncPawnFacesFrame() {   // 每帧 yaw-only billboard：脸贴片始终朝相机（idle 环绕/走位跟随/快照回景全活）；只写子组不碰 grp.rotation（W3 倒地写 grp.rotation 互不干扰）
+  if (!camera) return;
+  for (let i = 0; i < pawnObjs.length; i++) {
+    const grp = pawnObjs[i];
+    if (!grp || !grp.visible || !grp.userData.headGrp) continue;
+    grp.userData.headGrp.rotation.y = Math.atan2(camera.position.x - grp.position.x, camera.position.z - grp.position.z);
+  }
+}
 function buildPawns() {
   pawnObjs.forEach(p => { p.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); scene.remove(p); }); pawnObjs = [];
   plateSprites.forEach(s => { if (s.material.map) s.material.map.dispose(); s.material.dispose(); scene.remove(s); }); plateSprites = [];
@@ -1409,31 +1519,24 @@ function buildPawns() {
     const body = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.15, 0.34, 20), mat);
     body.position.y = 0.17; body.castShadow = true;
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.095, 18, 14), mat);
-    head.position.y = 0.4; head.castShadow = true;
-    grp.add(body, head);
+    head.castShadow = true;
+    const headGrp = new THREE.Group();   // 头+脸独立组（头像轮）：billboard yaw 写这里
+    headGrp.position.y = 0.4;
+    const face = new THREE.Mesh(new THREE.SphereGeometry(0.102, 20, 14, Math.PI / 2 - 0.7, 1.4, Math.PI / 2 - 0.7, 1.4),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, alphaTest: 0.5 }));   // 同心贴片 r=头×1.075（tod 月牙边终值）；map 由 syncPawnFaces 挂（挂图后 color 白=map×color 不染）
+    headGrp.add(head, face);
+    grp.add(body, headGrp);
+    grp.userData.headGrp = headGrp; grp.userData.faceMat = face.material; grp.userData.faceKey = '';   // 头像锚（破产淡出/复位的材质同步锚）
     scene.add(grp); pawnObjs[i] = grp;
-    const tex = mkTex(256, 64, (ctx, w, h) => {
-      // 深色玻璃胶囊 + 玩家色描边（精美化 S5：裸白字在浅毡上对比脆弱，终审/取证 vis-x6/x7）
-      const pc = PLAYER_COLORS[p.colorIdx];
-      ctx.fillStyle = 'rgba(10,8,20,0.78)';
-      roundRectPath(ctx, 3, 6, w - 6, h - 12, 24); ctx.fill();
-      ctx.strokeStyle = pc; ctx.globalAlpha = 0.9; ctx.lineWidth = 2.5;
-      roundRectPath(ctx, 3, 6, w - 6, h - 12, 24); ctx.stroke();
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = pc;
-      ctx.beginPath(); ctx.arc(22, h / 2, 9, 0, 7); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(22, h / 2, 9, 0, 7); ctx.stroke();
-      ctx.fillStyle = '#fff'; ctx.font = '700 30px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(truncate(p.name, 4), 38, h / 2 + 1);
-    });
+    const tex = mkTex(256, 64, (ctx, w, h) => paintPlate(ctx, w, h, p, null));   // 头像轮：名牌绘制提取为 paintPlate（syncPawnFaces 重绘同源）
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
     sp.scale.set(0.86, 0.215, 1);
+    sp.userData.avaKey = '';
     scene.add(sp); plateSprites[i] = sp;
     placePawn(i, G.players[i].pos, true);
   });
   layoutPlates();
+  syncPawnFaces();   // 重建自愈：换局/快照重建完立即重挂脸+名牌头像（纹理缓存存活，不等下一次 updateHUD）
 }
 function placePawn(i, tileIdx, instant) {
   const grp = pawnObjs[i]; if (!grp) return;
@@ -1507,6 +1610,7 @@ function updateHUD() {
   syncJailCages();   // E3 监狱铁笼真相同步（keyed 幂等：常态零工作）
   syncHouseLevels();   // E5 盖二楼天际线真相同步（同纪律：真相在 G.owners，动画只做建造拍）
   applyCashStacks();   // W2② 棋子钞堆：updateHUD 末尾对 cash 镜像 diff 增减层（纯视觉层，评审 #11）
+  syncPawnFaces();   // 头像轮：棋子脸贴片+名牌头像 diff（keyed 幂等：常态零工作）
 }
 /* ── E3 监狱铁笼（2026-10-02 全元素 3D 化）：有人服刑 → 监狱格罩铁笼，「谁蹲着」首次上棋盘 ──
    笼心=监狱格格心（终审 P5：勿取活体 pawn 坐标——押送滑行中途会建在半空；半径 0.34<格半宽 0.46 柱底全部落在格顶）；
@@ -3111,6 +3215,7 @@ function tick(now) {
   }
   plateVisibility();
   if (G.gl && scene && !TURBO) syncCashStacksFrame();   // W2② 钞堆每帧锚位跟随棋子（变换唯一写入点；turbo 不画不推）
+  if (G.gl && !TURBO) syncPawnFacesFrame();   // 头像轮：棋子脸 billboard 朝相机（turbo 不渲染早退；REDUCED/bodyLo 保留=朝向不是动画）
   if (!TURBO && !(AUTOTEST && bodyLo) && renderer) renderer.render(scene, camera);   // turbo/loperf=1 只推状态机，不画（软渲每帧 100ms+ 会拖死探针）
   requestAnimationFrame(tick);
 }
@@ -3222,6 +3327,14 @@ if (AUTOTEST || qs.get('inspect') === '1') {   // inspect=1：真机路径（SPE
     map: () => ({ id: CUR_MAP_ID, name: MAPS[CUR_MAP_ID].name, tileNames: TILES.map(t => t.name), prices: TILES.map(t => t.price || 0), groups: GROUPS.map(g => g.color), corner12: TILES[12].name, theme: MAPS[CUR_MAP_ID].theme.label }),   // 多地图探针口（SPEC §1.6c）
     arriveGo: pi => { const p = G.players[pi]; if (p) arriveGo(p); },   // 过/抵起点统一结算直呼（护照集章探针断言口）
     rigSnap: () => ({ az: rig.az, elev: rig.elev, dist: rig.dist, focusK: rig.focusK, autoDist: rig.autoDist, tgt: { x: rig.tgt.x, y: rig.tgt.y, z: rig.tgt.z } }),
+    faces: () => pawnObjs.map((g, i) => {
+      if (!g) return null;
+      const e = faceTexCache.get(g.userData.faceKey);
+      return { i, key: g.userData.faceKey || '', hasMap: !!(g.userData.faceMat && g.userData.faceMat.map), loaded: !!(e && e.loaded), fb: !!(e && e.fb), yaw: g.userData.headGrp ? +g.userData.headGrp.rotation.y.toFixed(3) : null, headY: g.userData.headGrp ? +g.userData.headGrp.position.y.toFixed(3) : null };
+    }),   // 头像轮取证：占位纹理天生有 map，loaded/fb 才是真图/程序化脸判据
+    platesAva: () => plateSprites.map(s => s ? s.userData.avaKey : null),   // 头像轮：名牌头像绘制键（'!ok' 后缀=已用 decode 完成的图重绘）
+    camPos: () => camera.position.toArray(),
+    remapPawns: () => buildPawns(),   // 纹理缓存跨重建存活断言用（acquireFaceTex 独占所有权守卫）
     distAnchor: () => ({ near: G.gl && camera ? nearDist() : 0, base: G.gl && camera ? baseDist() : 0 }),   // 探针用：当前视口的近景/全景锚距
     pawnWorld: () => pawnObjs.map(p => (p ? [p.position.x, p.position.y, p.position.z] : null)),
     net: () => ({ mode: NETMODE, joined, room: NDOC && NDOC.room, myId, doc: NDOC, host: isHost(), myTurn: netIsMyTurn(), mic: P.mic.on(), peers: P.mic.peers(), enter: netEnter, publish: netCkpt, start: netStartGame, ui: syncNetHUD, av: netAvatarHtml, replay: () => ({ busy: replaying || replayQ.length > 0, n: replayCount }) }),
