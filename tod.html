@@ -1233,6 +1233,10 @@
     /* join 屏「← 游戏中心」（ghost 药丸；仅 body.arcade-nav 会话显示） */
     .arcade-back { display: none; margin: 14px auto 0; padding: 7px 15px; border-radius: 999px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.06); color: #fff; font-size: 0.85rem; cursor: pointer; }
     body.arcade-nav .arcade-back { display: inline-block; }
+    /* 窄屏：药丸在 join 表单之后=折叠线下不可见（取证 quit-tod-join-p y1019）——钉右上角常驻可见（bombcat lnk-arcade 同语言） */
+    @media (max-width: 700px) {
+      body.arcade-nav .arcade-back { position: fixed; top: calc(max(10px, env(safe-area-inset-top)) + 6px); right: 12px; margin: 0; z-index: 40; }
+    }
 
     /* 低端设备降载：砍背景动效与毛玻璃（paint 大户） */
     body.loperf .orb { animation: none; opacity: 0.3; }
@@ -1711,6 +1715,7 @@
       <button class="btn btn-secondary only-host" id="btn-finish-game" style="font-size:0.8rem;padding:6px 14px">🏁 结算</button>
       <button class="btn btn-secondary only-host" id="btn-end-game" style="font-size:0.8rem;padding:6px 14px">🔙 回到大厅</button>
       <button class="btn btn-secondary" id="btn-resync" style="font-size:0.8rem;padding:6px 14px" title="平时不用按；画面或名单卡住时再点">🔄 修复同步</button>
+      <button class="btn btn-secondary" id="btn-home-game" style="font-size:0.8rem;padding:6px 14px" title="前往游戏中心（返回后可从 tod 卡片再进，自动回房）">🏠 游戏中心</button>
       <button class="btn btn-secondary" id="btn-leave-game" style="font-size:0.8rem;padding:6px 14px">🚪 退出房间</button>
     </div>
   </div>
@@ -6559,6 +6564,7 @@ $('btn-leave-game').addEventListener('click', doLeave);
 function warpBackTicket() { try { localStorage.setItem('tod:warp-back', JSON.stringify({ t: Date.now() })); } catch (e) {} }
 $('btn-arcade-back').addEventListener('click', () => { warpBackTicket(); location.href = 'index.html'; });
 $('btn-home-lobby').addEventListener('click', () => { warpBackTicket(); location.href = 'index.html'; });
+$('btn-home-game').addEventListener('click', () => { warpBackTicket(); location.href = 'index.html'; });   // 对局工具行入口（取证：对局原本无游戏中心按钮）
 $('btn-home-result').addEventListener('click', () => { warpBackTicket(); location.href = 'index.html'; });
 $('card-truth').addEventListener('click', () => choose('truth'));
 $('card-dare').addEventListener('click', () => choose('dare'));

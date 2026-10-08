@@ -66,7 +66,6 @@
   .mfloat { position: absolute; left: 50%; top: -4px; transform: translateX(-50%); font-weight: 800; font-size: 0.9rem; pointer-events: none; animation: mfloat-up 0.8s ease-out forwards; text-shadow: 0 1px 0 rgba(0,0,0,0.9), 0 -1px 0 rgba(0,0,0,0.9), 1px 0 0 rgba(0,0,0,0.9), -1px 0 0 rgba(0,0,0,0.9), 0 2px 8px rgba(0,0,0,0.8); }   /* 精美化 S7：四向描边防压格面字时糊掉 */
   @keyframes mfloat-up { from { opacity: 1; margin-top: 0; } to { opacity: 0; margin-top: -26px; } }
   #round-chip { position: fixed; top: calc(max(8px, env(safe-area-inset-top)) + 8px); right: 10px; z-index: 31; font-size: 0.72rem; padding: 4px 10px; border-radius: 999px; background: rgba(10,10,26,0.72); border: 1px solid var(--glass-border); }
-  #btn-quit, #btn-rules-top, #btn-sfx { position: fixed; z-index: 31; top: auto; }
   #hud-tools { position: fixed; right: 10px; top: calc(max(8px, env(safe-area-inset-top)) + 38px); z-index: 31; display: flex; flex-direction: column; gap: 6px; }
   #hud-tools button { width: 38px; height: 38px; border-radius: 12px; border: 1px solid var(--glass-border); background: rgba(10,10,26,0.72); color: #fff; font-size: 1rem; cursor: pointer; }
   #hud-tools button:active { transform: scale(0.94); }
