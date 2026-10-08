@@ -29,13 +29,34 @@
 
   #loader { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; background: var(--bg); transition: opacity 0.26s ease, transform 0.26s ease; }
   #loader.reveal-done { pointer-events: none; }
-  .loader-box { text-align: center; }
-  .loader-ico { font-size: 52px; animation: loader-bob 1.2s ease-in-out infinite alternate; }
-  @keyframes loader-bob { from { transform: translateY(0) rotate(-6deg); } to { transform: translateY(-10px) rotate(6deg); } }
-  .loader-box h2 { font-size: 1.3rem; margin: 8px 0 4px; }
-  .loader-box p { font-size: 0.82rem; color: rgba(255,255,255,0.6); min-height: 1.2em; }
-  .loader-bar { width: 180px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.12); margin: 14px auto 0; overflow: hidden; }
-  .loader-bar i { display: block; height: 100%; width: 0; border-radius: 2px; background: linear-gradient(90deg, var(--accent-cyan), var(--primary)); transition: width 0.3s ease; }
+  /* 加载重设计（加载动画轮）：三卡扇洗牌 + 射灯背景 + 精修进度条；REDUCED/loperf 静态退路在 REDUCED 块 */
+  #loader::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 72% 46% at 50% 42%, rgba(170,60,80,0.16), transparent 72%); pointer-events: none; }
+  .fan-stage { position: relative; width: 130px; height: 84px; margin: 0 auto; }
+  .fan-card { position: absolute; left: 50%; bottom: 10px; width: 42px; height: 58px; margin-left: -21px; border-radius: 7px; box-shadow: 0 6px 16px rgba(0,0,0,0.45); transform-origin: 50% 118%; }
+  .fan-card::before { content: ''; position: absolute; inset: 3px; border-radius: 5px; border: 2px solid rgba(255,255,255,0.9); }
+  .fan-card::after { content: ''; position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: rgba(255,255,255,0.92); }
+  .fan-card.c1 { background: linear-gradient(150deg, #ef4444, #b91c1c); }
+  .fan-card.c2 { background: linear-gradient(150deg, #fbbf24, #d97706); animation: fan-shuf-mid 1.9s ease-in-out infinite; z-index: 2; }
+  .fan-card.c3 { background: linear-gradient(150deg, #3b82f6, #1d4ed8); }
+  .fan-card.c1 { transform: rotate(-17deg) translateX(-9px); animation: fan-shuf-l 1.9s ease-in-out infinite; }
+  .fan-card.c3 { transform: rotate(17deg) translateX(9px); animation: fan-shuf-r 1.9s ease-in-out infinite; }
+  @keyframes fan-shuf-l {
+    0%, 12%, 58%, 100% { transform: rotate(-17deg) translateX(-9px) translateY(0); }
+    28%, 42% { transform: rotate(-4deg) translateX(-22px) translateY(-12px); }
+  }
+  @keyframes fan-shuf-mid {
+    0%, 12%, 58%, 100% { transform: rotate(0deg) translateY(0); }
+    28%, 42% { transform: rotate(2deg) translateY(-14px); }
+  }
+  @keyframes fan-shuf-r {
+    0%, 12%, 58%, 100% { transform: rotate(17deg) translateX(9px) translateY(0); }
+    28%, 42% { transform: rotate(5deg) translateX(24px) translateY(-8px); }
+  }
+  .loader-box h2 { font-size: 1.3rem; margin: 8px 0 4px; letter-spacing: 7px; text-indent: 7px; text-shadow: 0 2px 20px rgba(239,68,68,0.4); }
+  .loader-box p { font-size: 0.82rem; color: rgba(255,255,255,0.6); min-height: 1.2em; animation: loader-p-pulse 1.6s ease-in-out infinite; }
+  @keyframes loader-p-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+  .loader-bar { width: 200px; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.10); box-shadow: inset 0 1px 2px rgba(0,0,0,0.5); margin: 14px auto 0; overflow: hidden; }
+  .loader-bar i { display: block; height: 100%; width: 0; border-radius: 3px; background: linear-gradient(90deg, var(--accent-cyan), var(--primary)); box-shadow: 0 0 12px rgba(34,211,238,0.6); transition: width 0.3s ease; }
   /* warp-in arrival（W1③）：从游戏中心点卡起飞落地——boot 读 tod:warp 票后由 JS 挂类（读后即删）。
      纯 CSS scale 1.5→1 + uno 主题色 glow 一闪 400ms；揭幕时序零改动；无票/过期/g 不匹配=现状零改动。 */
   .loader-box.warp-in { animation: warp-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
@@ -179,16 +200,24 @@
   .d2-pile { font-size: 0.76rem; color: rgba(255,255,255,0.65); text-align: center; }
 
   @media (prefers-reduced-motion: reduce) {
-    .loader-ico, .pchip.active, #result-veil, #result-winner, .pod, #btn-uno.show, #dir-chip .dico, #wild-modal .panel { animation: none !important; transition: none !important; }
+    .fan-card, .loader-box p, .pchip.active, #result-veil, #result-winner, .pod, #btn-uno.show, #dir-chip .dico, #wild-modal .panel { animation: none !important; transition: none !important; }
     .loader-box.warp-in, #uno-canvas, #result-confetti i { animation: none !important; }
     #result-confetti { display: none; }
     .hcard.sel { transition: none; }   /* 贴桌轮:抬起是看全脸的功能载体,REDUCED 只去过渡、保留位移 */
+    .fan-card, .loader-box p { animation: none !important; }
+    .fan-card.c1 { transform: rotate(-17deg) translateX(-9px); }
+    .fan-card.c2 { transform: rotate(0deg); }
+    .fan-card.c3 { transform: rotate(17deg) translateX(9px); }   /* REDUCED 静态定帧：三卡成扇 */
     .pchip.active { box-shadow: 0 0 0 1.5px var(--accent-cyan); }
     .pod { opacity: 1; transform: none; }
     #loader { transition: none; }
   }
   body.loperf .pchip.active { animation: none; box-shadow: 0 0 0 1.5px var(--accent-cyan); }
   body.loperf .loader-box.warp-in, html.turbo .loader-box.warp-in { animation: none; }   /* warp-in 低性能/探针档静态退路 */
+  body.loperf .fan-card, body.loperf .loader-box p { animation: none; }
+  body.loperf .fan-card.c1 { transform: rotate(-17deg) translateX(-9px); }
+  body.loperf .fan-card.c2 { transform: rotate(0deg); }
+  body.loperf .fan-card.c3 { transform: rotate(17deg) translateX(9px); }
   body.loperf #result-veil { display: none; }
   body.loperf .pchip, body.loperf .btn-sub, body.loperf .btn-main, body.loperf .ovl, body.loperf #toast, body.loperf #hand-ovl { backdrop-filter: none; -webkit-backdrop-filter: none; }
   body.loperf .pod { opacity: 1; transform: none; animation: none; }
@@ -210,7 +239,11 @@
 
 <div id="loader">
   <div class="loader-box">
-    <div class="loader-ico">🃏</div>
+    <div class="fan-stage" aria-hidden="true">
+      <div class="fan-card c1"></div>
+      <div class="fan-card c2"></div>
+      <div class="fan-card c3"></div>
+    </div>
     <h2>UNO</h2>
     <p id="loader-text">洗牌中...</p>
     <div class="loader-bar"><i id="loader-bar"></i></div>
