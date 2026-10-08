@@ -36,6 +36,10 @@
   .loader-box p { font-size: 0.82rem; color: rgba(255,255,255,0.6); min-height: 1.2em; }
   .loader-bar { width: 180px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.12); margin: 14px auto 0; overflow: hidden; }
   .loader-bar i { display: block; height: 100%; width: 0; border-radius: 2px; background: linear-gradient(90deg, var(--accent-cyan), var(--primary)); transition: width 0.3s ease; }
+  /* warp-in arrival（W1③）：从游戏中心点卡起飞落地——boot 读 tod:warp 票后由 JS 挂类（读后即删）。
+     纯 CSS scale 1.5→1 + uno 主题色 glow 一闪 400ms；揭幕时序零改动；无票/过期/g 不匹配=现状零改动。 */
+  .loader-box.warp-in { animation: warp-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+  @keyframes warp-in { from { transform: scale(1.5); filter: drop-shadow(0 0 26px rgba(239,68,68,0.85)); } to { transform: scale(1); filter: drop-shadow(0 0 0 rgba(239,68,68,0)); } }
 
   #uno-canvas { position: fixed; inset: 0; z-index: 0; display: block; width: 100%; height: 100%; touch-action: none; }
   body.gl-off #uno-canvas { display: none; }
@@ -176,7 +180,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     .loader-ico, .pchip.active, #result-veil, #result-winner, .pod, #btn-uno.show, #dir-chip .dico, #wild-modal .panel { animation: none !important; transition: none !important; }
-    #uno-canvas, #result-confetti i { animation: none !important; }
+    .loader-box.warp-in, #uno-canvas, #result-confetti i { animation: none !important; }
     #result-confetti { display: none; }
     .hcard.sel { transition: none; }   /* 贴桌轮:抬起是看全脸的功能载体,REDUCED 只去过渡、保留位移 */
     .pchip.active { box-shadow: 0 0 0 1.5px var(--accent-cyan); }
@@ -184,6 +188,7 @@
     #loader { transition: none; }
   }
   body.loperf .pchip.active { animation: none; box-shadow: 0 0 0 1.5px var(--accent-cyan); }
+  body.loperf .loader-box.warp-in, html.turbo .loader-box.warp-in { animation: none; }   /* warp-in 低性能/探针档静态退路 */
   body.loperf #result-veil { display: none; }
   body.loperf .pchip, body.loperf .btn-sub, body.loperf .btn-main, body.loperf .ovl, body.loperf #toast, body.loperf #hand-ovl { backdrop-filter: none; -webkit-backdrop-filter: none; }
   body.loperf .pod { opacity: 1; transform: none; animation: none; }
@@ -393,6 +398,7 @@ const SFX = (() => {
       else { tone(480, 720, 0.08, 'triangle', 0.15); }   // skip：上行短促
     },
     wildOpen() { tone(320, 560, 0.1, 'sine', 0.1); tone(480, 840, 0.12, 'sine', 0.08, 0.05); },   // 选色弹窗：五度上行轻扫
+    wildPick() { tone(420, 640, 0.07, 'triangle', 0.15); tone(640, 980, 0.1, 'triangle', 0.13, 0.06); tone(980, 1280, 0.12, 'sine', 0.1, 0.13); },   // GL 选色一镜:色球点选三连上行落定
     colorShift() { tone(520, 780, 0.07, 'sine', 0.12); tone(780, 1040, 0.09, 'sine', 0.1, 0.06); },   // 变色落定：两连上滑
     // 连麦压低（duck）：连麦模块在开麦/收听时调用
     duckMusic(f, ms = 300) {
@@ -478,6 +484,7 @@ function gameSnapshot() {
 // 远端棋局快照 → 本地 G（静态重绘，不播动画；喊名窗口是本地计时态不随快照走）
 function applyGameSnapshot(g, doc) {
   if (TURBO || !g || !Array.isArray(g.players)) return;
+  wildGLCancel();   // 快照重建收口:GL 选色会话退役清闸门(状态未写,扇形按快照自会重摆;若仍轮到本端,重新点 wild 再选)
   const prevPhase = G.phase, prevTurn = G.turn;
   const prevDiscard = G.discard, prevHands = G.players.map(p => p ? p.hand.length : -1);
   G.phase = g.phase;
@@ -1225,8 +1232,8 @@ function updateHUD() {
   $('hud-tools').hidden = G.phase === 'BOOT' || G.phase === 'SETUP' || G.phase === 'OVER';
   const ah = document.getElementById('act-hand');   // 摸牌/被罚摸后动作条不重渲,手牌计数在这里同步(否则 HUD 8张 vs 按钮「手牌(7)」同屏矛盾)
   if (ah && G.players[G.turn]) ah.textContent = '🃏 手牌(' + G.players[G.turn].hand.length + ')';
-  // 3D 弃牌堆顶牌同步:开局首翻/重连快照/常规出牌全覆盖;飞牌在途时跳过(落地回调自己换)
-  if (G.gl && pileMesh && G.discard.length && !pileMesh._flying) {
+  // 3D 弃牌堆顶牌同步:开局首翻/重连快照/常规出牌全覆盖;飞牌在途时跳过(落地回调自己换);GL 选色悬念期 _heldCd 闸住(状态未写,顶牌视觉=wild 本尊)
+  if (G.gl && pileMesh && G.discard.length && !pileMesh._flying && !pileMesh._heldCd) {
     const m = pileMesh.children[1].material, t = cardFaceTex(topCard());
     if (m.map !== t) { m.map = t; m.needsUpdate = true; }
     pileMesh.children[1].visible = true;   // visible 不进 map 分支:首翻恰为红3(=占位同键)时也要点亮
@@ -1396,6 +1403,7 @@ function nextIdx(from) {
 }
 
 function startGame(cfg) {
+  wildGLCancel();   // 新局收口:GL 选色会话退役清闸门
   G.mode = cfg.mode; G.skipHandoff = cfg.skipHandoff;
   G.players = cfg.players.map((p, i) => ({ name: p.name, bot: !!p.bot, colorIdx: i, hand: [] }));
   G.deck = shuffle(buildDeck());
@@ -1479,7 +1487,7 @@ function advance(extraSkip) {
   beginTurn();
 }
 
-async function playCard(pi, k, chosenColor) {
+async function playCard(pi, k, chosenColor, opts) {
   const p = G.players[pi];
   const cd = p.hand[k];
   if (!cd) return;
@@ -1494,7 +1502,11 @@ async function playCard(pi, k, chosenColor) {
   G.discard.push(cd);
   if (G.gl) {
     layoutHand(pi, true);
-    if (gFly && !REDUCED && !bodyLo && !TURBO) flyGroupToPile(gFly);
+    if (opts && opts.glSkipFly) {   // GL 选色一镜:wild 悬念期已落堆,这里只把堆顶面钉回真顶牌(不重播落堆音效/回弹)
+      pileMesh.children[1].material.map = cardFaceTex(topCard());
+      pileMesh.children[1].material.needsUpdate = true;
+    }
+    else if (gFly && !REDUCED && !bodyLo && !TURBO) flyGroupToPile(gFly);
     else { if (gFly) { scene.remove(gFly); disposeCard(gFly); } flyToPile(pi, seatPos(pi)); }   // seat 必传:联机 bot 行动时 pi≠南位,flyToPile 非南分支要读 seat
     glanceAside(pi);
   }
@@ -1551,6 +1563,7 @@ function dealTo(p, n) {
   return got;
 }
 async function humanDraw() {
+  if (wildGLSess.active) return;   // #14 闸门:选色期摸牌冻结(色球点击竞态会 splice 错牌/G.cur 错色)
   if (G.phase !== 'AWAIT_ACTION' || (NETMODE && !netIsMyTurn())) return;
   const p = G.players[G.turn];
   G.phase = 'ANIMATING'; hideActions();
@@ -1575,6 +1588,7 @@ async function humanDraw() {
   setTimeout(() => advance(0), 400 * SPEED);
 }
 function doPass() {
+  if (wildGLSess.active) return;   // #14 闸门同判:选色期过牌会把视觉已落堆的 wild 留在状态里
   if (G.phase !== 'AWAIT_ACTION' || !G.drawnThisTurn || (NETMODE && !netIsMyTurn())) return;
   tableSel = null;   // 过牌=放弃本回合,选中作废(下回合 placeHandCards !iAct 也会兜底清)
   G.passStreak++;
@@ -1585,12 +1599,14 @@ function doPass() {
   setTimeout(() => advance(0), 350 * SPEED);
 }
 function humanPlay(k) {
+  if (wildGLSess.active) return;   // #14 闸门:选色期不出牌
   const p = G.players[G.turn], cd = p.hand[k];
   if (!cd || G.phase !== 'AWAIT_ACTION' || !canPlay(cd) || (NETMODE && !netIsMyTurn())) { toast('🚫 这张现在出不了', 'error'); return; }
   tableSel = null; syncPlayBtn();   // 贴桌轮:确认打出即落选(选色弹窗期间牌已收下)
   G.passStreak = 0;
   G.lastHumanActor = G.turn;
   if (isWild(cd)) {
+    if (wildGLWanted()) { startWildGLPick(G.turn, k, cd); return; }   // GL 选色一镜(真人路径;AUTOTEST/inspect/退路恒走 DOM 弹窗 #15)
     openWild(c2 => playCard(G.turn, k, c2));
     return;
   }
@@ -1603,6 +1619,151 @@ function openWild(cb) {
   [...m2.querySelectorAll('.wbtn')].forEach(b => {
     b.onclick = () => { SFX.tap(); m2.hidden = true; cb(b.dataset.c); };
   });
+}
+
+/* ═══ GL 选色一镜（2026-10-02 3D 全场轮 W3）：本端真人打 wild → 牌照常落堆，落定后四颗色球从弃牌堆上空绽放 ═══
+   #14(P0) 输入闸门：选色期 pickHand/humanDraw/humanPlay(含 doPass) 同判 wildGLSess.active——document 级点击只认色球；
+   完成/退役清标志回落 DOM。#15 探针兼容：AUTOTEST/inspect 恒走 DOM #wild-modal（probe-uno/uno-net/persona 等零改动），
+   ?wildgl=1 探针强开 GL 路径。#3 视觉持有：复用 flyGroupToPile 的 splice 摘出——选色期 wild 牌的组从手牌扇摘出
+   但状态不写（G.discard/手牌数组不动），选色完成才 playCard 落状态，防扇形重建复活重复牌。 */
+const wildGLQS = qs.get('wildgl') === '1';
+const wildGLSess = { active: false, done: true, pi: -1, k: -1, cd: null, grp: null, balls: [], pendingAuto: null, bloomT: 0, epoch: 0 };
+function wildGLWanted() {   // GL 选色准入:真人默认路径;AUTOTEST/inspect 恒 DOM(#15);REDUCED/bodyLo/GL-off 退路 DOM;?wildgl=1 探针强开(仅 REDUCED/TURBO 退回)
+  if (!G.gl || !pileMesh) return false;
+  if (wildGLQS) return !REDUCED && !TURBO;
+  return !AUTOTEST && qs.get('inspect') !== '1' && !REDUCED && !bodyLo && !TURBO;
+}
+function wildGLCancel() {   // 退役/换局/快照重建收口:清闸门回落 DOM 语义,视觉持有物退场(状态未写,扇形自会按 G 重摆;在途落状态回调按 epoch 作废)
+  const s = wildGLSess;
+  if (!s.active && !s.balls.length) return;
+  s.active = false; s.done = true; s.pendingAuto = null; s.epoch++;
+  s.balls.forEach(b => { scene.remove(b.grp); b.mesh.geometry.dispose(); b.mesh.material.dispose(); b.hit.geometry.dispose(); b.hit.material.dispose(); });
+  s.balls = [];
+  if (pileMesh) pileMesh._heldCd = null;
+  if (s.grp) { scene.remove(s.grp); disposeCard(s.grp); s.grp = null; }
+}
+function startWildGLPick(pi, k, cd) {
+  const s = wildGLSess;
+  wildGLCancel();   // 防御:上一会话残留先收干净
+  const gi = cardGroups.findIndex(e => e.owner === pi && e.cardRef === cd);
+  s.grp = gi >= 0 ? cardGroups.splice(gi, 1)[0].group : null;   // #3 视觉持有:组摘出,手牌数据不写
+  s.active = true; s.done = false; s.pi = pi; s.k = k; s.cd = cd; s.balls = []; s.pendingAuto = null;
+  pileMesh._heldCd = cd;   // 堆面同步闸:选色期 updateHUD 不把堆顶刷回旧顶牌
+  clearTimeout(rig._glT);   // #16:掐掉上一位对手 glanceAside 的回程定时,防推镜被拽走
+  toast('🌈 选个颜色——点桌上的色球');
+  if (s.grp && !REDUCED && !bodyLo && !TURBO) flyWildToPile(s.grp, cd);
+  else {   // 降级档:免飞行,堆面直接钉 wild 脸后绽放(动画层静态退路,闸门/状态时序不变)
+    if (s.grp) { scene.remove(s.grp); disposeCard(s.grp); s.grp = null; }
+    pileLanded(cd);
+    bloomWildBalls();
+  }
+}
+function flyWildToPile(g, cd) {   // 一镜选色:wild 实体卡从扇位/抬起位连续飞向牌堆;落定堆面直接钉 wild 脸(状态未写,topCard 还是旧牌),随后色球绽放
+  pileMesh._flying = true;
+  const from = { x: g.position.x, y: g.position.y, z: g.position.z, rx: g.rotation.x, rz: g.rotation.z, s: g.scale.x };
+  const to = { x: pileMesh.position.x, y: 0.4, z: pileMesh.position.z };
+  const t0 = performance.now(), dur = 380;
+  const step = now => {
+    if (!wildGLSess.active || wildGLSess.grp !== g) { scene.remove(g); disposeCard(g); return; }   // 会话被退役收口:飞行即停,不再落堆
+    const kk = Math.min(1, (now - t0) / dur), e = kk * kk * (3 - 2 * kk);
+    g.position.set(from.x + (to.x - from.x) * e, from.y + Math.sin(kk * Math.PI) * 0.22 + (to.y - from.y) * e, from.z + (to.z - from.z) * e);
+    g.rotation.x = from.rx + (-Math.PI / 2 + 0.42 - from.rx) * e;
+    g.rotation.z = from.rz * (1 - e);
+    g.scale.setScalar(from.s + (1 - from.s) * e);
+    if (kk < 1) requestAnimationFrame(step);
+    else { wildGLSess.grp = null; scene.remove(g); disposeCard(g); pileLanded(cd); bloomWildBalls(); }
+  };
+  requestAnimationFrame(step);
+}
+function bloomWildBalls() {   // 色球绽放:四颗自发光球(r0.22 红/黄/绿/蓝)在弃牌堆上空南位浅弧一字排开,scale 0→1 错峰 60ms+呼吸,绽放即受理点击
+  const s = wildGLSess;
+  if (!s.active || s.done || !scene || !pileMesh) return;
+  const px = pileMesh.position.x, pz = pileMesh.position.z;
+  const arr = ['r', 'y', 'g', 'b'].map((c, i) => {
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.22, 20, 14),
+      new THREE.MeshStandardMaterial({ color: COLORS[c], emissive: new THREE.Color(COLORS[c]), emissiveIntensity: 0.85, roughness: 0.35 })
+    );
+    const hit = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 6), new THREE.MeshBasicMaterial({ visible: false }));   // 加大隐形 raycast 面(触屏软半径;bombcat 牌库 34px 先例;r128 raycast 不看 visible)
+    hit.userData.wildColor = c;
+    const grp = new THREE.Group(); grp.add(mesh, hit);
+    const off = -0.9 + i * 0.6;   // 南位镜头前一字浅弧
+    grp.position.set(px + off * 0.78, 1.04 + Math.abs(off) * 0.1, pz + 0.42 + (1 - Math.abs(off)) * 0.18);
+    grp.scale.setScalar(0.001);
+    scene.add(grp);
+    return { c, grp, mesh, hit };
+  });
+  s.balls = arr;
+  SFX.wildOpen();   // 绽放配音(原选色弹窗音顺势承接)
+  clearTimeout(rig._glT);   // #16:推镜前再掐一次回程定时
+  camTo({ focusK: 0.9 }, 460);   // 本方回合合规:镜头顺路轻推弃牌堆(与点牌抬起同档推量)
+  const t0 = performance.now(), myBloom = ++s.bloomT;
+  const step = now => {
+    if (!s.active || s.done || s.bloomT !== myBloom) return;   // 会话结束/点选收缩接管:呼吸让位
+    arr.forEach((b, i) => {
+      const t = (now - t0 - i * 60) / 260;
+      b.grp.scale.setScalar(Math.max(0.001, t >= 1 ? 1 + Math.sin(now / 420 + i * 1.3) * 0.06 : t <= 0 ? 0 : t * t * (3 - 2 * t)));   // 绽放后 ±6% 呼吸
+    });
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+  if (s.pendingAuto != null) { const c = s.pendingAuto; s.pendingAuto = null; setTimeout(() => { if (s.active && !s.done) chooseWildColor(c); }, 420); }   // #15 钩子保活:暂存色在色球武装后自动消费
+}
+function wildGLHitTest(cx, cy) {   // 色球 raycast 命中检测(pickWildBall 与探针口共用;返回色键或 null)
+  const s = wildGLSess;
+  if (!s.active || s.done || !s.balls.length) return null;
+  const r = $('uno-canvas').getBoundingClientRect();
+  ndc.x = ((cx - r.left) / r.width) * 2 - 1;
+  ndc.y = -((cy - r.top) / r.height) * 2 + 1;
+  ray.setFromCamera(ndc, camera);
+  camera.updateMatrixWorld();   // 后台页 rAF 冻结时 matrixWorld 停在旧帧,拾取前强制同步(pickHand 同款)
+  s.balls.forEach(b => b.grp.updateMatrixWorld(true));
+  const hits = ray.intersectObjects(s.balls.map(b => b.hit), false);
+  return hits.length ? (hits[0].object.userData.wildColor || null) : null;
+}
+function pickWildBall(ev) {   // 选色期点击只认色球(#14):未命中直接忽略,绝不落回手牌/牌库/空白路由
+  const c = wildGLHitTest(ev.clientX, ev.clientY);
+  if (c) chooseWildColor(c);
+}
+function chooseWildColor(c) {   // 点色球:选中球缩入堆顶+堆顶 emissive 染色,300ms 后 playCard 落状态(闸门覆盖到 playCard 落 ANIMATING 为止)
+  const s = wildGLSess;
+  if (!s.active || s.done) return;
+  s.done = true;
+  SFX.wildPick();
+  const pileTop = new THREE.Vector3(pileMesh.position.x, 0.5, pileMesh.position.z);
+  const chosen = s.balls.find(b => b.c === c);
+  if (pileMesh) {   // 堆顶 emissive 染色:随选色点亮 1s 缓熄(playCard 落定后 setColor 的色环脉冲/涟漪接力)
+    const mat = pileMesh.children[1].material, tintC = new THREE.Color(COLORS[c]), t1 = performance.now();
+    const tint = now => {
+      const kk = Math.min(1, (now - t1) / 1000);
+      mat.emissive.copy(tintC).multiplyScalar(0.6 * (1 - kk));
+      if (kk < 1 && pileMesh.children[1].material === mat) requestAnimationFrame(tint);
+      else mat.emissive.setRGB(0, 0, 0);
+    };
+    requestAnimationFrame(tint);
+  }
+  s.balls.forEach(b => {
+    const from = b.grp.position.clone(), t2 = performance.now(), dur = b === chosen ? 280 : 200;
+    const step = now => {
+      const kk = Math.min(1, (now - t2) / dur), e = kk * kk * (3 - 2 * kk);
+      if (b === chosen) b.grp.position.lerpVectors(from, pileTop, e);   // 选中球缩入堆顶
+      b.grp.scale.setScalar(Math.max(0.001, 1 - e));   // 其余球原地收敛
+      if (kk < 1) requestAnimationFrame(step);
+      else { scene.remove(b.grp); b.mesh.geometry.dispose(); b.mesh.material.dispose(); b.hit.geometry.dispose(); b.hit.material.dispose(); }
+    };
+    requestAnimationFrame(step);
+  });
+  s.balls = [];
+  clearTimeout(rig._glT);
+  rig._glT = setTimeout(() => camTo({ az: 0, focusK: 1 }, 380), 140);   // 选色落定收镜回全景(glanceAside 同语言)
+  const myE = s.epoch;
+  setTimeout(() => {
+    if (!s.active || s.epoch !== myE) return;   // 期间被退役/换局收口:落状态作废(状态未写,无脏面)
+    if (pileMesh) pileMesh._heldCd = null;
+    const pi = s.pi, k = s.k;
+    s.active = false;   // 闸门解除与 playCard 同步帧:phase=ANIMATING 立刻接管输入路由
+    playCard(pi, k, c, { glSkipFly: true });   // wild 已在悬念期落堆:只落状态+结算,复用 playCard 后半程(引擎时序零改动)
+  }, 300);
 }
 
 /* UNO 喊名窗口 */
@@ -1809,11 +1970,11 @@ function pileDust() {   // 落堆尘埃：一圈暖色微粒扩散淡出，一�
   };
   requestAnimationFrame(step);
 }
-function pileLanded() {   // 落堆既有效果:顶牌换面+亮正面+随机压角+「啪」+回弹+尘埃
+function pileLanded(forceCd) {   // 落堆既有效果:顶牌换面+亮正面+随机压角+「啪」+回弹+尘埃;forceCd=GL 选色悬念期的 wild 本尊(状态未写,topCard 还是旧牌)
   pileMesh._flying = false;   // 先清在途标志:updateHUD 的同步立即恢复接管
   pileMesh.children[1].visible = true;
   pileMesh.children[0].visible = false;   // 正面点亮后背面隐藏:消除共面双绘
-  pileMesh.children[1].material.map = cardFaceTex(topCard());   // 取当下顶牌:重叠飞行/延迟落地自动纠到最新
+  pileMesh.children[1].material.map = cardFaceTex(forceCd || topCard());   // 取当下顶牌:重叠飞行/延迟落地自动纠到最新
   pileMesh.children[1].material.needsUpdate = true;
   pileMesh.rotation.z = (rnd() - 0.5) * 0.5;
   SFX.slam(); pileBounce(); pileDust();   // 落堆「啪」+ 下沉回弹 + 尘埃（动效在 REDUCED/bodyLo/TURBO 自动跳过，音效不占帧）
@@ -1987,7 +2148,7 @@ $('btn-start').addEventListener('click', () => {
   try { localStorage.setItem('uno:names', JSON.stringify(players.map(p => p.name))); } catch (e) {}
   startGame({ players, mode: $('opt-light').checked ? 'light' : 'dark', skipHandoff: $('skip-handoff').checked });
 });
-$('btn-back-arcade').addEventListener('click', () => { location.href = 'index.html'; });
+$('btn-back-arcade').addEventListener('click', () => { warpBackTicket(); location.href = 'index.html'; });
 $('skip-handoff').addEventListener('change', () => { try { localStorage.setItem('uno:nohandoff', $('skip-handoff').checked ? '1' : '0'); } catch (e) {} });
 
 function openGenModal(bodyHtml, actions) {
@@ -2017,7 +2178,7 @@ $('btn-rules-top').addEventListener('click', () => openGenModal(RULES_HTML, [{ l
 $('btn-quit').addEventListener('click', () => {
   const inGame = G.phase !== 'SETUP' && G.phase !== 'OVER' && G.phase !== 'BOOT';
   openGenModal(`<p style="line-height:1.8">${inGame ? '对局已自动保存，下次进入可继续。<br>确定离开？' : '返回游戏中心？'}</p>`,
-    [{ label: '确定离开', fn: () => { location.href = 'index.html'; } }, { label: '继续玩', fn: closeGenModal }]);
+    [{ label: '确定离开', fn: () => { warpBackTicket(); location.href = 'index.html'; } }, { label: '继续玩', fn: closeGenModal }]);
 });
 $('btn-sfx').addEventListener('click', () => { $('btn-sfx').textContent = SFX.toggle() ? '🔊' : '🔇'; });
 $('btn-sfx').textContent = SFX.on ? '🔊' : '🔇';
@@ -2034,11 +2195,12 @@ $('btn-rematch').addEventListener('click', () => {
   const cfg = { players: G.players.map(p => ({ name: p.name, bot: p.bot })), mode: G.mode, skipHandoff: G.skipHandoff, firstPlayer: G.winner != null ? G.winner : rint(G.players.length), seed: (Math.random() * 0xffffffff) >>> 0 };
   startGame(cfg);
 });
-$('btn-result-home').addEventListener('click', () => { location.href = 'index.html'; });
+$('btn-result-home').addEventListener('click', () => { warpBackTicket(); location.href = 'index.html'; });
 
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
 function pickHand(ev) {
   if (!G.gl) return;
+  if (wildGLSess.active) { pickWildBall(ev); return; }   // #14 闸门:选色期 document 级点击只认色球(手牌/牌库/空白全不受理)
   const si = NETMODE ? netSeatOf(myId) : G.turn;   // 点的是「自己常驻南位的手牌」;联机下不管轮到谁
   if (si == null || si < 0) return;
   if (NETMODE && !netIsMyTurn()) return;
@@ -2132,6 +2294,7 @@ async function boot() {
   }
 }
 function resumeGame(sv) {
+  wildGLCancel();   // 续局收口:GL 选色会话退役清闸门
   G.mode = sv.mode; G.skipHandoff = sv.skipHandoff;
   G.players = sv.players.map((p, i) => ({ name: p.name, bot: p.bot, colorIdx: p.colorIdx != null ? p.colorIdx : i, hand: p.hand.map(cd => ({ ...cd })) }));
   G.deck = sv.deck.map(cd => ({ ...cd })); G.discard = sv.discard.map(cd => ({ ...cd }));
@@ -2149,6 +2312,18 @@ function resumeGame(sv) {
   } else G.unoWin = null;
   beginTurn();
 }
+/* warp-in arrival（W1③）：从游戏中心点卡起飞落地——读 tod:warp 票（<4000ms 新鲜且 g=uno）
+   → #loader .loader-box 挂 warp-in（scale 1.5→1 + 主题色 glow 一闪 400ms）。读后即删票（防下次冷启动误播）；
+   无票/过期/g 不匹配=现状零改动；揭幕时序（900ms 最低展示）零改动；REDUCED/loperf/TURBO 不挂。 */
+(function () {
+  let w = null;
+  try { w = JSON.parse(localStorage.getItem('tod:warp') || 'null'); } catch (e) {}
+  try { localStorage.removeItem('tod:warp'); } catch (e) {}
+  if (!w || w.g !== 'uno' || Date.now() - (w.t || 0) > 4000 || REDUCED || TURBO || qs.get('loperf') === '1') return;
+  const box = document.querySelector('#loader .loader-box');
+  if (box) box.classList.add('warp-in');
+})();
+function warpBackTicket() { try { localStorage.setItem('tod:warp-back', JSON.stringify({ t: Date.now() })); } catch (e) {} }   // 返回游戏中心的 pull-back 票（index boot 读：<2500ms 新鲜才播 drop-back，读后即删；对齐 monopoly 同名助手）
 requestAnimationFrame(tick);
 boot();
 
@@ -2162,7 +2337,22 @@ if (AUTOTEST || qs.get('inspect') === '1') {   // inspect=1：真机路径（SPE
     forceHand: (i, cards) => { G.players[i].hand = cards.map(cd => ({ ...cd })); if (G.gl) layoutHand(i, true); render2D(); updateHUD(); },
     callUno: () => callUno(),
     forceUnoTimeout: () => { const w = G.unoWin; if (w && !w.penalized) settleCatch(w.who); },
-    chooseColor: c => { const b = document.querySelector(`#wild-modal .wbtn[data-c="${c}"]`); if (b && !$('wild-modal').hidden) b.click(); },
+    chooseColor: c => {   // #15 钩子保活:GL 选色会话在途=暂存 pending 色、色球武装后自动消费;否则照旧走 DOM 弹窗
+      if (wildGLSess.active) {
+        if (wildGLSess.balls.length) chooseWildColor(c); else wildGLSess.pendingAuto = c;
+        return;
+      }
+      const b = document.querySelector(`#wild-modal .wbtn[data-c="${c}"]`); if (b && !$('wild-modal').hidden) b.click();
+    },
+    wild: () => ({   // GL 选色一镜取证:闸门/色球/视觉持有状态(ev-uno-wildpick 用)
+      qs: wildGLQS, active: wildGLSess.active, done: wildGLSess.done,
+      held: wildGLSess.active && wildGLSess.cd ? { c: wildGLSess.cd.c, v: wildGLSess.cd.v } : null,
+      heldInHand: wildGLSess.active && wildGLSess.cd && G.players[wildGLSess.pi] ? G.players[wildGLSess.pi].hand.includes(wildGLSess.cd) : null,   // #3:视觉持有期状态不写,牌仍在手牌数组
+      modalHidden: $('wild-modal').hidden,
+      balls: wildGLSess.balls.map(b => ({ c: b.c, s: +b.grp.scale.x.toFixed(2) })),
+      ballScreen: c => { const b = wildGLSess.balls.find(x => x.c === c); if (!b) return null; b.grp.updateMatrixWorld(true); const V = b.grp.position.clone(); V.project(camera); return { x: (V.x * 0.5 + 0.5) * innerWidth, y: (-V.y * 0.5 + 0.5) * innerHeight }; },
+      hitTest: (x, y) => wildGLHitTest(x, y),
+    }),
     handoff: () => { if (!$('handoff').hidden) $('btn-handoff-go').click(); },
     play: k => humanPlay(k),
     draw: () => humanDraw(),

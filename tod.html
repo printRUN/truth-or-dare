@@ -104,6 +104,19 @@
     .loader-progress { width: 190px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.12); overflow: hidden; }
     .loader-progress i { display: block; height: 100%; width: 40%; border-radius: 2px; background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent); animation: loader-sweep 1.15s ease-in-out infinite; }
     @keyframes loader-sweep { from { transform: translateX(-110%); } to { transform: translateX(360%); } }
+    /* warp-in arrival（W1③）：从游戏中心点卡起飞落地——boot 读 tod:warp 票后由 JS 挂类。
+       挂点=.loader-stage（评审 #6：严禁碰 .loader-card——probe-loader-gate B 锁它的 flip currentTime 对齐）；
+       scale 1.5→1 + 主题紫 glow 一闪 400ms（::after 光晕在卡层之下，z1<卡 z2）；揭幕时序（1200ms 门）零改动。 */
+    .loader-stage.warp-in { animation: warp-in-tod 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+    @keyframes warp-in-tod { from { transform: scale(1.5); } to { transform: scale(1); } }
+    .loader-stage.warp-in::after { content: ''; position: absolute; inset: -30%; border-radius: 50%; z-index: 1; pointer-events: none; background: radial-gradient(circle, rgba(139,92,246,0.55) 0%, rgba(139,92,246,0) 70%); animation: warp-glow-tod 0.4s ease-out both; }
+    @keyframes warp-glow-tod { from { opacity: 1; } to { opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) {
+      .loader-stage.warp-in { animation: none !important; transform: none !important; }   /* warp-in 退路：REDUCED 不挂（JS 同门禁，双保险） */
+      .loader-stage.warp-in::after { content: none !important; }
+    }
+    body.loperf .loader-stage.warp-in { animation: none !important; transform: none !important; }
+    body.loperf .loader-stage.warp-in::after { content: none !important; }
     /* 大屏（≥1280）加载卡放大一档（走查实锤：1440 桌面上 80px 卡片只有 ~90px 观感，电影感没铺开）：
        一次性落位尺寸，不加任何循环漂浮 */
     @media (min-width: 1280px) {
@@ -6522,9 +6535,23 @@ $('btn-leave').addEventListener('click', doLeave);
 $('btn-leave-game').addEventListener('click', doLeave);
 // 返回游戏中心（join 药丸 / 大厅 / 结算三入口）：裸 index.html——不带 query/hash（index 的 early 门控会把
 // ?room= 302 弹回 tod，构成往返死循环）。不清会话票 tod:tab：从游戏中心再点 tod 卡回来走既有自动重join（与刷新返回同路）。
-$('btn-arcade-back').addEventListener('click', () => { location.href = 'index.html'; });
-$('btn-home-lobby').addEventListener('click', () => { location.href = 'index.html'; });
-$('btn-home-result').addEventListener('click', () => { location.href = 'index.html'; });
+// warp-in arrival（W1③）：从游戏中心点卡起飞落地——boot 读 tod:warp 票（<4000ms 新鲜且 g 匹配 tod）
+// → .loader-stage 挂 warp-in（scale 1.5→1 + 主题 glow 一闪；评审 #6：挂点=stage，.loader-card 严禁碰）。
+// 读后即删票（防下次冷启动误播）；无票/过期=现状零改动；揭幕时序（1200ms 门）零改动；REDUCED/loperf 不挂。
+(function warpInArrival() {
+  let w = null;
+  try { w = JSON.parse(localStorage.getItem('tod:warp') || 'null'); } catch (e) {}
+  try { localStorage.removeItem('tod:warp'); } catch (e) {}
+  if (!w || w.g !== 'tod' || Date.now() - (w.t || 0) > 4000) return;
+  if (REDUCED || LOWPERF || document.body.classList.contains('loperf') || document.documentElement.classList.contains('turbo')) return;   // turbo 探针档：index 侧已直跳不播 dive，arrival 同步禁防跨页不一致
+  const stage = document.querySelector('.loader-stage');
+  if (stage) stage.classList.add('warp-in');
+})();
+// 返回游戏中心的三入口统一先写 pull-back 票（index boot 读：<2500ms 新鲜才播 drop-back，读后即删）
+function warpBackTicket() { try { localStorage.setItem('tod:warp-back', JSON.stringify({ t: Date.now() })); } catch (e) {} }
+$('btn-arcade-back').addEventListener('click', () => { warpBackTicket(); location.href = 'index.html'; });
+$('btn-home-lobby').addEventListener('click', () => { warpBackTicket(); location.href = 'index.html'; });
+$('btn-home-result').addEventListener('click', () => { warpBackTicket(); location.href = 'index.html'; });
 $('card-truth').addEventListener('click', () => choose('truth'));
 $('card-dare').addEventListener('click', () => choose('dare'));
 // 点击反馈：抽卡（选卡/卡堆）与翻牌共用按下回弹 + 涟漪 + 轻点击音

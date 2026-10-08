@@ -446,6 +446,7 @@ const SFX = (() => {
     land() { noise(0.05, 0.16, 1500); tone(160, 110, 0.08, 'sine', 0.2); },   // 骰子落定哒（roll 是起手，这是落定拍）
     note() { noise(0.09, 0.08, 3400); noise(0.06, 0.06, 5600); },   // 纸币哗啦（钞票起飞拍；低音量只做质感）
     cash() { tone(880, 1180, 0.06, 'triangle', 0.1); noise(0.05, 0.09, 4200); },   // 到账纸拍+轻响（钞票落地拍，与 coin 区分的「纸感」）
+    thump() { tone(96, 38, 0.26, 'sine', 0.34); noise(0.14, 0.18, 260); },   // 大额重拍低音炮（≥1500 收租/进账：闷低音+毡面衬底，与 coin/cash 高频纸拍区分；W2③ 现场合成新音色零资源）
     fly() { tone(280, 980, 0.4, 'sine', 0.12); tone(220, 760, 0.4, 'triangle', 0.08, 0.03); noise(0.35, 0.07, 2600); },   // 机场起飞：上升轰鸣+气流擦音
     // 连麦压低（duck）：连麦模块在开麦/收听时调用，压动作音效总线减少串音
     duckMusic(f, ms = 300) {
@@ -589,7 +590,7 @@ function applyGameSnapshot(g, doc) {
     }
     G.owners.forEach((o, t) => { if (prevOwners[t] == null && o != null) ops.push({ type: 'buy', t, o }); });   // null→有人 只会发生在买地
     for (let i = 0; i < G.players.length; i++) {
-      if (G.players[i].bankrupt) { if (!prev[i].bankrupt) ops.push({ type: 'bust', i }); continue; }
+      if (G.players[i].bankrupt) { if (!prev[i].bankrupt) ops.push({ type: 'bust', i, tiles: prevOwners.map((o, t) => o === i ? t : -1).filter(t => t >= 0) }); continue; }   // bust op 编译时就地携带被收回地块（评审 #9：本地 prevOwners 推导，ops 是本地 diff 推导对象零状态包新字段；无 prev 不产 op=直接落终态）
       const d = G.players[i].cash - prev[i].cash;
       if (d !== 0) ops.push({ type: 'money', i, d });
     }
@@ -654,10 +655,10 @@ async function playReplayOp(op) {
     moneyFloat(op.i, op.d);
     // 快照 diff 不含对手映射：付钱≈玩家→银行、进账≈银行→玩家（近似动线，SPEC §1.6e 备案）；行动者端是精确 payer→creditor
     if (op.d < 0) { SFX.pay(); flyNotes(pawnNotePos(op.i), BANK_POS, -op.d); }
-    else flyNotes(BANK_POS, pawnNotePos(op.i), op.d, () => SFX.cash());
+    else { flyNotes(BANK_POS, pawnNotePos(op.i), op.d, () => SFX.cash()); bigMoneyBeat(op.d); }   // 大额进账重拍与行动者端同语言（W2③）
     return;
   }
-  if (op.type === 'bust') { bustBanner(G.players[op.i], null, 0); SFX.bust(); return; }
+  if (op.type === 'bust') { bustRitual(G.players[op.i], null, 0, op.tiles || []); return; }   // 统一清算仪式入口（观战 tiles=op 编译时携带的 prev 归属，W2①/#9）
   if (op.type === 'call') { op.fn(); return; }
 }
 // 走位回放：movePawn 的 hop 循环同款（260ms×SPEED 单跳、正弦弧高），但只动棋子不碰 G 也不碰镜头——
@@ -1505,6 +1506,7 @@ function updateHUD() {
   $('hud-tools').hidden = G.phase === 'BOOT' || G.phase === 'SETUP' || G.phase === 'OVER';
   syncJailCages();   // E3 监狱铁笼真相同步（keyed 幂等：常态零工作）
   syncHouseLevels();   // E5 盖二楼天际线真相同步（同纪律：真相在 G.owners，动画只做建造拍）
+  applyCashStacks();   // W2② 棋子钞堆：updateHUD 末尾对 cash 镜像 diff 增减层（纯视觉层，评审 #11）
 }
 /* ── E3 监狱铁笼（2026-10-02 全元素 3D 化）：有人服刑 → 监狱格罩铁笼，「谁蹲着」首次上棋盘 ──
    笼心=监狱格格心（终审 P5：勿取活体 pawn 坐标——押送滑行中途会建在半空；半径 0.34<格半宽 0.46 柱底全部落在格顶）；
@@ -1804,6 +1806,7 @@ function startGame(cfg) {
   if (G.gl) { buildPawns(); layoutPlates(); }
   else render2D();
   boardEntrance();   // E1 开局落场：fire-and-forget，beginTurn 链零改动
+  hideCashStacks();   // W2② 钞堆全池归零重镜（新一局从 0 层起滑入）
   updateHUD();
   netCkpt();
   beginTurn();
@@ -2188,6 +2191,20 @@ function afterResolve() {
    程序化纸币零资源 + 池化钞票束 + 弧线航班。铁律：零 rig 写入（镜头所有权）、零 G 写入（纯视觉层）、
    抖动用 Math.random（不消耗 rngBox 种子流）、REDUCED/bodyLo/TURBO 早退时 onArrive 立即兜底（禁动不禁声）。 */
 const BANK_POS = { x: 0, y: 0.62, z: 0 };   // 桌心银行（中心盘上空）
+const SCATTER_G = 6.5 * Math.sqrt(SPEED);   // 散钞重力 ×√SPEED（W2③ 1.6e 备案：SPEED 提速档物理同语义缩放，autotest 档可断言）
+const BIG_MONEY = 1500;                     // 大额门槛：收租/进账 ≥1500 叠低音重拍
+let fxThumps = 0, fxJolts = 0;              // 大额重拍取证计数（探针只认计数，不认瞬时类名/像素）
+function bigMoneyBeat(v) {   // 大额收租/进账重拍（W2③）：低音 thump + body.jolt 轻震——不是 body.shaking（那是 bustBanner
+                             // 破产重震专用，remove 定时器会互相拆台，评审 #12）；互斥判法沿用扣款轻震。body 类非 rig 写入，镜头所有权不动。
+  if (v < BIG_MONEY || TURBO || REDUCED || bodyLo) return;
+  SFX.thump();
+  fxThumps++;
+  if (!document.body.classList.contains('shaking')) {
+    fxJolts++;
+    document.body.classList.add('jolt');
+    setTimeout(() => document.body.classList.remove('jolt'), 180 * SPEED);
+  }
+}
 const NOTE_DEX = {
   1000: { bg: '#b3402f', edge: '#7e2a1c', ink: '#f7df9a' },
   500: { bg: '#5747b8', edge: '#3b2f8a', ink: '#e6e0ff' },
@@ -2195,26 +2212,26 @@ const NOTE_DEX = {
 };
 let noteTexCache = {}, notePool = [];
 function canFlyNotes() { return G.gl && scene && !REDUCED && !bodyLo && !TURBO; }
-function noteTex(denom) {   // 程序化纸币：纸底+织纹+双线框+双面额+骰徽+行名+序列号（按面额配色）
-  if (noteTexCache[denom]) return noteTexCache[denom];
+function noteTex(denom) {   // 程序化纸币：纸底+织纹+双线框+双面额+骰徽+行名+序列号（按面额配色）；512×256（W2③ 1.6e 备案：
+  if (noteTexCache[denom]) return noteTexCache[denom];   //  256→512 近景读清面额、字号放大一档；缓存仍按面额，plane 2:1 比例不变直接换）
   const c = NOTE_DEX[denom];
-  const t = mkTex(256, 128, (ctx, w, h) => {
+  const t = mkTex(512, 256, (ctx, w, h) => {
     const gd = ctx.createLinearGradient(0, 0, 0, h);
     gd.addColorStop(0, shadeColor(c.bg, 0.18)); gd.addColorStop(1, shadeColor(c.bg, -0.14));
     ctx.fillStyle = gd; ctx.fillRect(0, 0, w, h);
-    for (let i = 0; i < 170; i++) { ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.05})`; ctx.fillRect(Math.random() * w, Math.random() * h, 1, 1); }
-    ctx.globalAlpha = 0.07; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
-    for (let y = 4; y < h; y += 4) { ctx.beginPath(); ctx.moveTo(2, y); ctx.lineTo(w - 2, y); ctx.stroke(); }
-    ctx.globalAlpha = 0.8; ctx.strokeStyle = c.ink; ctx.lineWidth = 2.5; ctx.strokeRect(6, 6, w - 12, h - 12);
-    ctx.globalAlpha = 0.4; ctx.lineWidth = 1; ctx.strokeRect(11, 11, w - 22, h - 22);
+    for (let i = 0; i < 680; i++) { ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.05})`; ctx.fillRect(Math.random() * w, Math.random() * h, 1.4, 1.4); }
+    ctx.globalAlpha = 0.07; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+    for (let y = 8; y < h; y += 8) { ctx.beginPath(); ctx.moveTo(4, y); ctx.lineTo(w - 4, y); ctx.stroke(); }
+    ctx.globalAlpha = 0.8; ctx.strokeStyle = c.ink; ctx.lineWidth = 5; ctx.strokeRect(12, 12, w - 24, h - 24);
+    ctx.globalAlpha = 0.4; ctx.lineWidth = 2; ctx.strokeRect(22, 22, w - 44, h - 44);
     ctx.globalAlpha = 1;
     ctx.fillStyle = c.ink; ctx.textBaseline = 'middle';
-    ctx.textAlign = 'left'; ctx.font = '900 38px Georgia,serif'; ctx.fillText('¥' + denom, 16, h / 2);
-    ctx.textAlign = 'right'; ctx.font = '900 28px Georgia,serif'; ctx.fillText(denom, w - 14, h / 2);
-    ctx.textAlign = 'center'; ctx.font = '32px serif'; ctx.fillText('🎲', w / 2, h / 2 - 8);
-    ctx.font = '700 15px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif'; ctx.fillText('大富翁银行', w / 2, h - 22);
-    ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '11px Georgia,serif';
-    ctx.fillText('MONO ' + denom + '-' + (Math.floor(Math.random() * 9) + 1) + (Math.floor(Math.random() * 9) + 1) + (Math.floor(Math.random() * 9) + 1) + 'A', w / 2 + 46, 19);
+    ctx.textAlign = 'left'; ctx.font = '900 76px Georgia,serif'; ctx.fillText('¥' + denom, 30, h / 2);   // 面额主读数加大（近景 3D 束读得清）
+    ctx.textAlign = 'right'; ctx.font = '900 54px Georgia,serif'; ctx.fillText(denom, w - 28, h / 2);
+    ctx.textAlign = 'center'; ctx.font = '60px serif'; ctx.fillText('🎲', w / 2 + 80, h / 2 - 12);
+    ctx.font = '700 28px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif'; ctx.fillText('大富翁银行', w / 2, h - 40);
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '20px Georgia,serif';
+    ctx.fillText('MONO ' + denom + '-' + (Math.floor(Math.random() * 9) + 1) + (Math.floor(Math.random() * 9) + 1) + (Math.floor(Math.random() * 9) + 1) + 'A', w / 2 + 92, 38);
   });
   noteTexCache[denom] = t;
   return t;
@@ -2319,7 +2336,7 @@ function noteScatter(from, k) {   // 破产散钞：单束抛物线+重力+毡�
   const step = now => {
     if (!s.busy) return;
     const dt = Math.min(60, now - last) / 1000; last = now;
-    vy -= 6.5 * dt;
+    vy -= SCATTER_G * dt;   // 重力 ×√SPEED（W2③ 1.6e 备案：autotest 提速档物理同语义缩放）
     g.position.x += vx * dt; g.position.y += vy * dt; g.position.z += vz * dt;
     g.rotation.y += spin * dt;
     if (g.position.y < 0.26 && vy < 0) { g.position.y = 0.26; vy = -vy * 0.35; vx *= 0.6; vz *= 0.6; }
@@ -2373,11 +2390,113 @@ function noteRain() {   // 终局钞雨：冠军加冕节拍（动画档限定�
     requestAnimationFrame(step);
   }
 }
+/* ── W2② 棋子旁现金钞堆（2026-10-02）：cash>0 时棋子侧后 0.55（背桌心方向）常驻 1-4 层束堆。
+   独立静态池 4 玩家×4 层=16 束封顶，不进 notePool（busy 契约=航班/散钞专用，上限 10 混用丢束，评审 #13）；
+   贴图复用 noteTex 缓存。diff 源=updateHUD 末尾对 G.players[i].cash 的独立镜像 lastStackCash[]
+   （没有 syncPawns，禁读 DOM——updateHUD 是全量 innerHTML 重建，评审 #11）；滑入 200ms/滑出 150ms 纯视觉层
+   不回写状态；bodyLo 翻转显式隐藏全池（防降档后 diff 停摆定格假状态）；REDUCED 静态摆放无动画；破产清空。
+   速度/透明度等动画变量一律 let（历史踩坑：const 再赋值炸过一轮）。 */
+const STACK_DENOMS = [100, 500, 1000, 1000];   // 层序自下而上：小面额垫底大面额压顶
+let stackPool = [];        // { player, layer, grp, mats, on, anim, dir, op, sc, dy, animTok }
+let lastStackCash = [];    // 现金镜像（与 G.players[i].cash diff，绝不回写）
+function stackLayersFor(cash) {   // 现金→层数（阈值段定死可断言；bankrupt 由调用方强归 0）
+  if (!(cash > 0)) return 0;
+  if (cash < 3000) return 1;
+  if (cash < 7000) return 2;
+  if (cash < 12000) return 3;
+  return 4;
+}
+function stackAnchor(i, layer) {   // 棋子侧后 0.55（背桌心方向），与 flyNotes 落点（pawnNotePos=棋子头顶+0.5）横向错开
+  const p = G.players[i], t = TILES[p ? p.pos : 0];
+  const ang = Math.atan2(t.x, t.z);   // 桌心→格位朝向：外圈=背桌心
+  const gp = pawnObjs[i];
+  const bx = gp && gp.visible ? gp.position.x : t.x;   // 隐身者按格位兜底（同 pawnNotePos 语言）
+  const bz = gp && gp.visible ? gp.position.z : t.z;
+  const side = layer % 2 ? 0.09 : -0.09;   // 层间微错位成「堆」不成长塔
+  return { x: bx + Math.sin(ang) * 0.55 + Math.cos(ang) * side, y: 0.26 + layer * 0.012, z: bz + Math.cos(ang) * 0.55 - Math.sin(ang) * side };
+}
+function acquireStackBundle(i, layer) {   // 静态池取束（懒建封顶 16）：飞钞同款 2:1 平面+纸边假厚度，贴图复用 noteTex 缓存
+  let s = stackPool.find(n => n.player === i && n.layer === layer);
+  if (!s) {
+    if (!G.gl || !scene || stackPool.length >= 16) return null;
+    const denom = STACK_DENOMS[layer];
+    const grp = new THREE.Group();
+    const top = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.21), new THREE.MeshStandardMaterial({ transparent: true, roughness: 0.55, emissive: 0x1a1626, emissiveIntensity: 0.25, side: THREE.DoubleSide }));   // 0.42/0.21=航班束 0.36/0.18 ×1.17：常驻钞堆在近景机位下要大一档才读得出层数（视觉终审 P2）
+    top.material.map = noteTex(denom);
+    const under = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.21), new THREE.MeshStandardMaterial({ transparent: true, roughness: 0.8, side: THREE.DoubleSide, color: new THREE.Color(NOTE_DEX[denom].edge) }));
+    under.position.y = -0.009; under.rotation.z = (Math.random() - 0.5) * 0.14;   // 视觉抖动=Math.random（不碰 rngBox）
+    grp.add(under, top);
+    grp.rotation.y = Math.random() * 0.6 - 0.3;
+    grp.visible = false;
+    scene.add(grp);
+    s = { player: i, layer, grp, mats: [top.material, under.material], on: false, anim: false, dir: 0, op: 0, sc: 1, dy: 0, animTok: 0 };   // op 起点 0：首次滑入有淡入（REDUCED fin 直写 1）
+    stackPool.push(s);
+  }
+  return s;
+}
+function slideStack(s, dir) {   // dir 1=滑入 200ms / -1=滑出 150ms；mesh 变换只由 syncCashStacksFrame 统一写（读 s.op/sc/dy）
+  const my = (s.animTok = (s.animTok || 0) + 1);   // 换代作废旧动画（滑出中途加钱=当场折返滑入）
+  const startOp = s.op, startDy = s.dy;
+  const fin = () => {   // 终态直写
+    s.anim = false;
+    if (dir > 0) { s.on = true; s.op = 1; s.sc = 1; s.dy = 0; s.grp.visible = true; }
+    else { s.on = false; s.op = 0; s.grp.visible = false; }
+  };
+  s.dir = dir;
+  if (REDUCED) { fin(); return; }   // 禁动档：静态摆放无动画
+  s.anim = true;
+  if (dir > 0) { s.on = true; s.grp.visible = true; }
+  const dur = dir > 0 ? 200 : 150;
+  const t0 = performance.now();
+  const step = now => {
+    if (my !== s.animTok) return;
+    const k = Math.min(1, (now - t0) / (dur * SPEED));
+    if (dir > 0) { s.op = startOp + (1 - startOp) * k; s.sc = 0.6 + 0.4 * k; s.dy = 0.16 * (1 - k); }
+    else { s.op = startOp * (1 - k); s.sc = 1 - 0.25 * k; s.dy = startDy + 0.1 * k; }
+    if (k < 1) { requestAnimationFrame(step); return; }
+    fin();
+  };
+  if (dir > 0) { s.op = startOp; s.sc = 0.6; s.dy = 0.16; }
+  requestAnimationFrame(step);
+}
+function applyCashStacks() {   // updateHUD 末尾调：对 G.players[i].cash diff 增减层（纯视觉层，不回写状态）
+  if (!G.gl || !scene || TURBO) return;
+  if (bodyLo) { if (stackPool.some(s => s.on || s.anim)) hideCashStacks(); return; }
+  for (let i = 0; i < G.players.length; i++) {
+    const p = G.players[i];
+    const want = p.bankrupt ? 0 : stackLayersFor(p.cash);   // 破产清空（哪怕异常持现也不摆堆）
+    const had = typeof lastStackCash[i] === 'number' ? stackLayersFor(lastStackCash[i]) : 0;
+    lastStackCash[i] = p.cash;
+    if (want === had) continue;
+    for (let l = 0; l < 4; l++) {
+      const s = stackPool.find(n => n.player === i && n.layer === l) || (l < want ? acquireStackBundle(i, l) : null);
+      if (!s) continue;
+      const active = s.on || (s.anim && s.dir > 0);   // 在场或正在滑入
+      if (l < want && !active) slideStack(s, 1);
+      else if (l >= want && active) slideStack(s, -1);
+    }
+  }
+}
+function hideCashStacks() {   // bodyLo 翻转/新一局：显式隐藏全池并重置镜像（防降档后 diff 停摆定格假状态）
+  stackPool.forEach(s => { s.animTok++; s.anim = false; s.on = false; s.dir = 0; s.op = 0; s.grp.visible = false; });
+  lastStackCash = [];
+}
+function syncCashStacksFrame() {   // 每帧锚位跟随棋子（走位时钞堆随行）；本池 mesh 变换唯一写入点
+  for (let k = 0; k < stackPool.length; k++) {
+    const s = stackPool[k];
+    if (!s.grp.visible) continue;
+    const a = stackAnchor(s.player, s.layer);
+    s.grp.position.set(a.x, a.y + s.dy, a.z);
+    s.grp.scale.setScalar(s.sc);
+    s.mats.forEach(m => { m.opacity = s.op; });
+  }
+}
 function gainMoney(p, v, why) {
   p.cash += v;
   const i = G.players.indexOf(p);
   moneyFloat(i, v);
   flyNotes(BANK_POS, pawnNotePos(i), v, () => SFX.cash());   // 银行→玩家一镜到底；到账纸拍挂落地（静态/降档立即=旧行为）
+  bigMoneyBeat(v);   // 大额进账重拍（W2③：低音 thump+jolt 轻震）
   if (why) toast(`${why}，${p.name} ${fmt(v)} 进账`, 'gain');
   updateHUD();
 }
@@ -2387,7 +2506,7 @@ function charge(p, v, creditor) {
     p.cash -= v;
     // 付款一镜到底：payer→(收租对手|桌心银行)；收方进账轻音挂钞票落地拍（静态/降档立即=旧行为）
     flyNotes(pawnNotePos(i), creditor ? pawnNotePos(G.players.indexOf(creditor)) : BANK_POS, v, () => { if (creditor && !TURBO) SFX.coin(); });
-    if (creditor) { creditor.cash += v; moneyFloat(G.players.indexOf(creditor), v); }   // 收租方浮字即时（金额真相），音效走落地拍
+    if (creditor) { creditor.cash += v; moneyFloat(G.players.indexOf(creditor), v); bigMoneyBeat(v); }   // 收租方浮字即时（金额真相），音效走落地拍；大额收租重拍（W2③）
     moneyFloat(i, -v);
     if (!TURBO && !REDUCED && !bodyLo && !document.body.classList.contains('shaking')) {   // 扣款轻震（惩罚反馈）：破产走 bustBanner 的重震，两者互斥
       document.body.classList.add('jolt');
@@ -2398,22 +2517,83 @@ function charge(p, v, creditor) {
     const rest = p.cash;
     if (creditor) creditor.cash += rest;
     p.cash = 0; p.bankrupt = true;
-    bustBanner(p, creditor, v - rest);
-    G.owners.forEach((o, idx) => { if (o === i) { G.owners[idx] = null; ownerMarks[idx].visible = false; } });
+    const taken = [];
+    G.owners.forEach((o, idx) => { if (o === i) { G.owners[idx] = null; if (ownerMarks[idx]) ownerMarks[idx].visible = false; taken.push(idx); } });   // 真 mark 立即隐藏（现状语义不变），克隆从格位起飞
+    bustRitual(p, creditor, v - rest, taken);   // 统一清算仪式：散钞+克隆动线立即起，横幅挂克隆全落地（W2①）
     const grp = pawnObjs[i]; if (grp) grp.visible = false;
     if (plateSprites[i]) plateSprites[i].visible = false;
     if (creditor && creditor.bot) botQuote('bustBy');
-    SFX.bust();
     updateHUD(); render2D();
   }
   updateHUD();
 }
-function bustBanner(p, creditor, owed) {
-  if (canFlyNotes()) {   // 散尽家财：钞票从破产者位置爆开（纯视觉；pawn 此刻未隐身，回退位=最后格位上空）
+/* ── W2① 破产清算仪式（2026-10-02）：bustBanner 拆两拍（评审 #8）——散钞+克隆动线立即起，横幅/重震
+   挂「最后一块克隆落地」计数回调。三个调用点（charge / collectAll 内联 / 观战 bust op）统一走 bustRitual 入口；
+   tiles=被收回地块（host=当下 G.owners diff；观战=bust op 编译时就地携带的 prev 归属推导，评审 #9——
+   ops 是本地 diff 推导对象，零状态包新字段；无 prev（中途加入/重连）不产生 bust op=跳过仪式直接落终态）。
+   REDUCED/bodyLo/TURBO：跳过飞行直落横幅（现状时序）。 */
+let bustClones = [];   // 在飞克隆登记 { tile, from, to, grp, mats }（纯视觉层：零 G 写入、零镜头写入；
+                       // 绝不调 flyNotes——busy 池是航班/散钞专用上限 10，混用丢束，评审 #10；只共享 noteTex 无关的 mark 自身几何）
+function bustRitual(p, creditor, owed, tiles) {
+  SFX.bust();
+  const i = G.players.indexOf(p);
+  if (canFlyNotes()) {   // 散钞照旧立即起（先于横幅；pawn 此刻未隐身，回退位=最后格位上空）
     SFX.note();
-    const from = pawnNotePos(G.players.indexOf(p));
+    const from = pawnNotePos(i);
     for (let k = 0; k < 6; k++) noteScatter(from, k);
+    const list = (tiles || []).filter(t => ownerMarks[t]);
+    if (list.length) {
+      let left = list.length;   // 本场仪式私有落地计数（collectAll 可多场并发，不许互串节拍）
+      list.forEach((t, k) => bustCloneFly(t, k * 80, () => { if (--left === 0) bustBanner(p, creditor, owed); }));
+      return;
+    }
   }
+  bustBanner(p, creditor, owed);
+}
+function bustCloneFly(tileIdx, delay, onLand) {   // 归属房克隆航班：mark 几何克隆、材质逐个 clone 防串色（评审 #10），
+  const mk = ownerMarks[tileIdx];                 // 从格位坐标弧线飞银行（观战端真 mark 可能已被快照隐藏/移除）+自旋+落地 pop 淡出
+  if (!mk || !scene) { if (onLand) onLand(); return; }
+  const from = new THREE.Vector3(TILES[tileIdx].x, 0.381, TILES[tileIdx].z);   // 0.381=mark 原位基准（同 buildBoard 归属房落位）
+  const to = { x: BANK_POS.x, y: BANK_POS.y, z: BANK_POS.z };
+  const clone = mk.clone();
+  clone.visible = true;   // 显式可见：快照重绘可能已把真 mark 置 false，克隆别被带偏
+  clone.position.copy(from);
+  const mats = [];
+  clone.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; mats.push(o.material); } });
+  scene.add(clone);
+  const entry = { tile: tileIdx, from: { x: from.x, y: from.y, z: from.z }, to, grp: clone, mats };
+  bustClones.push(entry);
+  const spin = (Math.random() - 0.5) * 3, myMap = CUR_MAP_ID;   // 抖动全 Math.random（不消耗 rngBox）；换图重建时放行计数不挂死
+  let last = performance.now();
+  const t0 = last + delay * SPEED;
+  const abort = () => { bustClones = bustClones.filter(c => c !== entry); if (onLand) onLand(); };
+  const step = now => {
+    if (!clone.parent || CUR_MAP_ID !== myMap) { abort(); return; }
+    const dt = Math.min(100, now - last) / 1000; last = now;
+    const el = now - t0;
+    if (el < 0) { requestAnimationFrame(step); return; }
+    const k = Math.min(1, el / (700 * SPEED));   // 航时同 noteFlight 700ms 动线语言
+    const kk = k * k * (3 - 2 * k);
+    clone.position.set(from.x + (to.x - from.x) * kk, from.y + (to.y - from.y) * kk + Math.sin(kk * Math.PI) * 0.9, from.z + (to.z - from.z) * kk);
+    clone.rotation.y += spin * dt;
+    if (k < 1) { requestAnimationFrame(step); return; }
+    bustClones = bustClones.filter(c => c !== entry);   // 落地即出「在飞」登记（pop 淡出是余韵，不占节拍）
+    if (onLand) onLand();
+    const p0 = performance.now();
+    const pop = now2 => {
+      if (!clone.parent) return;
+      const k2 = Math.min(1, (now2 - p0) / (260 * SPEED));
+      const sc = k2 < 0.4 ? 1 + 0.4 * (k2 / 0.4) : Math.max(0.001, 1.12 * (1 - (k2 - 0.4) / 0.6));
+      clone.scale.setScalar(sc);
+      mats.forEach(m => { m.opacity = 1 - k2; });
+      if (k2 < 1) requestAnimationFrame(pop);
+      else { scene.remove(clone); mats.forEach(m => m.dispose()); }   // 几何与真 mark 共享：只释放克隆材质
+    };
+    requestAnimationFrame(pop);
+  };
+  requestAnimationFrame(step);
+}
+function bustBanner(p, creditor, owed) {   // 后拍：横幅+重震（原 bustBanner 的亮幕段；散钞/克隆前置拍在 bustRitual）
   const b = $('bust-banner');
   b.textContent = `💀 ${p.name} 破产出局！` + (creditor ? `（还欠 ${fmt(owed)}）` : '');
   b.classList.add('show');
@@ -2529,7 +2709,7 @@ async function drawCard(kind) {
       if (j === G.turn || o.bankrupt) return;
       const take = Math.min(o.cash, a.collectAll);
       o.cash -= take; got += take;
-      if (take < a.collectAll) { o.bankrupt = true; bustBanner(o, null, a.collectAll - take); SFX.bust(); G.owners.forEach((idx2, ti) => { if (idx2 === j) { G.owners[ti] = null; ownerMarks[ti].visible = false; } }); const gp = pawnObjs[j]; if (gp) gp.visible = false; if (plateSprites[j]) plateSprites[j].visible = false; }   // 付不清才破产：take<应付额 ⇔ 现金<应付额（恰好付清 = 存活，与 charge 语义一致）
+      if (take < a.collectAll) { o.bankrupt = true; const taken2 = []; G.owners.forEach((idx2, ti) => { if (idx2 === j) { G.owners[ti] = null; if (ownerMarks[ti]) ownerMarks[ti].visible = false; taken2.push(ti); } }); bustRitual(o, null, a.collectAll - take, taken2); const gp = pawnObjs[j]; if (gp) gp.visible = false; if (plateSprites[j]) plateSprites[j].visible = false; }   // 付不清才破产：take<应付额 ⇔ 现金<应付额（恰好付清 = 存活，与 charge 语义一致）；同一清算仪式入口（W2①）
       moneyFloat(j, -take);
     });
     if (got) { p.cash += got; moneyFloat(G.turn, got); toast(`🎉 ${p.name} 收到 ${fmt(got)}`, 'gain'); SFX.coin(); }
@@ -2778,6 +2958,7 @@ function setBodyLo(on) {
   bodyLo = on;
   document.body.classList.toggle('loperf', on);
   if (on && renderer) { renderer.shadowMap.enabled = false; dirLight.castShadow = false; }
+  if (on) hideCashStacks();   // W2② 钞堆静态池显式隐藏（防降档后 diff 停摆定格假状态，评审 #11）
   sizeScene();
 }
 function perfWatch(now) {
@@ -2829,6 +3010,7 @@ function tick(now) {
     }
   }
   plateVisibility();
+  if (G.gl && scene && !TURBO) syncCashStacksFrame();   // W2② 钞堆每帧锚位跟随棋子（变换唯一写入点；turbo 不画不推）
   if (!TURBO && !(AUTOTEST && bodyLo) && renderer) renderer.render(scene, camera);   // turbo/loperf=1 只推状态机，不画（软渲每帧 100ms+ 会拖死探针）
   requestAnimationFrame(tick);
 }
@@ -2916,7 +3098,7 @@ function resumeGame(s) {
   let w = null;
   try { w = JSON.parse(localStorage.getItem('tod:warp') || 'null'); } catch (e) {}
   try { localStorage.removeItem('tod:warp'); } catch (e) {}
-  if (!w || w.g !== 'monopoly' || Date.now() - (w.t || 0) > 4000 || REDUCED || bodyLo) return;
+  if (!w || w.g !== 'monopoly' || Date.now() - (w.t || 0) > 4000 || REDUCED || bodyLo || TURBO) return;   // turbo 探针档与 index 直跳对齐，arrival 同步禁
   const box = document.querySelector('#loader .loader-box');
   if (box) box.classList.add('warp-in');
 })();
@@ -2943,6 +3125,12 @@ if (AUTOTEST || qs.get('inspect') === '1') {   // inspect=1：真机路径（SPE
     distAnchor: () => ({ near: G.gl && camera ? nearDist() : 0, base: G.gl && camera ? baseDist() : 0 }),   // 探针用：当前视口的近景/全景锚距
     pawnWorld: () => pawnObjs.map(p => (p ? [p.position.x, p.position.y, p.position.z] : null)),
     net: () => ({ mode: NETMODE, joined, room: NDOC && NDOC.room, myId, doc: NDOC, host: isHost(), myTurn: netIsMyTurn(), mic: P.mic.on(), peers: P.mic.peers(), enter: netEnter, publish: netCkpt, start: netStartGame, ui: syncNetHUD, av: netAvatarHtml, replay: () => ({ busy: replaying || replayQ.length > 0, n: replayCount }) }),
+    // ── W2 全场 3D 感取证（AUTOTEST 门控只读访问器 + 探针驱动钩子，评审 #20：禁像素断言只认访问器）──
+    pay: (i, v, j) => charge(G.players[i], v, j == null ? null : G.players[j]),   // 探针驱动钩子：直呼收租/扣款（走真 charge=清算仪式+大额重拍全覆盖）
+    tileXY: t => ({ x: TILES[((t % 24) + 24) % 24].x, z: TILES[((t % 24) + 24) % 24].z }),   // 格位坐标（克隆起飞来源比对用）
+    ritual: () => ({ flying: bustClones.length, tiles: bustClones.map(c => c.tile), clones: bustClones.map(c => ({ tile: c.tile, from: c.from, to: c.to })), bannerShown: document.getElementById('bust-banner').classList.contains('show'), shaking: document.body.classList.contains('shaking'), scatterBusy: notePool.filter(n => n.busy).length }),   // W2① 清算克隆枚举（在飞数/来源地块/目标）
+    stacks: () => ({ pool: stackPool.length, mirror: lastStackCash.slice(), hidden: !stackPool.some(s => s.on), notePoolBusy: notePool.filter(n => n.busy).length, notePoolSize: notePool.length, perPlayer: G.players.map((p, i) => ({ cash: p.cash, want: p.bankrupt ? 0 : stackLayersFor(p.cash), shown: stackPool.filter(s => s.on && s.player === i).length })) }),   // W2② 钞堆状态（每玩家层数/cash 镜像/busy 池隔离）
+    fx: () => ({ speed: SPEED, grav: SCATTER_G, bigMoney: BIG_MONEY, thumps: fxThumps, jolts: fxJolts, tex: (() => { const t = noteTex(1000); return { w: t.image.width, h: t.image.height }; })() }),   // W2③ 备案取证（散钞重力值/thump 计数/noteTex 尺寸）
     mc: n => new Promise(async res => {
       const out = [];
       for (let k = 0; k < n; k++) {

@@ -225,6 +225,19 @@ body.three3d #react-dock { bottom: calc(96px + env(safe-area-inset-bottom)); }  
 #res-box h2 { font-family: 'ZCOOL KuaiLe', cursive; font-size: 1.6rem; color: var(--amber); }
 .res-line { font-size: 0.88rem; color: rgba(255,255,255,0.8); line-height: 1.7; }
 
+/* ── 结算一镜进场（2026-10-02 3D 全场轮 W4）：veil 0.4s 压暗扫入 + 内容上浮；REDUCED/loperf 直切现状 ── */
+.result-veil { position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at 50% 42%, transparent 0%, rgba(4,4,12,0.88) 78%); }
+#screen-result.active .result-veil { animation: bc-veil-in 0.4s ease forwards; }
+#screen-result.active #res-box, #screen-result.active .lobby-actions { animation: bc-res-rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+@keyframes bc-veil-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes bc-res-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .result-veil { display: none; }
+  #screen-result.active #res-box, #screen-result.active .lobby-actions { animation: none !important; }
+}
+body.loperf .result-veil { display: none; }
+body.loperf #screen-result.active #res-box, body.loperf #screen-result.active .lobby-actions { animation: none !important; }
+
 /* ── REDUCED / loperf 退路（SPEC 铁律：每个新动画都要有静态退路）── */
 @media (prefers-reduced-motion: reduce) {
   .screen.active, .ovl-box, #bc-nope, #bc-peek, .toast-in, .react-fall { animation: none !important; }
@@ -321,6 +334,7 @@ body.loperf #bc-peek { animation: none; }   /* 放大查看窗动效退路 */
 
   <!-- 结算 -->
   <section id="screen-result" class="screen">
+    <div class="result-veil" aria-hidden="true"></div>
     <div id="res-box"></div>
     <div class="lobby-actions" style="margin-top:16px">
       <button id="btn-again" class="btn-primary">再来一局</button>
@@ -1588,7 +1602,7 @@ function applyState(next, selfSrc) {
   if (S.stage === 'over') {
     if (!overShown) {
       overShown = true;
-      showScreen('result'); renderResult();   // 结算屏常驻，等房主手动「再来一局」（over 局有人加入会唤醒回大厅）
+      showResultWhenSettled();   // W4 overShown 门:pending boom 悬念等「引信→boom」播完再翻屏;无 boom 终局照旧即时
     }
     renderLobbyLight();
     return;
@@ -1633,7 +1647,7 @@ function onGameEvent(e) {
     case 'deal': SFX.play('deal'); break;
     case 'ek': SFX.play('tick'); break;
     case 'defuse': SFX.play('snip'); break;   // 拆除生效：剪刀咔哒（原 tick 太弱，撑不起这时刻）
-    case 'boom': SFX.play('boom'); SFX.play('shatter'); sceneBoom(e.pid); break;   // 低频轰鸣 + 高频碎裂双层
+    case 'boom': onBoomEvent(e.pid, e.ts); break;   // 悬念拍(W4):全端包 1200ms 本地延迟,引信→boom 链;引擎时序零改动(状态/发布/log 时间戳照旧)
     case 'nope': SFX.play('nope'); sceneNope(e.pid); break;
     case 'shuffle': SFX.play('draw'); sceneShuffle(); break;
     case 'steal': SFX.play('pop'); sceneSteal(e.pid, e.from); break;
@@ -1643,6 +1657,34 @@ function onGameEvent(e) {
     case 'drawcard': SFX.play('draw'); sceneDraw(e.pid); break;
     case 'afk': break;
   }
+}
+
+/* ── 悬念拍（2026-10-02 3D 全场轮 W4 修订版）：boom 事件对全端包 1200ms 本地延迟——
+   克隆 mesh 炸弹卡从牌库顶起飞桌心上空自旋悬停 + 相机推近(写进渲染循环机位合成处)+ 引信音，
+   到点后重查 sceneReady()/S.stage 再放既有 boom 演出(GL burst+shake+红闪)。
+   引擎时序零改动：explode() 的状态写入/发布/log 时间戳照旧（硬门）。
+   REDUCED 直落现状(即时 boom)；overShown 门据此等「引信→boom」播完才翻结算屏（防多端重复触发=各端本地链，无共享态）。 */
+let boomSuspense = null;
+let boomFiredAt = 0;   // 取证:boom 演出实际落地时刻(0=未放)——探针断「引擎事件 vs 视觉」分离
+const BOOM_FUSE_MS = 1200;
+function onBoomEvent(pid, evTs) {
+  if (boomSuspense && !boomSuspense.done) { clearTimeout(boomSuspense.timer); boomSuspense.done = true; }   // 双 boom 竞态(理论不可达):旧链立即作废
+  const sp = { pid, evTs: evTs || Date.now(), t0: Date.now(), timer: 0, done: false, afterFire: null };
+  boomSuspense = sp;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { fireBoom(sp); return; }   // REDUCED 直切现状:引信拍整段跳过
+  SFX.play('tick');   // 引信音(单拍 tick 顺势承担倒计时感)
+  if (sceneReady() && window.__bcScene) window.__bcScene.suspenseBoom(pid, BOOM_FUSE_MS);   // 克隆炸弹卡起飞自旋+推镜;loperf/无 GL 引信拍静默(声音仍走)
+  sp.timer = setTimeout(() => fireBoom(sp), BOOM_FUSE_MS);
+}
+function fireBoom(sp) {
+  if (boomSuspense === sp) boomSuspense = null;
+  if (sp.done) return;
+  sp.done = true;
+  boomFiredAt = Date.now();
+  if (!S || S.stage === 'lobby') { sp.afterFire = null; return; }   // 引信期离房/房主已重开局:悬念拍整体作废
+  SFX.play('boom'); SFX.play('shatter');
+  sceneBoom(sp.pid);   // 到点重查:sceneReady 为假(loperf 翻转/场景退役)时只剩 DOM 红闪兜底,回调不炸
+  if (sp.afterFire && S && S.stage === 'over') sp.afterFire();   // overShown 门:仍处终局才翻屏
 }
 
 /* ── 大厅渲染 ── */
@@ -1983,6 +2025,36 @@ function openInsert() {
 function closeOvl(ovl) { ovl.hidden = true; delete ovl.dataset.open; }
 
 /* ── 结算 ── */
+/* 结算进场（W4 overShown 门 + 结算一镜）：事件当下捕获胜者扇 mesh 克隆 → 等在途 boom 悬念播完（无 boom 即时）→
+   本端=胜者时「抬扇展示 + 相机缓推 800ms」再 veil 进场；REDUCED/bodyLo/扇已清（败者/观战端）直切现状。 */
+function showResultWhenSettled() {
+  const cap = captureFanClones();   // 事件当下拍快照(boom 在途时扇仍在本端手中,先捕获再等引信)
+  const enter = () => victoryOneTake(cap, () => { showScreen('result'); renderResult(); });
+  if (boomSuspense && !boomSuspense.done) boomSuspense.afterFire = enter;   // 悬念在途:等 fireBoom 落定再进场
+  else enter();
+}
+function captureFanClones() {   // 结算一镜素材:本端扇克隆(共享 geo/tex;扇已清=败者/观战/未同步,该拍跳过)
+  if (!sceneReady() || !window.__bcScene || !window.__bcScene.captureFan) return null;
+  return window.__bcScene.captureFan();
+}
+function victoryOneTake(cap, enter) {   // 胜者抬扇展示 + 相机缓推向胜者座位(南位) 800ms → #screen-result veil 0.4s 进场
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!cap || !S || S.winner !== myId || reduced || document.body.classList.contains('loperf') || !sceneReady() || !__scene) { enter(); return; }
+  const scene = __scene.scene;
+  const base = cap.map(m => ({ m, y: m.position.y, rx: m.rotation.x }));
+  cap.forEach(m => scene.add(m));
+  window.__bcScene.victoryPush(800);
+  const t0 = performance.now();
+  const step = now => {
+    if (!sceneReady()) return;   // loperf 中途退役:克隆随场景销毁,补间即停
+    const k = Math.min(1, (now - t0) / 800), e = k * k * (3 - 2 * k);
+    base.forEach(b => { b.m.position.y = b.y + e * 0.62; b.m.rotation.x = b.rx + e * 0.5; });   // 抬扇 + 逐渐立起面向镜头
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+  setTimeout(() => { if (sceneReady()) cap.forEach(m => scene.remove(m)); }, 2600);   // 展示收场:材质与扇共享,只 remove 不 dispose
+  setTimeout(enter, 950);   // 抬扇+推镜走完 → veil 进场
+}
 function renderResult() {
   const w = S.winner && S.players.find(p => p.id === S.winner);
   $('#res-box').innerHTML = w
@@ -2038,6 +2110,12 @@ $('#in-room').addEventListener('paste', ev => {   // 粘整段邀请链接/文�
 $('#in-room').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
 $('#btn-start').onclick = () => { sendAct({ t: 'start' }); SFX.play('deal'); };
 $('#btn-leave').onclick = () => { sendAct({ t: 'leave' }); leaveRoom(); try { localStorage.removeItem('cat:room'); } catch {} };   // 主动离开清回房票据：重开页面不再自动回房
+/* warp-back 票（2026-10-02 W1 衔接）：返回游戏中心前写 tod:warp-back（index boot 读 <2500ms 新鲜做四卡 pull-back 入场，读后即删）；
+   bombcat 无 loader，不加 arrival（brief 备案）。两处返回锚点（常驻右上 / 结算屏）各挂 1 行，默认导航照旧不劫持。 */
+['lnk-arcade', 'res-home'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('click', () => { try { localStorage.setItem('tod:warp-back', JSON.stringify({ t: Date.now() })); } catch (e) {} });
+});
 $('#btn-draw').onclick = () => { sendAct({ t: 'draw' }); SFX.play('draw'); };
 $('#btn-endturn').onclick = () => { sendAct({ t: 'end' }); };
 $('#btn-guide').onclick = () => { $('#ovl-guide').hidden = false; };
@@ -2235,6 +2313,9 @@ window.__cat = {
   _sel: sel,
   _reset() { sel.clear(); PRIV = { hand: [], peek: null }; },
   scene: () => window.__bcScene || null,
+  get suspense() { return boomSuspense ? { pid: boomSuspense.pid, t0: boomSuspense.t0, evTs: boomSuspense.evTs, done: boomSuspense.done } : null; },   // 悬念拍取证(W4 ev-bc-suspense):引信在途/事件时刻
+  get boomFiredAt() { return boomFiredAt; },   // 悬念拍取证:boom 演出落地时刻(0=未放)
+  fuseAlive: () => !!(window.__bcScene && window.__bcScene.fuseAlive && window.__bcScene.fuseAlive()),   // 悬念拍取证:引信克隆卡在飞
 };
 
 'use strict';
@@ -2766,7 +2847,7 @@ function initScene() {
     opts = opts || {};
     mesh.position.copy(from);
     scene.add(mesh);
-    anims.push({ mesh, from: from.clone(), to: to.clone(), t0: performance.now(), dur: Math.max(1, dur), arc: opts.arc || 0.5, spin: opts.spin || 0, done: opts.done });
+    anims.push({ mesh, from: from.clone(), to: to.clone(), t0: performance.now(), dur: Math.max(1, dur), arc: opts.arc || 0.5, spin: opts.spin || 0, done: opts.done, hold: !!opts.hold });
     return mesh;
   }
   function smooth(k) { return k * k * (3 - 2 * k); }
@@ -2775,6 +2856,7 @@ function initScene() {
   function seatTop(pid) { const v = new THREE.Vector3(); const ch = chars.get(pid); if (ch) { ch.getWorldPosition(v); v.y = FELT_Y + CARD_T; } else seatPos(pid, v); return v; }
   window.__bcScene = {
     boom(pid) {
+      if (fuseMesh) { scene.remove(fuseMesh); fuseMesh.material.forEach(x => x.dispose()); fuseMesh = null; }   // 引信克隆收场:burst 接棒(W4 悬念拍)
       const p0 = seatTop(pid);
       const n = IS_REDUCED ? 0 : 22;
       for (let i = 0; i < n; i++) {
@@ -2822,6 +2904,19 @@ function initScene() {
       });
     },
     sync() { syncPiles(); syncChars(); },
+    suspenseBoom(pid, fuseMs) {   // 悬念拍(W4):克隆炸弹卡从牌库顶起飞桌心上空自旋悬停 + 引信推镜;到点由 fireBoom 收走并放既有 boom 演出
+      if (IS_REDUCED) return;
+      const m = mkCard(texForCard('ek:0'), true);
+      const from = deckGroup.position.clone(); from.y += 0.15;
+      const to = new THREE.Vector3(0, 2.05, 0.15);
+      flyCard(m, from, to, Math.max(240, fuseMs - 340), { arc: 0.55, spin: 5.2, hold: true });
+      fuseMesh = m;
+      markShadow();
+      if (fuseMs > 700) { camFuseT0 = performance.now(); camFuseHold = camFuseT0 + fuseMs + 60; }   // 700ms 推近后保持到引爆
+    },
+    fuseAlive: () => !!fuseMesh,   // 取证:引信克隆卡在飞
+    captureFan: () => handGroups.length ? handGroups.map(h => h.grp.clone()) : null,   // 结算一镜素材:本端扇克隆(共享 geo/tex;扇已清=null 该拍跳过)
+    victoryPush: ms => { camVictoryT0 = performance.now(); camVictoryMs = ms || 800; },   // 结算一镜:相机缓推向南位胜者座位(写进渲染循环机位合成处)
     /* ── 手牌 3D 扇（游戏层经此读写，禁持场景闭包引用——initScene 可重入，旧闭包会指向已 dispose 的 scene）── */
     syncHand,
     pick: pickAt,
@@ -2878,6 +2973,24 @@ function initScene() {
 
   /* ── 帧循环 ── */
   let shakeT = 0, raf = 0, lastCharsSync = 0, px = 0, py = 0;
+  let camFuseT0 = 0, camFuseHold = 0;          // 悬念推镜(W4):引信期推近→保持→引爆后缓回
+  let camVictoryT0 = 0, camVictoryMs = 800;    // 结算一镜(W4):缓推向南位胜者座位
+  let fuseMesh = null;                         // 引信克隆炸弹卡(boom 引爆时收走)
+  function fusePushK(now) {   // 悬念推近曲线:700ms 推入→保持到引爆(+60ms 余量)→500ms 缓回
+    if (!camFuseT0 || now < camFuseT0) return 0;
+    if (now < camFuseHold) return Math.min(1, (now - camFuseT0) / 700);
+    const back = 1 - (now - camFuseHold) / 500;
+    if (back <= 0) { camFuseT0 = 0; return 0; }
+    return back;
+  }
+  function victoryPushK(now) {   // 结算缓推:800ms smoothstep 推入保持,1.4s 后自动归零(结算屏已盖面,只为复局干净)
+    if (!camVictoryT0) return 0;
+    const t = now - camVictoryT0;
+    if (t <= 0) return 0;
+    if (t <= camVictoryMs) { const k = t / camVictoryMs; return k * k * (3 - 2 * k); }
+    if (t > camVictoryMs + 1400) { camVictoryT0 = 0; return 0; }
+    return 1 - (t - camVictoryMs) / 1400;
+  }
   function onPointer(e) { px = (e.clientX / window.innerWidth - 0.5); py = (e.clientY / window.innerHeight - 0.5); }
   window.addEventListener('pointermove', onPointer, { passive: true });
 
@@ -2888,11 +3001,16 @@ function initScene() {
     const now = performance.now();
     syncPiles();
     if (now - lastCharsSync > 600) { syncChars(); lastCharsSync = now; }
-    // 相机：固定机位 + 指针视差 + 爆炸 shake
+    // 相机：固定机位 + 指针视差 + 爆炸 shake + 悬念推镜/结算推镜（W4:机位变化必须写进本合成处——这里每帧直写,体外任何 lerp 都会被覆盖）
     let sx = 0;
     if (now - shakeT < 380) { const k = 1 - (now - shakeT) / 380; sx = Math.sin(now * 0.09) * 0.09 * k; }
-    camera.position.set(CAM_BASE.x + px * 0.55 + sx, CAM_BASE.y - py * 0.35, CAM_BASE.z);
-    camera.lookAt(CAM_BASE.tx, CAM_BASE.ty, CAM_BASE.tz);
+    let cx = CAM_BASE.x + px * 0.55 + sx, cy = CAM_BASE.y - py * 0.35, cz = CAM_BASE.z, lty = CAM_BASE.ty;
+    const fk = fusePushK(now);
+    if (fk > 0) { cz -= 1.5 * fk; cy -= 0.75 * fk; lty += 0.3 * fk; }   // 引信拍:向桌心推近
+    const vk = victoryPushK(now);
+    if (vk > 0) { cy -= 0.7 * vk; cz -= 1.75 * vk; lty += 0.45 * vk; }   // 结算一镜:缓推向南位胜者座位
+    camera.position.set(cx, cy, cz);
+    camera.lookAt(CAM_BASE.tx, lty, CAM_BASE.tz);
     // 动画
     for (let i = anims.length - 1; i >= 0; i--) {
       const a = anims[i];
@@ -2915,6 +3033,12 @@ function initScene() {
       a.mesh.position.lerpVectors(a.from, a.to, e);
       a.mesh.position.y += Math.sin(e * Math.PI) * (a.arc || 0);
       if (a.spin) a.mesh.rotation.y = a.spin * e;
+      if (k >= 1 && a.hold) {   // 悬念拍(W4):到桌心上空后原位自旋+浮沉,等引爆侧收走
+        if (!a.mesh.parent) { anims.splice(i, 1); continue; }   // 引爆侧已收走克隆:条目自清,防每帧空写孤儿 mesh(boom remove/退役都能收口)
+        a.mesh.rotation.y += 0.05;
+        a.mesh.position.y = a.to.y + Math.sin(now * 0.004) * 0.06;
+        continue;
+      }
       if (k >= 1) { if (a.done) a.done(a.mesh); else scene.remove(a.mesh); anims.splice(i, 1); markShadow(); }
     }
     // 手牌抬起/收下轻过渡（重摆 bump ptok 作废在途条目）

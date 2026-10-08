@@ -487,6 +487,7 @@
       #result-veil { display: none !important; }
       .cam, .flip-card { transition: none !important; }
       .arcade-card { transition: none !important; }   /* 游戏中心卡片：hover/按压位移全停（tap-ring 已在上面清单里） */
+      .arcade-card, .arcade-card .arc-ico, .arcade-card h2, .arcade-card .arc-arrow { transform: none !important; animation: none !important; }   /* 3D 化退路：微倾/视差/dive/drop-back 全平（选去，最稳） */
       .card-front.surprise::after { animation: none !important; }
       .choice-card.tapped, .deck.tapped, .flip-card.tapped, .tap-ring, .flip-glint, .arcade-card.tapped { animation: none !important; }
       .world { transform: none !important; }
@@ -1177,25 +1178,60 @@
     /* ═══ 游戏中心（#screen-arcade）：默认落地屏 ═══ */
     body.on-arcade .net-chip { display: none; }   /* 落地页不许挂红点「未连接」读成故障（视觉专家） */
     .arcade-sub { font-size: 0.8rem; color: rgba(255,255,255,0.6); margin: -6px 0 18px; text-align: center; }
-    .arcade-grid { display: grid; gap: 14px; grid-template-columns: 1fr; max-width: 540px; width: 100%; padding: 0 20px; }
-    .arcade-card { position: relative; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; min-height: 112px; padding: 18px; border-radius: 18px; background: var(--glass); border: 1px solid var(--glass-border); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); cursor: pointer; transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.3s cubic-bezier(0.34,1.56,0.64,1); -webkit-tap-highlight-color: transparent; }
-    .arcade-card:hover { transform: translateY(-3px); box-shadow: 0 14px 34px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.18); }
-    .arcade-card .arc-ico { width: 56px; height: 56px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 28px; }
+    .arcade-grid { display: grid; gap: 14px; grid-template-columns: 1fr; max-width: 540px; width: 100%; padding: 0 20px; perspective: 1100px; }   /* 卡片 3D 化（W1①）：透视源挂在 grid，卡本体 preserve-3d——.world 红线不碰（SPEC：世界层恒单平面） */
+    /* 卡片 3D 化：静态微倾（rotateY 交替 ±3.5° + rotateX 2°，读作「斜插在桌上的门票」）+ preserve-3d 分层视差。
+       ⚠ backdrop-filter 必须下放到 ::before——同一元素上 blur 会把 preserve-3d 压回 flat（评审 #3），玻璃模糊的视觉不变。 */
+    .arcade-card { --arc-rx: 2deg; position: relative; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; min-height: 112px; padding: 18px; border-radius: 18px; background: var(--glass); border: 1px solid var(--glass-border); cursor: pointer; transform: rotateY(var(--arc-ry, 0deg)) rotateX(var(--arc-rx, 0deg)); transform-style: preserve-3d; transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.3s cubic-bezier(0.34,1.56,0.64,1); -webkit-tap-highlight-color: transparent; }
+    .arcade-card.tod { --arc-ry: -3.5deg; }
+    .arcade-card.monopoly { --arc-ry: 3.5deg; }
+    .arcade-card.uno { --arc-ry: -3.5deg; }
+    .arcade-card.ext { --arc-ry: 3.5deg; }
+    .arcade-card::before { content: ''; position: absolute; inset: 0; border-radius: 18px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); pointer-events: none; }
+    .arcade-card:hover { transform: translateY(-6px); box-shadow: 0 14px 34px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.18); }   /* hover 倾角归零 + 抬起 */
+    .arcade-card .arc-ico { width: 56px; height: 56px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 28px; transform: translateZ(16px); }   /* 分层视差浮起（评审 #3） */
     .arcade-card.tod .arc-ico { background: linear-gradient(135deg, #8b5cf6, #f472b6); box-shadow: 0 0 24px rgba(139,92,246,0.35); }
     .arcade-card.monopoly .arc-ico { background: linear-gradient(135deg, #22d3ee, #8b5cf6); box-shadow: 0 0 24px rgba(34,211,238,0.35); }
-    .arcade-card h2 { margin: 0; font-size: 1.1rem; }
-    .arcade-card p { margin: 0; font-size: 0.78rem; color: rgba(255,255,255,0.62); }
-    .arcade-card .arc-badge { font-size: 0.72rem; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.06); }
-    .arcade-card .arc-arrow { position: absolute; right: 16px; top: 18px; font-size: 18px; color: rgba(255,255,255,0.5); transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1); }
-    .arcade-card:hover .arc-arrow { transform: translateX(3px); }
+    .arcade-card h2 { margin: 0; font-size: 1.1rem; transform: translateZ(10px); }
+    .arcade-card p { margin: 0; font-size: 0.78rem; color: rgba(255,255,255,0.62); transform: translateZ(6px); }   /* 与玻璃面（::before z=0）共面会被 backdrop-filter 的平面切分糊掉——文字层一律抬离玻璃面 */
+    .arcade-card .arc-badge { font-size: 0.72rem; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.06); transform: translateZ(6px); }
+    .arcade-card .arc-arrow { position: absolute; right: 16px; top: 18px; font-size: 18px; color: rgba(255,255,255,0.5); transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1); transform: translateZ(8px); }
+    .arcade-card:hover .arc-arrow { transform: translateZ(8px) translateX(3px); }
     /* 按压大面收敛（tapFx 的 tapped 类；幅度比 choice-card 的 0.94 小一档） */
     @keyframes arcade-pop { 32% { transform: translateY(2px) scale(0.965); } }
     .arcade-card.tapped { animation: arcade-pop 0.42s cubic-bezier(0.34,1.56,0.64,1); }
+    /* 起飞一镜（W1②评审 #1）：dive 专用 keyframes 占动画槽位（arcade-pop 级联会压过 inline scale，故禁 inline），
+       from=基态微倾 → to=倾角归零放大 1.35；起飞路径 JS 侧移除 .tapped。 */
+    @keyframes arcade-dive { from { transform: rotateY(var(--arc-ry, 0deg)) rotateX(var(--arc-rx, 0deg)); } to { transform: translateY(-6px) scale(1.35); } }
+    .arcade-card.dive { animation: arcade-dive 0.15s ease-in forwards !important; }
+    /* ═══ 点卡起飞 wipe（一镜断点缝合）：radial 从被点卡中心扩张盖满 → 才 location.href 真导航 ═══
+       z990：>tap-ring 950、<loading-overlay 1000；toast(2000) 刻意留在其上——bombcat fail 路径的「筹备中」必须可读（评审 #5）。
+       pointer-events:auto 拦输入：nav 延迟窗内双击双导航防护（warpBusy 标志双保险）。 */
+    #arcade-wipe { position: fixed; inset: 0; z-index: 990; display: none; pointer-events: auto; }
+    #arcade-wipe.on { display: block; }
+    #arcade-wipe .wipe-disc { position: absolute; left: var(--wx, 50%); top: var(--wy, 50%); width: var(--wd, 2400px); height: var(--wd, 2400px); margin-left: calc(var(--wd, 2400px) / -2); margin-top: calc(var(--wd, 2400px) / -2); border-radius: 50%; background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.92) 0%, var(--wc, #8b5cf6) 42%, var(--wc, #8b5cf6) 100%); transform: scale(0); animation: wipe-cover var(--wms, 220ms) ease-in forwards; }
+    @keyframes wipe-cover { to { transform: scale(1); } }
+    /* REDUCED/loperf 退路（评审 #6）：无扩张动画，整层 120ms 淡入后保持遮盖直至跳转（防淡出露底 80ms） */
+    #arcade-wipe.reduced .wipe-disc { animation: none; transform: scale(1); }
+    #arcade-wipe.reduced { animation: wipe-fade var(--wms, 120ms) linear forwards; }
+    @keyframes wipe-fade { from { opacity: 0; } to { opacity: 1; } }
+    #arcade-wipe.off { animation: wipe-out 0.3s ease forwards; }   /* bombcat fail：0.3s 撤回（toast 在其上全程可读） */
+    #arcade-wipe.off .wipe-disc { animation: none; transform: scale(1); }   /* 撤回时 disc 钉住全盖态，由父层 wipe-out 统一淡出（forwards 填充被 animation:none 清掉，不钉会一帧弹没） */
+    @keyframes wipe-out { from { opacity: 1; } to { opacity: 0; } }
+    #arcade-wipe .wipe-status { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #fff; font-size: 0.95rem; font-weight: 700; text-align: center; text-shadow: 0 2px 12px rgba(0,0,0,0.55); white-space: nowrap; }
+    #arcade-wipe .wipe-status[hidden] { display: none; }
+    /* 返回 pull-back（评审吸收新段）：读 tod:warp-back 票 → 四卡错峰 drop-back 入场（scale 1.15→1，60ms 错峰）；
+       Cam 从 z-38 续接推回 base 的半场在 JS（playWarpBack，与既有 boot dolly 同语言）。 */
+    @keyframes card-drop-back { from { transform: scale(1.15); } to { transform: rotateY(var(--arc-ry, 0deg)) rotateX(var(--arc-rx, 0deg)); } }
+    .arcade-grid.drop-back .arcade-card { animation: card-drop-back 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+    .arcade-grid.drop-back .arcade-card:nth-child(1) { animation-delay: 0ms; }
+    .arcade-grid.drop-back .arcade-card:nth-child(2) { animation-delay: 60ms; }
+    .arcade-grid.drop-back .arcade-card:nth-child(3) { animation-delay: 120ms; }
+    .arcade-grid.drop-back .arcade-card:nth-child(4) { animation-delay: 180ms; }
     .arcade-card.locked { border-style: dashed; border-color: rgba(255,255,255,0.14); cursor: default; }
     .arcade-card.locked .arc-ico { background: rgba(255,255,255,0.08); box-shadow: none; filter: grayscale(0.45) opacity(0.75); }
     .arcade-card.locked p, .arcade-card.locked .arc-badge { color: rgba(255,255,255,0.5); }
     @media (hover: none) {
-      .arcade-card:hover { transform: none; box-shadow: none; }
+      .arcade-card:hover { transform: rotateY(var(--arc-ry, 0deg)) rotateX(var(--arc-rx, 0deg)); box-shadow: none; }   /* 触屏无 hover 抬升：保持基态微倾 */
       .arcade-card:active { transform: scale(0.97); }
     }
     @media (min-width: 700px) {
@@ -1217,7 +1253,8 @@
     body.loperf .orb { animation: none; opacity: 0.3; }
     body.loperf .confetti { display: none; }
     body.loperf h1 { animation: none; }
-    body.loperf .join-box, body.loperf .import-panel, body.loperf .choice-card, body.loperf .card-front, body.loperf .btn-secondary, body.loperf .modal-mask, body.loperf .result-box, body.loperf .toast, body.loperf .arcade-card { backdrop-filter: none; }
+    body.loperf .join-box, body.loperf .import-panel, body.loperf .choice-card, body.loperf .card-front, body.loperf .btn-secondary, body.loperf .modal-mask, body.loperf .result-box, body.loperf .toast, body.loperf .arcade-card::before { backdrop-filter: none; }   /* blur 下放到 ::before 后，降载也跟着改打 ::before（评审 #3：loperf 摘 blur 后视差复活可接受） */
+    body.loperf .arcade-card, body.loperf .arcade-card .arc-ico, body.loperf .arcade-card h2, body.loperf .arcade-card .arc-arrow { transform: none !important; animation: none !important; transition: none !important; }   /* 3D 化退路：微倾/视差/dive/drop-back 全平 */
     body.loperf .avatar-ring::before, body.loperf .avatar-ring.active::before { animation: none; background: linear-gradient(135deg, var(--primary), var(--accent-pink)); }
     body.loperf .avatar-ring.active { animation: none; }
     body.loperf .avatar-ring.active::after { animation: none; opacity: 0.85; }   /* 座位聚光定格，不做脉动 */
@@ -6661,23 +6698,112 @@ try {
 
 const urlRoom = (new URLSearchParams(location.search).get('room') || '').toUpperCase();
 
-// ═══ 游戏中心（arcade）卡片 ═══
-// 点「真心话大冒险」= 状态驱动换屏：__ARCADE__ 翻假 → currentScreen() 回 join → renderScreen 走既有扫视。
-// tod:picked 记入 sessionStorage：join 屏刷新不弹回大厅；arcade-nav 类会话级常驻（返回链接的显隐依据）。
+// ═══ 游戏中心（arcade）卡片：点卡起飞一镜（W1②，页间假一镜）═══
+// 点「真心话大冒险」= dive 150ms → #arcade-wipe radial 从卡中心盖满 220ms → 才 location.href 真导航。
+// probe-arcade ②③⑥⑦⑧⑨ 的真导航契约保持（只是延迟到盖满后）；返回不劫持 / tod:tab 不读不跳照旧。
+// tod:picked 仍由 tod.html 自己记；arcade-nav 类会话级常驻（返回链接的显隐依据）。
+const WARP_COVER_MS = 220;          // wipe 盖满时长 = nav 延迟（评审 #6：同一常量，nav ≥ 盖满）
+const WARP_COVER_REDUCED_MS = 120;  // REDUCED/loperf：120ms 淡入后保持遮盖直至跳转（不淡出）
+const WARP_TICKET = 'tod:warp';     // 目的页 arrival 票（tod/monopoly boot 读，读后即删）
+const WARP_BACK_TICKET = 'tod:warp-back';   // 返回票（子游戏返回按钮写，本页 boot 读——见 playWarpBack）
+const WARP_THEME = { tod: '#8b5cf6', monopoly: '#22d3ee', uno: '#ef4444', bombcat: '#b91c1c' };
+const WARP_TURBO = () => !!(document.documentElement && document.documentElement.classList.contains('turbo'));   // 探针档（html.turbo）实时读——init script 挂类晚于解析期脚本也生效（documentElement 在注入时刻可能还是 null）
+let warpBusy = false;               // jumpPending 式 busy：盖屏窗内双击防双导航（评审 #5）
+let wipeEpoch = 0;                  // wipe 代际：fail 撤回的 340ms 移除定时器不许误删后继新 wipe
+function wipeCenterOf(card) {       // 圆心=被点卡中心；landforce 旋转兜底下必须过 landPick() 换算（tapFx 同款先例 index:4141）
+  const r = card.getBoundingClientRect();
+  return landPick(r.left + r.width / 2, r.top + r.height / 2);
+}
+function showWipe(center, theme, coverMs, reduced, statusText) {
+  hideWipeNow();   // 旧 wipe 节点整个出文档再建：fail 撤回中途再点等边缘场景动画状态干净重来
+  const my = ++wipeEpoch;
+  const w = document.createElement('div');
+  w.id = 'arcade-wipe';
+  w.innerHTML = '<div class="wipe-disc"></div><div class="wipe-status" hidden></div>';
+  const d = w.querySelector('.wipe-disc'), st = w.querySelector('.wipe-status');
+  const cs = getComputedStyle(document.documentElement);
+  const lw = parseFloat(cs.getPropertyValue('--lvw')) || window.innerWidth;    // 逻辑视口（landforce 下与物理互换）
+  const lh = parseFloat(cs.getPropertyValue('--lvh')) || window.innerHeight;
+  const dia = Math.ceil(Math.hypot(Math.max(center.x, lw - center.x), Math.max(center.y, lh - center.y)) * 2.3);   // 半径 ≥ 到最远角距离，盖满有富余
+  w.style.setProperty('--wx', Math.round(center.x) + 'px');
+  w.style.setProperty('--wy', Math.round(center.y) + 'px');
+  w.style.setProperty('--wd', dia + 'px');
+  w.style.setProperty('--wms', coverMs + 'ms');
+  d.style.setProperty('--wc', theme || WARP_THEME.tod);
+  if (statusText) { st.textContent = statusText; st.hidden = false; }
+  w.classList.toggle('reduced', !!reduced);
+  document.body.appendChild(w);   // 挂 body（SPEC 红线：fixed 层不进 #app——perspective 包含块）
+  w.classList.add('on');          // display none→block 让 wipe-cover 从插入拍起跑，scale(0)→1 盖满
+  w._epoch = my;
+  return w;
+}
+function hideWipeNow() {            // bfcache 复活/撤回终态：节点整个出文档（「wipe 不在文档」断言字面成立）
+  const w = document.getElementById('arcade-wipe');
+  if (w) w.remove();
+}
+function hideWipe() {               // bombcat fail：0.3s 撤回（toast z2000 在 wipe 之上，「筹备中」全程可读）
+  const w = document.getElementById('arcade-wipe');
+  if (!w) return;
+  const my = w._epoch;
+  w.classList.remove('reduced');
+  w.classList.add('off');
+  setTimeout(() => { if (my === wipeEpoch) hideWipeNow(); }, 340);   // 代际不符=已被新 wipe 顶替，不许误删
+}
+function warpTo(card, href, gameKey) {
+  if (warpBusy) return;
+  warpBusy = true;
+  try { localStorage.setItem(WARP_TICKET, JSON.stringify({ g: gameKey, t: Date.now() })); } catch (e) {}   // 点卡时写：目的页 boot 读票播 warp-in arrival
+  if (WARP_TURBO()) { location.href = href; return; }   // 探针档：直跳零延迟（wipe 跳过）
+  const reduced = REDUCED || document.body.classList.contains('loperf');
+  const cover = reduced ? WARP_COVER_REDUCED_MS : WARP_COVER_MS;
+  if (!reduced) { card.classList.remove('tapped'); void card.offsetWidth; card.classList.add('dive'); }   // dive 占动画槽位 + 摘 .tapped（评审 #1）
+  showWipe(wipeCenterOf(card), WARP_THEME[gameKey], cover, reduced);
+  setTimeout(() => { location.href = href; }, cover);   // 盖满后才真导航（同一常量）
+}
+// 返回 pull-back（评审吸收新段）：子游戏返回按钮写 WARP_BACK_TICKET → 本页 boot 揭幕读票（<2500ms 新鲜）
+// → 四卡错峰 drop-back 入场 + Cam 从 z-38 续接推回 arcade base（与既有 boot dolly 同语言，token 作废机制照旧）。
+// 读后即删票；无票/过期=现状零改动；REDUCED/LOWPERF/探针档不挂（降档全平）。
+function playWarpBack() {
+  let fresh = false;
+  try {
+    const t = JSON.parse(localStorage.getItem(WARP_BACK_TICKET) || 'null');
+    fresh = !!(t && Date.now() - (t.t || 0) < 2500);
+  } catch (e) {}
+  try { localStorage.removeItem(WARP_BACK_TICKET); } catch (e) {}
+  if (!fresh || !window.__ARCADE__ || REDUCED || LOWPERF || WARP_TURBO()) return;
+  setTimeout(() => {   // 揭幕 0.26s 掀开后才起拍（视觉终审 P2：错峰入场曾被揭幕暗幕遮住大半）；票已在上方判定并删除，延迟不影响新鲜度
+    const grid = document.querySelector('.arcade-grid');
+    if (grid) {
+      grid.classList.add('drop-back');
+      setTimeout(() => grid.classList.remove('drop-back'), 1300);   // 动画全落位后摘类，常态回归基态微倾
+    }
+    if (Cam.el && Cam.curScreen === 'arcade') {
+      Cam.jump({ z: -38, rx: 4 });   // 从「刚从子游戏回来」的近位起拍（比 base 近 14px）
+      Cam.to(Cam.baseOf('arcade'), 900, 'dolly');   // 续接推回 base——Cam.to 自带 token 作废，新镜头随时接管
+    }
+  }, 280);
+}
 function enterTodFromArcade() {
-  location.href = 'tod.html';   // 单页拆分：tod 卡=真导航（原页内换屏语义随拆分移除；返回靠浏览器返回，tod.html 自己会认剪贴板邀请与回房票）
+  warpTo($('card-tod'), 'tod.html', 'tod');
 }
 $('card-tod').addEventListener('click', enterTodFromArcade);
 $('card-tod').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); enterTodFromArcade(); } });
-$('card-monopoly').addEventListener('click', () => { location.href = 'monopoly.html'; });
-$('card-monopoly').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); location.href = 'monopoly.html'; } });
+$('card-monopoly').addEventListener('click', () => { warpTo($('card-monopoly'), 'monopoly.html', 'monopoly'); });
+$('card-monopoly').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); warpTo($('card-monopoly'), 'monopoly.html', 'monopoly'); } });
 // tapFx 挂接（卡是 div，不是 button——tapFx 的 closest('button:…') 守卫拦不住，按压动画才能触发）
 ['card-tod', 'card-monopoly', 'card-uno', 'card-bombcat'].forEach(id => {
   const el = $(id);
   if (el) el.addEventListener('pointerdown', ev => tapFx(el, ev, 'tap'));
 });
-$('card-uno').addEventListener('click', () => { location.href = 'uno.html'; });
-$('card-uno').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); location.href = 'uno.html'; } });
+$('card-uno').addEventListener('click', () => { warpTo($('card-uno'), 'uno.html', 'uno'); });
+$('card-uno').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); warpTo($('card-uno'), 'uno.html', 'uno'); } });
+// bfcache 复活（评审 #2）：前进导航时页面带着盖满的 wipe 进冻结快照——回来第一拍立即撤干净，顺带复位 busy 与 dive
+window.addEventListener('pageshow', ev => {
+  if (!ev.persisted) return;
+  warpBusy = false;
+  hideWipeNow();
+  document.querySelectorAll('.arcade-card.dive').forEach(c => c.classList.remove('dive'));
+});
 // ═══ 跨分支游戏（graceful jump）═══
 // file:// 下 fetch 必死（本项目卖点双击即开）→ fail-open 直跳；http(s) 才 HEAD 探测（1500ms 超时，405/501 按存在算，
 // 失败再 GET 兜底）。结果只存页面级 memo（禁 localStorage 负缓存——合入后不能被旧结果锁死）。渲染期已后台预探测。
@@ -6702,13 +6828,27 @@ if (location.protocol !== 'file:') {
 function jumpExternal(card) {
   const href = card.dataset.href, name = card.dataset.name;
   if (location.protocol === 'file:' || typeof AbortSignal === 'undefined' || !AbortSignal.timeout) { location.href = href; return; }   // fail-open：file:// 与老浏览器直跳（404 也比永远点不开/炸脚本好）
-  if (jumpPending) return;
-  jumpPending = true;
+  if (jumpPending || warpBusy) return;
+  warpBusy = true; jumpPending = true;
+  try { localStorage.setItem(WARP_TICKET, JSON.stringify({ g: 'bombcat', t: Date.now() })); } catch (e) {}
+  if (WARP_TURBO()) { jumpPending = false; location.href = href; return; }   // 探针档直跳
+  const reduced = REDUCED || document.body.classList.contains('loperf');
+  const cover = reduced ? WARP_COVER_REDUCED_MS : WARP_COVER_MS;
+  if (!reduced) { card.classList.remove('tapped'); void card.offsetWidth; card.classList.add('dive'); }
+  // HEAD 探测最坏 HEAD1500+GET1500≈3s：wipe 保持盖屏 + 内嵌「正在确认能否开门…」状态文字（评审 #6，模仿 toast 语义）
+  showWipe(wipeCenterOf(card), WARP_THEME.bombcat, cover, reduced, '💣 正在确认能否开门…');
   toast('🚧 正在确认 ' + name + ' 能不能开门…');
+  const shownAt = Date.now();
   probeExternal(href).then(ok => {
     jumpPending = false;
     markExtAvailable(card, ok);
-    if (ok) { location.href = href; return; }
+    if (ok) {
+      setTimeout(() => { location.href = href; }, Math.max(0, cover - (Date.now() - shownAt)));   // 探测快于盖满时补足余量，盖满才跳
+      return;
+    }
+    warpBusy = false;   // 放行下一次尝试
+    card.classList.remove('dive');
+    hideWipe();          // 0.3s 撤回
     toast('💥 ' + name + ' 还在筹备中，敬请期待 🚧（先来一局 UNO / 大富翁吧）', 'error');   // 玩家语言，分支黑话只进 console
     console.info('[arcade] ' + name + ' 不可用：' + href + ' 尚未合入当前分支（合并后自动直连）');
   });
@@ -6752,6 +6892,7 @@ setTimeout(() => {
   if (link || rejoinName) return;   // doJoin 已接管（或 1350ms 后即将接管）加载层与网络条，boot 揭幕不许半路拆台（_hid 置真会废掉时长门并中途闪掉加载层）
   hideLoading();
   setNet('', (urlRoom || rejoinName) ? '待加入' : '未连接');
+  playWarpBack();   // 返回 pull-back：揭幕后读 tod:warp-back 票（<2500ms 新鲜）→ 四卡 drop-back + Cam 续接推回 base；无票=零改动
 }, 1200);
 </script>
 <script src="three.r128.js"></script>
