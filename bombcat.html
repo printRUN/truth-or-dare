@@ -119,7 +119,7 @@ body:not(.three3d) #bc-board2d { display: block; }
 #bc-log div:last-child { border-bottom: none; color: var(--amber); }
 @media (max-width: 720px) { #bc-log { position: static; width: 94%; max-height: 84px; margin: 2px auto 0; } }
 body.three3d #bc-log { background: rgba(10,10,26,0.5); max-height: 64px; pointer-events: none; }   /* 3D 局:日志面板正压牌堆投影区,减淡压矮+显式穿透(基础规则已有,static 档再钉一次防覆盖) */
-body.bc-raised .nplate { opacity: 0.3; }   /* 抬起态:名牌淡化避让,不压抬起卡面 */
+/* 名牌已 3D 化（数字实体化轮 B1）:body.bc-raised 避让由 plaqueRaisedMode 材质半透承担,DOM .nplate 规则退役 */
 body.three3d h1 { font-size: clamp(1.05rem, 3.6vw, 1.5rem); margin: 2px 0 2px; }   /* 3D 牌桌局:大标题让位牌桌空间——窄/矮屏上表头把计数条顶到 y≈100-133,抬起卡净空带全被吃掉(视觉终审必修1) */
 body.three3d .net-chip { margin: 0 auto 4px; padding: 2px 10px; font-size: 0.72rem; }
 body.three3d #bc-tipfirst { pointer-events: none; opacity: 0.85; }   /* 新手速览条=点击穿透玻璃:窄屏折行成大块会盖住牌库点击区,点它=点空白(「知道了」钮单独 auto 保留) */
@@ -137,7 +137,7 @@ body.three3d #bc-tipfirst button { pointer-events: auto; }
 body.three3d #bc-hand, body.three3d #bc-peek { display: none !important; }   /* 3D 手牌全端化(2026-09-24):GL 局 DOM 手牌/放大窗退役(留 GL-off 退路,UNO 同规);抬牌=看全脸 */
 body.three3d #bc-actions { margin-top: auto; }   /* 手牌行退役后「钉视口底」职责移交按钮排(原挂在 #bc-hand 的 margin-top:auto) */
 
-#bc-peek { position: fixed; left: 50%; bottom: calc(min(316px, 44vh) + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 30; display: flex; flex-direction: column; align-items: center; gap: 7px; pointer-events: none; animation: peek-in 0.16s ease both; }   /* 点牌查看:最后选中一张的整脸放大镜(卡面 canvas 自带名称+描述,78px 小卡读不清描述);bottom 316 让开 3D 场景内名牌投影(终审截图实测 292 会撞「猫二🃏4」);pointer-events:none=点它也算点空白处,照常收下 */
+#bc-peek { position: fixed; left: 50%; bottom: calc(min(316px, 44vh) + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 30; display: flex; flex-direction: column; align-items: center; gap: 7px; pointer-events: none; animation: peek-in 0.16s ease both; }   /* 点牌查看:最后选中一张的整脸放大镜(卡面 canvas 自带名称+描述,78px 小卡读不清描述);bottom 316 历史常数=让开旧 DOM 名牌投影（数字实体化轮 B1 后投影已不存在,数值保守不动——抬起卡带仍占此高度带）;pointer-events:none=点它也算点空白处,照常收下 */
 #bc-peek[hidden] { display: none; }
 #bc-peek img { width: clamp(148px, 38vw, 182px); height: auto; max-height: 46vh; border-radius: 12px; box-shadow: 0 18px 50px rgba(0,0,0,0.62), 0 0 0 1px rgba(255,255,255,0.14); }   /* 高被 max-height 钳制时浏览器按比例缩宽,横屏矮窗不裁切 */
 #bc-peek span { font-size: 0.72rem; color: rgba(255,255,255,0.66); background: rgba(10,10,26,0.6); border: 1px solid var(--glass-border); border-radius: 999px; padding: 2px 10px; }
@@ -2316,6 +2316,9 @@ window.__cat = {
   get suspense() { return boomSuspense ? { pid: boomSuspense.pid, t0: boomSuspense.t0, evTs: boomSuspense.evTs, done: boomSuspense.done } : null; },   // 悬念拍取证(W4 ev-bc-suspense):引信在途/事件时刻
   get boomFiredAt() { return boomFiredAt; },   // 悬念拍取证:boom 演出落地时刻(0=未放)
   fuseAlive: () => !!(window.__bcScene && window.__bcScene.fuseAlive && window.__bcScene.fuseAlive()),   // 悬念拍取证:引信克隆卡在飞
+  plates: () => (window.__bcScene && window.__bcScene.plates ? window.__bcScene.plates() : null),   // 数字实体化轮取证:头顶 3D 铭牌
+  pilePlaques: () => (window.__bcScene && window.__bcScene.pilePlaques ? window.__bcScene.pilePlaques() : null),   // 牌库/弃牌计数铭牌
+  nopeRing: () => (window.__bcScene && window.__bcScene.nopeRing ? window.__bcScene.nopeRing() : null),   // nope 倒计时环
 };
 
 'use strict';
@@ -2798,45 +2801,170 @@ function initScene() {
     return grp;
   })();
 
-  /* ── DOM 名牌（投影；本文件无嵌套 transform 容器，直接写视口坐标）── */
-  const plates = new Map();
-  function ensurePlates() {
-    if (!S) return;
-    for (const p of S.players) {
-      if (!plates.has(p.id)) {
-        const el = document.createElement('div');
-        el.className = 'nplate';
-        el.style.cssText = 'position:fixed;z-index:12;transform:translate(-50%,-100%);pointer-events:none;background:rgba(10,10,26,0.78);border:1px solid rgba(255,255,255,0.18);border-radius:999px;padding:3px 10px;font-size:13px;white-space:nowrap;display:none;';
-        document.body.appendChild(el);
-        plates.set(p.id, el);
-      }
-    }
-    for (const [pid, el] of plates) if (!S.players.some(p => p.id === pid)) { el.remove(); plates.delete(pid); }
+  /* ── 3D 数字铭牌（2026-10-08 数字实体化轮 B1/B2：头顶 DOM 投影贴片 .nplate 退役为有厚度实体号牌）──
+     全场统一语言（.pw/brief-num3d.md §0/§5b）：Box 六面材质数组（r128 面序 +x,-x,+y,-y,+z,-z），
+     前/后两面共用同一 CanvasTexture（buildPlane 核算两视角都正读不镜像），四侧 rim 共享同一材质实例；
+     每帧只写 rotation.y 的 Y 轴圆柱 billboard（厚度侧面随视角变化=实体感，完全 billboard 会让厚度时隐时现）。
+     常驻牌按内容 sig 缓存重绘（禁每帧 canvas，纪律同 tod qSig）；一次性牌纹理退场 dispose 不进缓存。
+     GL-off 局从未有过 .nplate（updatePlates 只被 GL frame 调用，GL-off 信息在 #bc-players）——无 DOM 退路问题。
+     柔影裁决（§5-16 例外备案）：B1 头顶牌不建柔影——角色立于桌外地面（SEAT_R 2.71 > TABLE_R 2.05），
+     影盘落在毡面会悬空在桌旁空气里；角色脚下已有 sun 真影链（castShadow+事件驱动 shadowMap）承担接地感。
+     B2 堆牌在毡面上方，柔影照建。 */
+  const plaqueGrps = new Map();     // pid -> {grp, sig}
+  const pilePlaques = {};           // {deck:{grp,shadow,sig}, disc:{...}} 牌库/弃牌计数铭牌（B2）
+  const plaqueRimMat = new THREE.MeshBasicMaterial({ color: 0x37304f });   // 侧面 rim 恒中性色；身份/回合语义画进正面纹理描边（B1 canvas 内）
+  function plaqueTexture(w, h, draw) {
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    draw(cv.getContext('2d'), w, h);
+    const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding;
+    t.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+    return t;
   }
-  const V = new THREE.Vector3();
-  function updatePlates() {
-    if (!S) return;
-    ensurePlates();
-    const w = window.innerWidth, h = window.innerHeight;
+  function plaqueDrawBase(x, w, h, rimCss) {   // 圆角底+描边（胶囊画法同 plateSprites 语言）
+    x.clearRect(0, 0, w, h);
+    x.beginPath();
+    if (x.roundRect) x.roundRect(2, 2, w - 4, h - 4, (h - 4) / 2); else x.rect(2, 2, w - 4, h - 4);
+    x.fillStyle = 'rgba(13,11,24,0.96)'; x.fill();
+    x.lineWidth = 4; x.strokeStyle = rimCss; x.stroke();
+  }
+  function mkPlaqueGrp(w, h, d) {
+    const grp = new THREE.Group();
+    const faceMat = new THREE.MeshBasicMaterial({ alphaTest: 0.5 });   // 圆角裁切走 alphaTest=不透明队列，无透明排序问题
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [plaqueRimMat, plaqueRimMat, plaqueRimMat, plaqueRimMat, faceMat, faceMat]);
+    grp.add(mesh);
+    grp.userData = { faceMat };
+    grp.visible = false;
+    scene.add(grp);
+    return grp;
+  }
+  function plaqueSetText(grp, tex) {   // 常驻牌换纹理：旧纹理即时 dispose（纹理由本模块持有，sig 缓存的是重绘时机不是纹理对象）
+    const fm = grp.userData.faceMat;
+    if (fm.map && fm.map !== tex) fm.map.dispose();
+    fm.map = tex; fm.needsUpdate = true;
+    grp.visible = true;
+  }
+  function drawPlateTex(p, isTurn, dead) {   // B1 头顶铭牌 256×64：名字 700 白 / 张数 900 琥珀（▶ 砍掉=turnRing 已承担）
+    return plaqueTexture(256, 64, (x, w, h) => {
+      plaqueDrawBase(x, w, h, dead ? '#475569' : (isTurn ? 'rgba(251,191,36,0.9)' : 'rgba(255,255,255,0.28)'));
+      x.textBaseline = 'middle';
+      const nm = (p.name || '');
+      x.font = '700 28px "Noto Sans SC", sans-serif';
+      x.textAlign = 'left';
+      x.fillStyle = dead ? '#94a3b8' : '#fff';
+      x.fillText(nm.length > 5 ? nm.slice(0, 4) + '…' : nm, 18, 34);
+      x.textAlign = 'right';
+      if (dead) { x.font = '24px sans-serif'; x.fillText('💀', w - 18, 34); }
+      else { x.font = '900 28px "Noto Sans SC", sans-serif'; x.fillStyle = '#fbbf24'; x.fillText(String(p.cnt != null ? p.cnt : '?'), w - 18, 34); }
+    });
+  }
+  // 抬起态避让（DOM 时代 body.bc-raised .nplate{opacity:.3} 等价物）：材质翻半透——alphaTest 同步降，否则 opacity×texAlpha<alphaTest 全像素被裁
+  let plaqueRaised = null;
+  function plaqueRaisedMode(on) {
+    if (plaqueRaised === on) return;
+    plaqueRaised = on;
+    const apply = fm => { fm.transparent = on; fm.opacity = on ? 0.3 : 1; fm.alphaTest = on ? 0.1 : 0.5; fm.depthWrite = !on; fm.needsUpdate = true; };
+    for (const [, r] of plaqueGrps) apply(r.grp.userData.faceMat);
+    for (const k in pilePlaques) apply(pilePlaques[k].grp.userData.faceMat);
+    plaqueRimMat.transparent = on; plaqueRimMat.opacity = on ? 0.3 : 1; plaqueRimMat.needsUpdate = true;
+  }
+  const WP = new THREE.Vector3();
+  function syncPlaques() {
+    plaqueRaisedMode(document.body.classList.contains('bc-raised'));
+    if (!S) { for (const [, r] of plaqueGrps) r.grp.visible = false; for (const k in pilePlaques) pilePlaques[k].grp.visible = false; return; }
+    const seen = new Set();
     for (const p of S.players) {
-      const el = plates.get(p.id); const ch = chars.get(p.id);
-      if (!el) continue;
-      if (!ch || p.id === myId) { el.style.display = 'none'; continue; }   // 自己的名牌不投影:南位名牌正压手牌扇卡底与点击热区(视觉终审 P1);自己手牌数看牌面/顶部提示即可
-      ch.getWorldPosition(V); V.y += 1.32;
-      V.project(camera);
-      if (V.z > 1 || V.x < -1.15 || V.x > 1.15 || V.y < -1.15 || V.y > 1.15) { el.style.display = 'none'; continue; }
-      el.style.display = 'block';
-      el.style.left = ((V.x * 0.5 + 0.5) * w) + 'px';
-      el.style.top = ((-V.y * 0.5 + 0.5) * h) + 'px';
+      if (p.id === myId) continue;   // 自己不建:南位铭牌正压手牌扇卡底与点击热区(视觉终审 P1,DOM 时代排除延续)
+      seen.add(p.id);
+      const ch = chars.get(p.id);
+      let rec = plaqueGrps.get(p.id);
+      if (!rec) { rec = { grp: mkPlaqueGrp(1.04, 0.26, 0.035), sig: '' }; plaqueGrps.set(p.id, rec); }
+      if (!ch) { rec.grp.visible = false; continue; }
       const dead = !p.alive || p.left;
       const isTurn = S.turn && S.turn.pid === p.id && S.stage === 'turn';
-      // 签名边沿重绘（禁每帧 innerHTML——重绘纪律同 tod qSig）
-      const sig = `${isTurn ? 1 : 0}|${dead ? 1 : 0}|${p.cnt != null ? p.cnt : '?'}|${p.name}`;
-      if (el.dataset.sig !== sig) {
-        el.dataset.sig = sig;
-        el.innerHTML = `${isTurn ? '▶ ' : ''}${esc(p.name)} <b style="color:${dead ? '#94a3b8' : '#fbbf24'}">${dead ? '💀' : '🃏' + (p.cnt != null ? p.cnt : '?')}</b>`;
+      // 签名边沿重绘（sig 四键 name|N|turn|dead 同 DOM 版；canvas 文字不吃 esc——不是 HTML）
+      const sig = `${p.name}|${p.cnt != null ? p.cnt : '?'}|${isTurn ? 1 : 0}|${dead ? 1 : 0}`;
+      if (rec.sig !== sig) { rec.sig = sig; plaqueSetText(rec.grp, drawPlateTex(p, isTurn, dead)); }
+      ch.getWorldPosition(WP);
+      rec.grp.position.set(WP.x, WP.y + 1.32, WP.z);   // 挂点同 DOM 投影高度;不随 dead 躺倒旋转（骷髅+灰名已表达）
+      rec.grp.visible = true;
+    }
+    for (const [pid, rec] of plaqueGrps) if (!seen.has(pid)) {
+      scene.remove(rec.grp);
+      if (rec.grp.userData.faceMat.map) rec.grp.userData.faceMat.map.dispose();
+      rec.grp.children[0].geometry.dispose();
+      plaqueGrps.delete(pid);
+    }
+    // B2 牌库/弃牌计数铭牌：数字与 3D 堆同场（#bc-top 是 UI 层保留——GL-off 也靠它）；堆旁 -0.70/-0.78 让开卡体投影带
+    const pileDefs = [
+      ['deck', '牌库', -0.70, -0.95, S ? S.deckN : 0],
+      ['disc', '弃牌', 1.32, -0.78, S ? S.discard.length : 0],
+    ];
+    for (const [key, label, px, pz, n] of pileDefs) {
+      let rec = pilePlaques[key];
+      if (!rec) {
+        rec = { grp: mkPlaqueGrp(0.72, 0.20, 0.028), sig: '' };
+        // 常驻牌柔影：y=FELT_Y+0.008（避开毡环+0.004/桌徽+0.006）、renderOrder1、opacity≤0.35、半径≈0.33×宽（接触影裁决：软影小于牌面读作接地，三场统一备案 §5b）
+        const sh = new THREE.Mesh(new THREE.CircleGeometry(0.24, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false }));
+        sh.rotation.x = -Math.PI / 2; sh.position.set(px, FELT_Y + 0.008, pz); sh.renderOrder = 1;
+        scene.add(sh);
+        rec.grp.position.set(px, FELT_Y + 0.14, pz);   // 立牌底缘离毡面 0.04——绝不与 0.004~0.012 贴花带共面（§2-4）
+        rec.shadow = sh;
+        pilePlaques[key] = rec;
       }
-      el.style.borderColor = isTurn ? 'rgba(251,191,36,0.65)' : 'rgba(255,255,255,0.18)';
+      const sig = `${label}|${n}`;
+      if (rec.sig !== sig) { rec.sig = sig; plaqueSetText(rec.grp, plaqueTexture(256, 72, (x, w, h) => {
+        plaqueDrawBase(x, w, h, 'rgba(251,191,36,0.55)');
+        x.textBaseline = 'middle'; x.textAlign = 'center';
+        x.font = '700 30px "Noto Sans SC", sans-serif'; x.fillStyle = '#e7e3f4';
+        x.fillText(label, w / 2 - 30, 38);
+        x.font = '900 34px "Noto Sans SC", sans-serif'; x.fillStyle = '#fbbf24';
+        x.fillText(String(n), w / 2 + 52, 38);
+      })); }
+      rec.grp.visible = true;
+      rec.shadow.visible = true;
+    }
+  }
+  /* ── B3 nope 倒计时环（弃牌堆上空，全员可见——DOM 横幅仅持 nope 者可见，counter 悬念首次社交化）── */
+  let nopeRingMesh = null, nopeRingFrac = -1, nopeRingShown = false;
+  const nopeRingGrp = new THREE.Group();
+  const nopeRingMat = new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide });
+  nopeRingGrp.visible = false; scene.add(nopeRingGrp);
+  let nopeSecOn = false;                       // 秒数铭牌（可选，默认关——环是模拟量计时器已够读；探针 __bcScene.nopeSecPlaque(1) 开）
+  let nopeSecGrp = null, nopeSecSig = '';
+  function syncNopeRing() {
+    const pd = S && S.turn && S.turn.pending;
+    const on = !!(pd && pd.kind === 'nope' && pd.deadline);
+    if (!on) {
+      if (nopeRingShown) { nopeRingGrp.visible = false; if (nopeSecGrp) nopeSecGrp.visible = false; nopeRingShown = false; nopeRingFrac = -1; }
+      return;
+    }
+    const nowMs = Date.now();   // pd.t0/deadline 是 Date.now() 基准（引擎 :1108/:1153）——帧循环的 performance.now() 与其差 ~1.8e12，错用会 frac 恒钳 1（代码检查官 P1）
+    const total = Math.max(1, pd.deadline - (pd.t0 || (pd.deadline - 3000)));
+    const frac = Math.max(0, Math.min(1, (pd.deadline - nowMs) / total));
+    const topY = FELT_Y + discVisual.length * CARD_T + 0.02;
+    nopeRingGrp.position.set(discGroup.position.x, topY, discGroup.position.z);
+    if (nopeRingFrac < 0 || Math.abs(frac - nopeRingFrac) > 0.02) {   // 200ms 级节流重建（40 段环形几何，量级无害）
+      nopeRingFrac = frac;
+      if (nopeRingMesh) { nopeRingMesh.geometry.dispose(); nopeRingGrp.remove(nopeRingMesh); }
+      nopeRingMesh = new THREE.Mesh(new THREE.RingGeometry(0.30, 0.38, 36, 1, Math.PI / 2, Math.max(0.02, frac) * Math.PI * 2), nopeRingMat);
+      nopeRingMesh.rotation.x = -Math.PI / 2; nopeRingMesh.renderOrder = 3;
+      nopeRingGrp.add(nopeRingMesh);
+    }
+    nopeRingGrp.visible = true; nopeRingShown = true;
+    if (nopeSecOn) {
+      if (!nopeSecGrp) { nopeSecGrp = mkPlaqueGrp(0.5, 0.2, 0.028); nopeSecGrp.position.set(discGroup.position.x, topY + 0.34, discGroup.position.z); }
+      const sec = Math.ceil((pd.deadline - nowMs) / 1000);
+      const sig = String(Math.max(0, sec));
+      if (nopeSecSig !== sig) {
+        nopeSecSig = sig;
+        plaqueSetText(nopeSecGrp, plaqueTexture(128, 64, (x, w, h) => {
+          plaqueDrawBase(x, w, h, 'rgba(239,68,68,0.8)');
+          x.font = '900 38px "Noto Sans SC", sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+          x.fillStyle = '#fff'; x.fillText(sig, w / 2, h / 2 + 2);
+        }));
+      }
+      nopeSecGrp.position.set(discGroup.position.x, topY + 0.34, discGroup.position.z);
+      nopeSecGrp.visible = true;
     }
   }
 
@@ -2915,6 +3043,11 @@ function initScene() {
       if (fuseMs > 700) { camFuseT0 = performance.now(); camFuseHold = camFuseT0 + fuseMs + 60; }   // 700ms 推近后保持到引爆
     },
     fuseAlive: () => !!fuseMesh,   // 取证:引信克隆卡在飞
+    /* ── 数字实体化轮取证（B1/B2/B3）：铭牌/计数牌/nope 环状态（探针 ev-num3d-bc 消费）── */
+    plates: () => Array.from(plaqueGrps).map(([pid, r]) => ({ pid, sig: r.sig, visible: r.grp.visible, x: +r.grp.position.x.toFixed(3), y: +r.grp.position.y.toFixed(3), z: +r.grp.position.z.toFixed(3) })),
+    pilePlaques: () => ({ deck: pilePlaques.deck ? { sig: pilePlaques.deck.sig, visible: pilePlaques.deck.grp.visible } : null, disc: pilePlaques.disc ? { sig: pilePlaques.disc.sig, visible: pilePlaques.disc.grp.visible } : null }),
+    nopeRing: () => ({ on: nopeRingShown, frac: +nopeRingFrac.toFixed(3) }),
+    nopeSecPlaque: v => { nopeSecOn = !!v; },   // 秒数铭牌开关（默认关：环已是模拟量计时器）
     captureFan: () => handGroups.length ? handGroups.map(h => h.grp.clone()) : null,   // 结算一镜素材:本端扇克隆(共享 geo/tex;扇已清=null 该拍跳过)
     victoryPush: ms => { camVictoryT0 = performance.now(); camVictoryMs = ms || 800; },   // 结算一镜:相机缓推向南位胜者座位(写进渲染循环机位合成处)
     /* ── 手牌 3D 扇（游戏层经此读写，禁持场景闭包引用——initScene 可重入，旧闭包会指向已 dispose 的 scene）── */
@@ -3060,7 +3193,12 @@ function initScene() {
         turnRing.scale.set(b, 1, b);
       } else turnRing.visible = false;
     } else turnRing.visible = false;
-    updatePlates();
+    syncPlaques(); syncNopeRing();   // 3D 铭牌（B1/B2）+ nope 倒计时环（B3）
+    // Y-billboard（§5-15）：只写 rotation.y 的圆柱朝向——厚度侧面随视角变化=实体感；插桩点=渲染提交前（uno tick 同款）
+    const bbx = g => { g.rotation.y = Math.atan2(camera.position.x - g.position.x, camera.position.z - g.position.z); };
+    for (const [, r] of plaqueGrps) if (r.grp.visible) bbx(r.grp);
+    for (const k in pilePlaques) if (pilePlaques[k].grp.visible) bbx(pilePlaques[k].grp);
+    if (nopeSecGrp && nopeSecGrp.visible) bbx(nopeSecGrp);
     // 人物呼吸 / 出局躺倒
     for (const [pid, ch] of chars) {
       const u = ch.userData;
@@ -3087,8 +3225,6 @@ function initScene() {
       window.removeEventListener('pointermove', onPointer);
       scene.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m.map) m.map.dispose(); m.dispose(); }); } });
       renderer.dispose();
-      for (const [, el] of plates) el.remove();
-      plates.clear();
       flashEl.remove();
     }
   };

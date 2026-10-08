@@ -270,7 +270,7 @@
   <button id="btn-quit" type="button" title="返回游戏中心">🏠</button>
 </div>
 <div id="toast"></div>
-<div id="dice-readout"></div>
+<div id="dice-readout" aria-live="polite"></div>
 <div id="action-bar"></div>
 <div id="bust-banner"></div>
 
@@ -1643,6 +1643,7 @@ function syncHouseLevels() {
 }
 function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function moneyFloat(i, delta) {
+  if (canPlaque()) { cashFloat(i, delta); return; }   // M1 GL 主表达=3D 总额牌（调用驱动分流；降档/TURBO/AUTOTEST 走 DOM 浮字=现有备案行为）
   const chip = $('pchip-' + i); if (!chip) return;
   const el = document.createElement('span');
   el.className = 'mfloat'; el.dataset.pi = i;   // updateHUD 重建玩家条后按归属回挂（否则浮层活不过下一次绘制）
@@ -1653,7 +1654,8 @@ function moneyFloat(i, delta) {
 }
 function diceReadout(d1, d2) {
   const el = $('dice-readout');
-  el.textContent = `${d1} + ${d2} = ${d1 + d2}` + (d1 === d2 ? ' ✨双数' : '');
+  el.textContent = `${d1} + ${d2} = ${d1 + d2}` + (d1 === d2 ? ' ✨双数' : '');   // 文本桥两态共写：GL 局不挂 .show（视觉走 3D 铭牌），aria-live 读屏退路仍达
+  if (canPlaque()) { dicePlaque3D(d1, d2); return; }
   el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 900 * SPEED);
 }
@@ -2319,8 +2321,106 @@ function flyNotes(from, to, amount, onArrive) {   // 一镜到底：金额→面
   if (!denoms.length) denoms.push(100);
   SFX.note();
   let arrived = false;
-  const arriveOnce = () => { if (!arrived) { arrived = true; if (onArrive) onArrive(); } };
+  const arriveOnce = () => { if (arrived) return; arrived = true; if (onArrive) onArrive(); };
   denoms.forEach((d, i) => noteFlight(from, to, d, i * 60, i === 0 ? arriveOnce : null));
+}
+/* ── 3D 数字铭牌（2026-10-08 数字实体化轮 M1/M2，实施契约 .pw/brief-num3d.md §5/§5b）──
+   语言：Box 六面材质数组（r128 面序 +x,-x,+y,-y,+z,-z），前/后两面共用同一 CanvasTexture
+   （buildPlane 核算两视角正读不镜像），四侧 rim 共享同一材质实例；每帧只写 rotation.y 的
+   Y 轴圆柱 billboard（厚度侧面随视角变化=实体感）。一次性牌（金额浮牌/骰值铭牌）纹理退场
+   dispose、禁进内容缓存（§5-12）；免柔影——动态黑斑读作污渍（§5b-30）。
+   M1 调用驱动：入口在 moneyFloat/diceReadout 分流，**禁挂 updateHUD cash diff**（charge 里
+   updateHUD 每次跑 2 遍会重复弹）。存活 900ms×SPEED > 首束钞票落地 700+60=760ms——总额牌
+   活得比钞票久是正确语义（分解落地后总额仍在读），别当 bug「修」（§5b-31）。 */
+const plaqueStat = { live: 0, cash: 0, dice: 0, w: 0, pos: null };   // inspect 取证计数（__mono.floaters）；w=最后一块铭牌世界宽度（防「画布像素当世界单位」回归锁）；pos=起飞世界坐标（契约位断言）
+let plaqueRimMat = null;
+function canPlaque() { return canFlyNotes() && !AUTOTEST; }   // canFlyNotes 不含 AUTOTEST——E1 先例显式 || AUTOTEST（§5-11）
+function disposePlaque(pl) {
+  scene.remove(pl.grp);
+  pl.grp.geometry.dispose();
+  pl.tex.dispose();
+  pl.faceMat.dispose();
+  plaqueStat.live--;
+}
+function mkMonoPlaque(ww, wh, d, cw, ch, draw, rimCss) {   // 世界尺寸(ww,wh)与画布尺寸(cw,ch)必须分开传——前者是几何，后者是纹理分辨率
+  if (!G.gl || !scene) return null;
+  if (!plaqueRimMat) plaqueRimMat = new THREE.MeshBasicMaterial({ color: 0x37304f });
+  const tex = mkTex(cw, ch, x => {
+    x.beginPath();
+    if (x.roundRect) x.roundRect(3, 3, cw - 6, ch - 6, (ch - 6) / 2); else x.rect(3, 3, cw - 6, ch - 6);
+    x.fillStyle = '#120e22'; x.fill();
+    x.lineWidth = 6; x.strokeStyle = rimCss; x.stroke();
+    draw(x, cw, ch);
+  });
+  const faceMat = new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.5 });   // 圆角裁切走 alphaTest=不透明队列，无透明排序问题
+  const grp = new THREE.Mesh(new THREE.BoxGeometry(ww, wh, d), [plaqueRimMat, plaqueRimMat, plaqueRimMat, plaqueRimMat, faceMat, faceMat]);
+  plaqueStat.w = ww;
+  return { grp, faceMat, tex };
+}
+function plaquePulse(pl, k) {   // 出场超冲 pop 0.6→1.12→1（前 29%），尾段 16% 缩隐退场（一次性牌无淡出——alphaTest 材质 opacity 淡出会被裁元）
+  const pop = Math.min(1, k / 0.29);
+  const grow = pop < 0.45 ? 0.6 + 0.52 * (pop / 0.45) : 1.12 - 0.12 * ((pop - 0.45) / 0.55);
+  pl.grp.scale.setScalar(k > 0.84 ? grow * (1 - 0.45 * (k - 0.84) / 0.16) : grow);
+}
+function cashFloat(i, delta) {   // M1 金额浮牌：棋子头顶升起的实体总额牌
+  const at = pawnNotePos(i);
+  const t = TILES[G.players[i] ? G.players[i].pos : 0];
+  const ang = Math.atan2(t.x, t.z);
+  const sx = at.x + Math.sin(ang) * 0.25, sz = at.z + Math.cos(ang) * 0.25;   // 外移 0.25 与名牌 Sprite 带(y0.86/1.04)/钞堆外移 0.55 错位
+  const sy = at.y + 0.3, ey = 1.55;
+  const rim = delta >= 0 ? '#22d3ee' : '#f472b6';   // 收支轴=DOM mfloat/toast 既有青/粉语义；noteTex 红=面额色不许蹭（§5b-22）
+  const txt = '¥' + Math.abs(delta).toLocaleString('zh-CN');
+  const pl = mkMonoPlaque(0.95, 0.30, 0.04, 352, 96, (x, w, h) => {   // 世界 0.95×0.30（§5b-27）；画布 352×96：最长 +¥12,000=8 字符 @900 56px
+    x.textBaseline = 'middle'; x.textAlign = 'left';
+    x.font = '900 56px Georgia,serif';   // 金额字体呼应 noteTex 面额 Georgia；只有符号染色——色盲靠符号形状辨向（红绿轴陷阱规避）
+    x.fillStyle = rim;
+    const sg = delta >= 0 ? '+' : '−';
+    x.fillText(sg, 22, h / 2 + 2);
+    x.fillStyle = '#fff'; x.fillText(txt, 26 + x.measureText(sg).width, h / 2 + 2);
+  }, rim);
+  if (!pl) return;
+  plaqueStat.live++; plaqueStat.cash++;
+  pl.grp.position.set(sx, sy, sz);
+  scene.add(pl.grp);
+  const dr = $('dice-readout');   // 读屏退路（业务终审 P2-2）：GL 局金额真相桥进 aria-live 区（视觉不可见，无 .show）
+  if (dr) dr.textContent = (delta >= 0 ? '+' : '−') + txt;
+  plaqueStat.pos = { x: +sx.toFixed(2), y: +sy.toFixed(2), z: +sz.toFixed(2) };   // 取证：起飞位=契约位（角格 pawn 全景下出画是机位事实，proj 断言不成立——业务终审 P2-1 改用几何位断言）
+  const t0 = performance.now() + 60 * SPEED, DUR = 900 * SPEED;   // 与 flyNotes 束间错拍同常数 +60ms（§5-6）；flyNotes 的 delay*SPEED 同域
+  const step = now => {
+    const k = Math.min(1, Math.max(0, (now - t0) / DUR));   // 夹负 k：延迟期不画负 scale 镜像
+    pl.grp.rotation.y = Math.atan2(camera.position.x - pl.grp.position.x, camera.position.z - pl.grp.position.z);
+    pl.grp.position.y = sy + (ey - sy) * (1 - Math.pow(1 - k, 2));   // easeOut 升浮
+    pl.grp.visible = k > 0;
+    plaquePulse(pl, k);
+    if (k < 1) requestAnimationFrame(step);
+    else disposePlaque(pl);
+  };
+  requestAnimationFrame(step);
+}
+function dicePlaque3D(d1, d2) {   // M2 骰值铭牌：双骰落点中点上空的实体读数（介质升级；降档/TURBO 走 DOM readout parity）
+  const sum = d1 + d2, dbl = d1 === d2;
+  const pl = mkMonoPlaque(0.72, 0.36, 0.045, 256, 128, (x, w, h) => {   // 世界 0.72×0.36（§5b-28 实读 47-66px，禁再放大）；画布 256×128
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillStyle = '#fff'; x.font = '900 72px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
+    x.fillText(String(sum), w / 2, dbl ? h / 2 - 14 : h / 2 + 2);
+    if (dbl) {   // ✦双数=第三冗余只做确认（冲击环+toast 已双保险），24px 琥珀禁放大（§5b-28）
+      x.fillStyle = '#fbbf24'; x.font = '700 24px "Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
+      x.fillText('✦ 双数', w / 2, h / 2 + 36);
+    }
+  }, dbl ? '#fbbf24' : 'rgba(255,255,255,0.35)');
+  if (!pl) return;
+  plaqueStat.live++; plaqueStat.dice++;
+  pl.grp.position.set(0, 1.1, 1.3);   // 双骰落点中点（shockRing 同锚 y0.39）上空；骰顶 0.72、全景视线带 ~1.15 从上方通过无遮挡（工程核算）
+  scene.add(pl.grp);
+  const t0 = performance.now(), DUR = 900 * SPEED;
+  const step = now => {
+    const k = Math.min(1, (now - t0) / DUR);
+    pl.grp.rotation.y = Math.atan2(camera.position.x - pl.grp.position.x, camera.position.z - pl.grp.position.z);
+    plaquePulse(pl, k);
+    if (k < 1) requestAnimationFrame(step);
+    else disposePlaque(pl);
+  };
+  requestAnimationFrame(step);
 }
 function noteScatter(from, k) {   // 破产散钞：单束抛物线+重力+毡面弹跳，1.3s 后淡出
   const s = acquireNoteStack(k % 2 ? 100 : 500);
@@ -3131,6 +3231,7 @@ if (AUTOTEST || qs.get('inspect') === '1') {   // inspect=1：真机路径（SPE
     ritual: () => ({ flying: bustClones.length, tiles: bustClones.map(c => c.tile), clones: bustClones.map(c => ({ tile: c.tile, from: c.from, to: c.to })), bannerShown: document.getElementById('bust-banner').classList.contains('show'), shaking: document.body.classList.contains('shaking'), scatterBusy: notePool.filter(n => n.busy).length }),   // W2① 清算克隆枚举（在飞数/来源地块/目标）
     stacks: () => ({ pool: stackPool.length, mirror: lastStackCash.slice(), hidden: !stackPool.some(s => s.on), notePoolBusy: notePool.filter(n => n.busy).length, notePoolSize: notePool.length, perPlayer: G.players.map((p, i) => ({ cash: p.cash, want: p.bankrupt ? 0 : stackLayersFor(p.cash), shown: stackPool.filter(s => s.on && s.player === i).length })) }),   // W2② 钞堆状态（每玩家层数/cash 镜像/busy 池隔离）
     fx: () => ({ speed: SPEED, grav: SCATTER_G, bigMoney: BIG_MONEY, thumps: fxThumps, jolts: fxJolts, tex: (() => { const t = noteTex(1000); return { w: t.image.width, h: t.image.height }; })() }),   // W2③ 备案取证（散钞重力值/thump 计数/noteTex 尺寸）
+    floaters: () => ({ can: canPlaque(), live: plaqueStat.live, cash: plaqueStat.cash, dice: plaqueStat.dice, w: plaqueStat.w, pos: plaqueStat.pos }),   // M1/M2 3D 铭牌取证（计数/在飞/世界宽度/起飞世界坐标）
     mc: n => new Promise(async res => {
       const out = [];
       for (let k = 0; k < n; k++) {

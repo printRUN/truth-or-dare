@@ -1191,35 +1191,132 @@ function toast(msg, kind = '') {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), 2800 * SPEED);
 }
-const seatFx = { labels: [], rings: [], sig: '' };
+const seatFx = { labels: [], rings: [], sig: '', turnSig: '', rim: null, warned: {}, deckPlaque: null };
+function seatFxRim() {   // 四侧 rim 共享材质（常驻牌；refresh 重建只换 faceMat/geometry，rim 常驻不 dispose）
+  if (!seatFx.rim) seatFx.rim = new THREE.MeshBasicMaterial({ color: 0x37304f });
+  return seatFx.rim;
+}
+function seatPlaque(w, h, d, tex) {   // 座位铭牌（2026-10-08 数字实体化轮 U1：平面 Sprite→有厚度实体号牌）
+  const faceMat = new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.5 });   // 圆角裁切走 alphaTest=不透明队列
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [seatFxRim(), seatFxRim(), seatFxRim(), seatFxRim(), faceMat, faceMat]);
+  m.userData.faceMat = faceMat;
+  return m;
+}
+function seatPlaqueTexNormal(p) {   // 256×64：名字 700 正体 + 张数 900 合成斜体+暗底字（cardFaceTex 签名语言：数字会飞名字不飞）
+  return mkTex(256, 64, (c, w, h) => {
+    rr(c, 4, 4, w - 8, h - 8, 20); c.fillStyle = 'rgba(16,14,34,0.95)'; c.fill();
+    c.strokeStyle = PLAYER_COLORS[p.colorIdx]; c.lineWidth = 4; c.stroke();
+    c.textBaseline = 'middle'; c.textAlign = 'left';
+    c.fillStyle = '#fff'; c.font = '700 28px "Noto Sans SC","Microsoft YaHei",sans-serif';
+    const nm = p.name.length > 5 ? p.name.slice(0, 4) + '…' : p.name;
+    c.fillText(nm, 16, h / 2 + 2);
+    c.save(); c.transform(1, 0, -0.14, 1, 0, 0);
+    c.font = '900 34px "Noto Sans SC","Microsoft YaHei",sans-serif';
+    c.fillStyle = 'rgba(0,0,0,0.20)'; c.fillText(String(p.hand.length), w - 66, h / 2 + 5);
+    c.fillStyle = '#fff'; c.fillText(String(p.hand.length), w - 63, h / 2 + 2);
+    c.restore();
+    c.textAlign = 'left'; c.fillStyle = '#fff'; c.font = '700 20px "Noto Sans SC","Microsoft YaHei",sans-serif';
+    c.fillText('张', w - 30, h / 2 + 2);
+  });
+}
+function seatPlaqueTexWarn(p) {   // 256×72 报单警示态：UNO! 行 900 斜体 #ef4444（COLORS.r 本色）主载体（§5b-29）
+  return mkTex(256, 72, (c, w, h) => {
+    rr(c, 4, 4, w - 8, h - 8, 22); c.fillStyle = 'rgba(30,12,16,0.96)'; c.fill();
+    c.strokeStyle = '#ef4444'; c.lineWidth = 5; c.stroke();
+    c.textBaseline = 'middle'; c.textAlign = 'center';
+    c.fillStyle = '#fff'; c.font = '700 24px "Noto Sans SC","Microsoft YaHei",sans-serif';
+    c.fillText(`${p.name} · 1张`, w / 2, 20);
+    c.save(); c.transform(1, 0, -0.14, 1, 0, 0);
+    c.font = '900 32px "Noto Sans SC","Microsoft YaHei",sans-serif';
+    c.fillStyle = 'rgba(255,255,255,0.9)'; c.fillText('UNO!', w / 2 + 3, 50 + 3);
+    c.fillStyle = '#ef4444'; c.fillText('UNO!', w / 2, 50);
+    c.restore();
+  });
+}
+function plaquePop(mesh) {   // 警示边沿 pop 一次（0.6→1.12→1 超冲家族；REDUCED/bodyLo/TURBO/AUTOTEST 不播——照建不退，§5-7）
+  const t0 = performance.now();
+  const step = now => {
+    if (!mesh.parent) return;   // 途中被 refresh 重建则让位
+    const k = Math.min(1, (now - t0) / 260);
+    mesh.scale.setScalar(k < 0.45 ? 0.6 + 0.52 * (k / 0.45) : 1.12 - 0.12 * ((k - 0.45) / 0.55));
+    if (k < 1) requestAnimationFrame(step); else mesh.scale.setScalar(1);
+  };
+  requestAnimationFrame(step);
+}
+function disposeLabel(sp) {   // 旧铭牌退役：geometry+faceMat+map 即时 dispose；rim 共享不 dispose
+  scene.remove(sp);
+  sp.geometry.dispose();
+  if (sp.userData.faceMat) { if (sp.userData.faceMat.map) sp.userData.faceMat.map.dispose(); sp.userData.faceMat.dispose(); }
+  if (sp.userData.shadow) { scene.remove(sp.userData.shadow); sp.userData.shadow.geometry.dispose(); sp.userData.shadow.material.dispose(); }
+}
 function refreshSeatFx() {   // 座位名牌(名字·牌数)+行动指示环:每个座位一个固定「座位感」,轮到谁谁的环亮
   if (!G.gl || !scene || G.phase === 'BOOT' || G.phase === 'SETUP') return;
-  const sig = G.players.map((p, i) => `${i}:${p.name}:${p.hand.length}:${i === G.turn ? 1 : 0}:${southOwner()}`).join('|');
-  if (sig === seatFx.sig) return;
-  seatFx.sig = sig;
-  seatFx.labels.forEach(sp => { scene.remove(sp); if (sp.material.map) sp.material.map.dispose(); sp.material.dispose(); });
-  seatFx.rings.forEach(r => { scene.remove(r); r.geometry.dispose(); r.material.dispose(); });
-  seatFx.labels = []; seatFx.rings = [];
+  // sig 拆键（§5-7）：纹理键 name|count|south（**去 turn**——turn 进纹理键会每回合全量重建+重播 pop）；
+  // turn 单独键只管环亮度原位更新。报单警示走 (seat,warn) 边沿 pop 一次。
   const south = southOwner();
-  G.players.forEach((p, seat) => {
-    if (seat === south) return;   // 自己:手牌即座位,名字在 HUD
-    const pos = seatPos(seat);
-    const t = mkTex(256, 64, (c, w, h) => {
-      rr(c, 4, 4, w - 8, h - 8, 20); c.fillStyle = 'rgba(16,14,34,0.88)'; c.fill();
-      c.strokeStyle = PLAYER_COLORS[p.colorIdx]; c.lineWidth = 4; c.stroke();
-      c.fillStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'middle';
-      c.font = '700 30px "Noto Sans SC","Microsoft YaHei",sans-serif';
-      c.fillText(`${p.name} · ${p.hand.length}张`, w / 2, h / 2 + 2);
+  const sig = G.players.map((p, i) => `${i}:${p.name}:${p.hand.length}:${south}`).join('|');
+  const turnSig = String(G.turn);
+  if (sig !== seatFx.sig) {
+    seatFx.sig = sig;
+    seatFx.labels.forEach(disposeLabel);
+    seatFx.rings.forEach(r => { scene.remove(r); r.geometry.dispose(); r.material.dispose(); });
+    seatFx.labels = []; seatFx.rings = [];
+    G.players.forEach((p, seat) => {
+      if (seat === south) return;   // 自己:手牌即座位,名字在 HUD
+      const pos = seatPos(seat);
+      const warn = p.hand.length === 1;
+      const m = seatPlaque(warn ? 1.35 : 1.2, warn ? 0.38 : 0.30, 0.05, warn ? seatPlaqueTexWarn(p) : seatPlaqueTexNormal(p));
+      m.position.set(pos.x, 0.78, pos.z);
+      m.userData.warn = warn;
+      // 常驻牌柔影（§5-16）：牌在桌面上空（y0.78，桌面 -0.05）——影盘钉桌面 y=-0.042、renderOrder1、半径≈0.33×宽（软影小于牌面读作接触影，§5b 裁决同 bombcat B2/tod 立牌）
+      const sh = new THREE.Mesh(new THREE.CircleGeometry((warn ? 1.35 : 1.2) * 0.33, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false }));
+      sh.rotation.x = -Math.PI / 2; sh.position.set(pos.x, -0.042, pos.z); sh.renderOrder = 1;
+      scene.add(sh);
+      m.userData.shadow = sh;
+      scene.add(m); seatFx.labels.push(m);
+      if (warn && !seatFx.warned[seat] && !REDUCED && !bodyLo && !TURBO && !AUTOTEST) plaquePop(m);   // 边沿触发一次
+      seatFx.warned[seat] = warn;
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.42, 36), new THREE.MeshBasicMaterial({ color: PLAYER_COLORS[p.colorIdx], transparent: true, opacity: seat === G.turn ? 0.95 : 0.12, side: THREE.DoubleSide }));
+      ring.rotation.x = -Math.PI / 2; ring.position.set(pos.x, 0.212, pos.z);
+      ring._active = seat === G.turn; ring._seat = seat;   // 行动者环:tick 呼吸脉冲用
+      scene.add(ring); seatFx.rings.push(ring);
     });
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthTest: false }));
-    sp.position.set(pos.x, 0.78, pos.z);
-    sp.scale.set(1.2, 0.3, 1);
-    scene.add(sp); seatFx.labels.push(sp);
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.42, 36), new THREE.MeshBasicMaterial({ color: PLAYER_COLORS[p.colorIdx], transparent: true, opacity: seat === G.turn ? 0.95 : 0.12, side: THREE.DoubleSide }));
-    ring.rotation.x = -Math.PI / 2; ring.position.set(pos.x, 0.212, pos.z);
-    ring._active = seat === G.turn;   // 行动者环:tick 呼吸脉冲用
-    scene.add(ring); seatFx.rings.push(ring);
-  });
+    // U2 牌库余量铭牌：与牌堆同场的精读层（refreshDeckStack 层数=远读两级编码，§5b 保留）
+    if (!seatFx.deckPlaque) {
+      const dp = seatPlaque(0.72, 0.20, 0.035, null);
+      dp.position.set(-1.15, 0.55, -0.62);   // 牌库（-1.15,0.34,0）后方远离镜头侧：不遮堆顶、立体错层
+      const sh = new THREE.Mesh(new THREE.CircleGeometry(0.22, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false }));
+      sh.rotation.x = -Math.PI / 2; sh.position.set(-1.15, -0.042, -0.62); sh.renderOrder = 1;   // 常驻牌柔影：桌面(-0.05)+0.008、renderOrder1
+      scene.add(sh); seatFx.deckShadow = sh;
+      scene.add(dp); seatFx.deckPlaque = dp;
+    }
+    seatFx.deckSig = '';
+  }
+  if (turnSig !== seatFx.turnSig) {
+    seatFx.turnSig = turnSig;
+    // 显式写亮度（不能只翻 _active 等 tick 呼吸接手——bodyLo 下呼吸被门控跳过，新行动环会停在 0.12 暗态）
+    seatFx.rings.forEach(r => { r._active = r._seat === G.turn; r.material.opacity = r._active ? 0.95 : 0.12; });
+  }
+  // 牌库铭牌数字随余量重绘（纹理键=张数；age 不进键）
+  const dp = seatFx.deckPlaque;
+  if (dp) {
+    const dsig = String(G.deck.length);
+    if (seatFx.deckSig !== dsig) {
+      seatFx.deckSig = dsig;
+      const fm = dp.userData.faceMat;
+      if (fm.map) fm.map.dispose();
+      fm.map = mkTex(256, 72, (c, w, h) => {
+        rr(c, 4, 4, w - 8, h - 8, 22); c.fillStyle = 'rgba(16,14,34,0.95)'; c.fill();
+        c.strokeStyle = 'rgba(251,191,36,0.55)'; c.lineWidth = 4; c.stroke();
+        c.textBaseline = 'middle'; c.textAlign = 'center';
+        c.fillStyle = '#e7e3f4'; c.font = '700 28px "Noto Sans SC","Microsoft YaHei",sans-serif';
+        c.fillText('牌库', w / 2 - 34, h / 2 + 2);
+        c.fillStyle = '#fbbf24'; c.font = '900 34px "Noto Sans SC","Microsoft YaHei",sans-serif';
+        c.fillText('×' + G.deck.length, w / 2 + 36, h / 2 + 2);
+      });
+      fm.needsUpdate = true;
+    }
+  }
 }
 function updateHUD() {
   $('players-bar').innerHTML = G.players.map((p, i) => {
@@ -2096,6 +2193,10 @@ function tick(now) {
       const amp = 0.75 + Math.sin(now / 300) * 0.2;
       seatFx.rings.forEach(r => { if (r._active) r.material.opacity = amp; });
     }
+    // 座位铭牌/牌库铭牌 Y 轴圆柱 billboard（数字实体化轮 U1/U2）：只写 rotation.y——厚度侧面随视角变化=实体感
+    const bbx = m => { m.rotation.y = Math.atan2(camera.position.x - m.position.x, camera.position.z - m.position.z); };
+    seatFx.labels.forEach(bbx);
+    if (seatFx.deckPlaque) bbx(seatFx.deckPlaque);
     if (!TURBO && !(AUTOTEST && bodyLo) && renderer) renderer.render(scene, camera);
   }
   tick.last = now;
@@ -2387,6 +2488,12 @@ if (AUTOTEST || qs.get('inspect') === '1') {   // inspect=1：真机路径（SPE
       labels: seatFx.labels.map(sp => ({ x: +sp.position.x.toFixed(2), z: +sp.position.z.toFixed(2) })),
       rings: seatFx.rings.map(r => ({ x: +r.position.x.toFixed(2), op: +r.material.opacity.toFixed(2) })),
       dealOrder: dealFx.lastOrder || [],
+    }),
+    seatPlaques: () => ({   // U1/U2 3D 铭牌取证（ev-num3d-uno 消费；labels 旧形状不变）
+      count: seatFx.labels.length,
+      warn: seatFx.labels.filter(sp => sp.userData.warn).length,
+      deck: seatFx.deckPlaque ? { visible: !!seatFx.deckPlaque.parent, sig: seatFx.deckSig || '' } : null,
+      sig: seatFx.sig, turnSig: seatFx.turnSig,
     }),
     piles: () => (!drawMesh || !pileMesh) ? null : ({
       draw: { frontVisible: drawMesh.children[1].visible, backRotY: drawMesh.children[0].rotation.y },   // 牌库:正面恒隐藏+背纹朝上

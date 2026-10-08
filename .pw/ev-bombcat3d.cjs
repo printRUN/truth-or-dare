@@ -236,14 +236,14 @@ async function forceTurn(p) {
     await pC.waitForTimeout(600);
     const ghost = await pC.evaluate(() => (window.__cat.hand3d() || []).length);
     ok(ghost === 0, `观战端零鬼牌（hand3d.length=${ghost}）`);
-    // 竖屏：A 端北位（乙）名牌可见
+    // 竖屏：A 端北位（乙）名牌可见（数字实体化轮 B1：.nplate DOM 投影退役为 GL 3D 铭牌，断言改读 __cat.plates()）
     await pA.evaluate(() => window.__cat.forceRender());
     const plate = await pA.evaluate(() => {
-      const plates = [...document.querySelectorAll('.nplate')];
-      const vis = plates.filter(el => el.style.display === 'block');
-      return { total: plates.length, visible: vis.length, sample: vis[0] ? vis[0].textContent : '' };
+      const plates = (window.__cat.plates && window.__cat.plates()) || [];
+      const vis = plates.filter(r => r.visible);
+      return { total: plates.length, visible: vis.length, sample: vis[0] ? vis[0].sig : '' };
     });
-    ok(plate.visible >= 1, `竖屏名牌投影可见（${plate.visible}/${plate.total}，如「${plate.sample}」）`);
+    ok(plate.visible >= 1, `竖屏 3D 铭牌可见（${plate.visible}/${plate.total}，sig「${plate.sample}」）`);
     await pA.screenshot({ path: path.join(ROOT, '.pw', 'shots', 'ev-bc3d-phone-portrait.png') });
     void pB;
     await ctx.close();

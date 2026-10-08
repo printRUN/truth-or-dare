@@ -2820,7 +2820,15 @@ function applyState(s) {
   const prevIds = sameDoc ? S.players.map(p => p.id) : [];
   const prevSeq = sameDoc ? S.turn.seq : -1;
   const prevChallenge = sameDoc ? (S.challenge === true) : null;
+  const prevScores = sameDoc ? new Map(S.players.map(p => [p.id, p.score || 0])) : null;   // T1 计分泡 diff 源（按 id 对位防玩家数组重排错配；挂 applyState=全端唯一可靠时序，禁 hook renderPlayers——它被逐帧徽章循环按帧调）
   S = s;
+  if (prevScores && window.__three && window.__three.scorePop) {
+    S.players.forEach(p => {
+      if (!prevScores.has(p.id)) return;
+      const d = (p.score || 0) - prevScores.get(p.id);
+      if (d) { try { window.__three.scorePop(p.id, d); } catch (e) {} }
+    });
+  }
   document.body.classList.toggle('is-host', isHost());
   if (firstApply) lastAnsSig = '';   // 换房/重连首帧：上一房的揭底态不带走
 
@@ -7716,6 +7724,103 @@ setTimeout(() => {
     return true;
   };
 
+  /* ── 数字实体化轮 T1/T2（2026-10-08，实施契约 .pw/brief-num3d.md §5/§5b）──
+     T1 计分泡：分数 ± 时该角色头顶弹有厚度实体牌（+琥珀/−粉=.score-tag 既有语义色，不蹭卡种蓝/橙），
+     弹出即收不常驻——防与头顶投影名牌抢位（防新同面堆叠）；近景贴脸剔除（v8④ 同规 dist<2.05）。
+     T2 计分立牌：北桌缘两行单块实体计分牌（真心话/大冒险/跳过），PLACE_OBST r=0.35 让北位题卡；
+     revealed 期透明度钳 0.75 禁抢焦点。一次性泡纹理退场 dispose（§5-12，不进任何缓存）。 */
+  const numRimMat = new THREE.MeshBasicMaterial({ color: 0x37304f });   // 铭牌四侧 rim 共享材质（常驻；traverse dispose 覆盖）
+  const scorePops = [];
+  let scorePopTotal = 0;
+  const scoreBoard = { grp: null, faceMat: null, tex: null, shadow: null, sig: '', dimmed: false };
+  function mkNumPlaque(w, h, d, tex) {
+    const faceMat = new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.5 });   // 圆角裁切走 alphaTest=不透明队列，无透明排序问题
+    const grp = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [numRimMat, numRimMat, numRimMat, numRimMat, faceMat, faceMat]);
+    return { grp, faceMat, tex };
+  }
+  function disposePop(p) { p.grp.geometry.dispose(); p.tex.dispose(); p.faceMat.dispose(); }
+  window.__three.scorePop = function (pid, delta) {
+    if (retired) return false;
+    const ch = chars.get(pid);
+    if (!ch || !document.getElementById('screen-game').classList.contains('active')) return false;
+    const wp = new THREE.Vector3(); ch.getWorldPosition(wp);
+    if (camera.position.distanceTo(wp) < 2.05) return false;   // 近景贴脸剔除（防 0.56wu 牌糊满屏，§5b-24）
+    if (scorePops.length >= 6) { const old = scorePops.shift(); scene.remove(old.grp); disposePop(old); }
+    const rim = delta >= 0 ? '#fbbf24' : '#f472b6';
+    const tex = cardTex(256, 88, (g, w, h) => {
+      rr(g, 4, 4, w - 8, h - 8, (h - 8) / 2); g.fillStyle = '#140a20'; g.fill();
+      g.lineWidth = 6; g.strokeStyle = rim; g.stroke();
+      g.textBaseline = 'middle'; g.textAlign = 'left';
+      g.font = '900 46px Georgia,serif';
+      const sg = delta >= 0 ? '+' : '−';
+      g.fillStyle = rim; g.fillText(sg, 26, h / 2 + 2);
+      g.fillStyle = '#fff'; g.fillText(String(Math.abs(delta)), 30 + g.measureText(sg).width, h / 2 + 2);
+    });
+    const pl = mkNumPlaque(0.56, 0.20, 0.03, tex);
+    pl.grp.position.set(ch.position.x, 1.5, ch.position.z);
+    scene.add(pl.grp);
+    scorePops.push({ grp: pl.grp, faceMat: pl.faceMat, tex: pl.tex, t0: performance.now() });
+    scorePopTotal++;
+    return true;
+  };
+  function scoreBoardEnsure() {
+    if (scoreBoard.grp) return;
+    const faceMat = new THREE.MeshBasicMaterial({ alphaTest: 0.5 });
+    const grp = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.30, 0.035), [numRimMat, numRimMat, numRimMat, numRimMat, faceMat, faceMat]);
+    grp.position.set(0, FELT_Y + 0.17, -1.88);   // 底缘离毡面 0.02、顶 y≈1.29≤1.42：北位角色头/表情气泡(y1.66)视线带让空（挑刺 B4 核算）
+    const sh = new THREE.Mesh(new THREE.CircleGeometry(0.24, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false }));
+    sh.rotation.x = -Math.PI / 2; sh.position.set(0, FELT_Y + 0.008, -1.88); sh.renderOrder = 1;   // 常驻牌柔影：贴花带之上、与光池同层不同位；半径≈0.31×宽（接触影裁决，三场统一备案 §5b）
+    scene.add(sh); scene.add(grp);
+    scoreBoard.grp = grp; scoreBoard.faceMat = faceMat; scoreBoard.shadow = sh;
+    PLACE_OBST.push({ x: 0, z: -1.88, r: 0.20 });   // 题卡落点避让登记（placeClear/solvePlacement 直读数组）。r=0.20 非 0.35：立牌是 0.035 薄牌，与北位翻面前卡心(z−1.66)真实间隙 0.22——r=0.35 会把北位 chooser 每轮挤进侧移解（工程 §5-9 原 warn），0.20 恰好保住北位理想落点且物理零冲突
+  }
+  function tickScoreboard() {
+    const active = document.getElementById('screen-game').classList.contains('active');
+    if (!active) { if (scoreBoard.grp) { scoreBoard.grp.visible = false; scoreBoard.shadow.visible = false; } return; }
+    scoreBoardEnsure();
+    scoreBoard.grp.visible = true; scoreBoard.shadow.visible = true;
+    // 面朝南（Box +z 面即镜头方向，机位恒南）：固定朝向=furniture 语义，不参与 Y-billboard——北缘固定物随 glance 摆头会读成漂浮
+    const sig = S && S.stats ? `${S.stats.truth || 0}|${S.stats.dare || 0}|${S.stats.skips || 0}|${S.scoring === false ? 0 : 1}|${S.players.length}` : '';
+    if (sig !== scoreBoard.sig) {
+      scoreBoard.sig = sig;
+      const st = S.stats;
+      scoreBoard.tex = cardTex(256, 96, (g, w, h) => {
+        rr(g, 4, 4, w - 8, h - 8, 26); g.fillStyle = 'rgba(13,9,30,0.96)'; g.fill();
+        g.lineWidth = 4; g.strokeStyle = S.scoring === false ? 'rgba(148,163,184,0.4)' : 'rgba(139,92,246,0.55)'; g.stroke();
+        g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.font = '700 30px "ZCOOL KuaiLe", sans-serif';
+        g.fillStyle = '#60a5fa'; g.fillText('真心话 ' + (st.truth || 0), 68, 27);
+        g.fillStyle = 'rgba(226,232,240,0.5)'; g.fillText('·', 128, 25);
+        g.fillStyle = '#fb923c'; g.fillText('大冒险 ' + (st.dare || 0), 188, 27);
+        g.fillStyle = '#94a3b8'; g.font = '700 26px "ZCOOL KuaiLe", sans-serif';
+        g.fillText(S.scoring === false ? '自由模式' : '跳过 ' + (st.skips || 0), 128, 66);
+      });
+      const fm = scoreBoard.faceMat;
+      if (fm.map && fm.map !== scoreBoard.tex) fm.map.dispose();
+      fm.map = scoreBoard.tex; fm.needsUpdate = true;
+    }
+    const revealed = document.getElementById('screen-game').classList.contains('stage-revealed');
+    if (revealed !== scoreBoard.dimmed) {   // revealed 期让焦点：钳 0.75、无动画（完赛回 1，§5b-26）
+      scoreBoard.dimmed = revealed;
+      scoreBoard.faceMat.transparent = revealed; scoreBoard.faceMat.opacity = revealed ? 0.75 : 1; scoreBoard.faceMat.needsUpdate = true;
+    }
+  }
+  function tickScorePops(now) {
+    for (let i = scorePops.length - 1; i >= 0; i--) {
+      const p = scorePops[i];
+      const k = Math.min(1, (now - p.t0) / 1600);
+      if (k >= 1) { scene.remove(p.grp); disposePop(p); scorePops.splice(i, 1); continue; }
+      p.grp.rotation.y = Math.atan2(camera.position.x - p.grp.position.x, camera.position.z - p.grp.position.z);   // Y-billboard（§5-15）
+      p.grp.position.y = 1.5 + 0.25 * k;
+      if (!IS_REDUCED) {
+        const pop = Math.min(1, (now - p.t0) / 260);
+        const grow = pop < 0.45 ? 0.6 + 0.52 * (pop / 0.45) : 1.12 - 0.12 * ((pop - 0.45) / 0.55);
+        p.grp.scale.setScalar(k > 0.88 ? grow * (1 - 0.4 * (k - 0.88) / 0.12) : grow);
+      }
+    }
+  }
+  window.__three.scorePops = () => ({ live: scorePops.length, total: scorePopTotal, board: scoreBoard.grp ? { sig: scoreBoard.sig, visible: scoreBoard.grp.visible, dimmed: scoreBoard.dimmed } : null });
+
   // ── 🥚 飞蛋（2026-09-17 用户点名）：投掷者小人抛向目标；被砸端飞向本机镜头、前半程隐形临头才显形，糊屏由 DOM .egg-splat 承接 ──
   const eggs3d = [];
   const eggGeo = new THREE.SphereGeometry(0.085, 12, 10);
@@ -8003,13 +8108,23 @@ setTimeout(() => {
       const bp = tr && tr.top > 0 ? Math.max(60, Math.round(window.innerHeight - tr.top + 10)) + 'px'
                                   : 'calc(env(safe-area-inset-bottom, 0px) + 68px)';   // 窄屏面板收起时量不到行：锚到 🧰 浮标上方
       if (betMoved.el.style.bottom !== bp) betMoved.el.style.bottom = bp;
-      // 🎲 主持人旁观：押注浮窗与 #stage-actions 里的换一题同区叠放——#bet-box 会盖死换一题钮（走查实测 cov=#bet-box、rr=0）→ 让位到押注浮窗上方
+    }
+    if (active) {
+      // stage-actions 动态锚定（数字实体化轮 T4：浮窗家族同层叠压根治，工程终审 T4 实锤两处）：双来源取 max——
+      // ① 工具行顶缘（桌面恒 flex 折两行顶缘 ≈92px，与写死 64px 高带重叠 ~28px 且 stage-actions 后绘截胡点击；窄屏面板打开时同理量面板 top）
+      // ② 押注浮窗顶缘（🎲 主持人旁观：押注浮窗与换一题同区叠放盖死点击——走查实测 cov=#bet-box、rr=0，旧 if 分支保留语义）
+      // 同 bet-box「帧内读、仅变化才写」纪律；两锚都量不到（窄屏面板收起/退场）回落 CSS 默认 64px。
+      let saBottom = -1;
+      const toolsVis = toolsMoved && (!mqToolsNarrow.matches || toolsOpen);
+      const trT = toolsVis ? toolsMoved.el.getBoundingClientRect() : null;
+      if (stageActions.style.display !== 'none' && trT && trT.top > 0) saBottom = Math.max(64, Math.round(window.innerHeight - trT.top + 10));
       const rrEl = document.getElementById('btn-reroll');
-      if (rrEl && !rrEl.hidden && rrEl.parentElement === stageActions) {
+      if (betMoved && !betMoved.el.hidden && rrEl && !rrEl.hidden && rrEl.parentElement === stageActions) {
         const br = betMoved.el.getBoundingClientRect();
-        const want = Math.max(60, Math.round(window.innerHeight - br.top + 10)) + 'px';
-        if (stageActions.style.bottom !== want) stageActions.style.bottom = want;
-      } else if (stageActions.style.bottom) stageActions.style.bottom = '';   // 押注收起/换题归位：还原默认锚点
+        if (br.top > 0) saBottom = Math.max(saBottom, Math.max(60, Math.round(window.innerHeight - br.top + 10)));
+      }
+      const want = saBottom < 0 ? '' : saBottom + 'px';
+      if (stageActions.style.bottom !== want) stageActions.style.bottom = want;
     } else if (stageActions.style.bottom) stageActions.style.bottom = '';
     if (!active) {
       if (frame.cursor) { frame.cursor = ''; document.body.style.cursor = ''; }   // 出牌桌归还光标（悬停代码在早退之后，不补这条会顶着「手型」回大厅）
@@ -8283,6 +8398,7 @@ setTimeout(() => {
     }
 
     bridgeSync();
+    tickScoreboard(); tickScorePops(t);   // 数字实体化轮 T1/T2：计分立牌（sig diff+revealed 钳光）+ 计分泡（billboard/升浮/退场）
     updatePlates();
     renderer.render(scene, camera);
   }
@@ -8339,6 +8455,7 @@ setTimeout(() => {
     try { stageActions.remove(); } catch (e) {}
     document.body.classList.remove('three3d');
     bubbles.length = 0; eggs3d.length = 0; voicePool.length = 0; faceSplats.length = 0; shellPool.length = 0;   // 特效池随场景退役（mesh 已被下方 traverse dispose）
+    scorePops.length = 0; scorePopTotal = 0; scoreBoard.grp = null; scoreBoard.faceMat = null; scoreBoard.tex = null; scoreBoard.shadow = null; scoreBoard.sig = ''; scoreBoard.dimmed = false;   // 数字实体化轮 T1/T2 状态随场景退役（纹理已由 traverse dispose；置 null 防 retired 后误用旧引用）
     try { window.removeEventListener('resize', size); } catch (e) {}
     try { if (_ap) Cam.apply = _ap; } catch (e) {}
     try { if (_pv) paintVoice = _pv; } catch (e) {}
