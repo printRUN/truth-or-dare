@@ -93,29 +93,17 @@
     .loading-overlay::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 74% 46% at 50% 40%, rgba(96,80,170,0.20), transparent 72%); pointer-events: none; }   /* 加载重设计：射灯 */
     .loading-overlay.hide { opacity: 0; transform: scale(1.04); pointer-events: none; }
     .loader-stage { perspective: 800px; width: 120px; height: 148px; position: relative; display: flex; align-items: center; justify-content: center; }
-    .loader-card { width: 80px; height: 106px; border-radius: 14px; background: linear-gradient(135deg, var(--primary), var(--accent-pink)); border: 2px solid rgba(255,255,255,0.35); box-shadow: 0 16px 44px rgba(139,92,246,0.5), inset 0 0 18px rgba(255,255,255,0.16); display: flex; align-items: center; justify-content: center; font-size: 2.4rem; position: relative; z-index: 2; animation: loader-flip 1.2s cubic-bezier(0.45,0.05,0.55,0.95) infinite; transform-style: preserve-3d; }
-    .loader-card::after { content: ''; position: absolute; inset: 6px; border-radius: 9px; border: 1.5px dashed rgba(255,255,255,0.4); }
-    @keyframes loader-flip { 0%,25% { transform: rotateY(0deg) translateY(-4px); } 60%,75% { transform: rotateY(180deg) translateY(4px); } 100% { transform: rotateY(360deg) translateY(-4px); } }
-    /* 加载重设计（加载动画轮）：幽灵卡扇（主卡两侧洗牌律动）+ 卡面流光——主卡 flip 为 probe-loader-gate 锁定项，零触碰 */
-    .loader-echo { position: absolute; left: 50%; top: 50%; width: 78px; height: 104px; margin: -52px 0 0 -39px; border-radius: 13px; border: 1.5px solid rgba(255,255,255,0.38); box-shadow: 0 10px 26px rgba(0,0,0,0.4); z-index: 1; }
-    .loader-echo.el { background: linear-gradient(135deg, rgba(34,211,238,0.52), rgba(139,92,246,0.50)); animation: echo-sway-l 2.4s ease-in-out infinite; }
-    .loader-echo.er { background: linear-gradient(135deg, rgba(236,72,153,0.48), rgba(139,92,246,0.50)); animation: echo-sway-r 2.4s ease-in-out infinite; animation-delay: -1.2s; }
-    @keyframes echo-sway-l {
-      0%, 100% { transform: translateX(-36px) rotate(-17deg) translateY(0); }
-      50% { transform: translateX(-40px) rotate(-21deg) translateY(-7px); }
+    /* 游戏中心专属加载件（加载动画轮·独立版）：四游戏卡迎宾——🎭🎲🃏💣 波次抬起，不与大冒险共用翻牌语言 */
+    .loader-quad { display: grid; grid-template-columns: repeat(2, 58px); gap: 13px; }
+    .q-card { width: 58px; height: 76px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.75rem; border: 2px solid rgba(255,255,255,0.30); box-shadow: 0 12px 28px rgba(0,0,0,0.42), inset 0 0 12px rgba(255,255,255,0.14); animation: q-wave 2.4s ease-in-out infinite; }
+    .q-tod { background: linear-gradient(150deg, #8b5cf6, #c026d3); transform: rotate(-3deg); }
+    .q-mono { background: linear-gradient(150deg, #f59e0b, #b45309); transform: rotate(2.5deg); animation-delay: 0.2s; }
+    .q-uno { background: linear-gradient(150deg, #ef4444, #b91c1c); transform: rotate(-1.5deg); animation-delay: 0.4s; }
+    .q-bc { background: linear-gradient(150deg, #64748b, #1e293b); transform: rotate(3deg); animation-delay: 0.6s; }
+    @keyframes q-wave {
+      0%, 58%, 100% { margin-top: 0; }
+      16% { margin-top: -10px; }
     }
-    @keyframes echo-sway-r {
-      0%, 100% { transform: translateX(36px) rotate(17deg) translateY(0); }
-      50% { transform: translateX(40px) rotate(21deg) translateY(-7px); }
-    }
-    .loader-sheen { position: absolute; inset: -4px; border-radius: 18px; overflow: hidden; z-index: 3; pointer-events: none; }
-    .loader-sheen::after { content: ''; position: absolute; top: -20%; bottom: -20%; width: 30px; background: linear-gradient(100deg, transparent, rgba(255,255,255,0.32), transparent); transform: rotate(9deg); animation: sheen-sweep 1.9s ease-in-out infinite; }
-    @keyframes sheen-sweep { 0% { left: -14%; } 60%, 100% { left: 108%; } }
-    .loader-orbit { position: absolute; inset: -6px; border-radius: 50%; animation: ring-spin 2.6s linear infinite; z-index: 1; }
-    .loader-orbit i { position: absolute; width: 9px; height: 9px; border-radius: 50%; background: var(--accent-cyan); box-shadow: 0 0 12px var(--accent-cyan); }
-    .loader-orbit i:nth-child(1) { top: -4px; left: calc(50% - 4px); }
-    .loader-orbit i:nth-child(2) { bottom: -4px; left: calc(50% - 4px); background: var(--accent-pink); box-shadow: 0 0 12px var(--accent-pink); }
-    .loader-orbit i:nth-child(3) { top: calc(50% - 4px); left: -4px; background: #fbbf24; box-shadow: 0 0 12px #fbbf24; }
     .loading-text { font-family: 'ZCOOL KuaiLe', cursive; color: var(--accent-cyan); font-size: 1.1rem; letter-spacing: 2px; animation: loader-text-pulse 1.7s ease-in-out infinite; }
     @keyframes loader-text-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
     .loader-progress { width: 190px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.12); overflow: hidden; }
@@ -125,8 +113,8 @@
        一次性落位尺寸，不加任何循环漂浮 */
     @media (min-width: 1280px) {
       .loader-stage { width: 168px; height: 202px; }
-      .loader-card { width: 116px; height: 154px; font-size: 3.4rem; }
-      .loader-echo { width: 112px; height: 150px; margin: -75px 0 0 -56px; }
+      .loader-quad { grid-template-columns: repeat(2, 74px); gap: 16px; }
+      .q-card { width: 74px; height: 98px; font-size: 2.3rem; }
       .loading-text { font-size: 1.35rem; }
       .loader-progress { width: 260px; }
     }
@@ -496,7 +484,7 @@
 
     @media (prefers-reduced-motion: reduce) {
       .orb, .confetti, h1, .deck-card::before, .deck.shuffling, .deck.shuffling .deck-card, #choice-section.mine .choice-card, #choice-section.mine .choice-card::before,
-      .loader-card, .loader-orbit, .loader-echo, .loader-sheen, .loading-text, .player-card.speaking .wave, .punishment-text.typing,
+      .q-card, .loading-text, .player-card.speaking .wave, .punishment-text.typing,
       .avatar-ring::before, .avatar-ring.active::before, .avatar-ring.active, .avatar-ring.pass, .active-badge, .card-back .draw-icon,
       .player-card, .screen, .screen.entering::before, .screen.leaving::before, .table3d.lit .table-sheen,
       .loader-progress i, .conn-dot.syncing, .result-podium.ceremony .pod,
@@ -776,6 +764,7 @@
     /* 降级：REDUCED（系统降噪）参照层只静止不参与；LOWPERF 与面板一起退纯淡切 */
     @media (prefers-reduced-motion: reduce) { .ref-layer { animation: none !important; } }
     body.loperf .ref-layer { animation: none !important; }
+    body.loperf .q-card, body.loperf .loading-text { animation: none !important; }
     body.loperf .loader-echo, body.loperf .loader-sheen, body.loperf .loading-text { animation: none !important; }
 
     /* 牌桌：躺在 3D 空间里的一块椭圆台面（纯 radial-gradient，不用 blur/滤镜）
@@ -1499,7 +1488,7 @@
     <div class="loader-card">🎭</div>
     <div class="loader-sheen"></div>
   </div>
-  <div class="loading-text" id="loading-text">🎭 搭好舞台...</div>
+  <div class="loading-text" id="loading-text">🎮 游戏中心...</div>
   <div class="loader-progress"><i></i></div>
 </div>
 
@@ -2779,7 +2768,7 @@ function ensureOverlay() {
     o = document.createElement('div');
     o.id = 'loading-overlay';
     o.className = 'loading-overlay';
-    o.innerHTML = '<div class="loader-stage"><div class="loader-echo el"></div><div class="loader-echo er"></div><div class="loader-orbit"><i></i><i></i><i></i></div><div class="loader-card">🎭</div><div class="loader-sheen"></div></div><div class="loading-text"></div><div class="loader-progress"><i></i></div>';
+    o.innerHTML = '<div class="loader-stage"><div class="loader-quad"><div class="q-card q-tod">🎭</div><div class="q-card q-mono">🎲</div><div class="q-card q-uno">🃏</div><div class="q-card q-bc">💣</div></div></div><div class="loading-text"></div><div class="loader-progress"><i></i></div>';
     document.body.appendChild(o);
   }
   return o;
