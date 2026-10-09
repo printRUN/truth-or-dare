@@ -1,0 +1,78 @@
+{
+  "roster": [
+    {
+      "i": 0,
+      "id": "hhhiuurq",
+      "name": "橘胖",
+      "av": "bc:18:5"
+    },
+    {
+      "i": 1,
+      "id": "yuu83e72",
+      "name": "雪球",
+      "av": "bc:42:205"
+    },
+    {
+      "i": 2,
+      "id": "cjmnx4ke",
+      "name": "抹茶",
+      "av": "bc:95:79"
+    },
+    {
+      "i": 3,
+      "id": "jp0ug79a",
+      "name": "薄荷",
+      "av": "bc:160:341"
+    },
+    {
+      "i": 4,
+      "id": "22ww6ql4",
+      "name": "蓝精灵",
+      "av": "bc:200:607"
+    },
+    {
+      "i": 5,
+      "id": "jemipx1w",
+      "name": "芋泥",
+      "av": "bc:320:889"
+    }
+  ],
+  "mats": [
+    {
+      "name": "橘胖",
+      "hair": "#8dd255",
+      "headColor": "#e8b98c",
+      "faceMap": true
+    },
+    {
+      "name": "雪球",
+      "hair": "#d2bf55",
+      "headColor": "#e8b98c",
+      "faceMap": true
+    },
+    {
+      "name": "抹茶",
+      "hair": "#d29e55",
+      "headColor": "#e8b98c",
+      "faceMap": true
+    },
+    {
+      "name": "薄荷",
+      "hair": "#8fd255",
+      "headColor": "#e8b98c",
+      "faceMap": true
+    },
+    {
+      "name": "蓝精灵",
+      "hair": "#d29c55",
+      "headColor": "#e8b98c",
+      "faceMap": true
+    },
+    {
+      "name": "芋泥",
+      "hair": "#55d2ac",
+      "headColor": "#e8b98c",
+      "faceMap": true
+    }
+  ]
+}

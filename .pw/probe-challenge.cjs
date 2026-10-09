@@ -33,7 +33,7 @@ const FILL_SPY = () => {
   const mk = async (nm) => {
     const q = await ctx.newPage();
     q.on('pageerror', e => errors.push(nm + ' pageerror: ' + e.message));
-    q.on('console', m => { if (m.type() === 'error') errors.push(nm + ' console: ' + m.text()); });
+    q.on('console', m => { if (m.type() === 'error' && !/mosquitto/i.test(m.text())) errors.push(nm + ' console: ' + m.text()); });   // 外网测试 broker 握手失败=环境噪声（probe-3d-feel 同款白名单）
     await q.goto(`http://127.0.0.1:${PORT}/index.html?game=tod`, { waitUntil: 'domcontentloaded' });
     await q.waitForSelector('#loading-overlay', { state: 'detached', timeout: 20000 }).catch(() => {});
     await q.fill('#input-name', nm);

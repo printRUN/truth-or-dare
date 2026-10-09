@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>glasses/facial experiments</title>
+<script src="../dicebear-local.js"></script>
+<script src="./av3-feat.js"></script>
+</head>
+<body>
+<script>
+'use strict';
+window.__exp = async () => {
+  const out = { avataaarsNamed: {}, dylan: [], personasLight: [] };
+  // 1) avataaars 具名配件变体钉扎（Kurt/Circle/Round/Sunglasses/SunglassAlt/Wayfarers=眼镜系）
+  const seeds = [];
+  for (let i = 0; i < 30; i++) seeds.push('gx' + i);
+  const names = ['Kurt', 'Circle', 'Round', 'Sunglasses', 'SunglassAlt', 'Wayfarers', 'Prescription02'];
+  for (const seed of seeds) {
+    const base = DiceBearLocal.diceAvatar('avataaars', { seed }).toString();
+    const hit = [];
+    for (const n of names) {
+      try { if (DiceBearLocal.diceAvatar('avataaars', { seed, accessories: [n] }).toString() !== base) hit.push(n); } catch (e) {}
+    }
+    if (hit.length) out.avataaarsNamed[seed] = hit;
+  }
+  // 2) dylan 胡子：12 个常用 seed 钉扎 vs 像素
+  for (const seed of ['Felix', 'Aiden', 'Maria', 'Zoe', 'Jack', 'Lily', 'Kim', 'Max', 'Anna', 'Leo', 'Ivy', 'Sam']) {
+    const base = DiceBearLocal.diceAvatar('dylan', { seed }).toString();
+    const pin = DiceBearLocal.diceAvatar('dylan', { seed, facialHair: [] }).toString() !== base;
+    const img = new Image();
+    await new Promise(res => { img.onload = res; img.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(base); });
+    const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+    const g = cv.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0, 128, 128);
+    const f = extractFeatures(g.getImageData(0, 0, 128, 128).data, 128, 'dylan', seed);
+    out.dylan.push({ seed, pin, px: f.beard });
+  }
+  // 3) personas 眼镜：白/浅镜框计数（L>0.80 低饱和 非肤非发）在左右眼带
+  for (let i = 0; i < 24; i++) {
+    const seed = 'pg' + i;
+    const svg = DiceBearLocal.diceAvatar('personas', { seed }).toString();
+    const img = new Image();
+    await new Promise(res => { img.onload = res; img.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg); });
+    const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+    const g = cv.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0, 128, 128);
+    const data = g.getImageData(0, 0, 128, 128).data;
+    const f = extractFeatures(data, 128, 'personas', seed);
+    // 轻框计数器（复用提取器内部窗口：粗略重算）
+    out.personasLight.push({ seed, glasses: f.glasses });
+  }
+  return out;
+};
+window.__done = false;
+window.__exp().then(r => { window.__out = r; window.__done = true; });
+</script>
+</body>
+</html>

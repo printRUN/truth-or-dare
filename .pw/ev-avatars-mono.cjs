@@ -47,11 +47,11 @@ const norm = a => Math.atan2(Math.sin(a), Math.cos(a));
   await host.evaluate(() => window.__mono.net().start({}));
   await host.waitForFunction(() => window.__mono.net().doc.started && window.__mono.state.players.length === 2, null, { timeout: 15000 });
   await join.waitForFunction(() => window.__mono.net().doc.started && window.__mono.state.players.length === 2, null, { timeout: 15000 });
-  await host.waitForFunction(() => window.__mono.faces().every(f => f && f.loaded && !f.fb && f.hair), null, { timeout: 15000 });
-  await join.waitForFunction(() => window.__mono.faces().every(f => f && f.loaded && !f.fb && f.hair), null, { timeout: 15000 });
+  await host.waitForFunction(() => window.__mono.faces().every(f => f && f.loaded && !f.fb && f.skin), null, { timeout: 20000 });
+  await join.waitForFunction(() => window.__mono.faces().every(f => f && f.loaded && !f.fb && f.skin), null, { timeout: 20000 });
 
   const fH = await host.evaluate(() => window.__mono.faces());
-  ok(fH.length === 2 && fH.every(f => f.loaded && !f.fb && /^#[0-9a-f]{6}$/.test(f.hair)), `host 端双棋子真头像发色到位（loaded&&!fb+hair：${JSON.stringify(fH.map(f => [f.key.split('|')[0], f.hair]))}）`);
+  ok(fH.length === 2 && fH[0].skin === '#9d5622' && fH[0].hair === '#debf7c' && fH[0].style === 'afro' && fH[1].skin === '#f6d2a7' && fH[1].hair === '#601c18' && fH[1].style === 'short', `host 端双棋子特征头到位（金值 skin/hair/style；got ${JSON.stringify(fH.map(f => [f.skin, f.hair, f.style]))}）`);
   ok(fH.every(f => /^\d\|data:image\/svg/.test(f.key)), `faceKey=色座|解析后URI（${fH.map(f => f.key.slice(0, 16) + '…').join(',')}）`);
   const docH = await host.evaluate(() => window.__mono.net().doc.players.map(p => p.av));
   ok(docH[0] === AV_HOST && docH[1] === AV_JOIN, '房间文档携带双方 av（表单选择原样广播）');
@@ -86,7 +86,7 @@ const norm = a => Math.atan2(Math.sin(a), Math.cos(a));
 
   // 观战端同步：join 端也是真头像（两端独立管线各挂一次）
   const fJ = await join.evaluate(() => window.__mono.faces());
-  ok(fJ.every(f => f && f.loaded && !f.fb && /^#[0-9a-f]{6}$/.test(f.hair)), 'join 端双棋子真头像发色到位（双端独立接线）');
+  ok(fJ.length === 2 && fJ.every(f => f && f.loaded && !f.fb) && JSON.stringify(fJ.map(f => f.skin).sort()) === JSON.stringify(['#9d5622', '#f6d2a7']), 'join 端双棋子特征头到位（双端独立接线，双金值成对）');
   await join.screenshot({ path: path.join(SHOTS, 'ava-mono-net-join.png') });
 
   // ── B. 热座档：无 av → 程序化 fallback 脸（确定性绘制；全桌统一有脸）──

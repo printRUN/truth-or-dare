@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>feature head prototype</title>
+<script src="../dicebear-local.js"></script>
+<script src="../three.r128.js"></script>
+<script src="../dicebear-local.js"></script>
+<script src="./av3-feat-prod.js"></script>
+<style>
+  body { background: #14101f; color: #ddd; font: 12px/1.4 monospace; margin: 8px; }
+  #grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; max-width: 1400px; }
+  .cell { background: #201a33; border-radius: 8px; padding: 6px; text-align: center; }
+  .cell canvas { width: 100%; border-radius: 6px; background: #17122a; }
+  .pair { display: flex; gap: 4px; justify-content: center; }
+  .pair canvas { width: 48%; }
+  .lab { margin-top: 3px; font-size: 11px; color: #9ac; }
+</style>
+</head>
+<body>
+<div id="grid"></div>
+<script>
+'use strict';
+/* 特征化 3D 头原型：extractFeatures → buildAvatarHead(r, colorIdx, feats)
+   几何语言与 monopoly/uno 二阶头同族（颅球+发壳+眉+眼球+鼻+微笑），新增：
+   发型变体（bald/long/bun/afro）/眼镜（框+梁+腿）/胡子（颌壳+髭）/嘴型（弧/张/平）*/
+/* ── 样例集：覆盖 特征×风格 矩阵的代表格 ── */
+const CASES = [
+  ['personas', 'Zoe'], ['micah', 'Jack'], ['micah', 'Maria'], ['toon-head', 'Aiden'], ['avataaars', 'Felix'],
+  ['miniavs', 'Felix'], ['notionists', 'Felix'], ['big-smile', 'Aiden'], ['open-peeps', 'Leo'], ['dylan', 'Leo'],
+  ['pixel-art', 'Jack'], ['adventurer', 'Kim'], ['lorelei-neutral', 'Felix'], ['personas', 'Ivy'], ['big-ears', 'Felix'],
+];
+const grid = document.getElementById('grid');
+const scenes = [];
+(async () => {
+  for (const [st, seed] of CASES) {
+    const svg = DiceBearLocal.diceAvatar(st, { seed, size: 96 }).toString();
+    const uri = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+    const img = new Image();
+    await new Promise(res => { img.onload = res; img.onerror = res; img.src = uri; });
+    const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+    const g2 = cv.getContext('2d', { willReadFrequently: true });
+    let data = null;
+    try { g2.drawImage(img, 0, 0, 128, 128); data = g2.getImageData(0, 0, 128, 128).data; } catch (e) {}
+    const f = await AV3.extractAvatarFeatures(img, { style: st, seed });
+    const colorIdx = scenes.length % 8;
+    // cell：2D 头像 + 3D 特征头并排
+    const cell = document.createElement('div'); cell.className = 'cell';
+    const pair = document.createElement('div'); pair.className = 'pair';
+    const c2d = document.createElement('canvas'); c2d.width = c2d.height = 160;
+    c2d.getContext('2d').drawImage(img, 0, 0, 160, 160);
+    const c3d = document.createElement('canvas'); c3d.width = c3d.height = 160;
+    pair.appendChild(c2d); pair.appendChild(c3d);
+    cell.appendChild(pair);
+    const lab = document.createElement('div'); lab.className = 'lab';
+    lab.textContent = `${st}/${seed} ` + (f.person ? `${f.style}${f.glasses ? ' 眼镜' : ''}${f.beard ? ' 胡子' : ''}${f.hairGuess ? ' 发?' : ''}` : '非人脸');
+    cell.appendChild(lab);
+    grid.appendChild(cell);
+    // 3D 渲染
+    const renderer = new THREE.WebGLRenderer({ canvas: c3d, antialias: true });
+    renderer.setSize(160, 160, false);
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x17122a);
+    const cam = new THREE.PerspectiveCamera(38, 1, 0.1, 20);
+    cam.position.set(0.0, 1.72, 2.0);
+    cam.lookAt(0, 0.05, 0);   // 46° 俯角=monopoly/uno 玩法机位等效（专家 P2-2）
+    scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+    const dl = new THREE.DirectionalLight(0xffffff, 0.62); dl.position.set(1.5, 2.5, 2); scene.add(dl);
+    const head = AV3.buildAvatarHead(0.62, colorIdx, f, (i)=>0x3a3540);
+    scene.add(head.grp);
+    renderer.render(scene, cam);
+    scenes.push({ st, seed, f });
+  }
+  window.__done = true;
+})();
+</script>
+</body>
+</html>

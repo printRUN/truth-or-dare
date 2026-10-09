@@ -1,0 +1,84 @@
+{
+  "roster": [
+    {
+      "i": 0,
+      "id": "23f6mmumuzdfv3t",
+      "name": "阿泽",
+      "av": "dcb:{\"s\":\"adventurer\",\"d\":\"Zoe\"}"
+    },
+    {
+      "i": 1,
+      "id": "47ermyrmuzdfzg3",
+      "name": "老白",
+      "av": "dcb:{\"s\":\"micah\",\"d\":\"Felix\"}"
+    },
+    {
+      "i": 2,
+      "id": "cv2bi1zmuzdg5j3",
+      "name": "眼镜妹",
+      "av": "dcb:{\"s\":\"miniavs\",\"d\":\"Felix\"}"
+    },
+    {
+      "i": 3,
+      "id": "vmelw3mmuzdg98a",
+      "name": "络腮胡",
+      "av": "dcb:{\"s\":\"avataaars\",\"d\":\"Mika\"}"
+    },
+    {
+      "i": 4,
+      "id": "nuobs70muzdgd0o",
+      "name": "粉毛",
+      "av": "dcb:{\"s\":\"personas\",\"d\":\"Jack\"}"
+    },
+    {
+      "i": 5,
+      "id": "9ce71zkmuzdggq5",
+      "name": "丸奶奶",
+      "av": "dcb:{\"s\":\"open-peeps\",\"d\":\"Mika\"}"
+    }
+  ],
+  "mats": [
+    {
+      "name": "阿泽",
+      "hair": "#bf55dc",
+      "headColor": "#e8b98c",
+      "faceMap": true,
+      "faceMapColor": "#ffffff"
+    },
+    {
+      "name": "老白",
+      "hair": "#5567dc",
+      "headColor": "#e8b98c",
+      "faceMap": true,
+      "faceMapColor": "#ffffff"
+    },
+    {
+      "name": "眼镜妹",
+      "hair": "#67dc55",
+      "headColor": "#e8b98c",
+      "faceMap": true,
+      "faceMapColor": "#ffffff"
+    },
+    {
+      "name": "络腮胡",
+      "hair": "#558bdc",
+      "headColor": "#e8b98c",
+      "faceMap": true,
+      "faceMapColor": "#ffffff"
+    },
+    {
+      "name": "粉毛",
+      "hair": "#8b55dc",
+      "headColor": "#e8b98c",
+      "faceMap": true,
+      "faceMapColor": "#ffffff"
+    },
+    {
+      "name": "丸奶奶",
+      "hair": "#dc55dc",
+      "headColor": "#e8b98c",
+      "faceMap": true,
+      "faceMapColor": "#ffffff"
+    }
+  ]
+}

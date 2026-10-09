@@ -2702,7 +2702,11 @@ function initScene() {
   function chrColor(id, l) { const h = hashStr(id) % 360; return `hsl(${h},58%,${l}%)`; }
   function buildChar(p) {
     const g = new THREE.Group();
-    const c1 = new THREE.Color(chrColor(p.id, 58)), c2 = new THREE.Color(chrColor(p.id, 34));
+    // 猫毛色直通（头像特征轮 SPEC §1.14）：发壳/身体吃 bc:<hue> 毛色，蓝猫不再戴米色盔（report-A P0）；
+    // bc: 协议外（理论不发生）回退 id 哈希色
+    const hm = /bc:(\d+)/.exec(p.av || '');
+    const hue = hm ? +hm[1] : hashStr(p.id) % 360;
+    const c1 = new THREE.Color(`hsl(${hue},58%,58%)`), c2 = new THREE.Color(`hsl(${hue},58%,34%)`);
     const stool = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.34, 0.1, 12), MAT(0x1c0e10, 0.6));
     stool.position.y = 0.44; stool.castShadow = true;
     const lean = new THREE.Group(); lean.position.y = 0.52;
@@ -2710,7 +2714,7 @@ function initScene() {
     torso.position.y = 0.30; torso.castShadow = true;
     const chest = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.195, 0.16, 14), new THREE.MeshStandardMaterial({ color: c1, roughness: 0.7 }));
     chest.position.y = 0.51; chest.castShadow = true;
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 20, 14), MAT(0xe8b98c, 0.65));
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 20, 14), MAT(new THREE.Color(`hsl(${hue},52%,64%)`), 0.65));   // 头球=毛色浅档（猫头不是人脸肤色）
     head.position.y = 0.81; head.castShadow = true;
     const face = new THREE.Mesh(
       new THREE.SphereGeometry(0.215, 20, 14, Math.PI / 2 - 0.7, 1.4, Math.PI / 2 - 0.7, 1.4),
@@ -2983,6 +2987,7 @@ function initScene() {
   /* ── 演出钩子（scene 不可用时 no-op）── */
   function seatTop(pid) { const v = new THREE.Vector3(); const ch = chars.get(pid); if (ch) { ch.getWorldPosition(v); v.y = FELT_Y + CARD_T; } else seatPos(pid, v); return v; }
   window.__bcScene = {
+    charsList: () => [...chars.values()],   // 头像特征轮取证：角色材质列表（ev-avatars-bc）
     boom(pid) {
       if (fuseMesh) { scene.remove(fuseMesh); fuseMesh.material.forEach(x => x.dispose()); fuseMesh = null; }   // 引信克隆收场:burst 接棒(W4 悬念拍)
       const p0 = seatTop(pid);

@@ -29,6 +29,7 @@
 
   #loader { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; background: var(--bg); transition: opacity 0.26s ease, transform 0.26s ease; }
   #loader.reveal-done { pointer-events: none; }
+  .loader-box { text-align: center; }
   /* 加载重设计（加载动画轮）：三卡扇洗牌 + 射灯背景 + 精修进度条；REDUCED/loperf 静态退路在 REDUCED 块 */
   #loader::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 72% 46% at 50% 42%, rgba(170,60,80,0.16), transparent 72%); pointer-events: none; }
   .fan-stage { position: relative; width: 130px; height: 84px; margin: 0 auto; }
@@ -201,13 +202,12 @@
 
   @media (prefers-reduced-motion: reduce) {
     .fan-card, .loader-box p, .pchip.active, #result-veil, #result-winner, .pod, #btn-uno.show, #dir-chip .dico, #wild-modal .panel { animation: none !important; transition: none !important; }
-    .loader-box.warp-in, #uno-canvas, #result-confetti i { animation: none !important; }
-    #result-confetti { display: none; }
-    .hcard.sel { transition: none; }   /* 贴桌轮:抬起是看全脸的功能载体,REDUCED 只去过渡、保留位移 */
-    .fan-card, .loader-box p { animation: none !important; }
     .fan-card.c1 { transform: rotate(-17deg) translateX(-9px); }
     .fan-card.c2 { transform: rotate(0deg); }
     .fan-card.c3 { transform: rotate(17deg) translateX(9px); }   /* REDUCED 静态定帧：三卡成扇 */
+    .loader-box.warp-in, #uno-canvas, #result-confetti i { animation: none !important; }
+    #result-confetti { display: none; }
+    .hcard.sel { transition: none; }   /* 贴桌轮:抬起是看全脸的功能载体,REDUCED 只去过渡、保留位移 */
     .pchip.active { box-shadow: 0 0 0 1.5px var(--accent-cyan); }
     .pod { opacity: 1; transform: none; }
     #loader { transition: none; }
@@ -352,6 +352,7 @@
 <script src="three.r128.js"></script>
 
 <script src="dicebear-local.js"></script>
+<script src="avatar-features.js"></script>
 <div id="ovl-donate" class="ovl" hidden>
   <div style="text-align:center;max-width:340px;width:100%;background:linear-gradient(180deg,rgba(30,25,50,0.98),rgba(18,14,34,0.98));border:1px solid rgba(255,255,255,0.16);border-radius:22px;padding:24px 22px;box-shadow:0 26px 72px rgba(0,0,0,0.5)">
     <div style="font-size:1.05rem;font-weight:800;letter-spacing:2px;margin-bottom:10px">☕ 助力一下作者</div>
@@ -529,7 +530,8 @@ function applyGameSnapshot(g, doc) {
   // 喊名窗口是窗口主人的本地计时态不随快照走；仅在主人手牌数不再是 1（罚摸/赢局/新局）时作废
   if (G.unoWin && G.players[G.unoWin.who] && G.players[G.unoWin.who].hand.length !== 1) G.unoWin = null;
   $('setup').hidden = true; $('handoff').hidden = true; hideActions();
-  if (g.phase !== 'OVER') $('result-overlay').hidden = true;   // 新局快照要收起上一局的结算屏
+  if (g.phase !== 'OVER') { $('result-overlay').hidden = true; G._resultShown = false; }   // 新局快照要收起上一局的结算屏（观战端不开 startGame，结算标志在此复位）
+  if (G.gl && prevPhase === 'OVER' && g.phase !== 'OVER') camTo({ az: 0, elev: 46 * D2R, focusK: 1 }, 420);   // W2：观战端翻局镜头回位（startGame 只跑发起端，观战端结算推镜会带进下一局；四退路由 camTo 直落=现状）
   $('gen-modal').hidden = true; closeHandOverlay();
   if (G.gl) buildHands();
   // 旁观端出牌补演：弃牌堆变长=有人出了牌；手牌变短的那个座位就是出牌者（G.turn 已轮到下家）
@@ -539,7 +541,7 @@ function applyGameSnapshot(g, doc) {
   }
   setColor(G.cur); render2D(); updateHUD();
   // 结算屏补演：只要快照到 OVER 且本端还没显示就补演（本地模拟可能先行/滞后，不能只看 prevPhase）
-  if (g.phase === 'OVER' && $('result-overlay').hidden) showResult();
+  if (g.phase === 'OVER' && $('result-overlay').hidden) showResult(G.winner == null);   // 透传 stall 推导：观战端僵局快照不得误推镜
   // 接管/自愈：快照显示轮到本端真人且本端操作条不在 → 开/恢复自己的回合
   //（HANDOFF=上家刚交棒；AWAIT_ACTION=本端稳定等待期操作条被某次快照误收起）
   if (NETMODE && netIsMyTurn() && !$('action-bar').classList.contains('show')
@@ -691,6 +693,14 @@ function camTo(opts, ms, done) {   // 墙钟 smoothstep 补间（token 作废）
   };
   rig.raf = requestAnimationFrame(step);
 }
+function camBaseD() {   // camApply 的基准距离（focusK=1 口径）——W2 结算加冕位 focusK 换算用（与 camApply 同式，禁直写 camera.position）
+  const halfV = Math.tan(camera.fov * D2R / 2);
+  const aspect = innerWidth / innerHeight;
+  const halfW = aspect < 0.9 ? 2.4 : 4.6;
+  return Math.max(6.4, halfW / (halfV * aspect), (5.4 * Math.sin(46 * D2R)) / halfV * 0.92);
+}
+const RESULT_PUSH_MS = 560;   // W2 结算推镜单一常量：本端=胜者完整加冕；败者/观战端短推 350（camTo ms 三元式）
+let resultFxLog = null;   // 结算一镜取证（AUTOTEST __uno.resultFx() 读取）：{camFrom,camTo,ms,stall,veilDelay,t0}
 function initScene() {
   const canvas = $('uno-canvas');
   try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true }); }
@@ -740,7 +750,6 @@ function mkTex(w, h, draw) {
   t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
   return t;
 }
-
 function shade(hex, k) {
   const n = parseInt(hex.slice(1), 16);
   const f = v => Math.max(0, Math.min(255, Math.round(v * (1 + k))));
@@ -1283,16 +1292,16 @@ function disposeLabel(sp) {   // 旧铭牌退役：geometry+faceMat+map 即时 d
   if (sp.userData.faceMat) { if (sp.userData.faceMat.map) sp.userData.faceMat.map.dispose(); sp.userData.faceMat.dispose(); }
   if (sp.userData.shadow) { scene.remove(sp.userData.shadow); sp.userData.shadow.geometry.dispose(); sp.userData.shadow.material.dispose(); }
 }
-/* ═══ 座位 3D 头像半身像（SPEC §1.13 二阶）：独立系统不碰 refreshSeatFx（该函数正被并行改造）。
+/* ═══ 座位 3D 头像半身像（SPEC §1.12）：独立系统不碰 refreshSeatFx（该函数正被并行改造）。
    av 源=NETMODE NDOC.players[i].av（G.players 来自 game 快照，无 av 字段）。基座钉桌面真实顶面 y=0.20
   （桌 Cylinder 中心−0.05+半高 0.25，行动环 y0.212 即既证），径向 seatPos×1.28（R2.6→3.33<桌 6.4）；
    真实 castShadow（seatFx 柔影 −0.042 埋桌里的教训不复制）；south 不建（自我中心渲染，与铭牌同语义）；
-   脸朝南固定 yaw=0（uno 相机唯一且固定南侧，无 billboard 需求） ═══ */
+   脸朝南固定 yaw=0（uno 相机唯一且固定南侧，无 billboard 需求）；纹理缓存独占所有权：bust 退役禁卸 .map ═══ */
 const seatAva = { sig: '', busts: [] };
-/* ── 真 3D 头部（头像轮二阶，用户点名「不要贴图，要更逼真」）：脸贴片退役，头=全几何——
-   皮肤球+发壳（顶盖+后脑）+眉+眼球（瞳孔+高光）+鼻+微笑+耳，全部吃场景光（Standard，不再是无光贴片）；
-   头像图的角色=发色来源（暗色主色提取）；参数与 monopoly buildAvatarHead 同族（两文件不共享 JS，独立实现同语言） ── */
-const paletteCache = new Map();   // key `${colorIdx}|${uri}` | `fb:${colorIdx}` → {hair:'#hex', loaded, fb}
+/* ── 真 3D 特征头（头像特征强相似轮 SPEC §1.14）：头像→特征向量（avatar-features.js）→特征化几何头。
+   特征=肤色/发色/发型(bald/short/long/bun/afro)/眼镜(含墨镜)/胡子/嘴型；二阶头的「人人同脸」退役。
+   钉扎位图差分需 DiceBearLocal+异步预备（extractAvatarFeatures 内聚）；保险丝=AV3 缺失退回旧发色路径 ── */
+const paletteCache = new Map();   // key `${colorIdx}|${uri}` | `fb:${colorIdx}` → {feats, loaded, fb}（LRU 32，命中刷新）
 function fallbackHair(colorIdx) {   // 无 av/提取失败：玩家色深化（确定性，禁 rng）
   const c = new THREE.Color(PLAYER_COLORS[colorIdx]);
   const hsl = {};
@@ -1300,81 +1309,67 @@ function fallbackHair(colorIdx) {   // 无 av/提取失败：玩家色深化（�
   c.setHSL(hsl.h, Math.min(0.55, hsl.s), 0.22 + hsl.l * 0.1);
   return '#' + c.getHexString();
 }
-function hairFromImage(img) {   // 上半区暗色主色：先采四角均值=背景色，排除近背景像素后取较暗 45% 均值（发/五官），HSL 钳进发色域（L≤0.34 保与肤色对比）；同源 dataURL 无污染，CDN 回退 try/catch → null
-  try {
-    const cv = document.createElement('canvas'); cv.width = cv.height = 16;
-    const ctx = cv.getContext('2d');
-    ctx.drawImage(img, 0, 0, 16, 16);
-    const d = ctx.getImageData(0, 0, 16, 16).data;
-    const at = (x, y) => { const i = (y * 16 + x) * 4; return [d[i] / 255, d[i + 1] / 255, d[i + 2] / 255, d[i + 3] / 255]; };
-    let br = 0, bg = 0, bb = 0, bn = 0;
-    [[0, 0], [15, 0], [0, 15], [15, 15]].forEach(([x, y]) => { const p = at(x, y); if (p[3] < 128) return; br += p[0]; bg += p[1]; bb += p[2]; bn++; });
-    const bgc = bn ? [br / bn, bg / bn, bb / bn] : null;
-    const dist = p => bgc ? Math.hypot(p[0] - bgc[0], p[1] - bgc[1], p[2] - bgc[2]) : 1;
-    const scan = (y0, y1) => { const out = []; for (let y = y0; y < y1; y++) for (let x = 0; x < 16; x++) { const p = at(x, y); if (p[3] < 128 || dist(p) < 0.15) continue; out.push([p[0], p[1], p[2], (p[0] + p[1] + p[2]) / 3]); } return out; };
-    let px = scan(0, 8);   // 优先上半区（人像发区）
-    if (px.length < 8) px = scan(0, 16);   // 兜底全图（背景居多的画风上半区可能被排空）
-    px.sort((a, b) => a[3] - b[3]);
-    const take = px.slice(0, Math.max(3, Math.floor(px.length * 0.45)));
-    let r = 0, g = 0, b = 0;
-    take.forEach(p2 => { r += p2[0]; g += p2[1]; b += p2[2]; });
-    const c = new THREE.Color(r / take.length, g / take.length, b / take.length);
-    const hsl = {};
-    c.getHSL(hsl);
-    c.setHSL(hsl.h, Math.max(0.32, Math.min(0.8, hsl.s)), Math.max(0.26, Math.min(0.38, hsl.l)));   // 描边画风最暗 45% 会聚到纯黑描边——明度钳中段保「发色」不是「黑头盔」
-    return '#' + c.getHexString();
-  } catch (e) { return null; }
+const featQ = [];   // 提取任务队列（P1-6）：rIC+setTimeout 退路，每槽 1 头像——16 人同批 onload 不堆主线程
+let featQOn = false;
+function featQPush(task) {
+  featQ.push(task);
+  if (featQOn) return;
+  featQOn = true;
+  const drain = () => {
+    const t = featQ.shift();
+    if (!t) { featQOn = false; return; }
+    try { t(() => { if (typeof requestIdleCallback === 'function') requestIdleCallback(drain, { timeout: 1200 }); else setTimeout(drain, 0); }); } catch (e) { if (typeof requestIdleCallback === 'function') requestIdleCallback(drain, { timeout: 1200 }); else setTimeout(drain, 0); }   // 任务同步抛错不让队列断流（inspector-biz P2：此处无 next 形参，原 catch 自身会 ReferenceError=全页提取静默死亡）
+  };
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(drain, { timeout: 1200 }); else setTimeout(drain, 0);
 }
-function acquirePalette(colorIdx, uri) {
+function acquirePalette(colorIdx, uri, meta) {   // meta={style,seed}|null（P.avatarRecipe）；feats 经 extractAvatarFeatures 异步补
   const key = uri ? colorIdx + '|' + uri : 'fb:' + colorIdx;
   let e = paletteCache.get(key);
-  if (e) return e;
-  e = { key, hair: fallbackHair(colorIdx), loaded: !uri, fb: !uri };
-  const notify = () => { e.loaded = true; seatAva.busts.forEach(g2 => { if (g2.userData.faceKey === e.key) applyHeadPalette(g2, e); }); };
+  if (e) { paletteCache.delete(key); paletteCache.set(key, e); return e; }   // 命中刷新 LRU
+  e = { key, feats: null, loaded: !uri, fb: !uri };
+  const notify = () => { e.loaded = true; seatAva.busts.forEach(g2 => { if (g2.userData.faceKey === e.key) applyFeats(g2, e); }); };
   if (uri) {
     const img = new Image();
     img.crossOrigin = 'anonymous';   // 必须先于 src 赋值（CDN 回退路径防画布污染；本地 dataURL 无感）
-    img.onload = () => { const hair = hairFromImage(img); if (hair) e.hair = hair; else e.fb = true; notify(); };
-    img.onerror = () => { e.fb = true; notify(); };   // 解码失败/CDN 回退离线：fallback 发色
+    img.onload = () => {
+      if (typeof AV3 === 'undefined' || !AV3 || !AV3.extractAvatarFeatures) { e.fb = true; notify(); return; }   // 保险丝：共享件失败退默认头
+      featQPush(async next => {
+        try {
+          const feats = await AV3.extractAvatarFeatures(img, meta || null);
+          if (feats && feats.person) e.feats = feats; else e.fb = true;   // 非人脸/空光栅 → 默认头（永不判秃给有发者——像素否决权在提取器内）
+        } catch (err) { e.fb = true; }
+        notify();
+        next();
+      });
+    };
+    img.onerror = () => { e.fb = true; notify(); };   // 解码失败/CDN 回退离线：默认头
     img.src = uri;
   }
-  if (paletteCache.size >= 16) paletteCache.delete(paletteCache.keys().next().value);
+  if (paletteCache.size >= 32) paletteCache.delete(paletteCache.keys().next().value);
   paletteCache.set(key, e);
   return e;
 }
-function applyHeadPalette(grp, e) {   // palette 到头材质单出口（hairMat 同时是眉的材质实例——一写双更）
-  if (grp && grp.userData.hairMat && e && e.loaded && e.hair) grp.userData.hairMat.color.set(e.hair);
+function applyHeadPalette(grp, e) {   // 旧发色单出口（保险丝退路：AV3 缺失时只调发色，几何保持二阶默认头）
+  if (grp && grp.userData.hairMat && e && e.loaded && e.feats && e.feats.hair) grp.userData.hairMat.color.set(e.feats.hair);
 }
-function buildAvatarHead(r, colorIdx) {   // 全几何头像头：+z 为脸朝向；返回 {grp, hairMat, skin, mats, parts}
+function defaultHead(r, colorIdx, fallbackHair) {   // 保险丝极简头（AV3 缺失时二阶默认几何，页面独立实现同语言）
   const g = new THREE.Group();
   const skin = new THREE.MeshStandardMaterial({ color: 0xe9bb90, roughness: 0.55 });
   const skull = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 18), skin);
   skull.castShadow = true;
   g.add(skull);
   const hairMat = new THREE.MeshStandardMaterial({ color: fallbackHair(colorIdx), roughness: 0.8 });
-  const hairTop = new THREE.Mesh(new THREE.SphereGeometry(r * 1.045, 24, 10, 0, Math.PI * 2, 0, Math.PI * 0.27), hairMat);   // 顶盖（0.27π=发际线在眉上方，46° 俯角相机下面部占头部主体）
-  const hairBack = new THREE.Mesh(new THREE.SphereGeometry(r * 1.04, 24, 14, Math.PI * 0.72, Math.PI * 1.56, Math.PI * 0.2, Math.PI * 0.52), hairMat);   // 后脑壳（收窄不裹脸侧）
-  hairTop.castShadow = hairBack.castShadow = true;
+  const hairTop = new THREE.Mesh(new THREE.SphereGeometry(r * 1.045, 24, 10, 0, Math.PI * 2, 0, Math.PI * 0.27), hairMat);
+  const hairBack = new THREE.Mesh(new THREE.SphereGeometry(r * 1.04, 24, 14, Math.PI * 0.72, Math.PI * 1.56, Math.PI * 0.2, Math.PI * 0.52), hairMat);
   g.add(hairTop, hairBack);
-  const earGeo = new THREE.SphereGeometry(r * 0.16, 10, 8);
-  const earL = new THREE.Mesh(earGeo, skin); earL.position.set(-r * 0.98, r * 0.16, 0); earL.scale.set(0.55, 1, 0.8);
-  const earR = earL.clone(); earR.position.x = r * 0.98;
-  g.add(earL, earR);
   const eyeWhite = new THREE.MeshStandardMaterial({ color: 0xf6f3ea, roughness: 0.3 });
   const iris = new THREE.MeshStandardMaterial({ color: 0x2a2438, roughness: 0.25 });
-  const glint = new THREE.MeshBasicMaterial({ color: 0xffffff });
   [-1, 1].forEach(s => {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(r * 0.17, 14, 12), eyeWhite);
-    eye.position.set(s * r * 0.30, r * 0.48, r * 0.80);
-    const pupil = new THREE.Mesh(new THREE.SphereGeometry(r * 0.095, 10, 8), iris);
-    pupil.position.set(0, 0, r * 0.115);
-    const dot = new THREE.Mesh(new THREE.SphereGeometry(r * 0.036, 6, 6), glint);
-    dot.position.set(-r * 0.033, r * 0.05, r * 0.18);
-    eye.add(pupil, dot);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(r * 0.125, 12, 10), eyeWhite);
+    eye.position.set(s * r * 0.30, r * 0.48, r * 0.74);
     g.add(eye);
-    const brow = new THREE.Mesh(new THREE.BoxGeometry(r * 0.28, r * 0.05, r * 0.04), hairMat);
-    brow.position.set(s * r * 0.27, r * 0.66, r * 0.70);
-    brow.rotation.z = -s * 0.12;
+    const brow = new THREE.Mesh(new THREE.BoxGeometry(r * 0.26, r * 0.045, r * 0.04), hairMat);
+    brow.position.set(s * r * 0.27, r * 0.58, r * 0.80);
     g.add(brow);
   });
   const nose = new THREE.Mesh(new THREE.ConeGeometry(r * 0.095, r * 0.24, 10), skin);
@@ -1382,10 +1377,31 @@ function buildAvatarHead(r, colorIdx) {   // 全几何头像头：+z 为脸朝�
   nose.position.set(0, r * 0.2, r * 0.955);
   g.add(nose);
   const mouth = new THREE.Mesh(new THREE.TorusGeometry(r * 0.17, r * 0.028, 8, 18, Math.PI * 0.75), new THREE.MeshBasicMaterial({ color: 0x8a4a3a }));
-  mouth.rotation.z = Math.PI * 1.125;   // 弧段转到下半=微笑
+  mouth.rotation.z = Math.PI * 1.125;
   mouth.position.set(0, -r * 0.12, r * 0.975);
   g.add(mouth);
-  return { grp: g, hairMat, skin, mats: [skin, hairMat, eyeWhite, iris, glint, mouth.material], parts: { skull: 1, hair: 2, eyes: 2, brows: 2, ears: 2, nose: 1, mouth: 1 } };
+  return { grp: g, hairMat, skin, mats: [skin, hairMat, eyeWhite, iris, mouth.material], parts: { skull: 1, hair: 2 } };
+}
+function applyFeats(grp, e) {   // 特征→头子树单出口（P0-5）：旧子树 dispose→新挂→hairMat/parts 重写→neck 共享 skin 再链；featsSig 幂等
+  if (typeof AV3 === 'undefined' || !AV3 || !AV3.buildAvatarHead) { applyHeadPalette(grp, e); return; }
+  if (!grp || !grp.userData.avHead || !e || !e.loaded) return;
+  const feats = e.feats || null;
+  const sig = feats ? [feats.style, feats.glasses, feats.beard, feats.skin, feats.hair, feats.mouth].join('|') : 'fb';
+  if (grp.userData.featsSig === sig) return;
+  grp.userData.featsSig = sig;
+  const oldGrp = grp.userData.avHead;
+  const y = oldGrp.position.y;
+  oldGrp.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });   // 头内材质/几何全私有（无纹理，不涉独占所有权）
+  grp.remove(oldGrp);
+  const head = AV3.buildAvatarHead(0.16, grp.userData.colorIdx, feats, fallbackHair);
+  head.grp.position.y = y;
+  head.grp.userData.avHead = true;
+  grp.add(head.grp);
+  grp.userData.avHead = head.grp;
+  grp.userData.hairMat = head.hairMat;
+  grp.userData.parts = head.parts;
+  grp.userData.feats = feats;
+  if (grp.userData.neck) grp.userData.neck.material = head.skin;   // neck 共享 head.skin 实例——重建后必须再链（漏链=脖脸异色）
 }
 function disposeBust(g) {   // material.dispose 不连带纹理——缓存独占所有权（对比 disposeLabel 的 faceMat.map.dispose：bust 纹理跨重建存活）
   g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
@@ -1403,7 +1419,8 @@ function refreshSeatAvatars() {
     if (seat === south) return;
     const av = (NETMODE && NDOC && NDOC.players[seat] && NDOC.players[seat].av) || '';
     const uri = av ? P.avatarUri(av) : '';
-    const e = acquirePalette(p.colorIdx, uri);
+    const e = acquirePalette(p.colorIdx, uri, av ? P.avatarRecipe(av) : null);
+    const feats = e && e.loaded && e.feats ? e.feats : undefined;   // 缓存命中带特征；未加载先建默认头，onload 后 applyFeats 重建
     const grp = new THREE.Group();
     const mat = new THREE.MeshStandardMaterial({ color: PLAYER_COLORS[p.colorIdx], roughness: 0.55 });
     const base = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.20, 0.06, 20), mat);
@@ -1412,19 +1429,24 @@ function refreshSeatAvatars() {
     body.position.y = 0.21;
     const shoulders = new THREE.Mesh(new THREE.SphereGeometry(0.17, 18, 12), mat);   // 二阶：肩+颈=「半身像」轮廓（不再是球插在锥上）
     shoulders.scale.set(1.45, 0.5, 0.78); shoulders.position.y = 0.4;
-    const head = buildAvatarHead(0.16, p.colorIdx);
-    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.062, 0.12, 12), head.skin);
+    const head = (typeof AV3 !== 'undefined' && AV3 && AV3.buildAvatarHead) ? AV3.buildAvatarHead(0.16, p.colorIdx, feats, fallbackHair) : defaultHead(0.16, p.colorIdx, fallbackHair);   // 保险丝：共享件缺失退极简默认头
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.062, 0.12, 12), head.skin);   // 共享 head.skin 实例（applyFeats 重建时再链）
     neck.position.y = 0.48;
     head.grp.position.y = 0.595;
+    head.grp.userData.avHead = true;   // 重建锚标记（applyFeats 换孩子用）
     base.castShadow = body.castShadow = shoulders.castShadow = neck.castShadow = true;   // 真实投影：dirLight ±5.5 覆盖座位弧（头内 skull/发壳 builder 已设）
     grp.add(base, body, shoulders, neck, head.grp);
     const pos = seatPos(seat);
     grp.position.set(pos.x * 1.28, 0.20, pos.z * 1.28);
     grp.userData.faceKey = uri ? p.colorIdx + '|' + uri : 'fb:' + p.colorIdx;
     grp.userData.palette = e;
+    grp.userData.avHead = head.grp;
+    grp.userData.neck = neck;
+    grp.userData.colorIdx = p.colorIdx;
     grp.userData.hairMat = head.hairMat;
     grp.userData.parts = head.parts;
-    applyHeadPalette(grp, e);
+    grp.userData.featsSig = feats ? [feats.style, feats.glasses, feats.beard, feats.skin, feats.hair, feats.mouth].join('|') : 'fb';
+    applyFeats(grp, e);
     scene.add(grp);
     seatAva.busts.push(grp);
   });
@@ -1695,9 +1717,10 @@ function startGame(cfg) {
   }
   G.dir = 1; G.turn = cfg.firstPlayer || 0; G.drawnThisTurn = false;
   G.cur = topCard().c; G.unoWin = null; G.unoCatch = null; G.passStreak = 0; G.winner = null;
-  G.lastHumanActor = -1;
+  G.lastHumanActor = -1; G._resultShown = false;   // 结算双触发标志清零（本地视觉标志，不进 gameSnapshot）
   clearSave();
   $('setup').hidden = true; $('result-overlay').hidden = true; $('hand-ovl').classList.remove('show');
+  if (G.gl) camTo({ az: 0, elev: 46 * D2R, focusK: 1 }, 420);   // W2：上一局结算推镜回位，新局永远从全景机位开局（REDUCED/bodyLo/TURBO 由 camTo 直落=现状）
   if (G.gl) buildHands();
   animInitialDeal();   // 发牌动画:按轮发次序飞向各人座位
   setColor(G.cur); render2D(); updateHUD();
@@ -2114,6 +2137,8 @@ function botQuote(kind) {
   if (arr && arr.length) toast(arr[rint(arr.length)]);
 }
 function showResult(stall) {   // 结算屏渲染（onWin/endGame/远端快照补演共用，以当前 G 为准）
+  if (G._resultShown) return;   // 双触发兜底：hidden 同步翻已闭环 :509 守卫，此为第二道闸（startGame/快照非 OVER 处清）
+  G._resultShown = true;
   const rank = G.players.map((p, i) => ({ i, p, pts: handPoints(p.hand) })).sort((a, b) => a.pts - b.pts);
   const win = G.winner != null && G.players[G.winner] ? G.players[G.winner] : rank[0].p;
   $('result-winner').textContent = stall ? '🤝 僵局和局' : '🏆 ' + win.name;
@@ -2135,7 +2160,24 @@ function showResult(stall) {   // 结算屏渲染（onWin/endGame/远端快照�
     }
   }
   $('result-overlay').hidden = false;
-  SFX.win(); updateHUD();
+  const crown = !stall && G.winner != null && G.gl && !REDUCED && !bodyLo && !TURBO;   // 结算一镜：僵局/四退路直落（现状，不依赖 camTo 内建降级）
+  if (crown) {
+    // W2 一镜：暗角渐暗、镜头在暗角内落定（#result-veil 是中心透明 radial 暗角盖不住画面中心——靠推镜收尾，不做覆盖语义）
+    if (rig._glT) { clearTimeout(rig._glT); rig._glT = null; }   // 掐掉 glanceAside 950ms 回程，防推镜被拽走
+    const veil = $('result-veil');
+    veil.style.opacity = '0'; veil.style.animation = 'none';   // 先内联压住样式表 1s veil-in，镜头起拍后再放行（overlay 的 DOM 入场类照旧不受影响）
+    const veilDelay = 300 * SPEED;
+    setTimeout(() => { veil.style.opacity = ''; veil.style.animation = ''; }, veilDelay);
+    const sp = seatPos(G.winner);
+    const h = Math.hypot(sp.x, sp.z) * 0.55;   // 加冕悬停点：座位方向 55% 距离、高 1.2，球坐标只补 az/elev/focusK（机位由 camApply 重算，tgt 保持桌心）
+    const opts = { az: Math.atan2(sp.x, sp.z), elev: Math.atan2(1.2, h), focusK: Math.hypot(h, 1.2) / camBaseD() };
+    const ms = G.winner === (NETMODE ? netSeatOf(myId) : southOwner()) ? RESULT_PUSH_MS : 350;   // 本端=胜者完整加冕；败者/观战短推
+    resultFxLog = { camFrom: { az: rig.az, elev: rig.elev, focusK: rig.focusK }, camTo: opts, ms, stall: false, veilDelay, t0: performance.now() };
+    camTo(opts, ms);
+  } else {
+    resultFxLog = { camFrom: null, camTo: null, ms: 0, stall: !!stall, veilDelay: 0, t0: performance.now() };
+  }
+  SFX.win(); updateHUD();   // 音在 camTo 起拍帧（败者短推同帧起响）；直落路径=原位时序
 }
 function onWin(pi) {
   cancelUnoWindow();
@@ -2614,11 +2656,13 @@ if (AUTOTEST || qs.get('inspect') === '1') {   // inspect=1：真机路径（SPE
   window.__uno = {
     state: G,
     camInfo: () => ({ pos: camera.position.toArray(), az: rig.az, elev: rig.elev, focusK: rig.focusK, tgt: { x: rig.tgt.x, y: rig.tgt.y, z: rig.tgt.z }, gl: G.gl, lo: document.body.classList.contains('loperf') }),
-    avatars: () => ({   // 头像轮二阶取证：头=真几何（loaded&&!fb=发色来自头像提取），parts=五官几何清单
+    resultFx: () => resultFxLog,   // W2 结算一镜取证：{camFrom:{az,elev,focusK}, camTo:{az,elev,focusK}|null, ms, stall, veilDelay, t0}（camTo=null=未推镜）
+    avatars: () => ({   // 头像特征轮取证：头=特征化几何（loaded&&!fb=特征提取完成），feats=特征向量，parts=几何清单
       sig: seatAva.sig,
       seats: seatAva.busts.map(g => {
         const e = g.userData.palette;
-        return { x: +g.position.x.toFixed(2), y: +g.position.y.toFixed(2), z: +g.position.z.toFixed(2), key: g.userData.faceKey, hair: g.userData.hairMat ? '#' + g.userData.hairMat.color.getHexString() : null, loaded: !!(e && e.loaded), fb: !!(e && e.fb), parts: g.userData.parts || null };
+        const f = g.userData.feats;
+        return { x: +g.position.x.toFixed(2), y: +g.position.y.toFixed(2), z: +g.position.z.toFixed(2), key: g.userData.faceKey, hair: g.userData.hairMat ? '#' + g.userData.hairMat.color.getHexString() : null, skin: f ? f.skin : null, style: f ? f.style : null, glasses: f ? f.glasses : false, beard: !!(f && f.beard), loaded: !!(e && e.loaded), fb: !!(e && e.fb), parts: g.userData.parts || null };
       })
     }),
     deckN: () => G.deck.length,

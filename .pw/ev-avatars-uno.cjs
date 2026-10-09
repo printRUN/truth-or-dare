@@ -44,13 +44,13 @@ const ok = (c, msg) => { if (c) { pass++; console.log('  ✅', msg); } else { fa
   const aH = await host.evaluate(() => ({ av: window.__uno.avatars(), south: window.__uno.state.players.length, mySeatDoc: window.__uno.net().doc.players.map(p => p.av) }));
   ok(String(aH.mySeatDoc[0]).startsWith('dcb:') && String(aH.mySeatDoc[1]).startsWith('dcb:'), `房间文档 av 广播且均为定制配方（${aH.mySeatDoc.map(a => String(a).slice(0, 9)).join(',')}）`);
   ok(aH.av.seats.length === 1, `host 端 1 座 bust（south=自己不建）`);
-  ok(aH.av.seats[0].loaded && !aH.av.seats[0].fb && /^#[0-9a-f]{6}$/.test(aH.av.seats[0].hair), 'host 视角对手 bust=真头像发色（loaded&&!fb+hair）');
+  ok(aH.av.seats[0].loaded && !aH.av.seats[0].fb && aH.av.seats[0].skin === '#684d35' && aH.av.seats[0].hair === '#1f1913' && aH.av.seats[0].style === 'short', `host 视角对手 bust=特征化头（金值 skin #684d35/hair #1f1913(材质=L钳0.10 后)/short；got ${aH.av.seats[0].skin}/${aH.av.seats[0].hair}/${aH.av.seats[0].style}）`);
   const pts = aH.av.seats[0].parts;
   ok(pts && pts.eyes === 2 && pts.hair === 2 && pts.brows === 2 && pts.ears === 2 && pts.nose === 1 && pts.mouth === 1, `半身像全几何五官清单（eyes=${pts && pts.eyes} hair=${pts && pts.hair} nose=${pts && pts.nose}）`);
   ok(aH.av.seats[0].y === 0.2, `bust 基座钉桌面真实顶面 y=0.20（got ${aH.av.seats[0].y}）`);
   ok(Math.abs(Math.hypot(aH.av.seats[0].x, aH.av.seats[0].z) - 2.6 * 1.28) < 0.01, `径向 seatPos×1.28（r=${Math.hypot(aH.av.seats[0].x, aH.av.seats[0].z).toFixed(2)}≈3.33）`);
   const aJ = await join.evaluate(() => window.__uno.avatars());
-  ok(aJ.seats.length === 1 && aJ.seats[0].loaded && !aJ.seats[0].fb && /^#[0-9a-f]{6}$/.test(aJ.seats[0].hair), 'join 端对手 bust 同样真头像发色（自我中心：各自只建对面）');
+  ok(aJ.seats.length === 1 && aJ.seats[0].loaded && !aJ.seats[0].fb && aJ.seats[0].skin === '#684d35' && aJ.seats[0].hair === '#1f1913', 'join 端对手 bust 同样特征化头（自我中心：各自只建对面）');
   ok(Math.abs(aJ.seats[0].z + 3.33) < 0.01, 'join 视角 bust 落北弧对手座（seatPos 语义：对手恒北弧 z=-2.6×1.28）');
   await host.evaluate(() => window.__uno.forceRender && window.__uno.forceRender());   // AUTOTEST+bodyLo 冻连续渲染：截图前手动渲一帧防陈旧帧（终审 P1-2）
   await host.screenshot({ path: path.join(SHOTS, 'ava-uno-net-host.png') });
@@ -71,6 +71,28 @@ const ok = (c, msg) => { if (c) { pass++; console.log('  ✅', msg); } else { fa
   await hs.waitForFunction(() => document.querySelectorAll('#players-bar .pchip').length === 2, null, { timeout: 8000 });
   const aHS2 = await hs.evaluate(() => window.__uno.avatars());
   ok(aHS2.seats.length === 1 && /^#[0-9a-f]{6}$/.test(aHS2.seats[0].hair), 'updateHUD 幂等后 bust 仍在（sig 无变化零重建）');
+
+  await Promise.allSettled([host.close(), join.close(), hs.close()].map(p => p && p.close ? p.close() : Promise.resolve())).catch(() => {});   // 早阶段页关闭：长上下文多活页拖慢后续 join（实测 15s 超时）
+  // ── D. 眼镜金值（价值专家 P1）：miniavs/Felix（眼镜妹）长发+圆眼镜 → glasses 位必真（位图钉扎精确判）──
+  // 独立 browser：同 context 跨阶段残留会让新房间 join 挂起（实测），全新实例即稳
+  {
+    const b2 = await chromium.launch();
+    const ctx2 = await b2.newContext({ viewport: { width: 1280, height: 800 } });
+    const w2 = (pg, tag) => pg.on('pageerror', e => errs.push(tag + ' pageerror: ' + e.message));
+    const g1 = await ctx2.newPage(); w2(g1, 'gl-host');
+    await g1.addInitScript(() => { try { localStorage.setItem('uno:avatar', 'dcb:{"s":"miniavs","d":"Felix","b":"ddd6fe"}'); } catch (e) {} });
+    await g1.goto(`http://127.0.0.1:${PORT}/uno.html?autotest=1&net=1&localnet=1&room=73011&q=glh&role=host`, { waitUntil: 'domcontentloaded' });
+    await g1.waitForFunction(() => window.__uno && window.__uno.net() && window.__uno.net().joined, null, { timeout: 15000 });
+    const g2 = await ctx2.newPage(); w2(g2, 'gl-join');
+    await g2.goto(`http://127.0.0.1:${PORT}/uno.html?autotest=1&net=1&localnet=1&room=73011&q=glj&role=join&name=眼镜员`, { waitUntil: 'domcontentloaded' });
+    await g2.waitForFunction(() => window.__uno && window.__uno.net() && window.__uno.net().joined, null, { timeout: 15000 });
+    await g1.waitForFunction(() => window.__uno.net().doc.players.length === 2, null, { timeout: 10000 });
+    await g1.evaluate(() => window.__uno.net().start({}));
+    await g2.waitForFunction(() => { const a = window.__uno.avatars(); return a.seats.length === 1 && a.seats[0].loaded && !a.seats[0].fb && a.seats[0].skin; }, null, { timeout: 20000 });
+    const aG = await g2.evaluate(() => window.__uno.avatars());
+    ok(aG.seats[0].style === 'long' && aG.seats[0].glasses === true, `眼镜金值：miniavs/Felix（眼镜妹）对手 bust long+glasses 位为真（got ${JSON.stringify(aG.seats.map(s2 => [s2.style, s2.glasses]))}）`);
+    await b2.close();
+  }
 
   ok(errs.length === 0, `零 pageerror（${errs.slice(0, 3).join(' | ') || 'clean'}）`);
 

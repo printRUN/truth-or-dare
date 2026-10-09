@@ -254,7 +254,6 @@
   /* REDUCED / loperf-lite 退路 */
   @media (prefers-reduced-motion: reduce) {
     .die, .dice-shadow, .loader-box p, .pchip.active, #result-veil, #result-winner, .pod, .mfloat, #bust-banner, #buy-modal .panel, #gen-modal .panel, body.shaking #mono-canvas, body.shaking #players-bar, body.shaking #action-bar, body.jolt #mono-canvas, body.jolt #players-bar, #deal-stamp { animation: none !important; }
-    .die, .dice-shadow, .loader-box p { animation: none !important; }
     .die.d1 { transform: translate(-26px, 4px) rotateX(-18deg) rotateY(16deg); }
     .die.d2 { transform: translate(26px, 4px) rotateY(-22deg) rotateX(12deg); }   /* REDUCED 静态定帧：双骰分立成静物 */
     .pchip.active { box-shadow: 0 0 0 1.5px var(--accent-cyan); }
@@ -407,6 +406,7 @@
 <script src="three.r128.js"></script>
 
 <script src="dicebear-local.js"></script>
+<script src="avatar-features.js"></script>
 <div id="ovl-donate" class="ovl" hidden>
   <div style="text-align:center;max-width:340px;width:100%;background:linear-gradient(180deg,rgba(30,25,50,0.98),rgba(18,14,34,0.98));border:1px solid rgba(255,255,255,0.16);border-radius:22px;padding:24px 22px;box-shadow:0 26px 72px rgba(0,0,0,0.5)">
     <div style="font-size:1.05rem;font-weight:800;letter-spacing:2px;margin-bottom:10px">☕ 助力一下作者</div>
@@ -596,8 +596,16 @@ function applyGameSnapshot(g, doc) {
   $('buy-modal').hidden = true; $('gen-modal').hidden = true;
   if (G.gl && !pawnObjs.length && G.players.length) { buildPawns(); }
   const animIdx = new Set(prev ? prev.map((q, i) => (G.players[i].pos !== q.pos && !G.players[i].bankrupt) ? i : -1).filter(i => i >= 0) : []);
-  G.players.forEach((p, i) => { if (pawnObjs[i]) { pawnObjs[i].visible = !p.bankrupt; if (!animIdx.has(i) && !replayClaimed(i)) placePawn(i, p.pos, true); } });   // 在飞/排队的走位棋子不许瞬时落位拽回终点
-  if (plateSprites.length) { plateSprites.forEach((s, i) => { if (s) s.visible = !!(G.players[i] && !G.players[i].bankrupt); }); layoutPlates(); }
+  G.players.forEach((p, i) => {
+    if (!pawnObjs[i]) return;
+    if (p.bankrupt && fallInFlight(i)) return;   // W3 在飞倒地豁免：echo 快照不许杀演出/不许落位拽回（fall 终帧自带 visible=false）
+    fallTok[i] = null;   // 快照写真相即作废在飞倒地（复活/新局边界：倒地让位，pose 由下方复位收编）
+    const settled = !animIdx.has(i) && !replayClaimed(i);   // 在飞/排队的走位棋子不许瞬时落位拽回终点
+    if (!p.bankrupt && settled) resetPawnPose(i);   // W3 新局 pose 复位（快照路径 buildPawns 只首次跑，重开复用 pawnObjs 会残留倒地 pose 与灰材质；与 placePawn 同门控防踩在飞滑行 lean）
+    pawnObjs[i].visible = !p.bankrupt;
+    if (settled) placePawn(i, p.pos, true);
+  });
+  if (plateSprites.length) { plateSprites.forEach((s, i) => { if (s && !fallInFlight(i)) s.visible = !!(G.players[i] && !G.players[i].bankrupt); }); layoutPlates(); }   // W3 在飞倒地的名牌归 fall 演出管（淡出中不许快照拉回）
   ownerMarks.forEach(m => { if (m) m.visible = false; });
   G.owners.forEach((o, i) => {
     if (o != null && ownerMarks[i]) {
@@ -697,7 +705,7 @@ async function playReplayOp(op) {
     else { flyNotes(BANK_POS, pawnNotePos(op.i), op.d, () => SFX.cash()); bigMoneyBeat(op.d); }   // 大额进账重拍与行动者端同语言（W2③）
     return;
   }
-  if (op.type === 'bust') { bustRitual(G.players[op.i], null, 0, op.tiles || []); return; }   // 统一清算仪式入口（观战 tiles=op 编译时携带的 prev 归属，W2①/#9）
+  if (op.type === 'bust') { bustRitual(G.players[op.i], null, 0, op.tiles || []); return; }   // 统一清算仪式入口（观战 tiles=op 编译时携带的 prev 归属，W2①/#9）；破产倒地同走 fallAndFade（W3 单入口，入口复位快照先隐的 visible）
   if (op.type === 'call') { op.fn(); return; }
 }
 // 走位回放：movePawn 的 hop 循环同款（260ms×SPEED 单跳、正弦弧高），但只动棋子不碰 G 也不碰镜头——
@@ -1283,7 +1291,7 @@ function rebuildBoardVisuals() {   // 换图重绘（挑刺 F4 dispose 纪律）
   ownerMarks.forEach(mk => { if (!mk) return; scene.remove(mk); mk.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(mt => mt.dispose()); }); });   // E2 房子=Group：traverse 释放（旧 Mesh 直卸对 Group 是 undefined.dispose）
   ownerMarks = [];
   if (centerDisc) { scene.remove(centerDisc); centerDisc.geometry.dispose(); (Array.isArray(centerDisc.material) ? centerDisc.material : [centerDisc.material]).forEach(mt => { if (mt.map) mt.map.dispose(); mt.dispose(); }); centerDisc = null; }
-  if (jailCage) { scene.remove(jailCage); jailCage.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); jailCage = null; jailCageState = false; }   // E3 铁笼随图重建（终审 P6 生命周期镜像 ownerMarks）
+  if (jailCage) { cageTok++; scene.remove(jailCage); jailCage.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); jailCage = null; jailCageState = false; }   // E3 铁笼随图重建（终审 P6 生命周期镜像 ownerMarks）；cageTok 必须 bump——否则在飞收笼循环踩 null（换图窗口 TypeError，W4 前置 bug）
   buildBoard();
   buildCenter();
   applyTheme();
@@ -1533,81 +1541,67 @@ function fallbackHair(colorIdx) {   // 无 av/提取失败：玩家色深化（�
   c.setHSL(hsl.h, Math.min(0.55, hsl.s), 0.22 + hsl.l * 0.1);
   return '#' + c.getHexString();
 }
-function hairFromImage(img) {   // 上半区暗色主色：先采四角均值=背景色，排除近背景像素后取较暗 45% 均值（发/五官），HSL 钳进发色域（L≤0.34 保与肤色对比）；同源 dataURL 无污染，CDN 回退 try/catch → null
-  try {
-    const cv = document.createElement('canvas'); cv.width = cv.height = 16;
-    const ctx = cv.getContext('2d');
-    ctx.drawImage(img, 0, 0, 16, 16);
-    const d = ctx.getImageData(0, 0, 16, 16).data;
-    const at = (x, y) => { const i = (y * 16 + x) * 4; return [d[i] / 255, d[i + 1] / 255, d[i + 2] / 255, d[i + 3] / 255]; };
-    let br = 0, bg = 0, bb = 0, bn = 0;
-    [[0, 0], [15, 0], [0, 15], [15, 15]].forEach(([x, y]) => { const p = at(x, y); if (p[3] < 128) return; br += p[0]; bg += p[1]; bb += p[2]; bn++; });
-    const bgc = bn ? [br / bn, bg / bn, bb / bn] : null;
-    const dist = p => bgc ? Math.hypot(p[0] - bgc[0], p[1] - bgc[1], p[2] - bgc[2]) : 1;
-    const scan = (y0, y1) => { const out = []; for (let y = y0; y < y1; y++) for (let x = 0; x < 16; x++) { const p = at(x, y); if (p[3] < 128 || dist(p) < 0.15) continue; out.push([p[0], p[1], p[2], (p[0] + p[1] + p[2]) / 3]); } return out; };
-    let px = scan(0, 8);   // 优先上半区（人像发区）
-    if (px.length < 8) px = scan(0, 16);   // 兜底全图（背景居多的画风上半区可能被排空）
-    px.sort((a, b) => a[3] - b[3]);
-    const take = px.slice(0, Math.max(3, Math.floor(px.length * 0.45)));
-    let r = 0, g = 0, b = 0;
-    take.forEach(p2 => { r += p2[0]; g += p2[1]; b += p2[2]; });
-    const c = new THREE.Color(r / take.length, g / take.length, b / take.length);
-    const hsl = {};
-    c.getHSL(hsl);
-    c.setHSL(hsl.h, Math.max(0.32, Math.min(0.8, hsl.s)), Math.max(0.26, Math.min(0.38, hsl.l)));   // 描边画风最暗 45% 会聚到纯黑描边——明度钳中段保「发色」不是「黑头盔」
-    return '#' + c.getHexString();
-  } catch (e) { return null; }
+function applyHeadPalette(grp, e) {   // 旧发色单出口（保险丝退路：AV3 缺失时只调发色，几何保持二阶默认头）
+  if (grp && grp.userData.hairMat && e && e.loaded && e.feats && e.feats.hair) grp.userData.hairMat.color.set(e.feats.hair);
 }
-function applyHeadPalette(grp, e) {   // palette 到头材质单出口（hairMat 同时是眉的材质实例——一写双更）
-  if (grp && grp.userData.hairMat && e && e.loaded && e.hair) grp.userData.hairMat.color.set(e.hair);
+const featQ = [];   // 提取任务队列（expert-eng P1-6）：rIC+setTimeout 退路，每槽 1 头像——满员同批 onload 不堆主线程
+let featQOn = false;
+function featQPush(task) {
+  featQ.push(task);
+  if (featQOn) return;
+  featQOn = true;
+  const drain = () => {
+    const t = featQ.shift();
+    if (!t) { featQOn = false; return; }
+    try { t(() => { if (typeof requestIdleCallback === 'function') requestIdleCallback(drain, { timeout: 1200 }); else setTimeout(drain, 0); }); } catch (e) { if (typeof requestIdleCallback === 'function') requestIdleCallback(drain, { timeout: 1200 }); else setTimeout(drain, 0); }   // 任务同步抛错不让队列断流（inspector-biz P2：此处无 next 形参，原 catch 自身会 ReferenceError=全页提取静默死亡）
+  };
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(drain, { timeout: 1200 }); else setTimeout(drain, 0);
 }
-function acquirePalette(colorIdx, uri) {
+function acquirePalette(colorIdx, uri, meta) {   // meta={style,seed}|null（P.avatarRecipe）；feats 经 extractAvatarFeatures 异步补
   const key = uri ? colorIdx + '|' + uri : 'fb:' + colorIdx;
   let e = paletteCache.get(key);
-  if (e) return e;
-  e = { key, hair: fallbackHair(colorIdx), loaded: !uri, fb: !uri };
-  const notify = () => { e.loaded = true; pawnObjs.forEach((g2, i) => { if (g2 && g2.userData.faceKey === e.key && G.players[i]) applyHeadPalette(g2, e); }); };
+  if (e) { paletteCache.delete(key); paletteCache.set(key, e); return e; }   // 命中刷新 LRU（32）
+  e = { key, feats: null, loaded: !uri, fb: !uri };
+  const notify = () => { e.loaded = true; pawnObjs.forEach((g2, i) => { if (g2 && g2.userData.faceKey === e.key && G.players[i]) applyFeats(g2, e); }); };
   if (uri) {
     const img = new Image();
-    img.crossOrigin = 'anonymous';   // 必须先于 src（CDN 回退路径防画布污染；本地 dataURL 无感）
-    img.onload = () => { const hair = hairFromImage(img); if (hair) e.hair = hair; else e.fb = true; notify(); };
-    img.onerror = () => { e.fb = true; notify(); };   // 解码失败/CDN 回退离线：fallback 发色（玩家色深化）
+    img.crossOrigin = 'anonymous';   // 必须先于 src 赋值（CDN 回退路径防画布污染；本地 dataURL 无感）
+    img.onload = () => {
+      if (typeof AV3 === 'undefined' || !AV3 || !AV3.extractAvatarFeatures) { e.fb = true; notify(); return; }   // 保险丝：共享件失败退默认头
+      featQPush(async next => {
+        try {
+          const feats = await AV3.extractAvatarFeatures(img, meta || null);
+          if (feats && feats.person) e.feats = feats; else e.fb = true;   // 非人脸/空光栅 → 默认头
+        } catch (err) { e.fb = true; }
+        notify();
+        next();
+      });
+    };
+    img.onerror = () => { e.fb = true; notify(); };   // 解码失败/CDN 回退离线：默认头
     img.src = uri;
   }
-  if (paletteCache.size >= 16) paletteCache.delete(paletteCache.keys().next().value);
+  if (paletteCache.size >= 32) paletteCache.delete(paletteCache.keys().next().value);
   paletteCache.set(key, e);
   return e;
 }
-function buildAvatarHead(r, colorIdx) {   // 全几何头像头：+z 为脸朝向；返回 {grp, hairMat, skin, mats, parts}
+function defaultHead(r, colorIdx, fallbackHair) {   // 保险丝极简头（AV3 缺失时二阶默认几何，页面独立实现同语言）
   const g = new THREE.Group();
   const skin = new THREE.MeshStandardMaterial({ color: 0xe9bb90, roughness: 0.55 });
   const skull = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 18), skin);
   skull.castShadow = true;
   g.add(skull);
   const hairMat = new THREE.MeshStandardMaterial({ color: fallbackHair(colorIdx), roughness: 0.8 });
-  const hairTop = new THREE.Mesh(new THREE.SphereGeometry(r * 1.045, 24, 10, 0, Math.PI * 2, 0, Math.PI * 0.27), hairMat);   // 顶盖（0.27π=发际线在眉上方，46° 俯角相机下面部占头部主体）
-  const hairBack = new THREE.Mesh(new THREE.SphereGeometry(r * 1.04, 24, 14, Math.PI * 0.72, Math.PI * 1.56, Math.PI * 0.2, Math.PI * 0.52), hairMat);   // 后脑壳（收窄不裹脸侧）
-  hairTop.castShadow = hairBack.castShadow = true;
+  const hairTop = new THREE.Mesh(new THREE.SphereGeometry(r * 1.045, 24, 10, 0, Math.PI * 2, 0, Math.PI * 0.27), hairMat);
+  const hairBack = new THREE.Mesh(new THREE.SphereGeometry(r * 1.04, 24, 14, Math.PI * 0.72, Math.PI * 1.56, Math.PI * 0.2, Math.PI * 0.52), hairMat);
   g.add(hairTop, hairBack);
-  const earGeo = new THREE.SphereGeometry(r * 0.16, 10, 8);
-  const earL = new THREE.Mesh(earGeo, skin); earL.position.set(-r * 0.98, r * 0.16, 0); earL.scale.set(0.55, 1, 0.8);
-  const earR = earL.clone(); earR.position.x = r * 0.98;
-  g.add(earL, earR);
   const eyeWhite = new THREE.MeshStandardMaterial({ color: 0xf6f3ea, roughness: 0.3 });
   const iris = new THREE.MeshStandardMaterial({ color: 0x2a2438, roughness: 0.25 });
-  const glint = new THREE.MeshBasicMaterial({ color: 0xffffff });
   [-1, 1].forEach(s => {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(r * 0.17, 14, 12), eyeWhite);
-    eye.position.set(s * r * 0.30, r * 0.48, r * 0.80);
-    const pupil = new THREE.Mesh(new THREE.SphereGeometry(r * 0.095, 10, 8), iris);
-    pupil.position.set(0, 0, r * 0.115);
-    const dot = new THREE.Mesh(new THREE.SphereGeometry(r * 0.036, 6, 6), glint);
-    dot.position.set(-r * 0.033, r * 0.05, r * 0.18);
-    eye.add(pupil, dot);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(r * 0.125, 12, 10), eyeWhite);
+    eye.position.set(s * r * 0.30, r * 0.48, r * 0.74);
     g.add(eye);
-    const brow = new THREE.Mesh(new THREE.BoxGeometry(r * 0.28, r * 0.05, r * 0.04), hairMat);
-    brow.position.set(s * r * 0.27, r * 0.66, r * 0.70);
-    brow.rotation.z = -s * 0.12;
+    const brow = new THREE.Mesh(new THREE.BoxGeometry(r * 0.26, r * 0.045, r * 0.04), hairMat);
+    brow.position.set(s * r * 0.27, r * 0.58, r * 0.80);
     g.add(brow);
   });
   const nose = new THREE.Mesh(new THREE.ConeGeometry(r * 0.095, r * 0.24, 10), skin);
@@ -1615,10 +1609,30 @@ function buildAvatarHead(r, colorIdx) {   // 全几何头像头：+z 为脸朝�
   nose.position.set(0, r * 0.2, r * 0.955);
   g.add(nose);
   const mouth = new THREE.Mesh(new THREE.TorusGeometry(r * 0.17, r * 0.028, 8, 18, Math.PI * 0.75), new THREE.MeshBasicMaterial({ color: 0x8a4a3a }));
-  mouth.rotation.z = Math.PI * 1.125;   // 弧段转到下半=微笑
+  mouth.rotation.z = Math.PI * 1.125;
   mouth.position.set(0, -r * 0.12, r * 0.975);
   g.add(mouth);
-  return { grp: g, hairMat, skin, mats: [skin, hairMat, eyeWhite, iris, glint, mouth.material], parts: { skull: 1, hair: 2, eyes: 2, brows: 2, ears: 2, nose: 1, mouth: 1 } };
+  return { grp: g, hairMat, skin, mats: [skin, hairMat, eyeWhite, iris, mouth.material], parts: { skull: 1, hair: 2 } };
+}
+function applyFeats(grp, e) {   // 特征→头子树单出口（expert-eng P0-5 三锚原子换）：headGrp 身份不变（billboard/W3 淡出零感知），换孩子+hairMat/headMats 重写；featsSig 幂等
+  if (typeof AV3 === 'undefined' || !AV3 || !AV3.buildAvatarHead) { applyHeadPalette(grp, e); return; }
+  if (!grp || !grp.userData.headGrp || !e || !e.loaded) return;
+  const feats = e.feats || null;
+  const sig = feats ? [feats.style, feats.glasses, feats.beard, feats.skin, feats.hair, feats.mouth].join('|') : 'fb';
+  if (grp.userData.featsSig === sig) return;
+  grp.userData.featsSig = sig;
+  const headGrp = grp.userData.headGrp;
+  const old = headGrp.children.find(o => o.userData.avHead);
+  if (old) {
+    headGrp.remove(old);
+    old.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });   // 头内材质/几何全私有（无纹理）
+  }
+  const head = AV3.buildAvatarHead(0.1, grp.userData.colorIdx, feats, fallbackHair);
+  head.grp.userData.avHead = true;
+  headGrp.add(head.grp);
+  grp.userData.hairMat = head.hairMat;
+  grp.userData.headMats = head.mats;   // W3 fallAndFade/resetPawnPose 每帧现场重读 headMats——换锚即被新头接管
+  grp.userData.feats = feats;
 }
 function syncPawnFaces() {   // updateHUD 尾 diff：avKey 变了才换脸/重绘名牌（心跳幂等常态零成本）；锚 per-pawn userData——buildPawns 每局重跑，模块级 sig 会让第二局裸头
   if (!G.gl) return;
@@ -1629,7 +1643,7 @@ function syncPawnFaces() {   // updateHUD 尾 diff：avKey 变了才换脸/重�
     const key = uri ? p.colorIdx + '|' + uri : 'fb:' + p.colorIdx;
     if (grp2.userData.faceKey !== key) {   // 头像轮二阶：头=真几何（发色走 palette），名牌仍画真实头像
       grp2.userData.faceKey = key;
-      applyHeadPalette(grp2, acquirePalette(p.colorIdx, uri));
+      applyFeats(grp2, acquirePalette(p.colorIdx, uri, av ? P.avatarRecipe(av) : null));
     }
     const sp = plateSprites[i];
     if (sp) {
@@ -1642,24 +1656,32 @@ function syncPawnFacesFrame() {   // 每帧 yaw-only billboard：脸贴片始终
   if (!camera) return;
   for (let i = 0; i < pawnObjs.length; i++) {
     const grp = pawnObjs[i];
-    if (!grp || !grp.visible || !grp.userData.headGrp) continue;
+    if (!grp || !grp.visible || !grp.userData.headGrp || fallInFlight(i)) continue;   // 倒地中跳过 billboard（终审 P2-1）：yaw 差值写进 YXZ 倒地本地系=脸片双倍偏转，遗体让脸随遗体
     grp.userData.headGrp.rotation.y = Math.atan2(camera.position.x - grp.position.x, camera.position.z - grp.position.z);
   }
 }
 function buildPawns() {
   pawnObjs.forEach(p => { p.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); scene.remove(p); }); pawnObjs = [];
   plateSprites.forEach(s => { if (s.material.map) s.material.map.dispose(); s.material.dispose(); scene.remove(s); }); plateSprites = [];
+  fallTok = {}; fallFxLog = [];   // W3 倒地代际随棋子全量重建归零（旧在飞循环凭 my!==fallTok[i] 下一帧自弃）
   G.players.forEach((p, i) => {
     const grp = new THREE.Group();
     const mat = new THREE.MeshStandardMaterial({ color: PLAYER_COLORS[p.colorIdx], roughness: 0.4, metalness: 0.1 });
     const body = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.15, 0.34, 20), mat);
     body.position.y = 0.17; body.castShadow = true;
-    const headGrp = new THREE.Group();   // 头独立组（头像轮二阶）：billboard yaw 写这里；真 3D 几何处头（脸贴片退役，头像图只贡献发色，名牌圆头像 carry 真实头像）
+    const headGrp = new THREE.Group();   // 头独立组：billboard yaw 写这里（身份永不换，applyFeats 只换孩子）；特征化几何头（avatar-features.js 单一来源）
     headGrp.position.y = 0.375;   // 头嵌锥顶（去棒棒糖间隙）
-    const head = buildAvatarHead(0.1, p.colorIdx);
+    const key0 = (NETMODE && NDOC && NDOC.players[i] && NDOC.players[i].av) ? p.colorIdx + '|' + P.avatarUri(NDOC.players[i].av) : 'fb:' + p.colorIdx;
+    const e0 = paletteCache.get(key0);
+    const feats0 = e0 && e0.loaded && e0.feats ? e0.feats : undefined;   // 缓存命中带特征（remapPawns 重建不闪脸）
+    const head = (typeof AV3 !== 'undefined' && AV3 && AV3.buildAvatarHead) ? AV3.buildAvatarHead(0.1, p.colorIdx, feats0, fallbackHair) : defaultHead(0.1, p.colorIdx, fallbackHair);   // 保险丝：共享件缺失退极简默认头
+    head.grp.userData.avHead = true;   // applyFeats 换孩子锚标记
     headGrp.add(head.grp);
     grp.add(body, headGrp);
+    grp.userData.mat = mat; grp.userData.baseColor = mat.color.getHex();   // W3 倒地变灰/新局复位的材质锚点（body/head 共享同一 mat 实例）
     grp.userData.headGrp = headGrp; grp.userData.hairMat = head.hairMat; grp.userData.headMats = head.mats; grp.userData.faceKey = '';   // 头像锚（palette 同步 + 淡出拍同步淡头）
+    grp.userData.colorIdx = p.colorIdx; grp.userData.feats = feats0 || null;
+    grp.userData.featsSig = feats0 ? [feats0.style, feats0.glasses, feats0.beard, feats0.skin, feats0.hair, feats0.mouth].join('|') : 'fb';   // applyFeats 幂等门初值
     scene.add(grp); pawnObjs[i] = grp;
     const tex = mkTex(256, 64, (ctx, w, h) => paintPlate(ctx, w, h, p, null));   // 头像轮：名牌绘制提取为 paintPlate（syncPawnFaces 重绘同源）
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
@@ -1805,7 +1827,7 @@ function syncJailCages() {
     if (canFlyNotes()) {   // 收笼：升起+缩隐（出狱=破笼而出，接 movePawn）
       const t0 = performance.now();
       const step = now => {
-        if (my !== cageTok) return;
+        if (my !== cageTok || !jailCage) return;   // 双保险：换代之外补 !jailCage 空判（换图 rebuild 置 null，收笼循环不得踩空）
         const k = Math.min(1, (now - t0) / (280 * SPEED));
         jailCage.scale.setScalar(Math.max(0.001, 1 - k));
         jailCage.position.y = 0.381 + 0.35 * k;
@@ -2758,6 +2780,8 @@ function acquireStackBundle(i, layer) {   // 静态池取束（懒建封顶 16�
     if (!G.gl || !scene || stackPool.length >= 16) return null;
     const denom = STACK_DENOMS[layer];
     const grp = new THREE.Group();
+    grp.rotation.order = 'YXZ';   // yaw 抖动在外、俯仰在内（同航班束）：'XYZ' 下先 yaw 后放平会把抖动转成侧倾
+    grp.rotation.x = -Math.PI / 2;   // 平躺桌面——层高 0.012 叠钞/under 纸边假厚度只在平躺下成立（缺此句整堆竖立成卡片）
     const top = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.21), new THREE.MeshStandardMaterial({ transparent: true, roughness: 0.55, emissive: 0x1a1626, emissiveIntensity: 0.25, side: THREE.DoubleSide }));   // 0.42/0.21=航班束 0.36/0.18 ×1.17：常驻钞堆在近景机位下要大一档才读得出层数（视觉终审 P2）
     top.material.map = noteTex(denom);
     const under = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.21), new THREE.MeshStandardMaterial({ transparent: true, roughness: 0.8, side: THREE.DoubleSide, color: new THREE.Color(NOTE_DEX[denom].edge) }));
@@ -2856,9 +2880,7 @@ function charge(p, v, creditor) {
     p.cash = 0; p.bankrupt = true;
     const taken = [];
     G.owners.forEach((o, idx) => { if (o === i) { G.owners[idx] = null; if (ownerMarks[idx]) ownerMarks[idx].visible = false; taken.push(idx); } });   // 真 mark 立即隐藏（现状语义不变），克隆从格位起飞
-    bustRitual(p, creditor, v - rest, taken);   // 统一清算仪式：散钞+克隆动线立即起，横幅挂克隆全落地（W2①）
-    const grp = pawnObjs[i]; if (grp) grp.visible = false;
-    if (plateSprites[i]) plateSprites[i].visible = false;
+    bustRitual(p, creditor, v - rest, taken);   // 统一清算仪式：散钞+克隆动线立即起，横幅挂克隆全落地（W2①）；破产倒地由 fallAndFade 单入口接管（W3，三隐身处收口）
     if (creditor && creditor.bot) botQuote('bustBy');
     updateHUD(); render2D();
   }
@@ -2871,9 +2893,91 @@ function charge(p, v, creditor) {
    REDUCED/bodyLo/TURBO：跳过飞行直落横幅（现状时序）。 */
 let bustClones = [];   // 在飞克隆登记 { tile, from, to, grp, mats }（纯视觉层：零 G 写入、零镜头写入；
                        // 绝不调 flyNotes——busy 池是航班/散钞专用上限 10，混用丢束，评审 #10；只共享 noteTex 无关的 mark 自身几何）
+/* ── W3 破产倒地（一镜到底第二轮）：两段式玩具语言+变灰谢幕，fallAndFade(i) 单入口收口三隐身处
+   （charge / collectAll 内联 / 观战 bust op 回放）。入口复位 grp.visible+名牌（观战端 applyGameSnapshot
+   先按 bankrupt 隐身，不复位会把倒地演给空气）；fallTok per-player 代际（bombcat deadT 同构）：在飞倒地
+   豁免快照落位/隐身，新局/复活换代即弃；fall 终帧自带 visible=false。REDUCED/bodyLo/TURBO/GL-off 现状直落。 */
+let fallTok = {};   // 破产倒地代际锁（per-player）：{ n, until }；until=演出终点墙钟（含名牌淡出，豁免窗口）
+let fallFxLog = [];   // AUTOTEST 取证（__mono.fallFx）：{ i, t0, phase } 只增不改（phase=enter/topple/bounce/lie/fade/down）
+function fallInFlight(i) { const f = fallTok[i]; return !!f && f.until > performance.now(); }
+const FALL_GRAY = new THREE.Color(0x888888);   // 变灰 lerp 终点（材质每 pawn 私有，直 lerp 零克隆零 dispose）
+function resetPawnPose(i) {   // 新局/复活 pose+材质复位（快照路径 buildPawns 不重跑：倒地 pose 与灰材质会跨局残留）
+  const grp = pawnObjs[i]; if (!grp) return;
+  grp.rotation.order = 'XYZ'; grp.rotation.set(0, 0, 0); grp.position.y = 0.34;   // order 复位防倒地 YXZ 残留（行走/滑行在 XYZ 下标定，勿全局改）
+  const mat = grp.userData.mat;
+  if (mat) { mat.color.setHex(grp.userData.baseColor); mat.roughness = 0.4; mat.transparent = false; mat.opacity = 1; }
+  const fm = grp.userData.headMats;
+  if (fm) fm.forEach(m2 => { m2.transparent = false; m2.opacity = 1; });   // 头像轮二阶：头部全套材质与本体同拍复位
+  if (plateSprites[i]) plateSprites[i].material.opacity = 1;
+}
+function fallAndFade(i) {
+  const grp = pawnObjs[i];
+  const flat = () => { if (grp) grp.visible = false; if (plateSprites[i]) plateSprites[i].visible = false; fallTok[i] = null; };
+  if (!G.gl || !grp || !scene || REDUCED || bodyLo || TURBO) { flat(); return; }   // 四退路：现状直落（禁动/无 GL 档零动画禁零声）
+  if (AUTOTEST) fallFxLog.push({ i, t0: performance.now(), phase: 'enter' });
+  grp.visible = true;   // 入口复位：快照先隐的观战端也要看见人倒下去
+  if (plateSprites[i]) { plateSprites[i].visible = true; plateSprites[i].material.opacity = 1; }
+  const my = (fallTok[i] = { n: ((fallTok[i] && fallTok[i].n) || 0) + 1, until: 0 });
+  const mat = grp.userData.mat, baseC = new THREE.Color(grp.userData.baseColor);
+  const [px, pz] = pawnSlot(i, G.players[i] ? G.players[i].pos : 0);
+  grp.position.y = 0.34;
+  grp.rotation.order = 'YXZ';   // yaw 在外、倾倒在内：'XYZ' 下 rotation.x 末位应用于世界系=永远朝世界 +Z 倒，与朝向无关（四边仅一侧读作向外）
+  grp.rotation.set(0, Math.atan2(px, pz), 0);   // 先朝离桌心方向（pawnSlot 坐标），再向外倒——rig 环绕镜头下世界 x 轴直倒会倒错方位
+  const TIP = 0.85, BOUNCE = 0.14;   // 倾倒终角 0.85rad；触地小弹回弹 ~8°
+  const D1 = 420, D2 = 180, LIE = 250, FADE = 250, PFADE = 300;   // 倾倒/小弹/遗体告别/本体淡出/名牌淡出（ms，×SPEED）
+  const t0 = performance.now() + 120 * SPEED;   // bustRitual 起拍 +120ms 错拍（钱先飞人后倒）
+  my.until = t0 + (D1 + D2 + LIE + FADE + PFADE) * SPEED + 60;
+  let ph = 0, downT = 0;
+  const mark = (p, name, now) => { if (ph < p) { ph = p; if (AUTOTEST) fallFxLog.push({ i, t0: now, phase: name }); } };
+  const step = now => {
+    if (fallTok[i] !== my) return;   // 换代（新局复位/复活/重开）即弃，终态归快照与 resetPawnPose
+    const e = now - t0;
+    if (e < 0) { requestAnimationFrame(step); return; }   // +120ms 错拍等待期：立正姿态可见
+    if (e < D1 * SPEED) {   // 拍一：倾倒 easeIn（k·k，重力坠落语言）；50% 进度起变灰（color lerp+roughness 0.4→0.9）
+      const k = e / (D1 * SPEED), kk = k * k;
+      grp.rotation.x = TIP * kk;
+      const g = Math.max(0, (k - 0.5) / 0.5);
+      mat.color.copy(baseC).lerp(FALL_GRAY, g);
+      mat.roughness = 0.4 + 0.5 * g;
+      mark(1, 'topple', now);
+    } else if (e < (D1 + D2) * SPEED) {   // 拍二：触地小弹（回弹 ~8° 后落定）
+      const k = (e - D1 * SPEED) / (D2 * SPEED);
+      grp.rotation.x = TIP - BOUNCE * Math.sin(k * Math.PI);
+      mat.color.copy(FALL_GRAY); mat.roughness = 0.9;
+      mark(2, 'bounce', now);
+    } else if (e < (D1 + D2 + LIE) * SPEED) {   // 遗体告别拍：躺平停 250ms（跳帧档可能整窗跳过——灰度每帧钉终态，缺帧不掉终态）
+      grp.rotation.x = TIP;
+      mat.color.copy(FALL_GRAY); mat.roughness = 0.9;
+      mark(3, 'lie', now);
+    } else if (e < (D1 + D2 + LIE + FADE) * SPEED) {   // 本体 opacity 淡出（起点置 transparent=true，终帧还原）
+      const k = (e - (D1 + D2 + LIE) * SPEED) / (FADE * SPEED);
+      if (!mat.transparent) mat.transparent = true;
+      mat.opacity = 1 - k;
+      const fm = grp.userData.headMats; if (fm) fm.forEach(m2 => { if (!m2.transparent) m2.transparent = true; m2.opacity = 1 - k; });   // 头像轮二阶：头部全套材质同拍淡（全不透明几何，无 alphaTest 裁切问题）
+      grp.rotation.x = TIP;
+      mat.color.copy(FALL_GRAY); mat.roughness = 0.9;
+      mark(4, 'fade', now);
+    } else {   // 谢幕：本体 visible=false + 名牌 300ms opacity 淡出后隐身
+      grp.visible = false; grp.rotation.x = TIP;
+      mat.color.copy(FALL_GRAY); mat.roughness = 0.9;
+      mat.transparent = false; mat.opacity = 1;
+      const fm = grp.userData.headMats; if (fm) fm.forEach(m2 => { m2.transparent = false; m2.opacity = 1; });   // 头像轮二阶：头材质同拍复位（下局 resetPawnPose 兜底第二道）
+      mark(5, 'down', now);
+      const sp = plateSprites[i];
+      if (!sp) return;
+      if (!downT) downT = now;
+      const kp = Math.min(1, (now - downT) / (PFADE * SPEED));
+      sp.material.opacity = 1 - kp;
+      if (kp >= 1) { sp.visible = false; return; }   // 演出终帧（fallTok 豁免窗口由 until 收口）
+    }
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
 function bustRitual(p, creditor, owed, tiles) {
   SFX.bust();
   const i = G.players.indexOf(p);
+  fallAndFade(i);   // W3 倒地单入口：三隐身处统一收口；起手复位 visible（观战端快照先隐的漏门）+ fallTok 在飞豁免生效
   if (canFlyNotes()) {   // 散钞照旧立即起（先于横幅；pawn 此刻未隐身，回退位=最后格位上空）
     SFX.note();
     const from = pawnNotePos(i);
@@ -3046,7 +3150,7 @@ async function drawCard(kind) {
       if (j === G.turn || o.bankrupt) return;
       const take = Math.min(o.cash, a.collectAll);
       o.cash -= take; got += take;
-      if (take < a.collectAll) { o.bankrupt = true; const taken2 = []; G.owners.forEach((idx2, ti) => { if (idx2 === j) { G.owners[ti] = null; if (ownerMarks[ti]) ownerMarks[ti].visible = false; taken2.push(ti); } }); bustRitual(o, null, a.collectAll - take, taken2); const gp = pawnObjs[j]; if (gp) gp.visible = false; if (plateSprites[j]) plateSprites[j].visible = false; }   // 付不清才破产：take<应付额 ⇔ 现金<应付额（恰好付清 = 存活，与 charge 语义一致）；同一清算仪式入口（W2①）
+      if (take < a.collectAll) { o.bankrupt = true; const taken2 = []; G.owners.forEach((idx2, ti) => { if (idx2 === j) { G.owners[ti] = null; if (ownerMarks[ti]) ownerMarks[ti].visible = false; taken2.push(ti); } }); bustRitual(o, null, a.collectAll - take, taken2); }   // 付不清才破产：take<应付额 ⇔ 现金<应付额（恰好付清 = 存活，与 charge 语义一致）；同一清算仪式入口（W2①）；倒地由 fallAndFade 单入口接管（W3）
       moneyFloat(j, -take);
     });
     if (got) { p.cash += got; moneyFloat(G.turn, got); toast(`🎉 ${p.name} 收到 ${fmt(got)}`, 'gain'); SFX.coin(); }
@@ -3463,9 +3567,10 @@ if (AUTOTEST || qs.get('inspect') === '1') {   // inspect=1：真机路径（SPE
     faces: () => pawnObjs.map((g, i) => {
       if (!g) return null;
       const e = paletteCache.get(g.userData.faceKey);
-      return { i, key: g.userData.faceKey || '', hair: g.userData.hairMat ? '#' + g.userData.hairMat.color.getHexString() : null, loaded: !!(e && e.loaded), fb: !!(e && e.fb), yaw: g.userData.headGrp ? +g.userData.headGrp.rotation.y.toFixed(3) : null };
-    }),   // 头像轮二阶取证：头=真几何（loaded&&!fb=发色来自头像提取；fb=程序化发色），yaw=billboard
-    platesAva: () => plateSprites.map(s => s ? s.userData.avaKey : null),   // 头像轮：名牌头像绘制键（'!ok' 后缀=已用 decode 完成的图重绘）
+      const f = g.userData.feats;
+      return { i, key: g.userData.faceKey || '', hair: g.userData.hairMat ? '#' + g.userData.hairMat.color.getHexString() : null, skin: f ? f.skin : null, style: f ? f.style : null, glasses: f ? f.glasses : false, beard: !!(f && f.beard), loaded: !!(e && e.loaded), fb: !!(e && e.fb), yaw: g.userData.headGrp ? +g.userData.headGrp.rotation.y.toFixed(3) : null };
+    }),   // 头像特征轮取证：头=特征化几何（loaded&&!fb=特征提取完成），feats=特征向量，yaw=billboard
+    platesAva: () => plateSprites.map(s => s ? s.userData.avaKey : null),   // 头像轮：名牌头像绘制键（'!ok' 后缀=已用 decode 完成的图重绘）——命名避让并行 W3 已占用的 plates
     camPos: () => camera.position.toArray(),
     remapPawns: () => buildPawns(),   // 纹理缓存跨重建存活断言用（acquireFaceTex 独占所有权守卫）
     distAnchor: () => ({ near: G.gl && camera ? nearDist() : 0, base: G.gl && camera ? baseDist() : 0 }),   // 探针用：当前视口的近景/全景锚距
@@ -3478,6 +3583,14 @@ if (AUTOTEST || qs.get('inspect') === '1') {   // inspect=1：真机路径（SPE
     stacks: () => ({ pool: stackPool.length, mirror: lastStackCash.slice(), hidden: !stackPool.some(s => s.on), notePoolBusy: notePool.filter(n => n.busy).length, notePoolSize: notePool.length, perPlayer: G.players.map((p, i) => ({ cash: p.cash, want: p.bankrupt ? 0 : stackLayersFor(p.cash), shown: stackPool.filter(s => s.on && s.player === i).length })) }),   // W2② 钞堆状态（每玩家层数/cash 镜像/busy 池隔离）
     fx: () => ({ speed: SPEED, grav: SCATTER_G, bigMoney: BIG_MONEY, thumps: fxThumps, jolts: fxJolts, tex: (() => { const t = noteTex(1000); return { w: t.image.width, h: t.image.height }; })() }),   // W2③ 备案取证（散钞重力值/thump 计数/noteTex 尺寸）
     floaters: () => ({ can: canPlaque(), live: plaqueStat.live, cash: plaqueStat.cash, dice: plaqueStat.dice, w: plaqueStat.w, pos: plaqueStat.pos }),   // M1/M2 3D 铭牌取证（计数/在飞/世界宽度/起飞世界坐标）
+    // ── W3 破产倒地取证（AUTOTEST 门控只读访问器；禁像素断言只认访问器）──
+    fallFx: () => fallFxLog.slice(),   // {i,t0,phase} 只增不改（phase=enter/topple/bounce/lie/fade/down）
+    pawnPose: () => pawnObjs.map((g, i) => { if (!g) return null; const m = g.userData.mat; const up = new THREE.Vector3(0, 1, 0).applyQuaternion(g.quaternion); const [px, pz] = pawnSlot(i, G.players[i] ? G.players[i].pos : 0); return { vis: g.visible, rx: +g.rotation.x.toFixed(4), ry: +g.rotation.y.toFixed(4), rz: +g.rotation.z.toFixed(4), y: +g.position.y.toFixed(3), col: m ? '#' + m.color.getHexString() : null, rough: m ? +m.roughness.toFixed(3) : null, op: m ? +m.opacity.toFixed(3) : null, tr: m ? m.transparent : null, upA: +Math.atan2(up.x, up.z).toFixed(4), slotA: +Math.atan2(px, pz).toFixed(4) }; }),   // 倒地采样（visible/rotation/材质灰度；upA=头顶尖量世界方位角/slotA=离桌心方位角——世界方向断言用，'XYZ' order 直倒时 upA 恒 0 可区分）
+    plates: () => plateSprites.map(s => s ? { vis: s.visible, op: +s.material.opacity.toFixed(3) } : null),   // 名牌淡出采样
+    fallLive: () => G.players.map((p, i) => fallInFlight(i)),   // 在飞倒地豁免窗口
+    snap: g => applyGameSnapshot(g, null),   // 快照驱动（echo/新局语义等价：prev diff 由本地 G 推导）
+    cage: () => ({ has: !!jailCage, state: jailCageState, tok: cageTok }),   // cageTok 换图竞态取证
+    remap: id => applyMap(id, false),   // 换图驱动（快照语义：不写偏好），cageTok 竞态重放用
     mc: n => new Promise(async res => {
       const out = [];
       for (let k = 0; k < n; k++) {

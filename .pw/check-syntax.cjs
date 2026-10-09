@@ -13,10 +13,12 @@ const FILES = [
 ];
 const NEED_THREE = ['index.html', 'tod.html', 'monopoly.html', 'uno.html', 'bombcat.html'];
 const NEED_DICEBEAR = ['index.html', 'tod.html', 'monopoly.html', 'uno.html'];
+const NEED_FEAT = ['monopoly.html', 'uno.html', 'tod.html'];   // 头像特征轮（SPEC §1.14）：3 页接入；index 深链回退副本保留旧贴片脸（punParts 先例的显式降级）；bombcat=bc: 猫脸协议不走提取器
 // sha256 记录值（LF 归一后整文件字节）：换内容必须连这里一起改
 const SHA_EXPECT = {
   'three.r128.js': '9274bbcec8d96168',
   'dicebear-local.js': 'cab07a03ec0a1048',
+  'avatar-features.js': '68ff8336404dfaff',
 };
 const sha256 = f => crypto.createHash('sha256').update(fs.readFileSync(`${ROOT}/${f}`, 'utf8').replace(/\r\n/g, '\n')).digest('hex');
 let bad = 0, total = 0;
@@ -65,6 +67,21 @@ try {
   else if (dbSrc.includes('\r')) { bad++; console.log('dicebear-local.js 混入 CRLF（必须纯 LF）'); }
   else console.log(`dicebear-local.js OK（sha 锁一致 ${h.slice(0, 16)}…，${Math.round(dbSrc.length / 1024)}KB）`);
 } catch (e) { bad++; console.log('dicebear-local.js SYNTAX ERROR: ' + e.message); }
+
+// ── 3b. avatar-features.js（头像特征轮 SPEC §1.14）：三页 src 引用、无内联残留、外置件语法+sha 锁+纯 LF ──
+for (const f of NEED_FEAT) {
+  const src = fs.readFileSync(`${ROOT}/${f}`, 'utf8');
+  if (!src.includes('<script src="avatar-features.js"></script>')) { bad++; console.log(`${f}: 缺 <script src="avatar-features.js"> 引用`); }
+  if (src.includes('function extractFeatures(')) { bad++; console.log(`${f}: 残留内联特征提取器（应只经 avatar-features.js 引用）`); }
+}
+try {
+  const ftSrc = fs.readFileSync(`${ROOT}/avatar-features.js`, 'utf8');
+  new Function(ftSrc); total++;
+  const h = sha256('avatar-features.js');
+  if (!h.startsWith(SHA_EXPECT['avatar-features.js'])) { bad++; console.log(`avatar-features.js sha256 漂移！现 ${h.slice(0, 16)}… 记录 ${SHA_EXPECT['avatar-features.js']}…`); }
+  else if (ftSrc.includes('\r')) { bad++; console.log('avatar-features.js 混入 CRLF（必须纯 LF）'); }
+  else console.log(`avatar-features.js OK（sha 锁一致 ${h.slice(0, 16)}…，${Math.round(ftSrc.length / 1024)}KB）`);
+} catch (e) { bad++; console.log('avatar-features.js SYNTAX ERROR: ' + e.message); }
 
 // ── 4. party-net.js 公共组件语法 ──
 try { new Function(fs.readFileSync(`${ROOT}/party-net.js`, 'utf8')); total++; console.log('party-net.js OK'); }

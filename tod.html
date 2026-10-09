@@ -375,9 +375,14 @@
     .btn-reroll:hover { background: rgba(34,211,238,0.28); }
     .answer-row { display: flex; flex-direction: column; gap: 6px; align-items: center; flex: none; }
     .answer-row[hidden] { display: none; }   /* author display:flex 会压过 [hidden] 的 UA 规则，必须显式收回 */
-    .btn-ans { background: rgba(251,191,36,0.12); color: #fbbf24; border: 1px solid rgba(251,191,36,0.45); padding: 8px 16px; border-radius: 12px; font-family: inherit; font-weight: 700; cursor: pointer; font-size: 0.88rem; }
+    .btn-ans { background: rgba(251,191,36,0.12); color: #fbbf24; border: 1px solid rgba(251,191,36,0.45); padding: 8px 16px; border-radius: 12px; font-family: inherit; font-weight: 700; cursor: pointer; font-size: 0.88rem; transition: opacity .15s ease, visibility 0s; }
     .btn-ans:hover { background: rgba(251,191,36,0.24); }
     .answer-text { color: #fcd34d; font-size: 0.95rem; font-weight: 700; line-height: 1.5; text-align: center; }
+    /* W6 揭底：答案进场 badge-pop 0.22s scale-in（0.92→1）——textContent 仍同步全量写入（probe-challenge 断言完整答案，禁打字机）；
+       揭底按钮退场 fade 150ms（visibility 双态：hidden 属性语义不变，[hidden] 显式 display 压过全局 !important 才有过渡窗） */
+    .answer-text.ans-pop { animation: ans-pop 0.22s cubic-bezier(0.34, 1.56, 0.64, 1); }
+    @keyframes ans-pop { from { transform: scale(0.92); opacity: 0; } }
+    #btn-answer[hidden] { display: inline-block !important; visibility: hidden; opacity: 0; transition: opacity .15s ease, visibility 0s linear .15s; }
     body.landui .answer-row { gap: 4px; }
     body.landui .btn-ans { min-height: 36px; padding: 6px 14px; font-size: 0.84rem; }
     [hidden] { display: none !important; }
@@ -535,6 +540,11 @@
 
     /* ── 通用弹层（设置 / 战况）── */
     .modal-mask { position: fixed; inset: 0; background: rgba(5,5,15,0.72); backdrop-filter: blur(6px); z-index: 1500; display: flex; align-items: center; justify-content: center; padding: 18px; animation: fade-in 0.25s ease; }
+    /* W6 弹层关闭：只补 .out 180ms 出场（fade+box scale 0.98），勿叠第二层进场——hidden 由 JS token 化 helper 落，
+       CSS 终态靠 opacity forwards 到 0；pointer-events:none 出场窗内不拦点击（test-fun 关后立点下一控件） */
+    .modal-mask.out { animation: modal-out 0.18s ease forwards; pointer-events: none; }
+    .modal-mask.out .modal-box { transform: scale(0.98); transition: transform 0.18s ease; }
+    @keyframes modal-out { from { opacity: 1; } to { opacity: 0; } }
     .modal-box { background: linear-gradient(160deg, rgba(24,20,48,0.98), rgba(12,10,28,0.98)); border: 1px solid var(--glass-border); border-radius: 22px; padding: 22px; width: 100%; max-width: 500px; max-height: 84vh; overflow-y: auto; box-shadow: 0 20px 70px rgba(0,0,0,0.6); }
     .modal-box h3 { font-family: 'ZCOOL KuaiLe', cursive; color: var(--accent-cyan); margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
     .modal-close { background: rgba(255,255,255,0.1); border: 1px solid var(--glass-border); color: #fff; width: 34px; height: 34px; border-radius: 10px; font-size: 1rem; cursor: pointer; font-family: inherit; }
@@ -1123,15 +1133,23 @@
     @keyframes combo-pop { from { transform: scale(0.3) rotate(-12deg); opacity: 0; } }
 
     /* 加倍挑战 */
-    .stake-row { display: flex; justify-content: center; }
+    /* W6 stake-row 双向双态 240ms（pod-rise 家族）：进场 translateY(10px)+fade，离场反向；
+       visibility 0s/0s+.24s delay 双态写法——display 不动（显式 flex !important 压过全局 [hidden]）纯 CSS 完成过渡 */
+    .stake-row { display: flex; justify-content: center; transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.24s ease, visibility 0s; }
+    #stake-row[hidden] { display: flex !important; visibility: hidden; opacity: 0; transform: translateY(10px); height: 0; min-height: 0; margin: 0; padding: 0; overflow: hidden; transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.24s ease, visibility 0s linear 0.24s, height 0s linear 0.24s; }
     .stake-btn { padding: 7px 14px; min-height: 38px; border-radius: 999px; border: 1px solid rgba(251,191,36,0.5); background: rgba(251,191,36,0.12); color: #fbbf24; font-family: inherit; font-size: 0.82rem; font-weight: 700; cursor: pointer; transition: all 0.25s; }
     .stake-btn:hover { background: rgba(251,191,36,0.24); transform: scale(1.04); }
     .stake-btn:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 3px; }
     .stake-badge { position: absolute; top: 10px; right: 12px; background: linear-gradient(135deg, #f59e0b, #ef4444); color: #fff; font-size: 0.72rem; font-weight: 800; padding: 2px 9px; border-radius: 10px; box-shadow: 0 2px 12px rgba(239,68,68,0.5); }
 
-    /* 限时挑战：倒计时条（只动 transform，交给合成器） */
-    .timer-wrap { width: 100%; display: none; flex-direction: column; gap: 4px; align-items: center; flex: none; }
-    .timer-wrap.on { display: flex; }
+    /* 限时挑战：倒计时条（只动 transform，交给合成器）
+       W6 双态化：从上方落入 translateY(-8px) 240ms（在卡片区上方，方向与 bet-box 反向）；折叠态=visibility:hidden+
+       opacity:0+高度归零（margin/padding/gap 也归零防占位——sim-desktop audit 含 timer-wrap）；.on 类语义保留 */
+    .timer-wrap { width: 100%; display: flex; flex-direction: column; gap: 0; align-items: center; flex: none;
+      visibility: hidden; opacity: 0; transform: translateY(-8px); height: 0; min-height: 0; margin: 0; padding: 0; overflow: hidden;
+      transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.24s ease, visibility 0s linear 0.24s, height 0s linear 0.24s, gap 0s linear 0.24s; }
+    .timer-wrap.on { visibility: visible; opacity: 1; transform: none; height: auto; gap: 4px;
+      transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.24s ease, visibility 0s, height 0s, gap 0s; }
     .timer-bar { width: 100%; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.12); overflow: hidden; }
     .timer-bar i { display: block; height: 100%; width: 100%; border-radius: 3px; background: linear-gradient(90deg, #4ade80, #fbbf24 55%, #ef4444); transform-origin: left center; }
     .timer-text { font-size: 0.74rem; color: rgba(255,255,255,0.7); font-variant-numeric: tabular-nums; }
@@ -1202,6 +1220,25 @@
     .bet-btn.sel { border-color: var(--accent-cyan); background: rgba(34,211,238,0.16); color: #fff; box-shadow: 0 0 14px rgba(34,211,238,0.25); }
     .bet-btn:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 2px; }
     .bet-note { font-size: 0.72rem; color: rgba(255,255,255,0.55); text-align: center; }
+    /* W6 押注面板离场（进场归 fadeChrome :3856 现状零改动——再叠 CSS 进场=双动效源互压）：
+       只做 transform+visibility（opacity 归 fadeChrome 管，inline 值会压死样式表）；显式 display:flex !important
+       压过全局 [hidden]{display:none!important} 才有过渡窗；transition 也必须 !important——fadeChrome 入场残留的
+       inline 'opacity 0.2s ease' 会非重要级压制样式表 transition，离场就没了；hidden 属性语义不变（探针 !hidden 口径零改动）。
+       three3d 档基态带 translateX(-50%)，离场 transform 必须接续它（同特异性后写胜） */
+    #bet-box[hidden] { display: flex !important; visibility: hidden; transform: translateY(14px); height: 0; min-height: 0; margin: 0; padding: 0; overflow: hidden; transition: transform 0.18s ease, height 0s linear 0.18s, visibility 0s linear 0.18s !important; }   /* 高度延迟折叠：display:flex!important 常驻会在 DOM 档占 ~100px 流高（终审 P2-1），过渡窗后收 0；height:auto 无过渡=重开即恢复 */
+    body.three3d:not(.loperf) > #bet-box[hidden] { transform: translateX(-50%) translateY(14px); }
+    /* W6 新增过渡的四退路（REDUCED / body.loperf 直切）：transition:none 双向即时落，visibility 双态天然无
+       forwards 填充依赖（禁 animation:none 清填充的坑在这里不存在）；折叠态 transform/opacity 复位钉住基态 */
+    @media (prefers-reduced-motion: reduce) {
+      #bet-box[hidden], #stake-row[hidden], #btn-answer[hidden] { transition: none !important; transform: none; opacity: 1; }
+      .stake-row, .btn-ans, .timer-wrap, .timer-wrap.on { transition: none !important; }
+      .timer-wrap { opacity: 1; transform: none; }
+      .modal-mask.out, .modal-mask.out .modal-box, .answer-text.ans-pop { animation: none !important; transition: none !important; transform: none; }
+    }
+    body.loperf #bet-box[hidden], body.loperf #stake-row[hidden], body.loperf #btn-answer[hidden] { transition: none !important; transform: none; opacity: 1; }
+    body.loperf .stake-row, body.loperf .btn-ans, body.loperf .timer-wrap, body.loperf .timer-wrap.on { transition: none !important; }
+    body.loperf .timer-wrap { opacity: 1; transform: none; }
+    body.loperf .modal-mask.out, body.loperf .modal-mask.out .modal-box, body.loperf .answer-text.ans-pop { animation: none !important; transition: none !important; transform: none; }
 
     /* ── 🎁 惊喜卡（纯气氛）── */
     .card-front.surprise { border-color: #fbbf24 !important; box-shadow: 0 0 0 3px rgba(251,191,36,0.32), 0 10px 50px rgba(251,191,36,0.38) !important; }
@@ -1838,6 +1875,7 @@
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="dicebear-local.js"></script>
+<script src="avatar-features.js"></script>
 <script>
 'use strict';
 // ═══════════════════════════════════════════════════════════════
@@ -3452,6 +3490,7 @@ function renderGameStatic() {
       $('btn-answer').hidden = !pp.ans;
       $('answer-text').textContent = pp.ans || '';
       $('answer-text').hidden = true;
+      $('answer-text').classList.remove('ans-pop');   // 新回合复位进场类（下次揭底重播 badge-pop）
     }
     $('stake-badge').hidden = t.stake !== 2;
     $('btn-accept').textContent = t.stake === 2 ? '完成啦 ✅ +20' : '完成啦 ✅';
@@ -3567,6 +3606,7 @@ function clearStageTimers() {
   stageTimers = [];
   clearTimeout(pendingRevealTimer);
   clearTimeout(twTimer);   // 旧打字机若还在写，会在新回合里对着隐藏元素补 burst(0,0)
+  const tw = $('timer-wrap'); if (tw) tw.classList.remove('on', 'urgent', 'up');   // W6：限时条折叠动画的摘类点（原 startTurnTimer 早退分支生产不可达——业务终审 P2-3，回合切换即收条）
   stopTurnTimer();
   const pt = $('punishment-text');
   if (pt) pt.classList.remove('typing');
@@ -6372,12 +6412,30 @@ function openDonate() {
   `);
 }
 
+// W6 弹层关闭 token 化 helper：.out 180ms 出场后落 hidden；showModal/openGuide 置 hidden=false 时同步 _closeTok++
+// 作废在飞关闭（modal 单例，关后立即重开不能被迟到定时器摁灭）；REDUCED / body.loperf 直落同步 hidden（无延迟）
+function closeOvlAnimated(el) {
+  if (!el) return;
+  el._closeTok = (el._closeTok || 0) + 1;
+  const my = el._closeTok;
+  if (REDUCED || document.body.classList.contains('loperf')) { el.classList.remove('out'); el.hidden = true; return; }
+  el.classList.add('out');
+  el.setAttribute('inert', '');   // 180ms 出场窗挡鼠标不挡 Tab/Enter（业务终审 P2-2）——窗内键盘焦点一并摘除
+  setTimeout(() => { if (el._closeTok === my) { el.classList.remove('out'); el.hidden = true; el.removeAttribute('inert'); } }, 180);
+}
+function openOvlAnimated(el) {   // 打开即作废在飞关闭 + 摘出场类（fade-in 进场是基态动画，勿叠第二层）
+  if (!el) return;
+  el._closeTok = (el._closeTok || 0) + 1;
+  el.classList.remove('out');
+  el.removeAttribute('inert');
+  el.hidden = false;
+}
 function showModal(title, html) {
   $('modal-title').textContent = title;
   $('modal-body').innerHTML = html;
-  $('modal-mask').hidden = false;
+  openOvlAnimated($('modal-mask'));
 }
-function closeModal() { $('modal-mask').hidden = true; }
+function closeModal() { closeOvlAnimated($('modal-mask')); }
 const defaultModalClose = () => closeModal();
 const defaultMaskClick = e => { if (e.target === $('modal-mask')) closeModal(); };
 // 破坏性操作的「再点一次」：第一次按下染红 3 秒，超时自动解除
@@ -6409,8 +6467,8 @@ function askBox(title, bodyHtml, actions) {
     mask.onclick = e => { if (e.target === mask) done(null); };
   });
 }
-function openGuide() { $('guide-mask').hidden = false; }
-function closeGuide() { $('guide-mask').hidden = true; }
+function openGuide() { openOvlAnimated($('guide-mask')); }
+function closeGuide() { closeOvlAnimated($('guide-mask')); }
 
 // 主持人设置面板：玩法/尺度/计分/轮数/题库一套改完
 async function applyPack(k) {
@@ -6600,7 +6658,9 @@ $('btn-skip').addEventListener('click', () => finishTurn(true));
 $('btn-answer').addEventListener('click', () => {   // 💡 揭底：全员可点（答案=全场公证人）；本端 DOM 态，签名不变则不被心跳重置
   try { SFX.play('tap'); } catch (err) {}
   $('btn-answer').hidden = true;
-  $('answer-text').hidden = false;
+  const at = $('answer-text');
+  at.hidden = false;   // textContent 已由 renderGameStatic 同步全量写入（禁打字机）；badge-pop 0.22s scale-in 进场
+  at.classList.remove('ans-pop'); void at.offsetWidth; at.classList.add('ans-pop');
 });
 $('btn-pass').addEventListener('click', usePass);
 $('btn-egg').addEventListener('click', () => setEggAim(!eggAim));
@@ -7352,6 +7412,7 @@ setTimeout(() => {
   // 前倾上限 0.38rad 与该半径联算是「上身越台面高度带时仍在围边之外」的几何前提，别单边调
   const WALK_R = TABLE_R + 0.57, LEAN_MAX = 0.38;
   window.__three = { scene, camera, chars };   // 调试句柄（位置铁律：chars 声明之后；只许追加访问器）
+  window.__three.avFeats = () => [...chars.entries()].map(([pid, ch]) => { const u = ch.userData; return { pid, hasFeat: !!u.featGrp, faceVisible: u.face.visible, style: u.feats ? u.feats.style : null, glasses: u.feats ? u.feats.glasses : false, beard: !!(u.feats && u.feats.beard), headColor: '#' + u.head.material.color.getHexString() }; });   // 头像特征轮取证
   window.__three.tableCenterScreen = function () {   // 桌心上方 → 物理屏坐标（彩带炸点/探针用）
     if (retired || !document.getElementById('screen-game').classList.contains('active')) return null;
     V.set(0, TABLE_H + 0.35, 0).project(camera);
@@ -7369,6 +7430,7 @@ setTimeout(() => {
   function avatarTexture(pid, uri) {
     let e = texCache.get(pid);
     if (e && e.uri === uri) return e.tex;
+    if (e) { e.tex.dispose(); texCache.delete(pid); }   // 换头像：旧 256² 纹理退役（bombcat 同款；此前 tod 漏 dispose 一次漏一张）
     const tex = new THREE.Texture();
     tex.encoding = THREE.sRGBEncoding; tex.anisotropy = maxAniso;
     if (!uri || !/^(data:|blob:|https?:)/i.test(uri)) {   // emoji 头像：直接画字，不发网络请求（img.src='🐵' 会被当成相对 URL 打到服务器上 404）
@@ -7431,6 +7493,49 @@ setTimeout(() => {
     scene.add(g);
     return g;
   }
+  function avRecipeTod(rep) {   // dcb/av:P → {style,seed} 钉扎元数据（emoji/dataURL → null 纯像素）
+    if (!rep) return null;
+    if (rep.startsWith('dcb:')) { try { const r = JSON.parse(rep.slice(4)); return (r && typeof r.s === 'string' && typeof r.d === 'string') ? { style: r.s, seed: r.d } : null; } catch (e) { return null; } }
+    if (rep.startsWith('av:') && typeof AVATAR_PRESETS !== 'undefined') { const p = AVATAR_PRESETS[parseInt(rep.slice(5), 10) - 1]; return p ? { style: p.st, seed: p.sd } : null; }
+    return null;
+  }
+  const featTodQ = []; let featTodQOn = false;   // 提取队列（rIC+setTimeout 退路，每槽 1 头像）
+  function featTodPush(task) {
+    featTodQ.push(task);
+    if (featTodQOn) return;
+    featTodQOn = true;
+    const drain = () => {
+      const t = featTodQ.shift();
+      if (!t) { featTodQOn = false; return; }
+      try { t(() => { if (typeof requestIdleCallback === 'function') requestIdleCallback(drain, { timeout: 1200 }); else setTimeout(drain, 0); }); } catch (e) { if (typeof requestIdleCallback === 'function') requestIdleCallback(drain, { timeout: 1200 }); else setTimeout(drain, 0); }   // 任务同步抛错不让队列断流（inspector-biz P2：此处无 next 形参，原 catch 自身会 ReferenceError=全页提取静默死亡）
+    };
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(drain, { timeout: 1200 }); else setTimeout(drain, 0);
+  }
+  function applyTodFeats(ch, feats) {   // 特征→头子树单出口：builder 颅球=u.head 本体复用（摘 builder 颅球，肤色上头球）；emoji 双向可逆
+    if (typeof AV3 === 'undefined' || !AV3 || !AV3.buildAvatarHead) return;   // 保险丝：共享件失败保持贴片脸
+    const u = ch.userData;
+    const sig = feats ? [feats.style, feats.glasses, feats.beard, feats.skin, feats.hair, feats.mouth].join('|') : 'patch';
+    if (u.featsSig === sig) return;
+    u.featsSig = sig;
+    if (!feats) {
+      if (u.featGrp) { u.head.remove(u.featGrp); u.featGrp.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && o.material !== u.head.material) o.material.dispose(); }); u.featGrp = null; }
+      u.face.visible = true; u.hair.visible = true;
+      u.head.material.color.set(0xe8b98c);
+      u.head.material.roughness = 0.65;
+      u.feats = null;
+      return;
+    }
+    const parts = AV3.buildAvatarHead(0.2, 0, feats, () => '#4a382c');
+    const skull = parts.grp.children.find(o => o.userData.avSkull);
+    if (skull) { parts.grp.remove(skull); skull.geometry.dispose(); }   // 颅骨=u.head 复用；builder 颅球材质与耳/鼻共享，只弃几何
+    if (u.featGrp) { u.head.remove(u.featGrp); u.featGrp.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && o.material !== parts.skin) o.material.dispose(); }); }
+    u.head.material.color.set(parts.skin.color.getHex());   // 肤色一次性写（贴片 map 分支的 color 归白只作用于贴片材质，互不干扰）
+    u.head.material.roughness = feats.style === 'bald' ? 0.75 : 0.65;
+    u.face.visible = false; u.hair.visible = false;   // 贴片/玩家色发壳退役（引用留活：帧循环 scale/position 写打在隐藏网格上无害）
+    u.head.add(parts.grp);
+    u.featGrp = parts.grp;
+    u.feats = feats;
+  }
   function syncPlayers(now) {
     if (typeof S === 'undefined' || !S || !S.players || !document.getElementById('screen-game').classList.contains('active')) return;
     const seen = new Set();
@@ -7474,9 +7579,28 @@ setTimeout(() => {
         }
       }
       const uri = resolveAvatar(p.avatar);
-      if (uri) {
-        const tex = avatarTexture(p.id, uri);
-        if (u.face.material.map !== tex) { u.face.material.map = tex; u.face.material.color.set(0xffffff); u.face.material.needsUpdate = true; }   // color 必须归白：material.color 会与 map 相乘，留着肤色兜底=全桌 3D 脸染土棕
+      const isImgUri = /^(data:|blob:|https?:)/i.test(uri);
+      const tex = avatarTexture(p.id, uri);   // emoji 也画字（HEAD 行为）：图片→emoji 切换时贴片必须换成本尊，残留上张图=错显身份
+      if (u.face.material.map !== tex) { u.face.material.map = tex; u.face.material.color.set(0xffffff); u.face.material.needsUpdate = true; }   // color 必须归白：material.color 会与 map 相乘，留着肤色兜底=全桌 3D 脸染土棕
+      // 头像特征轮（SPEC §1.14）：图片头像→特征几何头（u.head 子级挂载：点头/voice 三件套同缩自动连带）；emoji→贴片路径原样；双向切换可逆
+      if (u.avKey !== uri) {
+        u.avKey = uri;
+        if (typeof AV3 !== 'undefined' && AV3.extractAvatarFeatures && isImgUri) {
+          featTodPush(next => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = async () => {
+              let feats = null;
+              try { feats = await AV3.extractAvatarFeatures(img, avRecipeTod(p.avatar)); } catch (e) {}
+              if (u.avKey === uri) applyTodFeats(ch, feats && feats.person ? feats : null);   // 提取期间又换头像则弃
+              next();
+            };
+            img.onerror = () => { next(); };
+            img.src = uri;
+          });
+        } else if (!isImgUri || typeof AV3 === 'undefined') {
+          applyTodFeats(ch, null);   // emoji 回贴片 / 保险丝退默认头
+        }
       }
     }
     for (const [pid, ch] of chars) if (!seen.has(pid)) { scene.remove(ch); chars.delete(pid); changed = true; }
@@ -7497,7 +7621,8 @@ setTimeout(() => {
     grp.add(inner, outer);
     grp.visible = false; grp.position.y = 0.015;
     scene.add(grp);
-    return { grp, inner };
+    // W6 出入场 ramp 状态：ringK 系数（0=灭 1=亮）180ms 墙钟 smoothstep 收敛；ringWant 目标；ringTok 熄灭/点亮代际
+    return { grp, inner, ringWant: 0, ringK: 0, ringK0: 0, ringT0: 0, ringTok: 0 };
   })();
 
   // ── 说话声波（连麦可视，2026-09-17 用户点名「开启说话的声波在3d里要有效果」）──
@@ -8113,6 +8238,9 @@ setTimeout(() => {
   const t0 = performance.now();
   let wasActive = false, lastFrame = t0;
   const st = { phase: 'park', t0: 0, flyAt: 0 };   // park | waitfly | fly | pulse | flip | shown
+  // W6 收卡回堆：回合结束题卡 320ms 独立 tween 回牌堆顶（位置向 deck 方向小弧+scale→0.55，终点=堆顶位；
+  // 参照 reback/refly 的视觉语言但不碰其相位机）；tok 代际——新回合 deal/翻面抢跑立即作废在飞 tween 防鬼影
+  const cardRetire = { on: false, tok: 0, t0: 0, x0: 0, z0: 0, ry0: 0, fx0: 0 };
   let qDrawn = false;
   const easeIO = k => (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
   function frame(t) {
@@ -8179,6 +8307,7 @@ setTimeout(() => {
       try { ensurePlacement(S.turn.chooserId || activePlayerId()); } catch (e) {}   // 落点先于一切卡位写入（含 REDUCED）：flipG.position/rotation.y 与 deckL 同帧就位
       st.phase = IS_REDUCED ? 'pulse' : 'waitfly';   // 降噪：牌直接出现在桌上（CSS 路径同哲学）
       st.flyAt = now + (IS_REDUCED ? 600 : 1050); st.t0 = now; qDrawn = false;   // 非降噪多留 450ms 给洗牌（fly 总 时点不变：原为 pulse 空窗）
+      cardRetire.on = false; cardRetire.tok++;   // W6 代际：新回合 deal 抢跑，在飞收卡 tween 立即作废（下面 deal 直接接管牌位）
       flipG.rotation.x = 0; actionCard.visible = true;
       if (IS_REDUCED) {
         actionCard.position.set(0, 0, CARD_L / 2); actionCard.rotation.y = 0;
@@ -8194,9 +8323,36 @@ setTimeout(() => {
       st.phase = 'park'; revealTarget = 0; rayLatch = false;
       cardPlace.chooser = null;   // 强制下回合重算落点（中途入座重排后跟随新座向）
       resetChoiceCards();
-      actionCard.visible = false;   // 停选阶段不显示（牌堆本体就是「待抽」语言）
-      flipG.rotation.x = 0; actionCard.scale.set(1, 1, 1);
+      if (IS_REDUCED || !actionCard.visible) {
+        actionCard.visible = false;   // 停选阶段不显示（牌堆本体就是「待抽」语言）；降噪直落现状
+        flipG.rotation.x = 0; actionCard.scale.set(1, 1, 1);
+      } else {   // W6 收卡回堆：320ms 独立 tween（flipG 翻回背面由 tween 承接，这里不复位防跳变）
+        cardRetire.on = true; cardRetire.tok++; cardRetire.t0 = now;
+        cardRetire.x0 = actionCard.position.x; cardRetire.z0 = actionCard.position.z;
+        cardRetire.ry0 = actionCard.rotation.y; cardRetire.fx0 = flipG.rotation.x;
+      }
       shadowDirty();
+    }
+    if (cardRetire.on) {   // W6 收卡回堆 tick：单正弦小弧向牌堆顶 + 翻回背面 + 缩到 0.55，落堆顶后归隐
+      if (!actionCard.visible) { cardRetire.on = false; }   // 代际兜底：任何路径点亮/隐藏了牌都立即让位
+      else {
+        const k = Math.min(1, (now - cardRetire.t0) / 320);
+        const e = 1 - (1 - k) * (1 - k);   // easeOut
+        actionCard.position.set(cardRetire.x0 + (cardPlace.deckL.x - cardRetire.x0) * e,
+          CARD_T / 2 + 0.06 + Math.sin(Math.PI * k) * 0.22,
+          cardRetire.z0 + (cardPlace.deckL.z - cardRetire.z0) * e);
+        const ryT = -(cardPlace.phi || 0);   // 终点本地 −φ：世界朝向对齐牌堆（与 fly 起点同语言）
+        actionCard.rotation.y = cardRetire.ry0 + (ryT - cardRetire.ry0) * e + Math.sin(Math.PI * k) * 1.1;
+        const sc = 1 - 0.45 * e;   // scale → 0.55
+        actionCard.scale.set(sc, 1, sc);
+        flipG.rotation.x = cardRetire.fx0 * (1 - e);   // 题面翻回背面（reback 同语言）
+        if (k >= 1) {   // 终态归位（牌堆本体就是「待抽」语言）
+          cardRetire.on = false;
+          actionCard.visible = false; actionCard.scale.set(1, 1, 1); flipG.rotation.x = 0;
+          actionCard.position.set(0, 0, CARD_L / 2); actionCard.rotation.y = 0;
+          shadowDirty();
+        }
+      }
     }
     if (st.phase === 'waitfly' && now >= st.flyAt) { st.phase = 'fly'; st.t0 = now; }
     if (st.phase === 'fly') {   // 900ms：单正弦弧（顶 +0.5 单位）+ 飞行旋卡 ≤180°；落定 80ms 微弹由 pulse 起始承接
@@ -8228,6 +8384,7 @@ setTimeout(() => {
         } catch (e) { try { drawQuestion(true, '', '真心话大冒险', ''); } catch (e2) {} }
       }
       st.phase = IS_REDUCED ? 'shown' : 'flip'; st.t0 = now;
+      cardRetire.on = false; cardRetire.tok++;   // W6 代际：翻面抢跑（直接 revealed 入场）作废在飞收卡 tween
       actionCard.visible = true;
       frame.qSig = (S.turn.punishment || '') + '#' + (S.turn.choice || '') + '#' + (S.turn.chooserId || '');
       if (IS_REDUCED) { flipG.rotation.x = -Math.PI; revealK = revealTarget = 1; }
@@ -8317,6 +8474,10 @@ setTimeout(() => {
       const hs = 1 + 0.1 * talk;
       u.head.scale.set(hs, hs, hs); u.face.scale.set(hs, hs, hs); u.hair.scale.set(hs, hs, hs);
       u.head.rotation.x = !IS_REDUCED ? Math.sin(sec * 6.4 + u.phase) * 0.11 * talk : 0;
+      if (u.featGrp && camera) {   // 特征头 head-only yaw 朝相机 ±75°（视觉专家 P1-9）：正对相机读特征，超界回桌心朝向
+        const want = Math.atan2(camera.position.x - ch.position.x, camera.position.z - ch.position.z) - ch.rotation.y;
+        u.featGrp.rotation.y = Math.max(-1.31, Math.min(1.31, Math.atan2(Math.sin(want), Math.cos(want))));
+      }
       if (!IS_REDUCED && talk > 0.06) {
         u.waveT += dt;
         if (u.waveT >= 0.55) { u.waveT = 0; voiceWave(pid, talk); }   // 0.55s 交错 → 恒 2 环在场，与 DOM w1/w2 同节奏
@@ -8405,23 +8566,36 @@ setTimeout(() => {
     if (culled) shadowDirty();
 
     // 进行中光环：选卡/抽卡/揭晓全程跟随「正在进行的人」（含走到牌堆旁的位移）
+    // W6 出入场 ramp：呼吸写入改 ringK·(0.55+0.25·sin) 系数制，ringK 目标 0/1、180ms 墙钟 smoothstep 收敛、
+    // 从当前值起播不跳变；visible=false 推迟到 ringK<0.02 才落，点亮 visible=true 即刻；ringTok 代际防熄灭/点亮竞态
     let ringPid = null;
     try {
       if (S.gameStarted && !S.finished && (stage === 'choosing' || stage === 'drawing' || stage === 'revealed'))
         ringPid = S.turn.chooserId || activePlayerId();
     } catch (e) {}
     const ringCh = ringPid ? chars.get(ringPid) : null;
-    if (ringCh && ringCh.visible) {   // 让镜被剔除的角色不画光环（自己抽卡近景里脚下悬空圈）
-      turnRing.grp.visible = true;
+    const ringWant = (ringCh && ringCh.visible) ? 1 : 0;   // 让镜被剔除的角色不画光环（自己抽卡近景里脚下悬空圈）
+    if (ringWant !== turnRing.ringWant) {   // 目标翻转：代际推进、从当前 ringK 起收敛
+      turnRing.ringWant = ringWant;
+      turnRing.ringTok++;
+      turnRing.ringK0 = turnRing.ringK;
+      turnRing.ringT0 = now;
+    }
+    if (ringWant) {
+      if (!turnRing.grp.visible) turnRing.grp.visible = true;   // 点亮即刻（亮度由 ringK 渐起）
       turnRing.grp.position.x = ringCh.position.x;
       turnRing.grp.position.z = ringCh.position.z;
-      if (!IS_REDUCED) {
-        const pl = 1 + 0.07 * Math.sin(sec * 3.4);
-        turnRing.grp.scale.set(pl, 1, pl);
-        turnRing.inner.material.opacity = 0.55 + 0.25 * Math.sin(sec * 3.4);
-      }
-    } else if (turnRing.grp.visible) {
-      turnRing.grp.visible = false;   // 空闲/结算熄灭
+    } else if (turnRing.grp.visible && (IS_REDUCED || turnRing.ringK < 0.02)) {
+      turnRing.ringK = 0;
+      turnRing.grp.visible = false;   // 空闲/结算熄灭（REDUCED 直切现状；正常路径等 ramp 收敛完）
+    }
+    if (turnRing.grp.visible && !IS_REDUCED) {
+      const rk = Math.min(1, Math.max(0, (now - turnRing.ringT0) / 180));
+      const rs = rk * rk * (3 - 2 * rk);   // smoothstep
+      turnRing.ringK = turnRing.ringK0 + (turnRing.ringWant - turnRing.ringK0) * rs;
+      const pl = 1 + 0.07 * Math.sin(sec * 3.4);
+      turnRing.grp.scale.set(pl, 1, pl);
+      turnRing.inner.material.opacity = turnRing.ringK * (0.55 + 0.25 * Math.sin(sec * 3.4));
     }
 
     bridgeSync();

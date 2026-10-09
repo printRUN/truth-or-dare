@@ -1,0 +1,182 @@
+{
+ "adventurer": [
+  "glasses:glassesx2",
+  "glasses:glassesProbabilityx2",
+  "hair:hairx24",
+  "eyes:eyesx24",
+  "eyes:eyebrowsx24",
+  "mouth:mouthx24",
+  "skin:skinColorx24"
+ ],
+ "adventurer-neutral": [
+  "glasses:glassesx4",
+  "glasses:glassesProbabilityx4",
+  "eyes:eyesx24",
+  "eyes:eyebrowsx24",
+  "mouth:mouthx24"
+ ],
+ "avataaars": [
+  "facial:facialHairx5",
+  "facial:facialHairProbabilityx5",
+  "hair:topx24",
+  "eyes:eyesx24",
+  "eyes:eyebrowsx24",
+  "mouth:mouthx24",
+  "skin:skinColorx24",
+  "clothes:clothingx24",
+  "clothes:clothesColorx24"
+ ],
+ "avataaars-neutral": [
+  "eyes:eyesx24",
+  "eyes:eyebrowsx24",
+  "mouth:mouthx24"
+ ],
+ "big-ears": [
+  "hair:hairx24",
+  "eyes:eyesx24",
+  "mouth:mouthx24",
+  "skin:skinColorx24"
+ ],
+ "big-ears-neutral": [
+  "eyes:eyesx24",
+  "mouth:mouthx24"
+ ],
+ "big-smile": [
+  "glasses:accessoriesx12",
+  "hair:hairx24",
+  "eyes:eyesx24",
+  "mouth:mouthx24",
+  "skin:skinColorx24"
+ ],
+ "bottts": [
+  "hair:topx24",
+  "eyes:eyesx24",
+  "mouth:mouthx24",
+  "skin:baseColorx24"
+ ],
+ "bottts-neutral": [
+  "eyes:eyesx24",
+  "mouth:mouthx24"
+ ],
+ "croodles": [
+  "facial:beardx3",
+  "facial:mustachex5",
+  "hair:topx24",
+  "eyes:eyesx24",
+  "mouth:mouthx24",
+  "skin:baseColorx24"
+ ],
+ "croodles-neutral": [
+  "eyes:eyesx24",
+  "mouth:mouthx24"
+ ],
+ "dylan": [
+  "facial:facialHairx6",
+  "facial:facialHairProbabilityx6",
+  "hair:hairx24",
+  "skin:skinColorx24"
+ ],
+ "fun-emoji": [
+  "eyes:eyesx24",
+  "mouth:mouthx24"
+ ],
+ "glass": [],
+ "icons": [],
+ "identicon": [],
+ "initials": [],
+ "lorelei": [
+  "facial:beardx1",
+  "hair:hairx24",
+  "eyes:eyesx24",
+  "eyes:eyebrowsx24",
+  "mouth:mouthx24",
+  "skin:skinColorx24"
+ ],
+ "lorelei-neutral": [
+  "glasses:glassesx3",
+  "glasses:glassesProbabilityx3",
+  "eyes:eyesx24",
+  "eyes:eyebrowsx24",
+  "mouth:mouthx24"
+ ],
+ "micah": [
+  "glasses:glassesx10",
+  "glasses:glassesProbabilityx10",
+  "hair:hairx24",
+  "eyes:eyesx24",
+  "eyes:eyebrowsx24",
+  "mouth:mouthx24",
+  "skin:baseColorx24",
+  "clothes:shirtx24"
+ ],
+ "miniavs": [
+  "glasses:glassesx7",
+  "glasses:glassesProbabilityx7",
+  "facial:mustachex6",
+  "hair:hairx24",
+  "eyes:eyesx24",
+  "mouth:mouthx24",
+  "skin:skinColorx24",
+  "clothes:bodyx24"
+ ],
+ "notionists": [
+  "glasses:glassesx9",
+  "glasses:glassesProbabilityx9",
+  "hair:hairx24",
+  "eyes:eyesx24",
+  "eyes:browsx24",
+  "mouth:lipsx24",
+  "clothes:bodyx24"
+ ],
+ "notionists-neutral": [
+  "glasses:glassesx2",
+  "glasses:glassesProbabilityx2",
+  "eyes:eyesx24",
+  "eyes:browsx24",
+  "mouth:lipsx24"
+ ],
+ "open-peeps": [
+  "glasses:accessoriesx6",
+  "skin:skinColorx24"
+ ],
+ "personas": [
+  "hair:hairx24",
+  "eyes:eyesx24",
+  "mouth:mouthx24",
+  "skin:skinColorx24",
+  "clothes:bodyx24"
+ ],
+ "pixel-art": [
+  "glasses:glassesx6",
+  "glasses:accessoriesx5",
+  "glasses:glassesProbabilityx6",
+  "hair:hairx24",
+  "eyes:eyesx24",
+  "mouth:mouthx24",
+  "skin:skinColorx24",
+  "clothes:clothingx24"
+ ],
+ "pixel-art-neutral": [
+  "glasses:glassesx3",
+  "glasses:glassesProbabilityx3",
+  "eyes:eyesx24",
+  "mouth:mouthx24"
+ ],
+ "rings": [],
+ "shapes": [],
+ "thumbs": [
+  "eyes:eyesx24",
+  "mouth:mouthx24"
+ ],
+ "toon-head": [
+  "facial:beardx11",
+  "hair:hairx24",
+  "eyes:eyesx24",
+  "eyes:eyebrowsx24",
+  "mouth:mouthx24",
+  "skin:skinColorx24",
+  "clothes:clothesx24",
+  "clothes:clothesColorx24",
+  "clothes:bodyx24"
+ ]
+}

@@ -1129,6 +1129,12 @@ function updateMicBadges() {
     if (!rep || !rep.startsWith('av:')) return null;
     return AVATAR_PRESETS[parseInt(rep.slice(5), 10) - 1] || null;
   }
+  function avatarRecipe(rep) {   // 头像 rep → {style,seed}|null：头像特征轮钉扎元数据唯一出口（avatar-features.js 消费）
+    if (!rep || typeof rep !== 'string') return null;
+    if (rep.startsWith('av:')) { const p = presetOfAv(rep); return p ? { style: p.st, seed: p.sd } : null; }
+    if (rep.startsWith('dcb:')) { try { const r = JSON.parse(rep.slice(4)); return (r && typeof r.s === 'string' && typeof r.d === 'string') ? { style: r.s, seed: r.d } : null; } catch (e) { return null; } }
+    return null;
+  }
   function avatarUri(rep) {
     if (!rep) return '';
     if (rep.startsWith('data:')) {   // 上传照片 dataURL 原样进 <img>。严格白名单：dataURL 会经宿主 innerHTML 插值，
@@ -1872,7 +1878,7 @@ body.loperf .pn-create::after{display:none}
     mutate, enter, leave, probeRoom,
     setStarted() { if (NDOC && !NDOC.started) { NDOC.started = true; NDOC.game = null; NDOC.writer = myId; NDOC.ts = Date.now(); NDOC.seq = (NDOC.seq || 0) + 1; link.publishState(NDOC); try { cfg.onState && cfg.onState(NDOC); } catch (e) {} } },
     addBot: addBotToDoc,
-    doc: () => NDOC, myId, myAvatar, avatarUri, avatarName, presets: [],   // presets 已废（24 格时代遗物）；保留空数组键位防老宿主解构炸
+    doc: () => NDOC, myId, myAvatar, avatarUri, avatarName, avatarRecipe, presets: [],   // presets 已废（24 格时代遗物）；保留空数组键位防老宿主解构炸
     mode: () => NETMODE, joined: () => joined, isHost, seatOf,
     link: () => link,
     mic: {

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>avatar feature verify sheet</title>
+<script src="../dicebear-local.js"></script>
+<style>
+  body { background: #14101f; color: #ddd; font: 13px/1.35 monospace; margin: 12px; }
+  #grid { display: grid; grid-template-columns: repeat(6, 176px); gap: 8px; }
+  h2 { color: #fc7; margin: 10px 0 4px; font-size: 15px; }
+  .cell { background: #201a33; border-radius: 8px; padding: 6px; }
+  .cell canvas { display: block; width: 160px; height: 160px; background: #000; border-radius: 6px; }
+  .feat { margin-top: 4px; font-size: 13px; white-space: nowrap; }
+  .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; border: 1px solid #666; }
+  .tag { color: #8ef; }
+  .g { color: #7f7; font-weight: bold; }
+</style>
+</head>
+<body>
+<div id="grid"></div>
+<script src="./av3-feat-prod.js"></script>
+<script>
+'use strict';
+/* 校验表：主力的 12 风格 × 12 seed 大图 + personas/toon-head 眼镜扫雷 + 照片/emoji 特例 */
+const STYLES12 = ['personas', 'micah', 'adventurer', 'avataaars', 'notionists', 'miniavs', 'open-peeps', 'big-smile', 'pixel-art', 'lorelei', 'dylan', 'toon-head'];
+const SEEDS12 = ['Felix', 'Aiden', 'Maria', 'Zoe', 'Jack', 'Lily', 'Kim', 'Max', 'Anna', 'Leo', 'Ivy', 'Sam'];
+const grid = document.getElementById('grid');
+function cell2(img, f, label) {
+  const cell = document.createElement('div'); cell.className = 'cell';
+  const show = document.createElement('canvas'); show.width = show.height = 160;
+  show.getContext('2d').drawImage(img, 0, 0, 160, 160);
+  cell.appendChild(show);
+  const d = document.createElement('div'); d.className = 'feat';
+  d.innerHTML = `<span class="tag">${label}</span> ` + (f.person
+    ? `<span class="sw" style="background:${f.skin}"></span><span class="sw" style="background:${f.hair || '#000'}"></span>${f.hairGuess ? '?' : ''} ` +
+      `${f.style}${f.glasses ? ' <span class="g">眼镜</span>' : ''}${f.beard ? ' <span class="g">胡子</span>' : ''} ${f.mouth}${f.clothes ? ` <span class="sw" style="background:${f.clothes}"></span>` : ''}`
+    : '<span style="color:#f87">非人脸</span>');
+  cell.appendChild(d);
+  grid.appendChild(cell);
+}
+function uriOf(st, seed) { return 'data:image/svg+xml;utf8,' + encodeURIComponent(DiceBearLocal.diceAvatar(st, { seed, size: 160 }).toString()); }
+async function run(st, seed, label) {
+  const img = new Image();
+  await new Promise(res => { img.onload = res; img.onerror = res; img.src = uriOf(st, seed); });
+  const f = await AV3.extractAvatarFeatures(img, { style: st, seed });
+  cell2(img, f, label);
+  return f;
+}
+(async () => {
+  const results = [];
+  for (const st of STYLES12) {
+    const h = document.createElement('h2'); h.textContent = st; grid.appendChild(h);
+    for (const seed of SEEDS12) results.push({ st, seed, f: await run(st, seed, seed) });
+  }
+  // 照片特例：合成一张渐变脸 dataURL（肤色窗+棕发带+黑眼镜带）
+  const pc = document.createElement('canvas'); pc.width = pc.height = 160;
+  const pg = pc.getContext('2d');
+  pg.fillStyle = '#7a8a99'; pg.fillRect(0, 0, 160, 160);
+  pg.fillStyle = '#c98d5f'; pg.fillRect(40, 40, 80, 100);   // 脸
+  pg.fillStyle = '#3a2a1a'; pg.fillRect(34, 24, 92, 34); pg.fillRect(30, 40, 12, 70); pg.fillRect(118, 40, 12, 70);   // 发
+  pg.fillStyle = '#111'; pg.fillRect(52, 66, 22, 14); pg.fillRect(88, 66, 22, 14); pg.fillRect(72, 70, 18, 4);   // 眼镜
+  pg.fillStyle = '#5a3a2a'; pg.fillRect(66, 112, 30, 8);   // 嘴
+  const photoUri = pc.toDataURL('image/png');
+  {
+    const img = new Image();
+    await new Promise(res => { img.onload = res; img.src = photoUri; });
+    const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+    const g = cv.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0, 128, 128);
+    const f = extractFeatures(g.getImageData(0, 0, 128, 128).data, 128, null, null);
+    results.push({ st: 'photo', seed: '-', f });
+    cell2(img, f, '合成照片(预期:肤#c98d5f 发#3a2a1a 眼镜)');
+  }
+  // emoji 特例（tod 表单）：非 data:/http → 提取器根本不该被调用；这里验证像素路径也不会把它当人脸
+  {
+    const ec = document.createElement('canvas'); ec.width = ec.height = 160;
+    const eg = ec.getContext('2d');
+    eg.fillStyle = '#241235'; eg.fillRect(0, 0, 160, 160);
+    eg.font = '120px sans-serif'; eg.textAlign = 'center'; eg.textBaseline = 'middle';
+    eg.fillText('🐵', 80, 86);
+    const img = new Image();
+    await new Promise(res => { img.onload = res; img.src = ec.toDataURL('image/png'); });
+    const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+    const g = cv.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0, 128, 128);
+    const f = extractFeatures(g.getImageData(0, 0, 128, 128).data, 128, null, null);
+    results.push({ st: 'emoji', seed: '-', f });
+    cell2(img, f, 'emoji(预期:非人脸→贴图保留)');
+  }
+  window.__results = results;
+  window.__done = true;
+})();
+</script>
+</body>
+</html>

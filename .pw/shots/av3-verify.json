@@ -1,0 +1,2274 @@
+[
+ {
+  "st": "personas",
+  "seed": "Felix",
+  "f": {
+   "person": true,
+   "skin": "#e5b1a5",
+   "hair": "#e15c66",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#456dff",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "personas",
+  "seed": "Aiden",
+  "f": {
+   "person": true,
+   "skin": "#b9958c",
+   "hair": null,
+   "hairGuess": false,
+   "style": "bald",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#456dff"
+  }
+ },
+ {
+  "st": "personas",
+  "seed": "Maria",
+  "f": {
+   "person": true,
+   "skin": "#ca9e95",
+   "hair": "#ee8750",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": "dark",
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#e04854",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "personas",
+  "seed": "Zoe",
+  "f": {
+   "person": true,
+   "skin": "#edc0aa",
+   "hair": "#dd5058",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": "dark",
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#f3b63a"
+  }
+ },
+ {
+  "st": "personas",
+  "seed": "Jack",
+  "f": {
+   "person": true,
+   "skin": "#efc3b7",
+   "hair": "#e8909e",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#f6c86d"
+  }
+ },
+ {
+  "st": "personas",
+  "seed": "Lily",
+  "f": {
+   "person": true,
+   "skin": "#eec3b7",
+   "hair": "#dca598",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#f3b63a"
+  }
+ },
+ {
+  "st": "personas",
+  "seed": "Kim",
+  "f": {
+   "person": true,
+   "skin": "#e5b0a2",
+   "hair": "#ee8750",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": "dark",
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#6dbb58",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "personas",
+  "seed": "Max",
+  "f": {
+   "person": true,
+   "skin": "#9a827d",
+   "hair": "#e76b78",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#456dff",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "personas",
+  "seed": "Anna",
+  "f": {
+   "person": true,
+   "skin": "#ce9d93",
+   "hair": "#f17b64",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#f3b63a",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "personas",
+  "seed": "Leo",
+  "f": {
+   "person": true,
+   "skin": "#f4cec4",
+   "hair": "#6a4444",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#456dff"
+  }
+ },
+ {
+  "st": "personas",
+  "seed": "Ivy",
+  "f": {
+   "person": true,
+   "skin": "#b26c5e",
+   "hair": "#e1909e",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": "dark",
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#795ecb"
+  }
+ },
+ {
+  "st": "personas",
+  "seed": "Sam",
+  "f": {
+   "person": true,
+   "skin": "#cc9e95",
+   "hair": "#7f5151",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#7555ca"
+  }
+ },
+ {
+  "st": "micah",
+  "seed": "Felix",
+  "f": {
+   "person": true,
+   "skin": "#f9c9b6",
+   "hair": "#6d6f6d",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#9287ff",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "micah",
+  "seed": "Aiden",
+  "f": {
+   "person": true,
+   "skin": "#f9c9b6",
+   "hair": "#fc909f",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#9287ff",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "micah",
+  "seed": "Maria",
+  "f": {
+   "person": true,
+   "skin": "#ab6550",
+   "hair": null,
+   "hairGuess": false,
+   "style": "bald",
+   "glasses": true,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#d7f1f4"
+  }
+ },
+ {
+  "st": "micah",
+  "seed": "Zoe",
+  "f": {
+   "person": true,
+   "skin": "#77321e",
+   "hair": "#ffeba4",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#ac6651",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "micah",
+  "seed": "Jack",
+  "f": {
+   "person": true,
+   "skin": "#ab6651",
+   "hair": null,
+   "hairGuess": false,
+   "style": "bald",
+   "glasses": true,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#f9c9b6"
+  }
+ },
+ {
+  "st": "micah",
+  "seed": "Lily",
+  "f": {
+   "person": true,
+   "skin": "#ab6651",
+   "hair": "#f4d150",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#d6f0f4",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "micah",
+  "seed": "Kim",
+  "f": {
+   "person": true,
+   "skin": "#76301d",
+   "hair": "#f9ebf2",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#f9ebf2"
+  }
+ },
+ {
+  "st": "micah",
+  "seed": "Max",
+  "f": {
+   "person": true,
+   "skin": "#ab6651",
+   "hair": "#ffffff",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": true,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#f4d150",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "micah",
+  "seed": "Anna",
+  "f": {
+   "person": true,
+   "skin": "#ab6651",
+   "hair": "#6bd9e9",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#f4d150",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "micah",
+  "seed": "Leo",
+  "f": {
+   "person": true,
+   "skin": "#ab6651",
+   "hair": "#7b6649",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": true,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#f9cab5",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "micah",
+  "seed": "Ivy",
+  "f": {
+   "person": true,
+   "skin": "#ab6651",
+   "hair": "#6bd9e9",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": true,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#ffeff1",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "micah",
+  "seed": "Sam",
+  "f": {
+   "person": true,
+   "skin": "#76301d",
+   "hair": "#010100",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#f9c9b6",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "adventurer",
+  "seed": "Felix",
+  "f": {
+   "person": true,
+   "skin": "#f2d3b1",
+   "hair": "#b9a05f",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "adventurer",
+  "seed": "Aiden",
+  "f": {
+   "person": true,
+   "skin": "#ebad80",
+   "hair": "#afafaf",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": null,
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "adventurer",
+  "seed": "Maria",
+  "f": {
+   "person": true,
+   "skin": "#e9d5a7",
+   "hair": null,
+   "hairGuess": false,
+   "style": "bald",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "adventurer",
+  "seed": "Zoe",
+  "f": {
+   "person": true,
+   "skin": "#753800",
+   "hair": "#85c2c6",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#85c2c6",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "adventurer",
+  "seed": "Jack",
+  "f": {
+   "person": true,
+   "skin": "#f2d3b1",
+   "hair": "#b8a05f",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#b8a05f",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "adventurer",
+  "seed": "Lily",
+  "f": {
+   "person": true,
+   "skin": "#ecad80",
+   "hair": "#b99f5f",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": null,
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "adventurer",
+  "seed": "Kim",
+  "f": {
+   "person": true,
+   "skin": "#753900",
+   "hair": "#ab6511",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "adventurer",
+  "seed": "Max",
+  "f": {
+   "person": true,
+   "skin": "#f2d3b1",
+   "hair": "#3eab2c",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "adventurer",
+  "seed": "Anna",
+  "f": {
+   "person": true,
+   "skin": "#ecad80",
+   "hair": "#542306",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "adventurer",
+  "seed": "Leo",
+  "f": {
+   "person": true,
+   "skin": "#ecad80",
+   "hair": "#b99f5f",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": true,
+   "beard": false,
+   "mouth": "open",
+   "clothes": null,
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "adventurer",
+  "seed": "Ivy",
+  "f": {
+   "person": true,
+   "skin": "#ecad80",
+   "hair": "#786945",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": null,
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "adventurer",
+  "seed": "Sam",
+  "f": {
+   "person": true,
+   "skin": "#ebad80",
+   "hair": "#ca6720",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": null,
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "avataaars",
+  "seed": "Felix",
+  "f": {
+   "person": true,
+   "skin": "#f49895",
+   "hair": "#714233",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#3d4f5c",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "avataaars",
+  "seed": "Aiden",
+  "f": {
+   "person": true,
+   "skin": "#eeb08d",
+   "hair": null,
+   "hairGuess": false,
+   "style": "bald",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#e7e7e6"
+  }
+ },
+ {
+  "st": "avataaars",
+  "seed": "Maria",
+  "f": {
+   "person": true,
+   "skin": "#ad5d29",
+   "hair": "#d6b370",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#3c4f5b",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "avataaars",
+  "seed": "Zoe",
+  "f": {
+   "person": true,
+   "skin": "#ce8a5b",
+   "hair": "#e8e2e2",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#e8e2e2",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "avataaars",
+  "seed": "Jack",
+  "f": {
+   "person": true,
+   "skin": "#fc9741",
+   "hair": "#b87851",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#ffafb9"
+  }
+ },
+ {
+  "st": "avataaars",
+  "seed": "Lily",
+  "f": {
+   "person": true,
+   "skin": "#ad5c29",
+   "hair": "#d6b370",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#ff498e"
+  }
+ },
+ {
+  "st": "avataaars",
+  "seed": "Kim",
+  "f": {
+   "person": true,
+   "skin": "#cb8857",
+   "hair": null,
+   "hairGuess": false,
+   "style": "bald",
+   "glasses": true,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#5299e4"
+  }
+ },
+ {
+  "st": "avataaars",
+  "seed": "Max",
+  "f": {
+   "person": true,
+   "skin": "#fdd9b3",
+   "hair": "#e8e2e2",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#fe488e"
+  }
+ },
+ {
+  "st": "avataaars",
+  "seed": "Anna",
+  "f": {
+   "person": true,
+   "skin": "#fdd9b3",
+   "hair": "#2c1b18",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#a8fdc4"
+  }
+ },
+ {
+  "st": "avataaars",
+  "seed": "Leo",
+  "f": {
+   "person": true,
+   "skin": "#f6d05c",
+   "hair": "#e8e2e1",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#feb0b9"
+  }
+ },
+ {
+  "st": "avataaars",
+  "seed": "Ivy",
+  "f": {
+   "person": true,
+   "skin": "#cf8b5b",
+   "hair": "#ecdcbf",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#a7ffc4",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "avataaars",
+  "seed": "Sam",
+  "f": {
+   "person": true,
+   "skin": "#ebb889",
+   "hair": "#b58143",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#b2e1fd",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "notionists",
+  "seed": "Felix",
+  "f": {
+   "person": true,
+   "skin": "#fcfcfc",
+   "hair": "#000000",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": true,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#000000",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "notionists",
+  "seed": "Aiden",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#020202",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": null,
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "notionists",
+  "seed": "Maria",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#010101",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": true,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#010101",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "notionists",
+  "seed": "Zoe",
+  "f": {
+   "person": true,
+   "skin": "#fdfdfd",
+   "hair": "#010101",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#010101",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "notionists",
+  "seed": "Jack",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#020202",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": null,
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "notionists",
+  "seed": "Lily",
+  "f": {
+   "person": true,
+   "skin": "#fefefe",
+   "hair": "#000000",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": null,
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "notionists",
+  "seed": "Kim",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#020202",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#020202",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "notionists",
+  "seed": "Max",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#010101",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": true,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#010101",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "notionists",
+  "seed": "Anna",
+  "f": {
+   "person": true,
+   "skin": "#fefefe",
+   "hair": "#000000",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#000000",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "notionists",
+  "seed": "Leo",
+  "f": {
+   "person": true,
+   "skin": "#fefefe",
+   "hair": "#4a382c",
+   "hairGuess": true,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#000000"
+  }
+ },
+ {
+  "st": "notionists",
+  "seed": "Ivy",
+  "f": {
+   "person": true,
+   "skin": "#fefefe",
+   "hair": "#020202",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#020202",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "notionists",
+  "seed": "Sam",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#010101",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#010101",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "miniavs",
+  "seed": "Felix",
+  "f": {
+   "person": true,
+   "skin": "#feca7d",
+   "hair": "#47280b",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": true,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#47280b",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "miniavs",
+  "seed": "Aiden",
+  "f": {
+   "person": true,
+   "skin": "#7f5d53",
+   "hair": "#1b0b47",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": true,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#3633df",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "miniavs",
+  "seed": "Maria",
+  "f": {
+   "person": true,
+   "skin": "#f3cfc4",
+   "hair": "#47280b",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#df5a33"
+  }
+ },
+ {
+  "st": "miniavs",
+  "seed": "Zoe",
+  "f": {
+   "person": true,
+   "skin": "#f3cfc4",
+   "hair": null,
+   "hairGuess": false,
+   "style": "bald",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#fe4dd7"
+  }
+ },
+ {
+  "st": "miniavs",
+  "seed": "Jack",
+  "f": {
+   "person": true,
+   "skin": "#fdc97d",
+   "hair": "#47280b",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#3633e0"
+  }
+ },
+ {
+  "st": "miniavs",
+  "seed": "Lily",
+  "f": {
+   "person": true,
+   "skin": "#fdca7d",
+   "hair": "#47280b",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#47280b"
+  }
+ },
+ {
+  "st": "miniavs",
+  "seed": "Kim",
+  "f": {
+   "person": true,
+   "skin": "#f4cfc4",
+   "hair": "#ad3a20",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#ad3a20",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "miniavs",
+  "seed": "Max",
+  "f": {
+   "person": true,
+   "skin": "#f3cec3",
+   "hair": null,
+   "hairGuess": false,
+   "style": "bald",
+   "glasses": true,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#ff4dd8"
+  }
+ },
+ {
+  "st": "miniavs",
+  "seed": "Anna",
+  "f": {
+   "person": true,
+   "skin": "#feca7d",
+   "hair": null,
+   "hairGuess": false,
+   "style": "bald",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#3633df"
+  }
+ },
+ {
+  "st": "miniavs",
+  "seed": "Leo",
+  "f": {
+   "person": true,
+   "skin": "#825f54",
+   "hair": null,
+   "hairGuess": false,
+   "style": "bald",
+   "glasses": true,
+   "beard": true,
+   "mouth": "smile",
+   "clothes": "#3633df"
+  }
+ },
+ {
+  "st": "miniavs",
+  "seed": "Ivy",
+  "f": {
+   "person": true,
+   "skin": "#fdc97d",
+   "hair": "#1b0b47",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#3633e0"
+  }
+ },
+ {
+  "st": "miniavs",
+  "seed": "Sam",
+  "f": {
+   "person": true,
+   "skin": "#f3cec3",
+   "hair": null,
+   "hairGuess": false,
+   "style": "bald",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#e05a33"
+  }
+ },
+ {
+  "st": "open-peeps",
+  "seed": "Felix",
+  "f": {
+   "person": true,
+   "skin": "#ffdbb4",
+   "hair": "#b48143",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#78e185",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "open-peeps",
+  "seed": "Aiden",
+  "f": {
+   "person": true,
+   "skin": "#fedbb4",
+   "hair": "#010101",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#8fa7de",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "open-peeps",
+  "seed": "Maria",
+  "f": {
+   "person": true,
+   "skin": "#ad5d29",
+   "hair": "#000000",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#9ddadb",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "open-peeps",
+  "seed": "Zoe",
+  "f": {
+   "person": true,
+   "skin": "#ad5d29",
+   "hair": "#010100",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#fdea6b",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "open-peeps",
+  "seed": "Jack",
+  "f": {
+   "person": true,
+   "skin": "#fece77",
+   "hair": "#000000",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#000000",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "open-peeps",
+  "seed": "Lily",
+  "f": {
+   "person": true,
+   "skin": "#684d3d",
+   "hair": "#ecdcbf",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#ffcf77",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "open-peeps",
+  "seed": "Kim",
+  "f": {
+   "person": true,
+   "skin": "#cf8a5b",
+   "hair": "#010101",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#78e185",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "open-peeps",
+  "seed": "Max",
+  "f": {
+   "person": true,
+   "skin": "#ffdbb4",
+   "hair": "#000000",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#000000",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "open-peeps",
+  "seed": "Anna",
+  "f": {
+   "person": true,
+   "skin": "#684c3d",
+   "hair": "#000000",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#000000",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "open-peeps",
+  "seed": "Leo",
+  "f": {
+   "person": true,
+   "skin": "#ffdbb4",
+   "hair": "#000000",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#e78276",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "open-peeps",
+  "seed": "Ivy",
+  "f": {
+   "person": true,
+   "skin": "#cf8b5b",
+   "hair": "#010000",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#9ddadb",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "open-peeps",
+  "seed": "Sam",
+  "f": {
+   "person": true,
+   "skin": "#d08b5b",
+   "hair": "#010100",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#9ddadb",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "big-smile",
+  "seed": "Felix",
+  "f": {
+   "person": true,
+   "skin": "#7b4d2c",
+   "hair": null,
+   "hairGuess": false,
+   "style": "bald",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "big-smile",
+  "seed": "Aiden",
+  "f": {
+   "person": true,
+   "skin": "#a47338",
+   "hair": "#d46b0c",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": true,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#d46b0c",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "big-smile",
+  "seed": "Maria",
+  "f": {
+   "person": true,
+   "skin": "#a37338",
+   "hair": "#238d80",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "big-smile",
+  "seed": "Zoe",
+  "f": {
+   "person": true,
+   "skin": "#a37338",
+   "hair": "#5f5ce2",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": true,
+   "beard": false,
+   "mouth": "open",
+   "clothes": null,
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "big-smile",
+  "seed": "Jack",
+  "f": {
+   "person": true,
+   "skin": "#c89a61",
+   "hair": "#6360e2",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": true,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "big-smile",
+  "seed": "Lily",
+  "f": {
+   "person": true,
+   "skin": "#e1b785",
+   "hair": "#391900",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "big-smile",
+  "seed": "Kim",
+  "f": {
+   "person": true,
+   "skin": "#edc89c",
+   "hair": "#e9b729",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": true,
+   "beard": false,
+   "mouth": "open",
+   "clothes": null,
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "big-smile",
+  "seed": "Max",
+  "f": {
+   "person": true,
+   "skin": "#8a542e",
+   "hair": "#e2ba87",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": null,
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "big-smile",
+  "seed": "Anna",
+  "f": {
+   "person": true,
+   "skin": "#e0b785",
+   "hair": "#615de3",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": true,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "big-smile",
+  "seed": "Leo",
+  "f": {
+   "person": true,
+   "skin": "#6b4225",
+   "hair": null,
+   "hairGuess": false,
+   "style": "bald",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "big-smile",
+  "seed": "Ivy",
+  "f": {
+   "person": true,
+   "skin": "#e1b684",
+   "hair": "#5f5ce2",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#5f5ce2",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "big-smile",
+  "seed": "Sam",
+  "f": {
+   "person": true,
+   "skin": "#f5f5f5",
+   "hair": "#673f21",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": true,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "pixel-art",
+  "seed": "Felix",
+  "f": {
+   "person": true,
+   "skin": "#bb8f62",
+   "hair": "#91cb15",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#44c585"
+  }
+ },
+ {
+  "st": "pixel-art",
+  "seed": "Aiden",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#603015",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#d11141",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "pixel-art",
+  "seed": "Maria",
+  "f": {
+   "person": true,
+   "skin": "#cea378",
+   "hair": "#611c17",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#8fdab4"
+  }
+ },
+ {
+  "st": "pixel-art",
+  "seed": "Zoe",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#611c17",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#ffeead",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "pixel-art",
+  "seed": "Jack",
+  "f": {
+   "person": true,
+   "skin": "#ffddb2",
+   "hair": "#611c17",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#44c585",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "pixel-art",
+  "seed": "Lily",
+  "f": {
+   "person": true,
+   "skin": "#ecc89d",
+   "hair": "#989789",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#44c585",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "pixel-art",
+  "seed": "Kim",
+  "f": {
+   "person": true,
+   "skin": "#a9794d",
+   "hair": "#91cb15",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#5bc0de"
+  }
+ },
+ {
+  "st": "pixel-art",
+  "seed": "Max",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#a78961",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#ae0001",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "pixel-art",
+  "seed": "Anna",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#bd1700",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#fb6d69",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "pixel-art",
+  "seed": "Leo",
+  "f": {
+   "person": true,
+   "skin": "#5f705c",
+   "hair": "#611c17",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": true,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#44c585",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "pixel-art",
+  "seed": "Ivy",
+  "f": {
+   "person": true,
+   "skin": "#ecc89c",
+   "hair": "#603015",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#44c585",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "pixel-art",
+  "seed": "Sam",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#dab88e",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#428bca",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "lorelei",
+  "seed": "Felix",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#010101",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "lorelei",
+  "seed": "Aiden",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#000000",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": null,
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "lorelei",
+  "seed": "Maria",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#000000",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": null,
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "lorelei",
+  "seed": "Zoe",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#000000",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "lorelei",
+  "seed": "Jack",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#010101",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "lorelei",
+  "seed": "Lily",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#000000",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "lorelei",
+  "seed": "Kim",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#000000",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": null,
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "lorelei",
+  "seed": "Max",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#000000",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": true,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "lorelei",
+  "seed": "Anna",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#010101",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "lorelei",
+  "seed": "Leo",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#000000",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "lorelei",
+  "seed": "Ivy",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#000000",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "lorelei",
+  "seed": "Sam",
+  "f": {
+   "person": true,
+   "skin": "#ffffff",
+   "hair": "#000000",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": null,
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "dylan",
+  "seed": "Felix",
+  "f": {
+   "person": true,
+   "skin": "#c26450",
+   "hair": "#fe543d",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "dylan",
+  "seed": "Aiden",
+  "f": {
+   "person": true,
+   "skin": "#ffd6c0",
+   "hair": "#fff501",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": null,
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "dylan",
+  "seed": "Maria",
+  "f": {
+   "person": true,
+   "skin": "#c26450",
+   "hair": "#fff500",
+   "hairGuess": false,
+   "style": "afro",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "dylan",
+  "seed": "Zoe",
+  "f": {
+   "person": false,
+   "skin": null,
+   "hair": null,
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "dylan",
+  "seed": "Jack",
+  "f": {
+   "person": true,
+   "skin": "#fff500",
+   "hair": null,
+   "hairGuess": false,
+   "style": "bald",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "dylan",
+  "seed": "Lily",
+  "f": {
+   "person": true,
+   "skin": "#c26450",
+   "hair": "#fff500",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": null,
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "dylan",
+  "seed": "Kim",
+  "f": {
+   "person": false,
+   "skin": null,
+   "hair": null,
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "dylan",
+  "seed": "Max",
+  "f": {
+   "person": true,
+   "skin": "#c26450",
+   "hair": "#1d5dff",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "dylan",
+  "seed": "Anna",
+  "f": {
+   "person": false,
+   "skin": null,
+   "hair": null,
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "dylan",
+  "seed": "Leo",
+  "f": {
+   "person": true,
+   "skin": "#c26450",
+   "hair": "#fe543e",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": true,
+   "mouth": "open",
+   "clothes": null,
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "dylan",
+  "seed": "Ivy",
+  "f": {
+   "person": true,
+   "skin": "#c26450",
+   "hair": "#fff500",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "dylan",
+  "seed": "Sam",
+  "f": {
+   "person": false,
+   "skin": null,
+   "hair": null,
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": null
+  }
+ },
+ {
+  "st": "toon-head",
+  "seed": "Felix",
+  "f": {
+   "person": true,
+   "skin": "#f0c2a4",
+   "hair": "#a05528",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#e8e8e5",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "toon-head",
+  "seed": "Aiden",
+  "f": {
+   "person": true,
+   "skin": "#c48f77",
+   "hair": "#d6b370",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#141512",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "toon-head",
+  "seed": "Maria",
+  "f": {
+   "person": true,
+   "skin": "#f0c2a4",
+   "hair": "#a35628",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": true,
+   "mouth": "open",
+   "clothes": "#4f4f4f",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "toon-head",
+  "seed": "Zoe",
+  "f": {
+   "person": true,
+   "skin": "#5b3628",
+   "hair": "#d4b26f",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#dde9eb"
+  }
+ },
+ {
+  "st": "toon-head",
+  "seed": "Jack",
+  "f": {
+   "person": true,
+   "skin": "#c58d79",
+   "hair": "#a15528",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#0c3286"
+  }
+ },
+ {
+  "st": "toon-head",
+  "seed": "Lily",
+  "f": {
+   "person": true,
+   "skin": "#c58d79",
+   "hair": "#a15528",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#731bc2"
+  }
+ },
+ {
+  "st": "toon-head",
+  "seed": "Kim",
+  "f": {
+   "person": true,
+   "skin": "#593628",
+   "hair": "#241916",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#241916"
+  }
+ },
+ {
+  "st": "toon-head",
+  "seed": "Max",
+  "f": {
+   "person": true,
+   "skin": "#f0c2a4",
+   "hair": "#d2af72",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#4f4f4f",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "toon-head",
+  "seed": "Anna",
+  "f": {
+   "person": true,
+   "skin": "#b98e6a",
+   "hair": "#b17f45",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "smile",
+   "clothes": "#e7e8e5"
+  }
+ },
+ {
+  "st": "toon-head",
+  "seed": "Leo",
+  "f": {
+   "person": true,
+   "skin": "#b78d69",
+   "hair": "#a05528",
+   "hairGuess": false,
+   "style": "long",
+   "glasses": false,
+   "beard": true,
+   "mouth": "open",
+   "clothes": "#b01f1f",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "toon-head",
+  "seed": "Ivy",
+  "f": {
+   "person": true,
+   "skin": "#c58d79",
+   "hair": "#9d5328",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": "#ad1f1f",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "toon-head",
+  "seed": "Sam",
+  "f": {
+   "person": true,
+   "skin": "#b78d69",
+   "hair": "#2c1b18",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": true,
+   "mouth": "open",
+   "clothes": "#e8e8e5",
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "photo",
+  "seed": "-",
+  "f": {
+   "person": true,
+   "skin": "#c98d5f",
+   "hair": "#3c2b1b",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": null,
+   "mouthWide": true
+  }
+ },
+ {
+  "st": "emoji",
+  "seed": "-",
+  "f": {
+   "person": true,
+   "skin": "#d190a5",
+   "hair": "#a16d6a",
+   "hairGuess": false,
+   "style": "short",
+   "glasses": false,
+   "beard": false,
+   "mouth": "open",
+   "clothes": null,
+   "mouthWide": true
+  }
+ }
+]

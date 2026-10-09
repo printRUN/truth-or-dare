@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>avatar feature spike v2</title>
+<script src="../dicebear-local.js"></script>
+<style>
+  body { background: #14101f; color: #ddd; font: 11px/1.3 monospace; margin: 10px; }
+  #grid { display: grid; grid-template-columns: repeat(10, 150px); gap: 6px; }
+  h3 { grid-column: 1 / -1; color: #fc7; margin: 8px 0 2px; }
+  .cell { background: #201a33; border-radius: 6px; padding: 4px; }
+  .cell canvas { display: block; width: 96px; height: 96px; image-rendering: auto; background: #000; border-radius: 4px; }
+  .feat { margin-top: 3px; white-space: nowrap; }
+  .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; vertical-align: -1px; border: 1px solid #555; }
+  .tag { color: #8ef; }
+  .bad { color: #f87; }
+</style>
+</head>
+<body>
+<div id="grid"></div>
+<script src="../.pw/av3-feat.js"></script>
+<script>
+const SEEDS = ['Felix', 'Aiden', 'Maria', 'Zoe', 'Jack', 'Lily'];
+window.__dbgOne = (st, seed) => {
+  const uri = 'data:image/svg+xml;utf8,' + encodeURIComponent(DiceBearLocal.diceAvatar(st, { seed, size: 96 }).toString());
+  const img = new Image();
+  return new Promise(res => {
+    img.onload = () => {
+      const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+      const g = cv.getContext('2d', { willReadFrequently: true });
+      g.drawImage(img, 0, 0, 128, 128);
+      const data = g.getImageData(0, 0, 128, 128).data;
+      const { clusters, N } = pixelClusters(data, 128, 128);
+      res(clusters.slice(0, 8).map(c => ({ n: c.n, hex: hexc(c.mean), top: c.topN, cen: c.cenN, side: c.sideN, low: c.lowN, box: [c.minx, c.miny, c.maxx, c.maxy] })));
+    };
+    img.src = uri;
+  });
+};
+const grid = document.getElementById('grid');
+const results = [];
+(async () => {
+  for (const st of DiceBearLocal.STYLES) {
+    const h3 = document.createElement('h3'); h3.textContent = st; grid.appendChild(h3);
+    for (const seed of SEEDS) {
+      const uri = 'data:image/svg+xml;utf8,' + encodeURIComponent(DiceBearLocal.diceAvatar(st, { seed, size: 96 }).toString());
+      const img = new Image();
+      await new Promise(res => { img.onload = res; img.onerror = res; img.src = uri; });
+      const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+      const g = cv.getContext('2d', { willReadFrequently: true });
+      let data = null;
+      try { g.drawImage(img, 0, 0, 128, 128); data = g.getImageData(0, 0, 128, 128).data; } catch (e) {}
+      const f = extractFeatures(data, 128, st, seed);
+      results.push({ st, seed, f });
+      const cell = document.createElement('div'); cell.className = 'cell';
+      const show = document.createElement('canvas'); show.width = show.height = 128;
+      show.getContext('2d').drawImage(img, 0, 0, 128, 128);
+      cell.appendChild(show);
+      const d = document.createElement('div'); d.className = 'feat';
+      d.innerHTML = `<span class="tag">${seed}</span> ` + (f.person
+        ? `<span class="sw" style="background:${f.skin}"></span><span class="sw" style="background:${f.hair || '#000'}"></span> ` +
+          `${f.style}${f.glasses ? ' 👓' : ''}${f.beard ? ' 🧔' : ''} ${f.mouth}${f.clothes ? ' 👕' : ''}${f.err ? ' <span class="bad">' + f.err + '</span>' : ''}`
+        : '<span class="bad">非人脸</span>' + (f.err || ''));
+      cell.appendChild(d);
+      grid.appendChild(cell);
+    }
+  }
+  window.__results = results;
+  window.__done = true;
+})();
+</script>
+</body>
+</html>
