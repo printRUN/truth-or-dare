@@ -1,0 +1,1431 @@
+{
+ "done": true,
+ "total": 80,
+ "faces": 50,
+ "stats": {
+  "distinct": 38,
+  "collide": 12,
+  "classHist": {
+   "short": 24,
+   "afro": 10,
+   "bald": 12,
+   "long": 4
+  },
+  "colorDistinct": 34,
+  "colorHist": {
+   "#28150a": 1,
+   "#3d8a6b": 1,
+   "#83623b": 1,
+   "#83623d": 1,
+   "#962e25": 1,
+   "#5d3017": 2,
+   "#88b32c": 3,
+   "#dab080": 1,
+   "guess": 12,
+   "#34200d": 1,
+   "#d08aac": 1,
+   "#28180a": 1,
+   "#7cde9b": 1,
+   "#a54629": 1,
+   "#2b190a": 1,
+   "#28170a": 1,
+   "#b1906a": 1,
+   "#b36d2c": 1,
+   "#4b454a": 1,
+   "#897850": 1,
+   "#412810": 1,
+   "#1d1041": 1,
+   "#9dbdab": 1,
+   "#28280a": 1,
+   "#191919": 2,
+   "#1d1515": 1,
+   "#6b4646": 1,
+   "#dea67c": 1,
+   "#703f32": 1,
+   "#2c1a18": 1,
+   "#724134": 1,
+   "#b47f43": 1,
+   "#5f2717": 2,
+   "#deb07c": 1
+  }
+ },
+ "rows": [
+  {
+   "tag": "预设1",
+   "style": "pixel-art",
+   "seed": "TOD-P00",
+   "sig": "short|||#28150a|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#d49e8b",
+    "hair": "#28150a",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": "#428bca"
+   }
+  },
+  {
+   "tag": "预设2",
+   "style": "pixel-art",
+   "seed": "TOD-P01",
+   "sig": "afro|g||#3d8a6b|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#ba937b",
+    "hair": "#3d8a6b",
+    "hairGuess": false,
+    "style": "afro",
+    "glasses": true,
+    "beard": false,
+    "mouth": "open",
+    "clothes": "#ffd969",
+    "mouthWide": true
+   }
+  },
+  {
+   "tag": "预设3",
+   "style": "pixel-art",
+   "seed": "TOD-P02",
+   "sig": "short|||#83623b|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#e2ba90",
+    "hair": "#83623b",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": "#ffeead"
+   }
+  },
+  {
+   "tag": "预设4",
+   "style": "pixel-art",
+   "seed": "TOD-P03",
+   "sig": "afro|||#83623d|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#ddc0a0",
+    "hair": "#83623d",
+    "hairGuess": false,
+    "style": "afro",
+    "glasses": false,
+    "beard": false,
+    "mouth": "open",
+    "clothes": "#ffd969",
+    "mouthWide": true
+   }
+  },
+  {
+   "tag": "预设5",
+   "style": "pixel-art",
+   "seed": "TOD-P04",
+   "sig": "afro|||#962e25|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#e2ba90",
+    "hair": "#a62116",
+    "hairGuess": false,
+    "style": "afro",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": "#ffd666"
+   }
+  },
+  {
+   "tag": "预设6",
+   "style": "pixel-art",
+   "seed": "TOD-P05",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "预设7",
+   "style": "pixel-art",
+   "seed": "TOD-P06",
+   "sig": "afro|||#5d3017|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#e2ba90",
+    "hair": "#603015",
+    "hairGuess": false,
+    "style": "afro",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": "#ff6f69"
+   }
+  },
+  {
+   "tag": "预设8",
+   "style": "pixel-art",
+   "seed": "TOD-P07",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "预设9",
+   "style": "pixel-art",
+   "seed": "TOD-P08",
+   "sig": "afro|||#5d3017|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#e3bc92",
+    "hair": "#603015",
+    "hairGuess": false,
+    "style": "afro",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": "#ae0001"
+   }
+  },
+  {
+   "tag": "预设10",
+   "style": "pixel-art",
+   "seed": "TOD-P09",
+   "sig": "short|||#88b32c|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#ebc79b",
+    "hair": "#91cb15",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "open",
+    "clothes": "#00b159",
+    "mouthWide": true
+   }
+  },
+  {
+   "tag": "预设11",
+   "style": "pixel-art",
+   "seed": "TOD-P10",
+   "sig": "short|g||#dab080|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#484c52",
+    "hair": "#dfba90",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": true,
+    "beard": false,
+    "mouth": "open",
+    "clothes": "#44c585",
+    "mouthWide": true
+   }
+  },
+  {
+   "tag": "预设12",
+   "style": "pixel-art",
+   "seed": "TOD-P11",
+   "sig": "afro|||#88b32c|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#ffdeb3",
+    "hair": "#91cb15",
+    "hairGuess": false,
+    "style": "afro",
+    "glasses": false,
+    "beard": false,
+    "mouth": "open",
+    "clothes": "#00b159",
+    "mouthWide": true
+   }
+  },
+  {
+   "tag": "预设13",
+   "style": "pixel-art",
+   "seed": "TOD-P12",
+   "sig": "afro|||#88b32c|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#e3bc91",
+    "hair": "#91cb15",
+    "hairGuess": false,
+    "style": "afro",
+    "glasses": false,
+    "beard": false,
+    "mouth": "open",
+    "clothes": "#44c585",
+    "mouthWide": true
+   }
+  },
+  {
+   "tag": "预设14",
+   "style": "pixel-art",
+   "seed": "TOD-P13",
+   "sig": "bald||||0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#cbae8e",
+    "hair": null,
+    "hairGuess": false,
+    "style": "bald",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": "#8fdab4"
+   }
+  },
+  {
+   "tag": "预设15",
+   "style": "shapes",
+   "seed": "TOD-S14",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "预设16",
+   "style": "shapes",
+   "seed": "TOD-S15",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "预设17",
+   "style": "shapes",
+   "seed": "TOD-S16",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "预设18",
+   "style": "shapes",
+   "seed": "TOD-S17",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "预设19",
+   "style": "shapes",
+   "seed": "TOD-S18",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "预设20",
+   "style": "shapes",
+   "seed": "TOD-S19",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "预设21",
+   "style": "shapes",
+   "seed": "TOD-S20",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "预设22",
+   "style": "shapes",
+   "seed": "TOD-S21",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "预设23",
+   "style": "shapes",
+   "seed": "TOD-S22",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "预设24",
+   "style": "shapes",
+   "seed": "TOD-S23",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "adventurer",
+   "style": "adventurer",
+   "seed": "TOD-A1-0",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "adventurer",
+   "style": "adventurer",
+   "seed": "TOD-B2-1",
+   "sig": "short|||#34200d|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#a35c1a",
+    "hair": "#37210b",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "adventurer",
+   "style": "adventurer",
+   "seed": "TOD-C3-2",
+   "sig": "short|||#d08aac|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#ebac80",
+    "hair": "#daa3be",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "open",
+    "clothes": null,
+    "mouthWide": true
+   }
+  },
+  {
+   "tag": "adventurer",
+   "style": "adventurer",
+   "seed": "TOD-D4-3",
+   "sig": "short|||#28180a|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#6b3202",
+    "hair": "#100903",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "avataaars",
+   "style": "avataaars",
+   "seed": "TOD-A1-0",
+   "sig": "bald||||0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#ce8a5a",
+    "hair": null,
+    "hairGuess": false,
+    "style": "bald",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": "#a7fec3"
+   }
+  },
+  {
+   "tag": "avataaars",
+   "style": "avataaars",
+   "seed": "TOD-B2-1",
+   "sig": "long|g|b|#7cde9b|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#5f4234",
+    "hair": "#a7fec3",
+    "hairGuess": false,
+    "style": "long",
+    "glasses": true,
+    "beard": true,
+    "mouth": "smile",
+    "clothes": "#a7fec3"
+   }
+  },
+  {
+   "tag": "avataaars",
+   "style": "avataaars",
+   "seed": "TOD-C3-2",
+   "sig": "bald||||0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#ac5c29",
+    "hair": null,
+    "hairGuess": false,
+    "style": "bald",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": "#ffffb1"
+   }
+  },
+  {
+   "tag": "avataaars",
+   "style": "avataaars",
+   "seed": "TOD-D4-3",
+   "sig": "short|||#a54629|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#ae5c29",
+    "hair": "#c93406",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": "#235176"
+   }
+  },
+  {
+   "tag": "big-smile",
+   "style": "big-smile",
+   "seed": "TOD-A1-0",
+   "sig": "short|||#2b190a|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#ecc39f",
+    "hair": "#361800",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "big-smile",
+   "style": "big-smile",
+   "seed": "TOD-B2-1",
+   "sig": "long|g||#28170a|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#c79a61",
+    "hair": "#220f00",
+    "hairGuess": false,
+    "style": "long",
+    "glasses": true,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": "#220f00"
+   }
+  },
+  {
+   "tag": "big-smile",
+   "style": "big-smile",
+   "seed": "TOD-C3-2",
+   "sig": "short|g||#b1906a|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#e2ba89",
+    "hair": "#b1906a",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": true,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "big-smile",
+   "style": "big-smile",
+   "seed": "TOD-D4-3",
+   "sig": "short|g||#b36d2c|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#f8cfac",
+    "hair": "#d46c0c",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": true,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "lorelei",
+   "style": "lorelei",
+   "seed": "TOD-A1-0",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "lorelei",
+   "style": "lorelei",
+   "seed": "TOD-B2-1",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "lorelei",
+   "style": "lorelei",
+   "seed": "TOD-C3-2",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "lorelei",
+   "style": "lorelei",
+   "seed": "TOD-D4-3",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "micah",
+   "style": "micah",
+   "seed": "TOD-A1-0",
+   "sig": "bald|g|||0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#77321f",
+    "hair": null,
+    "hairGuess": false,
+    "style": "bald",
+    "glasses": true,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "micah",
+   "style": "micah",
+   "seed": "TOD-B2-1",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "micah",
+   "style": "micah",
+   "seed": "TOD-C3-2",
+   "sig": "short|g||#4b454a|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#ab6651",
+    "hair": "#4b454b",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": true,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "micah",
+   "style": "micah",
+   "seed": "TOD-D4-3",
+   "sig": "short|||#897850|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#f9c9b5",
+    "hair": "#897850",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "open",
+    "clothes": "#76311d",
+    "mouthWide": true
+   }
+  },
+  {
+   "tag": "miniavs",
+   "style": "miniavs",
+   "seed": "TOD-A1-0",
+   "sig": "afro|g||#412810|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#fac77c",
+    "hair": "#47280b",
+    "hairGuess": false,
+    "style": "afro",
+    "glasses": true,
+    "beard": false,
+    "mouth": "open",
+    "clothes": "#ff4ed8",
+    "mouthWide": true
+   }
+  },
+  {
+   "tag": "miniavs",
+   "style": "miniavs",
+   "seed": "TOD-B2-1",
+   "sig": "short||b|#1d1041|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#805e53",
+    "hair": "#1b0b47",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": true,
+    "mouth": "smile",
+    "clothes": "#e05a34"
+   }
+  },
+  {
+   "tag": "miniavs",
+   "style": "miniavs",
+   "seed": "TOD-C3-2",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "miniavs",
+   "style": "miniavs",
+   "seed": "TOD-D4-3",
+   "sig": "bald||||0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#815f54",
+    "hair": null,
+    "hairGuess": false,
+    "style": "bald",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": "#3634e0"
+   }
+  },
+  {
+   "tag": "notionists",
+   "style": "notionists",
+   "seed": "TOD-A1-0",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "notionists",
+   "style": "notionists",
+   "seed": "TOD-B2-1",
+   "sig": "afro|||#9dbdab|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#ffffff",
+    "hair": "#e3ece7",
+    "hairGuess": false,
+    "style": "afro",
+    "glasses": false,
+    "beard": false,
+    "mouth": "open",
+    "clothes": "#030303",
+    "mouthWide": true
+   }
+  },
+  {
+   "tag": "notionists",
+   "style": "notionists",
+   "seed": "TOD-C3-2",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "notionists",
+   "style": "notionists",
+   "seed": "TOD-D4-3",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "open-peeps",
+   "style": "open-peeps",
+   "seed": "TOD-A1-0",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "open-peeps",
+   "style": "open-peeps",
+   "seed": "TOD-B2-1",
+   "sig": "short|g||#28280a|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#684d3d",
+    "hair": "#010100",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": true,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": "#ffcf77"
+   }
+  },
+  {
+   "tag": "open-peeps",
+   "style": "open-peeps",
+   "seed": "TOD-C3-2",
+   "sig": "short|||#191919|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#cf8b5b",
+    "hair": "#010101",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "open",
+    "clothes": "#9ddadb",
+    "mouthWide": true
+   }
+  },
+  {
+   "tag": "open-peeps",
+   "style": "open-peeps",
+   "seed": "TOD-D4-3",
+   "sig": "short|||#1d1515|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#ecb98a",
+    "hair": "#040303",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "open",
+    "clothes": "#e279c7",
+    "mouthWide": true
+   }
+  },
+  {
+   "tag": "personas",
+   "style": "personas",
+   "seed": "TOD-A1-0",
+   "sig": "short|d||#6b4646|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#e5b1a5",
+    "hair": "#6c4646",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": "dark",
+    "beard": false,
+    "mouth": "smile",
+    "clothes": "#4869ff"
+   }
+  },
+  {
+   "tag": "personas",
+   "style": "personas",
+   "seed": "TOD-B2-1",
+   "sig": "bald||||0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#d7a69b",
+    "hair": null,
+    "hairGuess": false,
+    "style": "bald",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": "#f3b749"
+   }
+  },
+  {
+   "tag": "personas",
+   "style": "personas",
+   "seed": "TOD-C3-2",
+   "sig": "bald||||0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#cd9f97",
+    "hair": null,
+    "hairGuess": false,
+    "style": "bald",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": "#e24553"
+   }
+  },
+  {
+   "tag": "personas",
+   "style": "personas",
+   "seed": "TOD-D4-3",
+   "sig": "short|g||#dea67c|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#9a837e",
+    "hair": "#f3ac77",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": true,
+    "beard": false,
+    "mouth": "open",
+    "clothes": "#7555ca",
+    "mouthWide": true
+   }
+  },
+  {
+   "tag": "croodles",
+   "style": "croodles",
+   "seed": "TOD-A1-0",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "croodles",
+   "style": "croodles",
+   "seed": "TOD-B2-1",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "croodles",
+   "style": "croodles",
+   "seed": "TOD-C3-2",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "croodles",
+   "style": "croodles",
+   "seed": "TOD-D4-3",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "dylan",
+   "style": "dylan",
+   "seed": "TOD-A1-0",
+   "sig": "afro||b|#191919|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#c26450",
+    "hair": "#000000",
+    "hairGuess": false,
+    "style": "afro",
+    "glasses": false,
+    "beard": true,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "dylan",
+   "style": "dylan",
+   "seed": "TOD-B2-1",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "dylan",
+   "style": "dylan",
+   "seed": "TOD-C3-2",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "dylan",
+   "style": "dylan",
+   "seed": "TOD-D4-3",
+   "sig": "fb",
+   "feats": {
+    "person": false,
+    "skin": null,
+    "hair": null,
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "toon-head",
+   "style": "toon-head",
+   "seed": "TOD-A1-0",
+   "sig": "short|||#703f32|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#c6a28c",
+    "hair": "#704033",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "open",
+    "clothes": "#b01f1f",
+    "mouthWide": true
+   }
+  },
+  {
+   "tag": "toon-head",
+   "style": "toon-head",
+   "seed": "TOD-B2-1",
+   "sig": "short||b|#2c1a18|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#b78d69",
+    "hair": "#2c1b18",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": true,
+    "mouth": "smile",
+    "clothes": "#575351"
+   }
+  },
+  {
+   "tag": "toon-head",
+   "style": "toon-head",
+   "seed": "TOD-C3-2",
+   "sig": "short||b|#724134|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#c48d7a",
+    "hair": "#724134",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": true,
+    "mouth": "open",
+    "clothes": "#a81d1d",
+    "mouthWide": true
+   }
+  },
+  {
+   "tag": "toon-head",
+   "style": "toon-head",
+   "seed": "TOD-D4-3",
+   "sig": "short|||#b47f43|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#5a3628",
+    "hair": "#b48043",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": "#eb4898"
+   }
+  },
+  {
+   "tag": "pixel-art",
+   "style": "pixel-art",
+   "seed": "TOD-A1-0",
+   "sig": "short|||#5f2717|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#aa794e",
+    "hair": "#612616",
+    "hairGuess": false,
+    "style": "short",
+    "glasses": false,
+    "beard": false,
+    "mouth": "open",
+    "clothes": null,
+    "mouthWide": true
+   }
+  },
+  {
+   "tag": "pixel-art",
+   "style": "pixel-art",
+   "seed": "TOD-B2-1",
+   "sig": "long|g||#5f2717|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#5f705c",
+    "hair": "#612616",
+    "hairGuess": false,
+    "style": "long",
+    "glasses": true,
+    "beard": false,
+    "mouth": "open",
+    "clothes": "#5bc0de",
+    "mouthWide": true
+   }
+  },
+  {
+   "tag": "pixel-art",
+   "style": "pixel-art",
+   "seed": "TOD-C3-2",
+   "sig": "bald||||0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#b78f64",
+    "hair": null,
+    "hairGuess": false,
+    "style": "bald",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": "#ffd969"
+   }
+  },
+  {
+   "tag": "pixel-art",
+   "style": "pixel-art",
+   "seed": "TOD-D4-3",
+   "sig": "long|||#deb07c|0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#c98276",
+    "hair": "#ffdbb2",
+    "hairGuess": false,
+    "style": "long",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": "#ffdbb2"
+   }
+  },
+  {
+   "tag": "big-ears",
+   "style": "big-ears",
+   "seed": "TOD-A1-0",
+   "sig": "bald||||0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#f6b688",
+    "hair": null,
+    "hairGuess": false,
+    "style": "bald",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "big-ears",
+   "style": "big-ears",
+   "seed": "TOD-B2-1",
+   "sig": "bald||||0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#d6b370",
+    "hair": null,
+    "hairGuess": false,
+    "style": "bald",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": "#83502b"
+   }
+  },
+  {
+   "tag": "big-ears",
+   "style": "big-ears",
+   "seed": "TOD-C3-2",
+   "sig": "bald||||0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#bf7f51",
+    "hair": null,
+    "hairGuess": false,
+    "style": "bald",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  },
+  {
+   "tag": "big-ears",
+   "style": "big-ears",
+   "seed": "TOD-D4-3",
+   "sig": "bald||||0.0|0.0",
+   "feats": {
+    "person": true,
+    "skin": "#9f6235",
+    "hair": null,
+    "hairGuess": false,
+    "style": "bald",
+    "glasses": false,
+    "beard": false,
+    "mouth": "smile",
+    "clothes": null
+   }
+  }
+ ]
+}

@@ -1155,7 +1155,28 @@ function updateMicBadges() {
     if (rep && rep.startsWith('av:')) { const p = presetOfAv(rep); return p ? p.n : '预设'; }
     try { return JSON.parse(rep.slice(4)).n || ''; } catch (e) { return ''; }
   }
-  function czPersonaStyle() { return pick(DB_STYLES.filter(s => !CZ_ABSTRACT.includes(s))); }
+  /* 随机人像风格池（v4）：提取器有钉扎/像素双人脸通道的 14 风格——bot 配方/定制器随机/热座派发三处共用。
+     CZ_ABSTRACT 之外的 fun-emoji/bottts/thumbs 是非人协议、6 个 -neutral 是纸白肤线稿特例，随机落进去=3D 头必兜底/秃（业务检查官 C 项：联机 bot 44% 落兜底）。手动选风格不受限。 */
+  const AV4_PERSONAS = ['adventurer', 'avataaars', 'big-ears', 'big-smile', 'croodles', 'dylan', 'lorelei', 'micah', 'miniavs', 'notionists', 'open-peeps', 'personas', 'pixel-art', 'toon-head'];
+  function czPersonaStyle() { return pick(DB_STYLES.filter(s => AV4_PERSONAS.includes(s))); }
+  /* 热座座位确定性头像（eng P0-4）：djb2(name+'#'+idx) → 非抽象且非 -neutral 线稿的风格 + seed + 底色。
+     禁 Math.random（czRandSeed/pick 的随机路径不进这里）；-neutral 线稿全走纸白肤秃头特例=制造新撞脸秃，显式排除。
+     taken=本局已派 rep 集合：撞车换 seed 重散（构造性去重，同房不撞靠保证不靠概率）。 */
+  function seatAvatarRep(name, idx, taken) {
+    let h = 5381;
+    const key = String(name || '') + '#' + (idx | 0);
+    for (let i = 0; i < key.length; i++) h = ((h << 5) + h + key.charCodeAt(i)) | 0;
+    const pool = DB_STYLES.filter(st => AV4_PERSONAS.includes(st));   // 共享随机人像池（czPersonaStyle 上方定义）
+    const next = () => { h = Math.imul(h ^ (h >>> 15), 2246822519) | 0; h ^= h >>> 13; h = Math.imul(h | 0, 3266489917) | 0; h ^= h >>> 16; return h >>> 0; };
+    let style = pool[next() % pool.length];
+    let seed = 'S' + (next() % 1679616).toString(36);
+    let bg = CZ_BGS[next() % CZ_BGS.length];
+    let guard = 0;
+    while (taken && taken.has(makeRecipe(style, seed, bg)) && guard++ < 8) seed = 'S' + (next() % 1679616).toString(36);
+    const rep = makeRecipe(style, seed, bg);
+    if (taken) taken.add(rep);
+    return rep;
+  }
   function czRandSeed() { return Math.random().toString(36).slice(2, 8); }
   const cz = { style: 'adventurer', seed: '', bg: CZ_BGS[0], styleTouched: false };   // 定制器活状态（bot 配方禁拨它，见 addBotToDoc）
   function czRep() { return makeRecipe(cz.style, cz.seed, cz.bg); }
@@ -1889,7 +1910,7 @@ body.loperf .pn-create::after{display:none}
     mutate, enter, leave, probeRoom,
     setStarted() { if (NDOC && !NDOC.started) { NDOC.started = true; NDOC.game = null; NDOC.writer = myId; NDOC.ts = Date.now(); NDOC.seq = (NDOC.seq || 0) + 1; link.publishState(NDOC); try { cfg.onState && cfg.onState(NDOC); } catch (e) {} } },
     addBot: addBotToDoc,
-    doc: () => NDOC, myId, myAvatar, avatarUri, avatarName, avatarRecipe, presets: [],   // presets 已废（24 格时代遗物）；保留空数组键位防老宿主解构炸
+    doc: () => NDOC, myId, myAvatar, avatarUri, avatarName, avatarRecipe, seatAvatarRep, presets: [],   // presets 已废（24 格时代遗物）；保留空数组键位防老宿主解构炸
     mode: () => NETMODE, joined: () => joined, isHost, seatOf,
     link: () => link,
     mic: {

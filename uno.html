@@ -149,6 +149,8 @@
   .btn-primary:focus-visible, .btn-ghost:focus-visible, .btn-sub:focus-visible, .btn-main:focus-visible, #btn-uno:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 3px; }
 
   .seat-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .seat-ava { width: 34px; height: 34px; border-radius: 10px; background: rgba(255,255,255,0.08); flex: 0 0 auto; object-fit: cover; }
+  .hand-ava { width: 72px; height: 72px; border-radius: 20px; border: 3px solid #fff; margin-bottom: 6px; background: rgba(255,255,255,0.1); object-fit: cover; }
   .seat-row .dot { width: 14px; height: 14px; border-radius: 50%; flex: 0 0 auto; }
   .seat-row input[type="text"] { flex: 1; min-height: 42px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.06); color: #fff; font-size: 0.95rem; }
   .seat-row input[type="text"]:focus { outline: none; border-color: var(--accent-cyan); }
@@ -309,6 +311,7 @@
 <div id="handoff" class="ovl" hidden>
   <div class="panel">
     <p class="hand-emoji">📱</p>
+    <img id="handoff-ava" class="hand-ava" alt="" hidden>
     <h2 id="handoff-name">请把手机交给 XX</h2>
     <p class="sub">其他人先移开视线 😉</p>
     <button id="btn-handoff-go" class="btn-primary" type="button">我是 XX，开始回合</button>
@@ -591,7 +594,7 @@ function syncNetHUD() {
   $('setup').hidden = !!(onNet && NDOC && NDOC.started);
 }
 function netAvatarHtml(i) {
-  const rep = NETMODE && NDOC && NDOC.players[i] && NDOC.players[i].av;
+  const rep = (NETMODE ? (NDOC && NDOC.players[i] && NDOC.players[i].av) : (G.players[i] && G.players[i].av)) || '';   // v4 热座兜底
   if (!rep) return '';
   const uri = P.avatarUri(rep);
   return uri ? `<img class="pav" src="${uri.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" alt="" onerror="this.style.visibility='hidden'">` : '';   // 转义纵深：组件侧已有 dataURL 白名单；onerror=双故障时隐藏而非裂图
@@ -1386,7 +1389,7 @@ function applyFeats(grp, e) {   // 特征→头子树单出口（P0-5）：旧�
   if (typeof AV3 === 'undefined' || !AV3 || !AV3.buildAvatarHead) { applyHeadPalette(grp, e); return; }
   if (!grp || !grp.userData.avHead || !e || !e.loaded) return;
   const feats = e.feats || null;
-  const sig = feats ? [feats.style, feats.glasses, feats.beard, feats.skin, feats.hair, feats.mouth].join('|') : 'fb';
+  const sig = feats ? [feats.style, feats.glasses, feats.beard, feats.skin, feats.hair, feats.mouth, feats.mouthWide ? 'w' : '', feats.hairLen || 0, feats.hairWid || 0].join('|') : 'fb';   // v4：+mouthWide/hairLen/hairWid（eng P0-3）
   if (grp.userData.featsSig === sig) return;
   grp.userData.featsSig = sig;
   const oldGrp = grp.userData.avHead;
@@ -1410,14 +1413,14 @@ function disposeBust(g) {   // material.dispose 不连带纹理——缓存独�
 function refreshSeatAvatars() {
   if (!G.gl || !scene || G.phase === 'BOOT' || G.phase === 'SETUP') return;
   const south = southOwner();
-  const sig = G.players.map((p, i) => `${i}:${(NETMODE && NDOC && NDOC.players[i] && NDOC.players[i].av) || ''}:${south}`).join('|');
+  const sig = G.players.map((p, i) => `${i}:${(NETMODE ? (NDOC && NDOC.players[i] && NDOC.players[i].av) : (p && p.av)) || ''}:${south}`).join('|');   // v4 热座：sig 吃 G.players.av（改名/重开局重建 bust）
   if (sig === seatAva.sig) return;
   seatAva.sig = sig;
   seatAva.busts.forEach(disposeBust);
   seatAva.busts = [];
   G.players.forEach((p, seat) => {
     if (seat === south) return;
-    const av = (NETMODE && NDOC && NDOC.players[seat] && NDOC.players[seat].av) || '';
+    const av = (NETMODE ? (NDOC && NDOC.players[seat] && NDOC.players[seat].av) : (G.players[seat] && G.players[seat].av)) || '';   // v4 热座兜底（eng P0-4）
     const uri = av ? P.avatarUri(av) : '';
     const e = acquirePalette(p.colorIdx, uri, av ? P.avatarRecipe(av) : null);
     const feats = e && e.loaded && e.feats ? e.feats : undefined;   // 缓存命中带特征；未加载先建默认头，onload 后 applyFeats 重建
@@ -1445,7 +1448,7 @@ function refreshSeatAvatars() {
     grp.userData.colorIdx = p.colorIdx;
     grp.userData.hairMat = head.hairMat;
     grp.userData.parts = head.parts;
-    grp.userData.featsSig = feats ? [feats.style, feats.glasses, feats.beard, feats.skin, feats.hair, feats.mouth].join('|') : 'fb';
+    grp.userData.featsSig = feats ? [feats.style, feats.glasses, feats.beard, feats.skin, feats.hair, feats.mouth, feats.mouthWide ? 'w' : '', feats.hairLen || 0, feats.hairWid || 0].join('|') : 'fb';   // v4 同步 eng P0-3
     applyFeats(grp, e);
     scene.add(grp);
     seatAva.busts.push(grp);
@@ -1668,7 +1671,7 @@ function saveGame() {
       v: 1, at: Date.now(), phase: G.phase, turn: G.turn, dir: G.dir, cur: G.cur,
       drawnThisTurn: G.drawnThisTurn, mode: G.mode, skipHandoff: G.skipHandoff,
       lastHumanActor: G.lastHumanActor, passStreak: G.passStreak, rngA: rngBox.a, seed: G.seed,
-      players: G.players.map(p => ({ name: p.name, bot: p.bot, colorIdx: p.colorIdx, hand: p.hand })),
+      players: G.players.map(p => ({ name: p.name, bot: p.bot, colorIdx: p.colorIdx, av: p.av || '', hand: p.hand })),
       deck: G.deck, discard: G.discard,
       unoWin: G.unoWin ? { who: G.unoWin.who, remain: G.unoWin.remain, penalized: G.unoWin.penalized } : null,
       winner: G.winner != null ? G.winner : null,
@@ -1705,7 +1708,7 @@ function nextIdx(from) {
 function startGame(cfg) {
   wildGLCancel();   // 新局收口:GL 选色会话退役清闸门
   G.mode = cfg.mode; G.skipHandoff = cfg.skipHandoff;
-  G.players = cfg.players.map((p, i) => ({ name: p.name, bot: !!p.bot, colorIdx: i, hand: [] }));
+  G.players = cfg.players.map((p, i) => ({ name: p.name, bot: !!p.bot, colorIdx: i, av: p.av || '', hand: [] }));
   G.deck = shuffle(buildDeck());
   G.discard = [];
   reseed(cfg.seed || SEED); G.seed = rngBox.a;
@@ -1752,6 +1755,8 @@ function beginTurn() {
     hideActions();
     $('handoff-name').textContent = `请把手机交给 ${p.name}`;
     $('btn-handoff-go').textContent = `我是 ${p.name}，开始回合`;
+    const hava = $('handoff-ava');
+    if (hava) { const huri = p.av ? P.avatarUri(p.av) : ''; hava.hidden = !huri; if (huri) hava.src = huri; hava.style.borderColor = PLAYER_COLORS[G.turn]; }   // 交接卡头像+座位色描边（value P1-2）
     const cb = $('btn-catch');
     if (G.unoCatch && !G.unoCatch.done && Date.now() < G.unoCatch.until && G.unoCatch.who !== G.turn) {
       cb.hidden = false;
@@ -2444,10 +2449,14 @@ function renderSeats() {
   seatState.forEach((st, i) => {
     const row = document.createElement('div');
     row.className = 'seat-row';
-    row.innerHTML = `<span class="dot" style="background:${PLAYER_COLORS[i]}"></span>
+    row.innerHTML = `<img class="seat-ava" alt="">
+      <span class="dot" style="background:${PLAYER_COLORS[i]}"></span>
       <input type="text" maxlength="8" value="${esc(st.name)}" aria-label="玩家${i + 1}名字">
       <span class="bot-toggle ${st.bot ? 'on' : ''}" role="button" tabindex="0">🤖 机器人</span>`;
-    row.querySelector('input').addEventListener('input', e => { st.name = e.target.value; });
+    const avaImg = row.querySelector('.seat-ava');
+    const paintAva = () => { const uri = P.avatarUri(P.seatAvatarRep(st.name.trim() || '无名氏', i, null)); if (uri) avaImg.src = uri; };   // 热座座位头像预览（与开局派发同函数=所见即所得）
+    paintAva();
+    row.querySelector('input').addEventListener('input', e => { st.name = e.target.value; paintAva(); });
     const bt = row.querySelector('.bot-toggle');
     const flip = () => { st.bot = !st.bot; bt.classList.toggle('on', st.bot); SFX.tap(); };
     bt.addEventListener('click', flip);
@@ -2467,7 +2476,8 @@ $('seat-plus').addEventListener('click', () => { if (seatState.length < 4) { sea
 $('seat-minus').addEventListener('click', () => { if (seatState.length > 2) { seatState.pop(); renderSeats(); } });
 $('btn-start').addEventListener('click', () => {
   SFX.tap();
-  const players = seatState.map(s => ({ name: s.name.trim() || '无名氏', bot: s.bot }));
+  const taken = new Set();   // 构造性去重：同局座位 rep 不撞（party-net seatAvatarRep 保证）
+  const players = seatState.map((s, i) => ({ name: s.name.trim() || '无名氏', bot: s.bot, av: P.seatAvatarRep(s.name.trim() || '无名氏', i, taken) }));
   if (!players.some(p => !p.bot)) players[0].bot = false;   // 热座至少 1 真人
   try { localStorage.setItem('uno:names', JSON.stringify(players.map(p => p.name))); } catch (e) {}
   startGame({ players, mode: $('opt-light').checked ? 'light' : 'dark', skipHandoff: $('skip-handoff').checked });
@@ -2516,7 +2526,7 @@ $('btn-rematch').addEventListener('click', () => {
     else toast('👑 等房主开新局', '', 2600);
     return;
   }
-  const cfg = { players: G.players.map(p => ({ name: p.name, bot: p.bot })), mode: G.mode, skipHandoff: G.skipHandoff, firstPlayer: G.winner != null ? G.winner : rint(G.players.length), seed: (Math.random() * 0xffffffff) >>> 0 };
+  const cfg = { players: G.players.map(p => ({ name: p.name, bot: p.bot, av: p.av || '' })), mode: G.mode, skipHandoff: G.skipHandoff, firstPlayer: G.winner != null ? G.winner : rint(G.players.length), seed: (Math.random() * 0xffffffff) >>> 0 };   // v4：av 透传（代码检查官 P0：热座 rematch 漏=全桌掉兜底头）
   startGame(cfg);
 });
 $('btn-result-home').addEventListener('click', quitToArcade);
@@ -2603,7 +2613,7 @@ async function boot() {
   if (AUTOTEST) {
     if (save) { resumeGame(save); return; }   // autotest 有档自动续局（探针 A12 需要）
     if (qs.get('net') === '1') { await netBootAutotest(); return; }   // E2E 联机：?net=1&room=&role=host|join[&autostart=1][&localnet=1]
-    startGame({ players: seatState.map(s => ({ name: s.name, bot: s.bot })), mode: 'dark', skipHandoff: true });
+    const at = new Set(); startGame({ players: seatState.map((s, i) => ({ name: s.name, bot: s.bot, av: P.seatAvatarRep(s.name, i, at) })), mode: 'dark', skipHandoff: true });
     return;
   }
   if (save) {
@@ -2620,7 +2630,7 @@ async function boot() {
 function resumeGame(sv) {
   wildGLCancel();   // 续局收口:GL 选色会话退役清闸门
   G.mode = sv.mode; G.skipHandoff = sv.skipHandoff;
-  G.players = sv.players.map((p, i) => ({ name: p.name, bot: p.bot, colorIdx: p.colorIdx != null ? p.colorIdx : i, hand: p.hand.map(cd => ({ ...cd })) }));
+  G.players = sv.players.map((p, i) => ({ name: p.name, bot: p.bot, colorIdx: p.colorIdx != null ? p.colorIdx : i, av: p.av || '', hand: p.hand.map(cd => ({ ...cd })) }));
   G.deck = sv.deck.map(cd => ({ ...cd })); G.discard = sv.discard.map(cd => ({ ...cd }));
   G.dir = sv.dir; G.cur = sv.cur; G.turn = sv.turn;
   G.drawnThisTurn = sv.drawnThisTurn; G.passStreak = sv.passStreak || 0;

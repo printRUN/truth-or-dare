@@ -141,6 +141,8 @@
 
   /* setup */
   .seat-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .seat-ava { width: 34px; height: 34px; border-radius: 10px; background: rgba(255,255,255,0.08); flex: 0 0 auto; object-fit: cover; }
+  .hand-ava { width: 72px; height: 72px; border-radius: 20px; border: 3px solid #fff; margin-bottom: 6px; background: rgba(255,255,255,0.1); object-fit: cover; }
   .seat-row .dot { width: 14px; height: 14px; border-radius: 50%; flex: 0 0 auto; }
   .seat-row input[type="text"] { flex: 1; min-height: 42px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.06); color: #fff; font-size: 0.95rem; }
   .seat-row input[type="text"]:focus { outline: none; border-color: var(--accent-cyan); }
@@ -363,6 +365,7 @@
 <div id="handoff" class="ovl" hidden>
   <div class="panel">
     <p class="hand-emoji">📱</p>
+    <img id="handoff-ava" class="hand-ava" alt="" hidden>
     <h2 id="handoff-name">请把手机交给 XX</h2>
     <p class="sub">其他人先移开视线 😉</p>
     <button id="btn-handoff-go" class="btn-primary" type="button">我是 XX，开始回合</button>
@@ -788,7 +791,7 @@ function syncNetHUD() {
 }
 // HUD 玩家条头像（tod 配方协议；无 av 的本地热座回落色点）
 function netAvatarHtml(i) {
-  const rep = NETMODE && NDOC && NDOC.players[i] && NDOC.players[i].av;
+  const rep = (NETMODE ? (NDOC && NDOC.players[i] && NDOC.players[i].av) : (G.players[i] && G.players[i].av)) || '';   // v4 热座兜底
   if (!rep) return '';
   const uri = P.avatarUri(rep);
   return uri ? `<img class="pav" src="${uri.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" alt="" onerror="this.style.visibility='hidden'">` : '';   // 转义纵深：组件侧已有 dataURL 白名单；onerror=双故障时隐藏而非裂图
@@ -944,6 +947,7 @@ let turnRing = null;   // 行动者脚下光环（精美化 S6，终审 F-4：y=
 let tileMeshes = [], ownerMarks = [], pawnObjs = [], plateSprites = [], diceObjs = [];
 let cardMesh = null, cardPivot = null, cardBackMesh = null;   // 双面卡：face 正面 / back 背花（精美化 K1）
 const D2R = Math.PI / 180;
+const OV_TGT_K = 0.22, OV_DIST_ADD = 1.9;   // 全景档行动者偏移（v4 value P1-3：0/4 出画修复；0.22/1.9 实测校准——GO 聚集档行动者 cy 849>800 出画 49px；k 0.14→0.22 + dist+1.9 实测 cy 849→744（ev-ava4-pano 钉 <vh−40））
 const rig = { az: 0, elev: 42 * D2R, dist: 7.2, focusK: 1, token: 0, raf: 0, tgt: { x: 0, y: 0.3, z: 0 }, autoDist: true };
 const TGT = { x: 0, y: 0.3, z: 0 };
 const REF_ELEV = 42 * D2R;          // 距离反推的参考仰角：不读 rig.elev（近景抬角后会把 dist 越算越大）
@@ -1000,13 +1004,15 @@ function focusPawn(pi, back, done) {
   const p = pawnObjs[pi]; if (!p || !G.gl) { if (done) done(); return; }
   const az = Math.atan2(p.position.x - TGT.x, p.position.z - TGT.z);
   // 时长放缓（用户点名「推拉缓慢防晕」）：back=回全景档（az 转身放在远景做，角速度低）1100ms；近景 1250ms
-  if (back) { rig.autoDist = true; camTo({ az, elev: REF_ELEV, dist: baseDist(), focusK: 1, tgt: { x: TGT.x, y: TGT.y, z: TGT.z } }, 1100, done); }
+  if (back) {   // 全景档：tgt 向行动者偏移 OV_TGT_K + 距离余量 OV_DIST_ADD，行动者恒入画（0/4 出画修复，value P1-3）
+    rig.autoDist = true;
+    camTo({ az, elev: REF_ELEV, dist: baseDist() + OV_DIST_ADD, focusK: 1, tgt: { x: TGT.x + (p.position.x - TGT.x) * OV_TGT_K, y: TGT.y, z: TGT.z + (p.position.z - TGT.z) * OV_TGT_K } }, 1100, done); }
   // 近景：dist 用绝对距离（竖屏不再被全景距离连带），lookAt 向棋子偏 35% 把棋子抬到画面中上安全区
   // （2026-09-24 起 approachTurn 不再推近，本分支暂无调用方；走位跟随的实况目标是 movePawn 里的 tgt=棋子×0.8，摇骰前镜头停全景）
   else { rig.autoDist = false; camTo({ az, elev: 55 * D2R, dist: nearDist(), focusK: 1, tgt: { x: p.position.x * 0.35, y: TGT.y, z: p.position.z * 0.35 } }, 1250, done); }
 }
 function atOverview() {   // 全景档判据：回程补间/快照回景落定后为真；近景跟随期（autoDist=false）恒假
-  return rig.autoDist && Math.abs(rig.dist - baseDist()) < 0.3 && Math.abs(rig.tgt.x - TGT.x) < 0.05 && Math.abs(rig.tgt.z - TGT.z) < 0.05;
+  return rig.autoDist && Math.abs(rig.dist - baseDist() - OV_DIST_ADD) < 0.3;   // v4：tgt 带行动者偏移后判据收敛到 dist+autoDist 两条件
 }
 function approachTurn(pi, done) {   // 等待期全景档（2026-09-24 用户点名「没摇骰子一直大图可见全桌，骰后人物动才推近」）：
                                     // 摇骰前镜头只停全景并对准本行动者；推近交给 movePawn 走位跟随（同位续掷/免罚卡出狱也统一回全景）
@@ -1074,7 +1080,7 @@ function sizeScene() {
   renderer.setSize(innerWidth, innerHeight);
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
-  if (rig.autoDist) rig.dist = baseDist();   // 近景期间不覆写（否则 resize/降级瞬间把 dist 打回全景）
+  if (rig.autoDist) rig.dist = baseDist() + OV_DIST_ADD;   // 近景期间不覆写（否则 resize/降级瞬间把 dist 打回全景）；v4 全景档带行动者余量（覆盖点：不加这行 OV_DIST_ADD 每帧被抹掉）
   camApply();
 }
 function mkTex(w, h, draw) {
@@ -1499,7 +1505,11 @@ function acquireFaceTex(colorIdx, uri) {
   faceTexCache.set(key, e);
   return e;
 }
-function paintPlate(ctx, w, h, p, avaCanvas) {   // 深色玻璃胶囊 + 玩家色描边（精美化 S5 原样提取）；有头像画 r11 圆头像替代 r9 色点（drawImage 缓存 canvas=独立纹理实例）
+function avBgColor(av) {   // 头像配方底色（dcb.b）→ css 色；无配方/无底色返回 null（调用方回落白环）（value P1-1 名牌底色环）
+  try { if (av && av.startsWith('dcb:')) { const r = JSON.parse(av.slice(4)); if (r && typeof r.b === 'string' && /^[0-9a-f]{6}$/i.test(r.b)) return '#' + r.b; } } catch (e) {}
+  return null;
+}
+function paintPlate(ctx, w, h, p, avaCanvas, av) {   // 深色玻璃胶囊 + 玩家色描边（精美化 S5 原样提取）；有头像画 r11 圆头像替代 r9 色点（drawImage 缓存 canvas=独立纹理实例）；av=头像 rep（环色取配方底色）
   const pc = PLAYER_COLORS[p.colorIdx];
   ctx.fillStyle = 'rgba(10,8,20,0.78)';
   roundRectPath(ctx, 3, 6, w - 6, h - 12, 24); ctx.fill();
@@ -1511,7 +1521,7 @@ function paintPlate(ctx, w, h, p, avaCanvas) {   // 深色玻璃胶囊 + 玩家�
     ctx.beginPath(); ctx.arc(22, h / 2, 11, 0, 7); ctx.clip();
     ctx.drawImage(avaCanvas, 11, h / 2 - 11, 22, 22);
     ctx.restore();
-    ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1.5;
+    ctx.strokeStyle = avBgColor(av || p.av) || 'rgba(255,255,255,0.6)'; ctx.lineWidth = 2;   // 底色环=撞款时的身份冗余（value P1-1）
     ctx.beginPath(); ctx.arc(22, h / 2, 11, 0, 7); ctx.stroke();
   } else {
     ctx.fillStyle = pc;
@@ -1523,10 +1533,10 @@ function paintPlate(ctx, w, h, p, avaCanvas) {   // 深色玻璃胶囊 + 玩家�
   ctx.textBaseline = 'middle';
   ctx.fillText(truncate(p.name, 4), 38, h / 2 + 1);
 }
-function repaintPlateAva(i, p, e, key) {   // 名牌头像重绘单出口（独立 mkTex 实例 drawImage 缓存 canvas——禁共享缓存 tex 过 buildPawns 名牌重建的 dispose 路径）
+function repaintPlateAva(i, p, e, key, av) {   // 名牌头像重绘单出口（独立 mkTex 实例 drawImage 缓存 canvas——禁共享缓存 tex 过 buildPawns 名牌重建的 dispose 路径）；av=头像 rep（环色）
   const sp = plateSprites[i]; if (!sp) return;
   const old = sp.material.map;
-  sp.material.map = mkTex(256, 64, (ctx, w, h) => paintPlate(ctx, w, h, p, (e.loaded || e.fb) ? e.canvas : null));
+  sp.material.map = mkTex(256, 64, (ctx, w, h) => paintPlate(ctx, w, h, p, (e.loaded || e.fb) ? e.canvas : null, av || p.av));
   if (old) old.dispose();
   sp.userData.avaKey = key + ((e.loaded || e.fb) ? '!ok' : '');
 }
@@ -1618,7 +1628,7 @@ function applyFeats(grp, e) {   // 特征→头子树单出口（expert-eng P0-5
   if (typeof AV3 === 'undefined' || !AV3 || !AV3.buildAvatarHead) { applyHeadPalette(grp, e); return; }
   if (!grp || !grp.userData.headGrp || !e || !e.loaded) return;
   const feats = e.feats || null;
-  const sig = feats ? [feats.style, feats.glasses, feats.beard, feats.skin, feats.hair, feats.mouth].join('|') : 'fb';
+  const sig = feats ? [feats.style, feats.glasses, feats.beard, feats.skin, feats.hair, feats.mouth, feats.mouthWide ? 'w' : '', feats.hairLen || 0, feats.hairWid || 0].join('|') : 'fb';   // v4：+mouthWide/hairLen/hairWid（eng P0-3：连续参数驱动几何，漏=旧头驻留）
   if (grp.userData.featsSig === sig) return;
   grp.userData.featsSig = sig;
   const headGrp = grp.userData.headGrp;
@@ -1638,7 +1648,7 @@ function syncPawnFaces() {   // updateHUD 尾 diff：avKey 变了才换脸/重�
   if (!G.gl) return;
   G.players.forEach((p, i) => {
     const grp2 = pawnObjs[i]; if (!grp2 || !grp2.userData.hairMat) return;
-    const av = (NETMODE && NDOC && NDOC.players[i] && NDOC.players[i].av) || '';
+    const av = (NETMODE ? (NDOC && NDOC.players[i] && NDOC.players[i].av) : (G.players[i] && G.players[i].av)) || '';   // v4 热座：G.players.av 兜底（eng P0-4）
     const uri = av ? P.avatarUri(av) : '';
     const key = uri ? p.colorIdx + '|' + uri : 'fb:' + p.colorIdx;
     if (grp2.userData.faceKey !== key) {   // 头像轮二阶：头=真几何（发色走 palette），名牌仍画真实头像
@@ -1648,7 +1658,7 @@ function syncPawnFaces() {   // updateHUD 尾 diff：avKey 变了才换脸/重�
     const sp = plateSprites[i];
     if (sp) {
       const e = acquireFaceTex(p.colorIdx, uri);
-      if (sp.userData.avaKey !== key + ((e.loaded || e.fb) ? '!ok' : '')) repaintPlateAva(i, p, e, key);   // 图 decode 完成前先色点/占位（onload 里 repaintPlateAva 直接补拍，不依赖下一次 updateHUD）
+      if (sp.userData.avaKey !== key + ((e.loaded || e.fb) ? '!ok' : '')) repaintPlateAva(i, p, e, key, av);   // 图 decode 完成前先色点/占位（onload 里 repaintPlateAva 直接补拍，不依赖下一次 updateHUD）
     }
   });
 }
@@ -1671,7 +1681,8 @@ function buildPawns() {
     body.position.y = 0.17; body.castShadow = true;
     const headGrp = new THREE.Group();   // 头独立组：billboard yaw 写这里（身份永不换，applyFeats 只换孩子）；特征化几何头（avatar-features.js 单一来源）
     headGrp.position.y = 0.375;   // 头嵌锥顶（去棒棒糖间隙）
-    const key0 = (NETMODE && NDOC && NDOC.players[i] && NDOC.players[i].av) ? p.colorIdx + '|' + P.avatarUri(NDOC.players[i].av) : 'fb:' + p.colorIdx;
+    const av0 = (NETMODE ? (NDOC && NDOC.players[i] && NDOC.players[i].av) : (G.players[i] && G.players[i].av)) || '';
+    const key0 = av0 ? p.colorIdx + '|' + P.avatarUri(av0) : 'fb:' + p.colorIdx;
     const e0 = paletteCache.get(key0);
     const feats0 = e0 && e0.loaded && e0.feats ? e0.feats : undefined;   // 缓存命中带特征（remapPawns 重建不闪脸）
     const head = (typeof AV3 !== 'undefined' && AV3 && AV3.buildAvatarHead) ? AV3.buildAvatarHead(0.1, p.colorIdx, feats0, fallbackHair) : defaultHead(0.1, p.colorIdx, fallbackHair);   // 保险丝：共享件缺失退极简默认头
@@ -1681,7 +1692,7 @@ function buildPawns() {
     grp.userData.mat = mat; grp.userData.baseColor = mat.color.getHex();   // W3 倒地变灰/新局复位的材质锚点（body/head 共享同一 mat 实例）
     grp.userData.headGrp = headGrp; grp.userData.hairMat = head.hairMat; grp.userData.headMats = head.mats; grp.userData.faceKey = '';   // 头像锚（palette 同步 + 淡出拍同步淡头）
     grp.userData.colorIdx = p.colorIdx; grp.userData.feats = feats0 || null;
-    grp.userData.featsSig = feats0 ? [feats0.style, feats0.glasses, feats0.beard, feats0.skin, feats0.hair, feats0.mouth].join('|') : 'fb';   // applyFeats 幂等门初值
+    grp.userData.featsSig = feats0 ? [feats0.style, feats0.glasses, feats0.beard, feats0.skin, feats0.hair, feats0.mouth, feats0.mouthWide ? 'w' : '', feats0.hairLen || 0, feats0.hairWid || 0].join('|') : 'fb';   // applyFeats 幂等门初值（v4 同步 eng P0-3）
     scene.add(grp); pawnObjs[i] = grp;
     const tex = mkTex(256, 64, (ctx, w, h) => paintPlate(ctx, w, h, p, null));   // 头像轮：名牌绘制提取为 paintPlate（syncPawnFaces 重绘同源）
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
@@ -1973,7 +1984,7 @@ function saveGame() {
       v: 1, at: Date.now(), phase: G.phase, turn: G.turn, doubles: G.doubles,
       roundLimit: G.roundLimit, skipHandoff: G.skipHandoff, rngA: rngBox.a, seed: G.seed,
       map: CUR_MAP_ID,   // 多地图（SPEC §1.6c）：旧档无此字段按 classic 回落
-      players: G.players.map(p => ({ name: p.name, bot: p.bot, colorIdx: p.colorIdx, cash: p.cash, pos: p.pos, jailed: p.jailed, jailTurns: p.jailTurns, jailCards: p.jailCards, bankrupt: p.bankrupt, turnsTaken: p.turnsTaken, visited: p.visited || [], marketCards: p.marketCards || 0 })),
+      players: G.players.map(p => ({ name: p.name, bot: p.bot, colorIdx: p.colorIdx, av: p.av || '', cash: p.cash, pos: p.pos, jailed: p.jailed, jailTurns: p.jailTurns, jailCards: p.jailCards, bankrupt: p.bankrupt, turnsTaken: p.turnsTaken, visited: p.visited || [], marketCards: p.marketCards || 0 })),
       owners: G.owners,
       decks: G.decks,
     }));
@@ -2052,7 +2063,7 @@ function startGame(cfg) {
   applyMap(cfg.map || CUR_MAP_ID);   // 开局定图（rematch/联机不传时沿用当前图——挑刺 F11：NDOC.game 已被置 null 不能回读）
   G.roundLimit = cfg.roundLimit; G.skipHandoff = cfg.skipHandoff;
   G.players = cfg.players.map((p, i) => ({
-    name: p.name, bot: !!p.bot, colorIdx: i, cash: START_CASH, pos: 0,
+    name: p.name, bot: !!p.bot, colorIdx: i, av: p.av || '', cash: START_CASH, pos: 0,
     jailed: false, jailTurns: 0, jailCards: 0, bankrupt: false, turnsTaken: 0, visited: [], marketCards: 0,
   }));
   G.owners = new Array(24).fill(null);
@@ -2096,6 +2107,8 @@ function beginTurn() {
   } else {
     $('handoff-name').textContent = `请把手机交给 ${p.name}`;
     $('btn-handoff-go').textContent = `我是 ${p.name}，开始回合`;
+    const hava = $('handoff-ava');
+    if (hava) { const huri = p.av ? P.avatarUri(p.av) : ''; hava.hidden = !huri; if (huri) hava.src = huri; hava.style.borderColor = PLAYER_COLORS[p.colorIdx]; }   // 交接卡头像+座位色描边（value P1-2）
     $('handoff').hidden = false;
     hideActions();
     SFX.pop();   // 交接卡出现提示音
@@ -3210,7 +3223,7 @@ function revealCard(kind, text) {
             const k2 = Math.min(1, (now2 - t1) / (outDur * SPEED));
             setCardOpacity(1 - k2);
             if (k2 < 1) requestAnimationFrame(out);
-            else { cardPivot.visible = false; setCardOpacity(1); rig.autoDist = true; camTo({ elev: REF_ELEV, dist: baseDist(), focusK: 1 }, 1000); res(); }
+            else { cardPivot.visible = false; setCardOpacity(1); rig.autoDist = true; camTo({ elev: REF_ELEV, dist: baseDist() + OV_DIST_ADD, focusK: 1 }, 1000); res(); }   // v4：回景同吃全景余量（否则 atOverview 判据失配）
           };
           requestAnimationFrame(out);
         }, 1400 * SPEED); }
@@ -3282,7 +3295,7 @@ $('btn-rematch').addEventListener('click', () => {
     else toast('👑 等房主开新局', '', 2600);
     return;
   }
-  const cfg = { players: G.players.map(p => ({ name: p.name, bot: p.bot })), roundLimit: G.roundLimit, skipHandoff: G.skipHandoff, seed: (Math.random() * 0xffffffff) >>> 0 };
+  const cfg = { players: G.players.map(p => ({ name: p.name, bot: p.bot, av: p.av || '' })), roundLimit: G.roundLimit, skipHandoff: G.skipHandoff, seed: (Math.random() * 0xffffffff) >>> 0 };   // av 透传：同名同头像跨局稳定
   startGame(cfg);
 });
 $('btn-result-home').addEventListener('click', quitToArcade);
@@ -3344,10 +3357,14 @@ function renderSeats() {
   seatState.forEach((s, i) => {
     const row = document.createElement('div');
     row.className = 'seat-row';
-    row.innerHTML = `<span class="dot" style="background:${PLAYER_COLORS[i]}"></span>
+    row.innerHTML = `<img class="seat-ava" alt="">
+      <span class="dot" style="background:${PLAYER_COLORS[i]}"></span>
       <input type="text" maxlength="8" value="${escapeHtml(s.name)}" aria-label="玩家${i + 1}名字">
       <span class="bot-toggle ${s.bot ? 'on' : ''}" role="button" tabindex="0">🤖 机器人</span>`;
-    row.querySelector('input').addEventListener('input', e => { s.name = e.target.value; });
+    const avaImg = row.querySelector('.seat-ava');
+    const paintAva = () => { const uri = P.avatarUri(P.seatAvatarRep(s.name.trim() || '无名氏', i, null)); if (uri) avaImg.src = uri; };   // 热座座位头像预览（与开局派发同函数=所见即所得）
+    paintAva();
+    row.querySelector('input').addEventListener('input', e => { s.name = e.target.value; paintAva(); });
     const bt = row.querySelector('.bot-toggle');
     const flip = () => { s.bot = !s.bot; bt.classList.toggle('on', s.bot); SFX.tap(); };
     bt.addEventListener('click', flip);
@@ -3365,7 +3382,8 @@ $('round-limit').addEventListener('change', e => {
 });
 $('btn-start').addEventListener('click', () => {
   SFX.tap();
-  const players = seatState.map(s => ({ name: s.name.trim() || '无名氏', bot: s.bot }));
+  const taken = new Set();   // 构造性去重：同局座位 rep 不撞（party-net seatAvatarRep 保证）
+  const players = seatState.map((s, i) => ({ name: s.name.trim() || '无名氏', bot: s.bot, av: P.seatAvatarRep(s.name.trim() || '无名氏', i, taken) }));
   if (!players.some(p => !p.bot)) players[0].bot = false;   // 热座至少留 1 真人（纯围观用 2D 投屏等未来方案）
   try { localStorage.setItem('mono:names', JSON.stringify(players.map(p => p.name))); } catch (e) {}
   try { localStorage.setItem('mono:last', 'monopoly'); } catch (e) {}
@@ -3502,7 +3520,7 @@ async function boot() {
   const save = loadSave();
   if (AUTOTEST) {
     if (qs.get('net') === '1') { await netBootAutotest(); return; }   // E2E 联机：?net=1&room=&role=host|join[&autostart=1][&localnet=1]
-    startGame({ players: seatState.map(s => ({ name: s.name, bot: s.bot })), roundLimit: 20, skipHandoff: true });
+    const at = new Set(); startGame({ players: seatState.map((s, i) => ({ name: s.name, bot: s.bot, av: P.seatAvatarRep(s.name, i, at) })), roundLimit: 20, skipHandoff: true });
     return;
   }
   if (save) {
@@ -3574,6 +3592,7 @@ if (AUTOTEST || qs.get('inspect') === '1') {   // inspect=1：真机路径（SPE
     }),   // 头像特征轮取证：头=特征化几何（loaded&&!fb=特征提取完成），feats=特征向量，yaw=billboard
     platesAva: () => plateSprites.map(s => s ? s.userData.avaKey : null),   // 头像轮：名牌头像绘制键（'!ok' 后缀=已用 decode 完成的图重绘）——命名避让并行 W3 已占用的 plates
     camPos: () => camera.position.toArray(),
+    camPr: () => camera ? { i: camera.matrixWorldInverse.elements.slice(), p: camera.projectionMatrix.elements.slice() } : null,   // v4 全景入画取证：相机矩阵（只读，AUTOTEST 门控同其他访问器）
     remapPawns: () => buildPawns(),   // 纹理缓存跨重建存活断言用（acquireFaceTex 独占所有权守卫）
     distAnchor: () => ({ near: G.gl && camera ? nearDist() : 0, base: G.gl && camera ? baseDist() : 0 }),   // 探针用：当前视口的近景/全景锚距
     pawnWorld: () => pawnObjs.map(p => (p ? [p.position.x, p.position.y, p.position.z] : null)),

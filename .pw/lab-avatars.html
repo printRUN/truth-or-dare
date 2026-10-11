@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>avatar lab</title>
+<style>
+  body { margin: 0; background: #14142a; color: #eee; font: 12px/1.4 system-ui; }
+  #grid { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; }
+  .cell { width: 104px; text-align: center; }
+  .cell img2 { display: block; }
+  .cell .ava { width: 52px; height: 52px; border-radius: 8px; background: #fff2; }
+  .cell canvas { width: 150px; height: 150px; display: block; margin: 2px auto 0; background: radial-gradient(circle at 50% 30%, #26264a, #14142a); border-radius: 10px; }
+  .cell .cap { font-size: 9px; color: #9aa; word-break: break-all; }
+</style>
+</head>
+<body>
+<div id="grid"></div>
+<script src="../dicebear-local.js"></script>
+<script>
+/* ?v=next → 加载 v4 草稿（lab-ava4-next.js）做 A/B；默认加载真源码 avatar-features.js */
+if (new URLSearchParams(location.search).get('v') === 'next') document.write('<script src="lab-ava4-next.js"><\/script>');
+else document.write('<script src="../avatar-features.js"><\/script>');
+</script>
+<script src="../three.r128.js"></script>
+<script>
+'use strict';
+/* 头像实验室：N 个 (style,seed) 头像 → extractAvatarFeatures → buildAvatarHead 一格一格渲染。
+   产出 window.__LAB = { done, rows:[{style,seed,feats,sig}], stats:{distinct, collide, classHist, colorHist} }。
+   sig = 3D 头的「长相签名」（style|glasses|beard|hairClampedColor）——签名相同 = 玩家在桌上看到的两个头不可分辨。 */
+const POPULAR = ['adventurer','avataaars','big-smile','lorelei','micah','miniavs','notionists','open-peeps','personas','croodles','dylan','toon-head','pixel-art','big-ears'];
+const SEEDS = ['TOD-A1','TOD-B2','TOD-C3','TOD-D4'];
+const PRESET_BGS = { 'pixel-art': ['f7eeda','e3ece7','ece2f2','dee9f3','f7e3dd','f1ebda','e7e7ef','eaebeb','f7eeda','e3ece7','ece2f2','dee9f3','f7e3dd','f1ebda'] };
+const BGS = ['f7eeda','e3ece7','ece2f2','dee9f3'];
+
+function buildCases() {
+  const cases = [];
+  // 24 预设（14 pixel-art + 10 shapes——shapes 是非人脸，期望走非人/兜底路径，也算区分度素材）
+  for (let i = 0; i < 14; i++) cases.push({ style: 'pixel-art', seed: 'TOD-P' + String(i).padStart(2, '0'), bg: PRESET_BGS['pixel-art'][i], tag: '预设' + (i + 1) });
+  for (let i = 14; i < 24; i++) cases.push({ style: 'shapes', seed: 'TOD-S' + String(i).padStart(2, '0'), bg: ['e7e7ef','eaebeb','f7eeda','e3ece7','ece2f2','dee9f3','f7e3dd','f1ebda','e7e7ef','eaebeb'][i - 14], tag: '预设' + (i + 1) });
+  // 热门风格 × 4 seeds
+  for (const st of POPULAR) for (let k = 0; k < SEEDS.length; k++) cases.push({ style: st, seed: SEEDS[k] + '-' + k, bg: ['f7eeda','e3ece7','ece2f2','dee9f3'][k], tag: st });
+  // 形状覆盖加撒（v4）：刺头/丸子/双马尾/卷发在自然 seed 分布里出现率低，加撒 6 seed × 6 风格压测分类器
+  for (const st of ['adventurer', 'toon-head', 'dylan', 'big-ears', 'avataaars', 'open-peeps']) {
+    ['ZZ-A7', 'ZZ-K3', 'ZZ-Q9', 'ZZ-M2', 'ZZ-T4', 'ZZ-B8'].forEach((sd, k) => cases.push({ style: st, seed: sd + '-' + st.slice(0, 2) + k, bg: BGS[k % 4], tag: st + '+加撒' }));
+  }
+  return cases;
+}
+const clampHex = c => AV3.clampColor(c, 0.10, 0.68, 0.60);
+(async () => {
+  const grid = document.getElementById('grid');
+  const rows = [];
+  for (const c of buildCases()) {
+    let uri = '';
+    try {
+      const opts = { seed: c.seed, backgroundColor: [c.bg] };
+      uri = 'data:image/svg+xml;utf8,' + encodeURIComponent(DiceBearLocal.diceAvatar(c.style, opts).toString());
+    } catch (e) { continue; }
+    const img = new Image();
+    const loaded = new Promise(res => { img.onload = res; img.onerror = res; img.src = uri; });
+    await loaded;
+    let feats = null;
+    try { feats = await AV3.extractAvatarFeatures(img, { style: c.style, seed: c.seed }); } catch (e) {}
+    let sig = 'fb';
+    if (feats && feats.person) sig = [feats.style, feats.glasses === true ? 'g' : (feats.glasses === 'dark' ? 'd' : ''), feats.beard ? 'b' : '', feats.hair ? clampHex(feats.hair) : '', (feats.hairLen || 0).toFixed(1), feats.skin ? AV3.skinClamp(feats.skin) : ''].join('|');
+    rows.push({ style: c.style, seed: c.seed, tag: c.tag, feats, sig, uri });
+  }
+  // 3D 渲染（一个 GL 上下文逐头出图）
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(300, 300);
+  const scene = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 20);
+  cam.position.set(0, 1.05, 2.55); cam.lookAt(0, 0.02, 0);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+  const dl = new THREE.DirectionalLight(0xfff2dd, 0.95); dl.position.set(1.5, 3, 2); scene.add(dl);
+  const dl2 = new THREE.DirectionalLight(0x8899ff, 0.3); dl2.position.set(-2, 1, -1); scene.add(dl2);
+  for (const r of rows) {
+    const cell = document.createElement('div'); cell.className = 'cell';
+    const im = document.createElement('img'); im.className = 'ava'; im.src = r.uri;
+    const cv = document.createElement('canvas'); cv.width = cv.height = 150;
+    const cap = document.createElement('div'); cap.className = 'cap';
+    cap.textContent = r.tag + ' · ' + (r.feats && r.feats.person ? (r.feats.style + (r.feats.hairGuess ? '(色猜)' : '') + (r.feats.glasses ? (r.feats.glasses === 'dark' ? ' 墨镜' : ' 镜') : '') + (r.feats.beard ? ' 须' : '')) : '兜底');
+    cell.append(im, cv, cap); grid.append(cell);
+    let head = null;
+    try { head = AV3.buildAvatarHead(0.5, 0, r.feats || { person: r.feats ? r.feats.person : false, style: 'bald' }, () => '#4a382c'); } catch (e) {}
+    if (head) {
+      head.grp.rotation.y = 0.42;   // 3/4 侧脸朝镜头（+z 脸朝向、相机在 +z）
+      scene.add(head.grp);
+      renderer.render(scene, cam);
+      cv.getContext('2d').drawImage(renderer.domElement, 0, 0, 150, 150);
+      scene.remove(head.grp);
+      head.grp.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+      r.head = cv.toDataURL('image/png');
+    }
+  }
+  // 统计：3D 长相签名碰撞率（人脸头像里）
+  const faces = rows.filter(r => r.feats && r.feats.person);
+  const bySig = new Map();
+  for (const r of faces) bySig.set(r.sig, (bySig.get(r.sig) || 0) + 1);
+  const classHist = {}, colorHist = {};
+  for (const r of faces) {
+    const st = r.feats.style; classHist[st] = (classHist[st] || 0) + 1;
+    const hc = r.feats.hair ? clampHex(r.feats.hair) : 'guess'; colorHist[hc] = (colorHist[hc] || 0) + 1;
+  }
+  let collide = 0; for (const n of bySig.values()) collide += n - 1;
+  window.__LAB = {
+    done: true, total: rows.length, faces: faces.length,
+    stats: { distinct: bySig.size, collide, classHist, colorDistinct: Object.keys(colorHist).length, colorHist },
+    rows: rows.map(r => ({ tag: r.tag, style: r.style, seed: r.seed, sig: r.sig, feats: r.feats, uri: r.uri, head: r.head || '' })),
+  };
+  document.title = 'lab-done';
+})();
+</script>
+</body>
+</html>

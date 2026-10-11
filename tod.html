@@ -7517,7 +7517,7 @@ setTimeout(() => {
   function applyTodFeats(ch, feats) {   // 特征→头子树单出口：builder 颅球=u.head 本体复用（摘 builder 颅球，肤色上头球）；emoji 双向可逆
     if (typeof AV3 === 'undefined' || !AV3 || !AV3.buildAvatarHead) return;   // 保险丝：共享件失败保持贴片脸
     const u = ch.userData;
-    const sig = feats ? [feats.style, feats.glasses, feats.beard, feats.skin, feats.hair, feats.mouth].join('|') : 'patch';
+    const sig = feats ? [feats.style, feats.glasses, feats.beard, feats.skin, feats.hair, feats.mouth, feats.mouthWide ? 'w' : '', feats.hairLen || 0, feats.hairWid || 0].join('|') : 'patch';   // v4：+mouthWide/hairLen/hairWid（eng P0-3：连续参数驱动几何，漏=旧头驻留）
     if (u.featsSig === sig) return;
     u.featsSig = sig;
     if (!feats) {

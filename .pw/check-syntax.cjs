@@ -18,7 +18,7 @@ const NEED_FEAT = ['monopoly.html', 'uno.html', 'tod.html'];   // 头像特征�
 const SHA_EXPECT = {
   'three.r128.js': '9274bbcec8d96168',
   'dicebear-local.js': 'cab07a03ec0a1048',
-  'avatar-features.js': '68ff8336404dfaff',
+  'avatar-features.js': '092fb2426ff079ef',
 };
 const sha256 = f => crypto.createHash('sha256').update(fs.readFileSync(`${ROOT}/${f}`, 'utf8').replace(/\r\n/g, '\n')).digest('hex');
 let bad = 0, total = 0;

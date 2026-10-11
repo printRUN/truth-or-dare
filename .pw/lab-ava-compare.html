@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>avatar compare</title>
+<style>
+  body { margin: 0; background: #14142a; color: #eee; font: 13px/1.5 system-ui; }
+  h1 { font-size: 16px; padding: 10px 14px 0; }
+  .row { display: flex; align-items: center; gap: 14px; padding: 8px 14px; border-bottom: 1px solid #ffffff14; }
+  .row img.ava { width: 72px; height: 72px; border-radius: 10px; background: #fff2; }
+  .row img.head3d { width: 150px; height: 150px; border-radius: 14px; background: radial-gradient(circle at 50% 30%, #26264a, #14142a); }
+  .row .cap { flex: 1; font-size: 12px; color: #aac; white-space: pre-line; }
+  .row .cap b { color: #ee8; }
+  .head { display: flex; flex-direction: column; align-items: center; font-size: 11px; color: #99a; gap: 2px; }
+</style>
+</head>
+<body>
+<h1>发型 2D 相似度对照（同一头像：2D 原图 | 旧 3D 头 | v4 新 3D 头）</h1>
+<div id="rows"></div>
+<script>
+'use strict';
+/* 只做拼行：旧/新两份 lab JSON（probe-ava-compare.cjs 产出）按 style+seed 对齐。 */
+(async () => {
+  const oldJ = await (await fetch('shots/ava-cmp-old.json')).json();
+  const newJ = await (await fetch('shots/ava-cmp-new.json')).json();
+  const nby = new Map(newJ.rows.map(r => [r.style + '/' + r.seed, r]));
+  const clampHex = c => {   // 展示用粗略钳位（与 AV3.clampColor 同参，仅文字）
+    return c;
+  };
+  const interesting = r => {
+    const f = r.feats; if (!f || !f.person) return false;
+    return true;
+  };
+  // 选行：新类别每类 2 例（优先非 guess 一例+guess 一例），加上新旧类别不同的全部案例
+  const rowsNew = newJ.rows.filter(interesting);
+  const changed = rowsNew.filter(r => { const o = oldJ.rows.find(x => x.style === r.style && x.seed === r.seed); return o && o.feats && o.feats.style !== r.feats.style; });
+  const byClass = {};
+  for (const r of rowsNew) { const k = r.feats.style + (r.feats.hairGuess ? '!guess' : ''); (byClass[k] = byClass[k] || []).push(r); }
+  const pick = [];
+  for (const k of ['mohawk', 'spiky', 'flat', 'curly', 'fringe', 'bun', 'twin', 'long', 'afro', 'buzz', 'short!guess', 'bald']) {
+    if (byClass[k]) pick.push(...byClass[k].slice(0, 2));
+  }
+  const seen = new Set();
+  const finalRows = [];
+  for (const r of [...changed, ...pick]) {
+    const key = r.style + '/' + r.seed;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    finalRows.push(r);
+  }
+  const grid = document.getElementById('rows');
+  for (const r of finalRows) {
+    const o = oldJ.rows.find(x => x.style === r.style && x.seed === r.seed);
+    const row = document.createElement('div'); row.className = 'row';
+    const mk = (cls, src, label) => { const h = document.createElement('div'); h.className = 'head'; const im = document.createElement('img'); im.className = cls; im.src = src; h.append(im); h.insertAdjacentHTML('beforeend', label); return h; };
+    const cap = document.createElement('div'); cap.className = 'cap';
+    const fmt = f => f && f.person ? `${f.style}${f.hairGuess ? '(色猜)' : ''}${f.glasses === true ? ' +镜' : f.glasses === 'dark' ? ' +墨镜' : ''}${f.beard ? ' +须' : ''}  发${f.hair || '?'} len${(f.hairLen || 0).toFixed(1)} 肤${f.skin || '?'}` : '兜底头';
+    cap.innerHTML = `<b>${r.style}</b> / ${r.seed}\n旧: ${fmt(o && o.feats)}\n新: ${fmt(r.feats)}`;
+    row.append(mk('ava', r.uri, '2D 原图'), mk('head3d', (o && o.head) || '', '旧 3D'), mk('head3d', r.head || '', '新 3D'), cap);
+    grid.append(row);
+  }
+  document.title = 'compare-done ' + finalRows.length;
+})();
+</script>
+</body>
+</html>

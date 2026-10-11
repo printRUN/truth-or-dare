@@ -51,7 +51,7 @@ const norm = a => Math.atan2(Math.sin(a), Math.cos(a));
   await join.waitForFunction(() => window.__mono.faces().every(f => f && f.loaded && !f.fb && f.skin), null, { timeout: 20000 });
 
   const fH = await host.evaluate(() => window.__mono.faces());
-  ok(fH.length === 2 && fH[0].skin === '#9d5622' && fH[0].hair === '#debf7c' && fH[0].style === 'afro' && fH[1].skin === '#f6d2a7' && fH[1].hair === '#601c18' && fH[1].style === 'short', `host 端双棋子特征头到位（金值 skin/hair/style；got ${JSON.stringify(fH.map(f => [f.skin, f.hair, f.style]))}）`);
+  ok(fH.length === 2 && fH[0].skin === '#9d5622' && fH[0].hair === '#debf7c' && fH[0].style === 'afro' && fH[1].skin === '#f6d2a7' && fH[1].hair === '#601c18' && fH[1].style === 'flat', `host 端双棋子特征头到位（金值 skin/hair/style；avaprobeB style short→flat=ava4 平顶判定（目检 .pw/shots/ava-golds-check.png：2D 像素平头贴 flat 盒顶），肤发金值未漂；got ${JSON.stringify(fH.map(f => [f.skin, f.hair, f.style]))}）`);
   ok(fH.every(f => /^\d\|data:image\/svg/.test(f.key)), `faceKey=色座|解析后URI（${fH.map(f => f.key.slice(0, 16) + '…').join(',')}）`);
   const docH = await host.evaluate(() => window.__mono.net().doc.players.map(p => p.av));
   ok(docH[0] === AV_HOST && docH[1] === AV_JOIN, '房间文档携带双方 av（表单选择原样广播）');
@@ -89,12 +89,13 @@ const norm = a => Math.atan2(Math.sin(a), Math.cos(a));
   ok(fJ.length === 2 && fJ.every(f => f && f.loaded && !f.fb) && JSON.stringify(fJ.map(f => f.skin).sort()) === JSON.stringify(['#9d5622', '#f6d2a7']), 'join 端双棋子特征头到位（双端独立接线，双金值成对）');
   await join.screenshot({ path: path.join(SHOTS, 'ava-mono-net-join.png') });
 
-  // ── B. 热座档：无 av → 程序化 fallback 脸（确定性绘制；全桌统一有脸）──
+  // ── B. 热座档：seatAvatarRep 自动派发 dcb → 特征化 3D 头（v4 头像轮 B1，eng P1-4 断言改写）──
   const hs = await ctx.newPage(); watch(hs, 'hotseat');
   await hs.goto(`http://127.0.0.1:${PORT}/monopoly.html?autotest=1&q=hs`, { waitUntil: 'domcontentloaded' });
-  await hs.waitForFunction(() => window.__mono && window.__mono.faces().length === 2 && window.__mono.faces().every(f => f && f.fb && f.loaded && /^#[0-9a-f]{6}$/.test(f.hair)), null, { timeout: 15000 });
+  await hs.waitForFunction(() => window.__mono && window.__mono.faces().length === 2 && window.__mono.faces().every(f => f && !f.fb && f.loaded && f.skin), null, { timeout: 20000 });
   const fHS = await hs.evaluate(() => window.__mono.faces());
-  ok(fHS.every(f => f.fb && /^fb:\d$/.test(f.key)), `热座双棋子程序化脸（key=${fHS.map(f => f.key).join(',')}）`);
+  ok(fHS.every((f, i) => !f.fb && f.loaded && f.key.startsWith(i + '|data:image/svg')), `热座双棋子 dcb 特征头（key=${fHS.map(f => f.key.slice(0, 14)).join(',')}）`);
+  ok(new Set(fHS.map(f => f.hair + '|' + f.style)).size === 2, `热座两两互异（${fHS.map(f => f.style + '/' + f.hair).join(' vs ')}）`);
   await hs.evaluate(() => { window.__mono.forcePos(0, 12); window.__mono.forcePos(1, 14); });
   await sleep(1200);
   await hs.screenshot({ path: path.join(SHOTS, 'ava-mono-hotseat.png') });
