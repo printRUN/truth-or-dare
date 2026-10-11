@@ -2472,7 +2472,7 @@ $('btn-start').addEventListener('click', () => {
   try { localStorage.setItem('uno:names', JSON.stringify(players.map(p => p.name))); } catch (e) {}
   startGame({ players, mode: $('opt-light').checked ? 'light' : 'dark', skipHandoff: $('skip-handoff').checked });
 });
-$('btn-back-arcade').addEventListener('click', () => { warpBackTicket(); location.href = 'index.html'; });
+$('btn-back-arcade').addEventListener('click', quitToArcade);
 $('skip-handoff').addEventListener('change', () => { try { localStorage.setItem('uno:nohandoff', $('skip-handoff').checked ? '1' : '0'); } catch (e) {} });
 
 function openGenModal(bodyHtml, actions) {
@@ -2502,7 +2502,7 @@ $('btn-rules-top').addEventListener('click', () => openGenModal(RULES_HTML, [{ l
 $('btn-quit').addEventListener('click', () => {
   const inGame = G.phase !== 'SETUP' && G.phase !== 'OVER' && G.phase !== 'BOOT';
   openGenModal(`<p style="line-height:1.8">${inGame ? '对局已自动保存，下次进入可继续。<br>确定离开？' : '返回游戏中心？'}</p>`,
-    [{ label: '确定离开', fn: () => { warpBackTicket(); location.href = 'index.html'; } }, { label: '继续玩', fn: closeGenModal }]);
+    [{ label: '确定离开', fn: quitToArcade }, { label: '继续玩', fn: closeGenModal }]);
 });
 $('btn-sfx').addEventListener('click', () => { $('btn-sfx').textContent = SFX.toggle() ? '🔊' : '🔇'; });
 $('btn-sfx').textContent = SFX.on ? '🔊' : '🔇';
@@ -2519,7 +2519,7 @@ $('btn-rematch').addEventListener('click', () => {
   const cfg = { players: G.players.map(p => ({ name: p.name, bot: p.bot })), mode: G.mode, skipHandoff: G.skipHandoff, firstPlayer: G.winner != null ? G.winner : rint(G.players.length), seed: (Math.random() * 0xffffffff) >>> 0 };
   startGame(cfg);
 });
-$('btn-result-home').addEventListener('click', () => { warpBackTicket(); location.href = 'index.html'; });
+$('btn-result-home').addEventListener('click', quitToArcade);
 
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
 function pickHand(ev) {
@@ -2648,6 +2648,8 @@ function resumeGame(sv) {
   if (box) box.classList.add('warp-in');
 })();
 function warpBackTicket() { try { localStorage.setItem('tod:warp-back', JSON.stringify({ t: Date.now() })); } catch (e) {} }   // 返回游戏中心的 pull-back 票（index boot 读：<2500ms 新鲜才播 drop-back，读后即删；对齐 monopoly 同名助手）
+// 手动选择退出=直接退房（2026-10-11 用户点名）：回中心先 netLeave 清 netroom 回房票+关链路（与大厅「退出房间」按钮同语义），再导航
+function quitToArcade() { warpBackTicket(); if (joined) netLeave(true); location.href = 'index.html'; }
 requestAnimationFrame(tick);
 boot();
 

@@ -2111,10 +2111,17 @@ $('#in-room').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin()
 $('#btn-start').onclick = () => { sendAct({ t: 'start' }); SFX.play('deal'); };
 $('#btn-leave').onclick = () => { sendAct({ t: 'leave' }); leaveRoom(); try { localStorage.removeItem('cat:room'); } catch {} };   // 主动离开清回房票据：重开页面不再自动回房
 /* warp-back 票（2026-10-02 W1 衔接）：返回游戏中心前写 tod:warp-back（index boot 读 <2500ms 新鲜做四卡 pull-back 入场，读后即删）；
-   bombcat 无 loader，不加 arrival（brief 备案）。两处返回锚点（常驻右上 / 结算屏）各挂 1 行，默认导航照旧不劫持。 */
+   bombcat 无 loader，不加 arrival（brief 备案）。两处返回锚点（常驻右上 / 结算屏），默认导航照旧不劫持；
+   在房时先主动退房（2026-10-11 用户点名：手动退出=直接退房）——与 #btn-leave 同语义，顺带清 cat:room 防自动回房。 */
 ['lnk-arcade', 'res-home'].forEach(id => {
   const el = document.getElementById(id);
-  if (el) el.addEventListener('click', () => { try { localStorage.setItem('tod:warp-back', JSON.stringify({ t: Date.now() })); } catch (e) {} });
+  if (el) el.addEventListener('click', () => {
+    try { localStorage.setItem('tod:warp-back', JSON.stringify({ t: Date.now() })); } catch (e) {}
+    if (link && S) {   // 在房判据=S 非空（leaveRoom 置空；勿抄 pagehide 的 S.players.some(id==myId)——公开态玩家表对客人端不含自身，恒假）
+      sendAct({ t: 'leave' }); leaveRoom();
+      try { localStorage.removeItem('cat:room'); } catch (e) {}
+    }
+  });
 });
 $('#btn-draw').onclick = () => { sendAct({ t: 'draw' }); SFX.play('draw'); };
 $('#btn-endturn').onclick = () => { sendAct({ t: 'end' }); };

@@ -6641,10 +6641,13 @@ $('btn-leave-game').addEventListener('click', doLeave);
 })();
 // 返回游戏中心的三入口统一先写 pull-back 票（index boot 读：<2500ms 新鲜才播 drop-back，读后即删）
 function warpBackTicket() { try { localStorage.setItem('tod:warp-back', JSON.stringify({ t: Date.now() })); } catch (e) {} }
-$('btn-arcade-back').addEventListener('click', () => { warpBackTicket(); location.href = 'index.html'; });
-$('btn-home-lobby').addEventListener('click', () => { warpBackTicket(); location.href = 'index.html'; });
-$('btn-home-game').addEventListener('click', () => { warpBackTicket(); location.href = 'index.html'; });   // 对局工具行入口（取证：对局原本无游戏中心按钮）
-$('btn-home-result').addEventListener('click', () => { warpBackTicket(); location.href = 'index.html'; });
+// 手动选择退出=直接退房（2026-10-11 用户点名，反转旧「留票自动重join」决策）：回中心先走 doLeave——
+// 清 tod:tab 回房票+把自己从房间文档摘除+关链路；publish 的 ws.send 在当拍同步落地，导航不必等它（丢了还有心跳超时兜底）
+function quitToArcade() { warpBackTicket(); doLeave(); location.href = 'index.html'; }
+$('btn-arcade-back').addEventListener('click', quitToArcade);
+$('btn-home-lobby').addEventListener('click', quitToArcade);
+$('btn-home-game').addEventListener('click', quitToArcade);   // 对局工具行入口（取证：对局原本无游戏中心按钮）
+$('btn-home-result').addEventListener('click', quitToArcade);
 $('card-truth').addEventListener('click', () => choose('truth'));
 $('card-dare').addEventListener('click', () => choose('dare'));
 // 点击反馈：抽卡（选卡/卡堆）与翻牌共用按下回弹 + 涟漪 + 轻点击音

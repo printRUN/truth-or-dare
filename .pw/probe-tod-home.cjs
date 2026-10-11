@@ -2,7 +2,7 @@
    ① join 屏「← 游戏中心」药丸恒显且点击 → index.html 落 arcade 屏
    ② 大厅「🏠 游戏中心」可见且点击 → index.html 落 arcade 屏（真实加入房间后测）
    ③ 结算屏「🏠 游戏中心」存在、可见（showScreen 合成切屏）且点击 → index.html
-   ④ 返回后从 arcade 点 tod 卡再回 tod.html：会话票不清 → 自动重join 回原房 */
+   ④ 手动退出=直接退房（2026-10-11 用户点名）：回中心时 doLeave 已清 tod:tab，再进 tod 停 join 屏、不再自动回原房 */
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
@@ -79,16 +79,16 @@ function ok(name, cond, detail) {
   ok('② 点击 → index.html 落 arcade 屏',
     await p.evaluate(() => document.querySelector('.screen.active')?.id) === 'screen-arcade', p.url());
 
-  // ── ④ 会话票自动重join（ arcade → tod 卡）──
+  // ── ④ 手动退出=直接退房（2026-10-11 用户点名，反转旧「留票自动重join」契约）──
   await p.evaluate(() => document.getElementById('card-tod').click());   // index 开机 overlay 不代表导航不可用：DOM 触发与 probe-arcade ② 等价
   await p.waitForURL('**/tod.html', { timeout: 8000 });
   await p.waitForFunction(() => document.querySelector('.screen.active')?.id === 'screen-join', null, { timeout: 15000 });
-  await p.waitForTimeout(1800);   // 回房票自动重join 有延迟
+  await p.waitForTimeout(1800);   // 若房票没被清，会在这个窗口内自动重join——等过它才算数
   const re = await p.evaluate(() => ({
     active: document.querySelector('.screen.active')?.id,
-    room: document.getElementById('input-room')?.value || document.getElementById('share-room')?.textContent || '',
+    tab: sessionStorage.getItem('tod:tab'),
   }));
-  ok('④ 返回后再进 tod：票自动重join 回原房', /lobby/.test(re.active) || (re.room && re.room.includes(roomCode)), JSON.stringify({ re, roomCode }));
+  ok('④ 手动退出后重进 tod：房票已清、停 join 屏（不再自动回房）', re.active === 'screen-join' && re.tab === null, JSON.stringify(re));
 
   // ── ③ 结算屏按钮（合成切屏验证接线）──
   await p.evaluate(() => {   // showScreen 走既有函数，避免手掰 class 漏副作用

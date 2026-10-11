@@ -1582,6 +1582,17 @@ function updateMicBadges() {
     }, NET_HEARTBEAT_MS);
   }
   function leave(silent) {
+    // 主动退房即时摘除（2026-10-11 手动退出=直接退房）：大厅（未开局）把自己从房册删掉并带 replaced 墓碑广播——
+    // 「成员合并」会复活缺席成员，墓碑是对端放行摘除的唯一凭证；publishNow 同步 ws.send，随后关链路不丢包。
+    // 开局后不动房册：座位保留是 cfg.prune 代管的断线重连契约，与 90s 幽灵清理同归游戏侧。
+    if (NETMODE && joined && NDOC && link && !NDOC.started && NDOC.players.some(p => p.id === myId)) {
+      const bye = Object.assign({}, NDOC, {
+        players: NDOC.players.filter(p => p.id !== myId),
+        replaced: (NDOC.replaced || []).concat(myId).slice(-8),
+        writer: myId, hbOnly: true, ts: Date.now(), seq: (NDOC.seq || 0) + 1,
+      });
+      try { link.publishNow(link.topic, bye); } catch (e) {}
+    }
     closeMic(true);
     if (netHBTimer) { clearInterval(netHBTimer); netHBTimer = null; }
     if (link) { try { link.close(); } catch (e) {} link = null; }
