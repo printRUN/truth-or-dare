@@ -75,7 +75,7 @@ async function twoPlayerGame(ctx, tag) {
   const vis = plates.list.filter(r => r.visible);
   ok(vis.length >= 1, `可见铭牌 ${vis.length}/${plates.length}`);
   ok(vis.every(r => /\|(\d+|\?)\|\d\|\d$/.test(r.sig)), `sig 四键 name|N|turn|dead（如「${vis[0] && vis[0].sig}」）`);
-  ok(vis.every(r => r.y > 1.2 && r.y < 1.6), `铭牌浮于头顶带（y=${vis[0] && vis[0].y}，与 DOM 投影挂点 +1.32 同位）`);
+  ok(vis.every(r => r.y > 1.62 && r.y < 1.9), `铭牌浮于发顶上方带（y=${vis[0] && vis[0].y}；信息不遮人轮 +1.32→+1.70：旧挂点正压发顶/脸颊带`);
   const nplateDom = await pA.evaluate(() => document.querySelectorAll('.nplate').length);
   ok(nplateDom === 0, 'DOM 投影贴片 .nplate 已退役（0 残留）');
 

@@ -284,13 +284,14 @@ function extractFeatures(data, size, style, seed, pinDiff) {
   // adventurer/Maria 0.044），skinC 均值被发像素拉偏，后续一切以 skinC 为参照的信号全部失真。
   // 对 skinC 族（dist<0.13）做确定性 2-means（种子=顶带族均值/中心带族均值，3 轮迭代），
   // 两心距 >0.030 才接受：肤←中心心、发←顶心合成簇。真秃脸（额颊同色）两心同距 → 不劈，bald 保全。
+  let splitVetoed = false;   // B1 脸心泄漏否决（仅劈分合成簇吃刀；阈 0.0175=带底光栅分布最大间隔点：vetoed-min 0.0239 / kept-max 0.0120，实验室 116 案例钉）
   if ((!hairC || hairC.n <= 0.012 * N) && pinBald !== true && tSkinN > 0.025) {   // 0.05→0.025 实测校准：adventurer/Maria 金发顶带占比 ~0.04
     const fam = [];
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const p = at(x, y);
       if (isBg(p)) continue;
       const rgb = [p[0], p[1], p[2]];
-      if (dist3(rgb, skinC.mean) < 0.13) fam.push([rgb[0], rgb[1], rgb[2], y / h]);
+      if (dist3(rgb, skinC.mean) < 0.13) fam.push([rgb[0], rgb[1], rgb[2], y / h, x / w]);
     }
     const bandMean = (y0, y1) => { let n = 0, r = 0, g = 0, b = 0; for (const q of fam) if (q[3] >= y0 && q[3] < y1) { n++; r += q[0]; g += q[1]; b += q[2]; } return n ? [r / n, g / n, b / n, n] : null; };
     const bTop = bandMean(0, 0.30), bCen = bandMean(0.28, 0.66);
@@ -307,14 +308,23 @@ function extractFeatures(data, size, style, seed, pinDiff) {
       }
       if (dist3(c1, c2) > 0.030) {
         const topHeart = dist3(c1, bTop) < dist3(c2, bTop) ? c1 : c2;
+        // B1 脸心泄漏否决：平涂光头的头皮明暗也会过 2-means（micah/Felix 两心距 0.083）——真发平涂色
+        // 绝不盖进脸心窗（fx .40-.60 × fy .50-.68：刘海止于眉上、长发贴颊），「发」色平涂盖满该窗
+        // = 劈的是头皮不是头发（用户 2026-10-15：2D 光头男 3D 长出假发）。near 0.035 与劈分接受门 0.030
+        // 同域：Maria 发肤距 0.044 > 0.035 不命中（实验室实测 leak 0.0002）。
+        let leak = 0;
+        for (const q of fam) if (q[4] >= 0.40 && q[4] < 0.60 && q[3] >= 0.50 && q[3] < 0.68 && dist3(q, topHeart) < 0.035) leak++;
+        if (leak > 0.0175 * N) splitVetoed = true;
+        else {
         const cenHeart = topHeart === c1 ? c2 : c1;
-        skinC = { n: skinC.n, mean: cenHeart, topN: skinC.topN, cenN: skinC.cenN, sideN: skinC.sideN, lowN: skinC.lowN, minx: skinC.minx, maxx: skinC.maxx, miny: skinC.miny, maxy: skinC.maxy };
-        f.skin = hexc(cenHeart);   // 劈分后肤色改写（Maria：肤回 #f2d3b1 系）
-        hairC = { n: tSkin, mean: topHeart, topN: tSkin, cenN: 0, sideN: 0, lowN: 0, minx: 0, maxx: w, miny: 0, maxy: Math.floor(0.30 * h) };   // 字段形态照抄 rescue 合成簇
+          skinC = { n: skinC.n, mean: cenHeart, topN: skinC.topN, cenN: skinC.cenN, sideN: skinC.sideN, lowN: skinC.lowN, minx: skinC.minx, maxx: skinC.maxx, miny: skinC.miny, maxy: skinC.maxy };
+          f.skin = hexc(cenHeart);   // 劈分后肤色改写（Maria：肤回 #f2d3b1 系）
+          hairC = { n: tSkin, mean: topHeart, topN: tSkin, cenN: 0, sideN: 0, lowN: 0, minx: 0, maxx: w, miny: 0, maxy: Math.floor(0.30 * h) };   // 字段形态照抄 rescue 合成簇
+        }
       }
     }
   }
-  if ((!hairC || hairC.n <= 0.012 * N) && pinBald !== true && topMass > 0.012) {   // 拯救：顶带取色重建（v4 去极性：pin 缺省同样放行——eng/visual/value 三家合议）
+  if ((!hairC || hairC.n <= 0.012 * N) && pinBald !== true && topMass > 0.012 && !splitVetoed) {   // 拯救：顶带取色重建（v4 去极性：pin 缺省同样放行——eng/visual/value 三家合议）；B1 撤发后禁止顶带取色二次捡回
     const tm = tmA;
     let tSide = 0;
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -331,7 +341,9 @@ function extractFeatures(data, size, style, seed, pinDiff) {
   const pixelBanBald = tAllN > 0.05;   // 第二道闸（eng P0-1）：顶带明明有大量非bg内容却没认定发色 = pin 失效/光栅失败静默秃暗道 → 禁判 bald
   const pinSaysHair = pinBald === false && !pixelVetoBald;
   const pixelHasHair = !!(hairC && hairC.n > 0.012 * N);
-  if (pixelHasHair || (pinSaysHair && hairC)) {
+  if (splitVetoed) {   // 撤发终态：显式 bald（压过 guess 暗道——micah 钉扎恒报有发，否则撤了浅假发换深棕假发；tie-break 宁漏发不假发）。f.skin 未改写无需回滚：skinC 保持原融合簇引用，detectFaceParts/clothes 的 c===skinC 跳簇照常成立
+    f.style = 'bald'; f.hair = null; f.hairGuess = false; f.hairLen = 0; f.hairWid = 0;
+  } else if (pixelHasHair || (pinSaysHair && hairC)) {
     f.hair = hexc(hairC.mean);
     f.style = hairStyleOf(mm, style);   // v4：11 类轮廓分类（度量与发色无关）
     f.hairLen = mm ? Math.max(0, Math.min(1, (mm.hairLen - 0.62) / 0.33)) : 0;
@@ -421,7 +433,7 @@ function skinClamp(hex) {   // 肤色分层饱和钳（P0-4）：浅肤 0.42 / �
   const hsl = {};
   c.getHSL(hsl);
   const L = hsl.l;
-  const maxS = L >= 0.72 ? 0.42 : (L < 0.45 ? 0.60 : 0.55);
+  const maxS = L >= 0.72 ? 0.42 : (L < 0.45 ? 0.60 : 0.62);   // 中档 0.55→0.62（洗淡回调一档；浅 0.42/深 0.60 不动）
   c.setHSL(hsl.h, Math.min(maxS, hsl.s), Math.max(0.30, Math.min(0.88, L)));
   return '#' + c.getHexString();
 }
@@ -444,7 +456,8 @@ function buildAvatarHead(r, colorIdx, feats, fallbackHair) {   // +z 脸朝向�
   const style = F.style === 'curly' ? 'afro' : F.style === 'twin' ? 'long' : F.style;
   const g = new THREE.Group();
   const skinCol = F.person && F.skin ? skinClamp(F.skin) : 0xe9bb90;
-  const hairCol = (F.person && F.hair) ? clampColor(F.hair, 0.10, 0.68, 0.60) : (F.hairGuess || style === 'bald' ? '#4a382c' : (fallbackHair ? fallbackHair(colorIdx) : '#4a382c'));   // bald+须：颌壳/眉吃固定深棕不走座位色（visual P1-5）
+  // B3 maxS 0.60→0.70：橙肤/红发在暖灯+ACES 下洗淡回调一档（专家合议 P2，金值断言不经过 build 侧 clamp 零风险）
+  const hairCol = (F.person && F.hair) ? clampColor(F.hair, 0.10, 0.68, 0.70) : (F.hairGuess || style === 'bald' ? '#4a382c' : (fallbackHair ? fallbackHair(colorIdx) : '#4a382c'));   // bald+须：颌壳/眉吃固定深棕不走座位色（visual P1-5）
   const skin = new THREE.MeshStandardMaterial({ color: skinCol, roughness: style === 'bald' ? 0.75 : 0.55 });   // P1-8：秃头哑光防「头灯」高光
   const hairMat = new THREE.MeshStandardMaterial({ color: hairCol, roughness: 0.8 });
   const skull = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 18), skin);
@@ -469,7 +482,7 @@ function buildAvatarHead(r, colorIdx, feats, fallbackHair) {   // +z 脸朝向�
         ? new THREE.Mesh(new THREE.CylinderGeometry(r * 0.80 * wide, r * 0.83 * wide, r * 0.38, 18), hairMat)   // 近直筒微扩（visual B：倒锥读成桶帽）
         : new THREE.Mesh(new THREE.SphereGeometry(r * 1.045 * wide, 24, 10, 0, Math.PI * 2, 0, Math.PI * (afro ? 0.30 : (spiky ? 0.27 : 0.31))), hairMat);   // 发缘下压到眉上（0.31π）；刺头收 0.27π 给锥刺让位
       if (flat) hairTop.position.y = r * 0.92;   // 顶面抬到 1.11r，俯视更醒目
-      const backLen = afro ? 0.70 : (style === 'long' ? 0.38 + 0.20 * (F.hairLen || 0) : (flat ? 0.30 : 0.38));   // flat 收 0.30π 杀前缘悬边（visual B）
+      const backLen = afro ? 0.70 : (style === 'long' ? 0.52 + 0.33 * (F.hairLen || 0) : (flat ? 0.30 : 0.38));   // long 0.52+0.33L（封顶 0.85π 披至后颈根）：背面=自己角色主视角，旧 0.38+0.20L 后脑下半露肤读作光头（用户 2026-10-15）   // flat 收 0.30π 杀前缘悬边（visual B）
       const hairBack = new THREE.Mesh(new THREE.SphereGeometry(r * 1.04, 24, 14, Math.PI * 0.72, Math.PI * 1.56, Math.PI * 0.2 * (afro ? 0.6 : 1), Math.PI * backLen), hairMat);   // short 0.38π 收到耳垂治兜帽化；long 随测得长度加深
       if (afro) { hairTop.scale.y = 1.12; hairBack.scale.set(1.18, 1.15, 1.18); }
       hairTop.castShadow = hairBack.castShadow = true;
@@ -515,7 +528,7 @@ function buildAvatarHead(r, colorIdx, feats, fallbackHair) {   // +z 脸朝向�
       [-1, 1].forEach(s => {
         const lock = new THREE.Mesh(new THREE.SphereGeometry(r * 0.34, 12, 12), hairMat);
         lock.scale.set(0.80, 2.05 * lenK, 0.78);
-        lock.position.set(s * r * 0.88, -r * (0.42 + 0.22 * (F.hairLen || 0)), -r * 0.10);
+        lock.position.set(s * r * 0.88, -r * (0.42 + 0.22 * (F.hairLen || 0)), -r * 0.22);   // 后移 −0.22r：背影视角下侧锁露出剪影（原 −0.10r 被颅球遮挡）
         lock.rotation.z = -s * 0.22;
         lock.castShadow = true;
         g.add(lock); hairMeshes.push(lock);

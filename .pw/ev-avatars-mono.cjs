@@ -51,7 +51,7 @@ const norm = a => Math.atan2(Math.sin(a), Math.cos(a));
   await join.waitForFunction(() => window.__mono.faces().every(f => f && f.loaded && !f.fb && f.skin), null, { timeout: 20000 });
 
   const fH = await host.evaluate(() => window.__mono.faces());
-  ok(fH.length === 2 && fH[0].skin === '#9d5622' && fH[0].hair === '#debf7c' && fH[0].style === 'afro' && fH[1].skin === '#f6d2a7' && fH[1].hair === '#601c18' && fH[1].style === 'flat', `host 端双棋子特征头到位（金值 skin/hair/style；avaprobeB style short→flat=ava4 平顶判定（目检 .pw/shots/ava-golds-check.png：2D 像素平头贴 flat 盒顶），肤发金值未漂；got ${JSON.stringify(fH.map(f => [f.skin, f.hair, f.style]))}）`);
+  ok(fH.length === 2 && fH[0].skin === '#9d5622' && fH[0].hair === '#e1c178' && fH[0].style === 'afro' && fH[1].skin === '#f6d2a7' && fH[1].hair === '#611c17' && fH[1].style === 'flat', `host 端双棋子特征头到位（金值 skin/hair/style；avaprobeB style short→flat=ava4 平顶判定（目检 .pw/shots/ava-golds-check.png：2D 像素平头贴 flat 盒顶），发金值 v5：#debf7c→#e1c178 / #601c18→#611c17=B3 饱和度回调（clampColor maxS 0.60→0.70）的预期效果——faces() 读的是 clamp 后材质色，原图发色 S 0.61-0.63 此前被压平，目检 ava-mono-pawns.png 暖棕/金自然不刺眼；got ${JSON.stringify(fH.map(f => [f.skin, f.hair, f.style]))}）`);
   ok(fH.every(f => /^\d\|data:image\/svg/.test(f.key)), `faceKey=色座|解析后URI（${fH.map(f => f.key.slice(0, 16) + '…').join(',')}）`);
   const docH = await host.evaluate(() => window.__mono.net().doc.players.map(p => p.av));
   ok(docH[0] === AV_HOST && docH[1] === AV_JOIN, '房间文档携带双方 av（表单选择原样广播）');

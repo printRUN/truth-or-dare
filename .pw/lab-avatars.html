@@ -18,7 +18,9 @@
 <script src="../dicebear-local.js"></script>
 <script>
 /* ?v=next → 加载 v4 草稿（lab-ava4-next.js）做 A/B；默认加载真源码 avatar-features.js */
-if (new URLSearchParams(location.search).get('v') === 'next') document.write('<script src="lab-ava4-next.js"><\/script>');
+const V = new URLSearchParams(location.search).get('v');
+if (V === 'next') document.write('<script src="lab-ava4-next.js"><\/script>');
+else if (V === 'b1') document.write('<script src="lab-ava-b1.js"><\/script>');
 else document.write('<script src="../avatar-features.js"><\/script>');
 </script>
 <script src="../three.r128.js"></script>

@@ -479,7 +479,13 @@
     .toast.error { background: rgba(239,68,68,0.95); }
 
     @media (max-width: 600px) {
-      #app { padding: 8px 12px 28px; }
+      #app { padding: 8px 12px 28px; min-height: 100svh; }   /* svh：移动端 URL bar vh 虚高兜底（2026-10-15 A5，旧浏览器忽略该行回落 100vh） */
+      body:not(.landui) #screen-lobby .share-box { padding: 10px 14px; }   /* 大厅底行进首屏（A5）：844 高实测退出房间/游戏中心半出屏（diag-tod-mobile p3full_lobby）——垂直预算收紧；landui lobby 独立 grid（1473+）不动 */
+      body:not(.landui) #screen-lobby .mode-opt { padding: 7px 8px; }
+      body:not(.landui) #lobby-actions { gap: 6px; }
+      body:not(.landui) #lobby-tools { gap: 6px; }
+      body:not(.landui) #app { padding-bottom: 18px; }   /* 大厅末行（退出房间/游戏中心）844 高下还差 ~20px 出屏（业务终审①实测 bottom=863）——再收一档全进 */
+      body:not(.landui) h1 { margin: 8px 0 4px; }
       .choice-card { width: 128px; height: 160px; }
       .join-box { padding: 20px; }
       .deck { transform: scale(0.9); }
@@ -876,6 +882,18 @@
     body.three3d:not(.loperf) #card-section { display: none !important; }
     body.three3d:not(.loperf) .players-grid.ring3d::after { display: none; }   /* CSS 揭晓压暗罩是给 DOM 卡的：3D 里它会把题卡/名牌压暗一整层（逻辑终审 P1-4） */   /* 题面卡 3D 化：卡面在毡面上；动作按钮 reparent 到 body 层 #stage-actions */
     body.three3d:not(.loperf) #choice-section .choice-card { opacity: 0.001; pointer-events: none; }   /* 禁 display:none：E2E force 点击需要盒子（有盒、可聚焦、真人不可见不可点） */
+    /* 选卡桥（2026-10-15 手机「无法看见按钮」轮 A1）：窄屏选卡期 #choice-section 整区桥进 #stage-actions 浮窗
+       （桌上 GL 卡 ~55px 难点按；桌面 ≥768 纯桌上卡仪式感不变）。上行 0.001 隐藏与 929/942 行的 absolute 钉带、
+       979 行的桌牌 tilt 都是 #choice-section 系选择器，桥后依然命中——浮窗语境整组还原。:not(.egg-aim)
+       不碰 1241 瞄准态护卡；.disabled 显式条：309 行 (0,2,0) 会被还原规则 (2,4,1) 压掉。 */
+    body.three3d:not(.loperf):not(.egg-aim) #stage-actions #choice-section { position: static; margin: 0; transform: none; pointer-events: auto; }
+    body.three3d:not(.loperf):not(.egg-aim) #stage-actions #choice-section .choice-card { opacity: 1; pointer-events: auto; }
+    body.three3d:not(.loperf) #stage-actions #choice-section .choice-card.disabled { opacity: 0.3; pointer-events: none; }
+    body.egg-aim #stage-actions #choice-section { visibility: hidden; }   /* 瞄准态：桥内卡收起留空面板（卡本就 pe:none 双保险），Esc 解除即回 */
+    @media (max-width: 767px) {
+      body.three3d:not(.loperf) #stage-actions #choice-section .choice-card { width: 132px; height: 150px; }   /* 原 150×185 双卡+押注行会把浮窗撑到 ~300px 高盖住下半身 */
+      body.three3d:not(.loperf) #stage-actions #choice-section .choice-card .icon { font-size: 2.6rem; }
+    }
     body.three3d:not(.loperf) #screen-game:not(.leaving) { position: relative; }   /* 阶段间锚定基准恒定（:not(.leaving) 必带——否则压掉 .screen.leaving 的 absolute，退场死） */
     body.three3d:not(.loperf) #game-tools { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); margin: 0 !important; z-index: 40; width: min(96vw, 1100px); }   /* ≥768px 桌面：折行常驻（全部可点）；<768px 见下：收进 🧰 浮标 */
     @media (max-width: 767px) {
@@ -901,10 +919,59 @@
     #tools-fab:focus-visible { outline: 2px solid var(--accent-cyan, #22d3ee); outline-offset: 2px; }
     body.three3d:not(.loperf) #stage-actions .card-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 0; }
     body.three3d:not(.loperf) #stage-actions .btn-reroll { display: block; margin: 0; }   /* 行距由浮窗 flex gap 统一，不再用 margin 拍 */
-    body.three3d:not(.loperf) #game-players-grid .player-card .avatar-wrap { display: flex; flex-direction: column; align-items: center; gap: 3px; }   /* 名牌区改流式排布：徽章不再绝对定位互压（婷婷#6 胶囊叠罗汉） */
+    /* 信息不遮人（2026-10-11 用户红线：人物显示不得被信息盖住，弹窗除外）：
+       three3d 名牌从「竖栈盖脸」改为「下颌线以下横条」——锚点(头顶 1.72)只留隐形 avatar-ring
+       （flyAvatarToDeck 的 rect 量程不变），分数/主持人/连击/名字经 --chin（updatePlates 按头屏幕
+       尺寸逐卡写入）整体下移到下巴下方排成横带，多牌自动折行，谁的头都不压。 */
+    body.three3d:not(.loperf) #game-players-grid .player-card { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px; padding-top: calc(var(--chin, 64px) + 8px); transform: translate(-50%, 0) scale(var(--rs, 1)); }
+    body.three3d:not(.loperf) #game-players-grid .player-card .avatar-wrap { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px; }
     body.three3d:not(.loperf) #game-players-grid .player-card .avatar-wrap > span { position: static !important; transform: none !important; }
+    body.three3d:not(.loperf) #game-players-grid .player-card .avatar-ring { position: absolute; top: 0; left: 50%; margin: 0 0 0 -35px; }
+    @media (max-width: 600px) { body.three3d:not(.loperf) #game-players-grid .player-card .avatar-ring { margin-left: -28px; } }   /* ≤600px 环 56px 档同步 */
+    body.three3d:not(.loperf) #game-players-grid .player-card .me-tag,
+    body.three3d:not(.loperf) #game-players-grid .player-card .mic-badge { display: none; }   /* 横条里只排真实可见信息：visibility 的隐形占位会顶出怪 gap（麦克风态看名牌绿光） */
+    /* 我的座卡（.tp）：横条从头顶上探（下巴条会撞钉底工具行）；名牌贴发梢、徽章在名上方 */
+    body.three3d:not(.loperf) #game-players-grid .player-card.tp { transform: translate(-50%, -100%) scale(var(--rs, 1)); padding-top: 0; flex-direction: column-reverse; flex-wrap: nowrap; }
+    body.three3d:not(.loperf) #game-players-grid .player-card.tp .avatar-wrap { padding-top: 6px; }
     body.three3d:not(.loperf) #game-players-grid .player-card .player-name { font-size: 15px; max-width: 128px; }   /* min-width：远座名牌可辨识下限（远座卡宽 ≥64px 契约） */   /* 15px：躺着可读（落地后截图实测防媒体查询压回） */
     @media (min-width: 768px) { body.three3d:not(.loperf) #game-players-grid .player-card .player-name { min-width: calc(96px / var(--rs)); } }   /* 缩放补偿：渲染宽恒 96px 不随座位 --rs 缩（远座卡宽 ≥64 契约）；竖屏不启用防互压 */
+    /* 顶部信息带（信息不遮人轮）：统计行/轮到谁/主持人点名提示/等待提示钉到 #cam 顶带，不再悬浮在
+       桌面远座头顶（2 人局时这条带正压远座头=用户截图病灶）。#cam 有 perspective 自成包含块，
+       absolute 锚 #cam 盒顶（页头之下）；远座头顶带 ≥60px 净空。landui 有自己的 grid 机位，不参与。
+       turn-info 是 max-content 药丸：3P+ 时正好嵌进两远座之间的中央空档（全宽会横穿两侧远座头）；
+       竖排统计 chip 禁折行（flex 收缩会把 chip 压成 38×114 竖条横在头上）。 */
+    body.three3d:not(.loperf):not(.landui) #cam > .stats-row { position: absolute; top: 4px; left: 50%; transform: translateX(-50%); margin: 0; z-index: 40; flex-wrap: nowrap; max-width: 96vw; overflow-x: auto; padding: 2px 4px; }
+    body.three3d:not(.loperf):not(.landui) #cam > .stats-row .stat-chip { flex: 0 0 auto; white-space: nowrap; }
+    body.three3d:not(.loperf):not(.landui) #cam > .turn-info { position: absolute; top: 42px; left: 50%; transform: translateX(-50%); width: max-content; max-width: 72vw; margin: 0; min-height: 1.35em; z-index: 40; pointer-events: none; }
+    body.three3d:not(.loperf):not(.landui) #cam > #pick-tip { position: absolute; top: 78px; left: 50%; transform: translateX(-50%); width: max-content; max-width: 92vw; margin: 0; z-index: 40; text-align: center; }
+    body.three3d:not(.loperf):not(.landui) #choice-section { position: absolute; top: 74px; left: 0; right: 0; margin: 0; transform: none; z-index: 40; pointer-events: none; }   /* 区内可见的只剩 choice-hint（卡体 0.001 给 E2E force 点击），整区钉带=钉提示 */
+    body.three3d:not(.loperf):not(.landui) #choice-section > #choice-hint { margin: 0; white-space: nowrap; }
+    body.three3d:not(.loperf):not(.landui) #cam > #ghost-bar { margin-top: 108px; }   /* 流内首排让出顶部信息带（stats/turn/pick 已抽走） */
+    /* 2P 最小分档（2026-10-15）：唯一对手锚死正中（test-3d 锁），居中的统计芯片会正压远座头顶
+       （方屏 cy~159 实锤，ev-hud 2P sq 深 0.32）——统计行左对齐让中线即可，竖屏头在 ~33%vh 本就
+       不撞顶带；turn/pick/choice 药丸窄（max-content）+ 在头下方，共用 3P 位置。 */
+    body.players-2.three3d:not(.loperf):not(.landui) #cam > .stats-row { left: 8px; transform: none; justify-content: flex-start; }
+    @media (min-width: 601px) {
+      body.players-2.three3d:not(.loperf):not(.landui) #cam > .stats-row { max-width: 44vw; overflow-x: auto; padding: 2px 4px; }   /* 方屏/横屏 2P：远座头 cy~159 正居中，「🏆领先」芯片会把行加宽压到头顶（ev-hud 2P sq 深 0.43 实锤）——限宽进左上角横滚（landui 38vw 同款契约）；竖屏头在 33%vh 不需要 */
+    }
+    /* 竖屏（≤600）：统计行左对齐（居中 + overflow 会把左端「第N手」裁成不可达）。（2026-10-15 A2 后删
+       「pick-tip/choice-section 沉底 bottom:95px」档：那是旧相机远座头顶到 178px 时代的死数，新构图里
+       该带正压在变大的自座/侧座头上（ev-hud por 深 0.45 实锤）——顶部 74px 档在新构图净空，全档统一。） */
+    @media (max-width: 600px) {
+      body.three3d:not(.loperf):not(.landui) #cam > .stats-row { left: 8px; transform: none; justify-content: flex-start; }
+    }
+    /* 2 人局：唯一对手锚死正北中央（test-3d 锁），顶带任何内容都会压它的头——整带下沉到远座
+       名牌条之下（横条挂在下颌下，随视口低 ~225-270px），统计行改左对齐再让出中线。
+       下沉量按视口分档（远座名牌条 screen 末端实测：竖屏 ~270 / 方横屏 ~225，cam 顶 134/158）。 */
+    /* 2 人局分档（2026-10-15 信息不遮人轮建立、同日 A2 相机改动后删除）：旧相机远座头悬在 y58-178，
+       顶带必须整体下沉到名牌条之下；A2 后撤收敛+fov 补宽后远座头降到 ~33%vh（取证 diag-mob-p2：
+       头顶 ~277px），顶带 4/42/74 三行全部净空——2P 与 3P 共用上方同一条顶带，players-2 分档整个退役。
+       （renderPlayers 的 body.players-2 类保留：其他样式钩子还在用。）
+    /* landui（强制横屏）：390 高的旋转画布把远座头顶到 y58-104，顶部没有任何净空带——统计行
+       沉到工具行上方的桌沿带。⚠ 必须显式 top：landui 网格给它的 grid-area 会把 abs 定位的
+       top:auto 解析成网格静态位（-78px 顶回头部带），bottom 单写不生效（实测）。 */
+    body.three3d:not(.loperf).landui #cam > .stats-row { position: absolute; grid-area: auto; top: calc(100% - 48px); bottom: auto; left: 8px; right: auto; transform: none; margin: 0; z-index: 40; flex-wrap: nowrap; max-width: 38vw; overflow-x: auto; padding: 2px 4px; }   /* grid-area:auto：abs 网格项若有 grid-area，包含块=那个小格（100% 只有小格高），必须退格让包含块回到整个 #cam；38vw=行尾收在自我中心头（南中 cx≈0.45vw，随视口缩放）左侧，余量进横向滚动 */
+    body.three3d:not(.loperf).landui #cam > .stats-row .stat-chip { flex: 0 0 auto; white-space: nowrap; }
     #stage-actions { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 64px); width: max-content; max-width: 96vw; z-index: 40; pointer-events: auto; text-align: center; padding: 14px 18px 16px; border-radius: 18px; display: flex; flex-direction: column; align-items: center; gap: 10px; background: rgba(23,15,44,0.78); border: 1px solid rgba(139,92,246,0.42); box-shadow: 0 14px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }   /* 初始隐藏由模块内联 style 控制（CSS 写 display:none 会吃掉 JS 的 display:''）；玻璃浮窗与押注面板同族，替代旧渐变贴条 */
     #stage-actions .card-actions button { padding: 10px 20px; font-size: 0.92rem; border-radius: 13px; min-height: 42px; }
     #stage-actions .answer-row button { padding: 10px 20px; font-size: 0.92rem; border-radius: 13px; min-height: 42px; }   /* 承接 .card-front .card-actions button 尺寸（祖先链在 body 层失配）；浮窗里放大到主操作级 */
@@ -964,6 +1031,10 @@
        --wdx/--wdy 由 layoutRing 按座位相对桌心的方向写入，远座从上方入、近座（自己）从下方入，人人都是从桌心出发 */
     .players-grid.ring3d .player-card.chr-in { animation: chr-walk-in 0.7s cubic-bezier(0.34,1.56,0.64,1) backwards; }
     @keyframes chr-walk-in { from { opacity: 0; transform: translate(calc(-50% + var(--wdx, 0%)), calc(-50% + var(--wdy, -78%))) scale(0.42); } 60% { opacity: 1; } to { opacity: 1; transform: translate(-50%, -50%) scale(var(--rs, 1)); } }
+    /* three3d 名牌横条的锚点基线是 Y=0（头顶下方），入场终点必须与新基线一致；.tp 卡终点 -100% 且动画直接豁免（背影入场由 3D 角色承担） */
+    body.three3d:not(.loperf) .players-grid.ring3d .player-card.chr-in { animation-name: chr-walk-in-3d; }
+    body.three3d:not(.loperf) .players-grid.ring3d .player-card.tp.chr-in { animation: none; }
+    @keyframes chr-walk-in-3d { from { opacity: 0; transform: translate(calc(-50% + var(--wdx, 0%)), var(--wdy, -78%)) scale(0.42); } 60% { opacity: 1; } to { opacity: 1; transform: translate(-50%, 0) scale(var(--rs, 1)); } }
     /* 第一人称→第三人称：me 卡只保留名牌/徽章（avatar+身体交给 #tp-back 背影），座位圈氛灯语言不变 */
     .players-grid.ring3d .player-card.me .player-name { border-color: rgba(34,211,238,0.65); color: #cffafe; box-shadow: 0 0 12px rgba(34,211,238,0.25); }
     .players-grid.ring3d .player-card.me .chr-body { box-shadow: inset 0 -4px 8px rgba(0,0,0,0.28), 0 0 16px rgba(34,211,238,0.4); }
@@ -1111,6 +1182,10 @@
       .players-grid.ring3d { height: clamp(190px, 30vh, 240px); }
       #screen-game.active .tool-row { flex-wrap: nowrap !important; overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }   /* !important 压过元素上的内联 flex-wrap:wrap */
       #screen-game.active .tool-row .btn { white-space: nowrap; flex: none; }   /* 按钮内文字折行会把工具行撑到 128px 高（竖屏超屏大头） */
+      body.loperf:not(.landui) #screen-game.active .tool-row { flex-wrap: wrap !important; overflow-x: visible; justify-content: center; row-gap: 5px; gap: 5px; }   /* 省电回退层折行（2026-10-15 A4）：单行横滚 13 颗按钮 10 颗出屏且无 🧰（取证 diag-mob-p3auto）——回退层无 3D 模块，折行全可见是唯一出路；landui 横滑条契约（1433 行）不动 */
+      body.loperf:not(.landui) #screen-game.active .tool-row .btn { font-size: 0.72rem !important; padding: 4px 9px !important; }   /* 压缩进首屏：0.8rem/6px14px 内联档折 5 行尾行出折叠线（861>844 实测），紧凑档 4 行收进 844 */
+      body.loperf:not(.landui) #screen-game.active #game-tools { margin-top: 8px !important; }
+      body.loperf:not(.landui) #screen-game.active .bet-box { position: fixed; left: 10px; right: 10px; bottom: 192px; z-index: 45; margin: 0; }   /* 折行后工具行 4-5 行 ~170px，流内/absolute 押注浮窗会被工具行盖住点击（sim-mobile bet-accept 被 btn-listen-game 拦截实锤）——钉到工具行上方；>600 仍单行横滚不受影响 */
       #screen-game.active #game-tools { margin-top: 8px !important; }
     }
     /* 揭晓卡的归属：卡面署名带抽卡者的头像 */
@@ -3138,6 +3213,7 @@ function renderPlayers(gridId, showActive) {
   const grid = $(gridId);
   const keepIds = [...grid.children].map(c => c.dataset.pid);
   const nowIds = S.players.map(p => p.id);
+  document.body.classList.toggle('players-2', S.players.length === 2);   // 2 人局类（CSS 钩：2P stats 左对齐让中线 + 方屏 44vw 横滚帽；2026-10-15 起顶带不再下沉，旧分档已删）
   // 结构变化才重绘（避免动画重放）；徽章数据在下方每帧刷新
   if (keepIds.join(',') !== nowIds.join(',')) {
     grid.innerHTML = '';
@@ -3718,7 +3794,10 @@ const Cam = {
     const r = el.getBoundingClientRect();
     if (!r.width || !r.height) return;
     const b = this.baseOf(this.curScreen);
-    const mx = LAND.ui ? 16 : 46, my = LAND.ui ? 12 : 34;   // 横屏留白更紧，镜头平移幅度相应收小
+    // 竖屏收 pan/dolly（信息不遮人轮）：窄幅视场装不下「平移 ±46 + 推近」后的全环座位——
+    // 饱和平移曾把对面两座整体推出 390 画幅。横屏档逐字节不动。
+    const porCam = !LAND.ui && !LAND.force && window.innerWidth < 620;
+    const mx = LAND.ui ? 16 : (porCam ? 16 : 46), my = LAND.ui ? 12 : (porCam ? 12 : 34);   // 横屏留白更紧，镜头平移幅度相应收小
     // 偏移量必须在「镜头自己的坐标系」里算：landforce 旋转兜底时 body 整体转了 90°，
     // 镜头的 translate3d 也跟着转，而 getBoundingClientRect 给的是屏幕坐标 ——
     // 直接拿屏幕坐标当偏移会把 x/y 轴对调（镜头横着平移而不是推向目标，抽卡读起来就断了）。
@@ -3728,7 +3807,7 @@ const Cam = {
     const nx = (c.x - vw / 2) / vw;
     const ny = (c.y - vh / 2) / vh;
     this.lastFocus = el; this.lastFocusPush = push;   // 供 realign() 换档后续接这一段运镜
-    this.to({ x: b.x + Math.max(-mx, Math.min(mx, -nx * 190)), y: b.y + Math.max(-my, Math.min(my, -ny * 150)), z: b.z - 20, s: b.s * push }, dur, ease);
+    this.to({ x: b.x + Math.max(-mx, Math.min(mx, -nx * 190)), y: b.y + Math.max(-my, Math.min(my, -ny * 150)), z: b.z - (porCam ? 10 : 20), s: b.s * push }, dur, ease);
   },
   nudge(el) { this.focus(el, { push: 1.035, dur: 1000 }); },
   // 横竖屏切档（base 表换了）：不切镜——从当前机位补间到新档。刚才正聚焦在某个元素上就按新布局
@@ -7551,7 +7630,8 @@ setTimeout(() => {
       const aCss = (window.__seatAngleByPid || {})[p.id];
       if (aCss != null) {
         const a3 = aCss - Math.PI;
-        const sx = Math.sin(a3) * SEAT_R, sz = Math.cos(a3) * SEAT_R;
+        const sq = 1 - porK() * 0.34;   // 竖屏座位环 X 向压缩：全环等分下侧座 |x| 超出窄幅视场（fov46 半视场装不下 ±2.35），压 0.66 档让人物整体入画；桌面（pt=0）逐字节不动
+        const sx = Math.sin(a3) * SEAT_R * sq, sz = Math.cos(a3) * SEAT_R;
         const ry = Math.atan2(-sx, -sz);
         // 只写基座数据；transform 由帧循环独占合成（走位/回座不被节询拽回）。
         // 换座平滑（2026-09-18 站位全环重排）：REDUCED 直接落位（信息无损）；首见=从座位外沿走入，
@@ -7675,14 +7755,15 @@ setTimeout(() => {
 
   // ── 相机：Cam.cur 映射 + 竖屏后撤（aspect<0.8）+ 揭晓近景 overlay（GL 独占通道，CSS 机位不动）──
   let revealK = 0, revealTarget = 0;
+  const porK = () => { const asp = camera.aspect || 1; return asp < 0.8 ? Math.min(1, (0.8 - asp) / 0.34) : 0; };   // 竖屏系数 0..1（syncPlayers 座位环 X 向压缩共用同一公式）
   function syncCam() {
     const c = Cam.cur;
-    const asp = camera.aspect || 1;
-    const pt = asp < 0.8 ? Math.min(1, (0.8 - asp) / 0.34) : 0;
+    const pt = porK();
     let px = c.x * 0.02;
-    let py = 3.75 + (c.rx - 19) * 0.03 + pt * 0.5;
-    let pz = 5.4 + (-56 - c.z) * 0.035 + pt * 1.3;
-    let lx = c.x * 0.006, ly = 0.35 - pt * 0.5, lz = 0;   // 俯角随竖屏系数加深：灯罩顶出 HUD（pt 在桌面恒 0 不影响既有构图）
+    let py = 3.75 + (c.rx - 19) * 0.03 + pt * 0.15;
+    let pz = 5.4 + (-56 - c.z) * 0.035 + pt * 2.2;   // 竖屏后撤 3.3→2.2 + fov 补宽（下行）：3.3 档把整桌压进屏幕上中一条、桌上选卡缩到 ~55px、底部 1/3 空置（2026-10-15 手机「无法看见按钮」主病灶，三专家 SHIP-WITH-FIXES 合议）；横屏档逐字节不动
+    let lx = c.x * 0.006, ly = 0.35 + pt * 0.35, lz = 0;   // 俯角随竖屏加深防灯罩入 HUD；ly 改号（−0.5pt→+0.35pt）：look 抬向毡面，近座脚填满下沿、远座头远离顶带
+    if (camera.fov !== 46 + pt * 7) { camera.fov = 46 + pt * 7; camera.updateProjectionMatrix(); }   // 竖屏 fov 46→53 补宽度缺口：座位环 X 压缩不再加深（0.66 档已人贴桌沿，视觉专家硬上限）；值变化才写；raycast/名牌投影同相机自动跟随
     if (revealK > 0.0005) {   // 推近到卡面 ≈2.3 单位：同一位姿喂给名牌投影/拾取，禁缓存（look/reveal 随 placement 走=近景怼着「该回合玩家面前」的题卡拍）
       const rk = revealK * revealK * (3 - 2 * revealK);   // smoothstep：起收零速
       px += (cardPlace.reveal.x - px) * rk;
@@ -7720,6 +7801,11 @@ setTimeout(() => {
       card.style.left = (wantX - og[0]).toFixed(1) + 'px';   // 直写投影（v7 同构）：实测即贴头；wantX/wantY 已是全屏画布视口坐标
       card.style.top = (wantY - og[1]).toFixed(1) + 'px';
       card.style.zIndex = String(600 - Math.round(V.z * 300));
+      // 下巴屏幕深度 → --chin：名牌横条的下移量（信息不遮人红线：徽章/名字一律排到人物下颌线以下，
+      // 不再压在脸上）。1.13=头心 1.33−头半径 0.2；同深度投影差=像素距离，随座远近自适应。
+      V.set(ch.position.x, 1.13, ch.position.z).project(camera);
+      const chinPx = Math.max(34, Math.round((1 - (V.y + 1) / 2) * chh - wantY));
+      if (card.style.getPropertyValue('--chin') !== chinPx + 'px') card.style.setProperty('--chin', chinPx + 'px');
       const rsV = parseFloat(card.style.getPropertyValue('--rs')) || 1;
       const mw = (72 / rsV).toFixed(0) + 'px';   // 基数 72：留取整与文字折行余量（渲染宽恒 ≥72 ≥64）
       if (card.style.minWidth !== mw) {
@@ -7767,6 +7853,11 @@ setTimeout(() => {
       toolsFab.setAttribute('aria-expanded', 'false');
     }
   });
+  function choiceBridgeWanted() {   // 选卡桥门槛（2026-10-15 A1）：≤767 同 🧰 断点；768-900 竖屏触屏平板 GL 桌卡同样难点按（价值专家 P0 断档）；landui 走自己的 grid 机位不参桥
+    if (document.body.classList.contains('landui')) return false;
+    if (mqToolsNarrow.matches) return true;
+    try { return matchMedia('(pointer: coarse)').matches && window.innerHeight > window.innerWidth && window.innerWidth <= 900; } catch (e) { return false; }
+  }
   // 点面板外收起（capture：不怕谁 stopPropagation）；FAB 自己与面板内除外
   document.addEventListener('pointerdown', e => {
     if (retired || !toolsOpen || !mqToolsNarrow.matches) return;
@@ -7801,9 +7892,12 @@ setTimeout(() => {
     try { stageNow = S.turn.stage; } catch (e) {}
     const csOut = !!(cs && !cs.hidden && stageNow === 'revealed');   // dealFlyingCard 会提前取消 hidden：完成啦组只在 revealed 上桌
     const srOut = !!(sr && !sr.hidden && stageNow === 'choosing');   // 押注只属于选卡期，别一路挂到揭晓
+    const chSec = document.getElementById('choice-section');
+    const chOut = !!(chSec && !chSec.hidden && stageNow === 'choosing' && S.turn.chooserId === myId && choiceBridgeWanted());   // 选卡桥（2026-10-15 A1）：轮到我选卡+窄屏 → 整区进浮窗（choice-section 与 card-section 阶段互斥，hidden 各自管）
     if (csOut) { bridgeMove(document.getElementById('card-actions')); bridgeMove(document.getElementById('answer-row')); bridgeMove(document.getElementById('btn-reroll')); }
-    if (srOut) bridgeMove(sr);
-    if (!csOut && !srOut) bridgeRestore();
+    if (chOut) bridgeMove(chSec);
+    if (srOut && !chOut) bridgeMove(sr);   // stake-row 在 choice-section 内：整区桥时随区走，禁二次搬出拆散——短路是唯一防线（sr 嵌在 chSec 内时 parent≠stageActions，bridgeMove 卫句管不到）
+    if (!csOut && !srOut && !chOut) bridgeRestore();
   }
   function bridgeRestore() {
     if (!movedEls.length) { stageActions.style.display = 'none'; return; }

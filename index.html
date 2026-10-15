@@ -3706,7 +3706,10 @@ const Cam = {
     const r = el.getBoundingClientRect();
     if (!r.width || !r.height) return;
     const b = this.baseOf(this.curScreen);
-    const mx = LAND.ui ? 16 : 46, my = LAND.ui ? 12 : 34;   // 横屏留白更紧，镜头平移幅度相应收小
+    // 竖屏收 pan/dolly（信息不遮人轮）：窄幅视场装不下「平移 ±46 + 推近」后的全环座位——
+    // 饱和平移曾把对面两座整体推出 390 画幅。横屏档逐字节不动。
+    const porCam = !LAND.ui && !LAND.force && window.innerWidth < 620;
+    const mx = LAND.ui ? 16 : (porCam ? 16 : 46), my = LAND.ui ? 12 : (porCam ? 12 : 34);   // 横屏留白更紧，镜头平移幅度相应收小
     // 偏移量必须在「镜头自己的坐标系」里算：landforce 旋转兜底时 body 整体转了 90°，
     // 镜头的 translate3d 也跟着转，而 getBoundingClientRect 给的是屏幕坐标 ——
     // 直接拿屏幕坐标当偏移会把 x/y 轴对调（镜头横着平移而不是推向目标，抽卡读起来就断了）。
@@ -3716,7 +3719,7 @@ const Cam = {
     const nx = (c.x - vw / 2) / vw;
     const ny = (c.y - vh / 2) / vh;
     this.lastFocus = el; this.lastFocusPush = push;   // 供 realign() 换档后续接这一段运镜
-    this.to({ x: b.x + Math.max(-mx, Math.min(mx, -nx * 190)), y: b.y + Math.max(-my, Math.min(my, -ny * 150)), z: b.z - 20, s: b.s * push }, dur, ease);
+    this.to({ x: b.x + Math.max(-mx, Math.min(mx, -nx * 190)), y: b.y + Math.max(-my, Math.min(my, -ny * 150)), z: b.z - (porCam ? 10 : 20), s: b.s * push }, dur, ease);
   },
   nudge(el) { this.focus(el, { push: 1.035, dur: 1000 }); },
   // 横竖屏切档（base 表换了）：不切镜——从当前机位补间到新档。刚才正聚焦在某个元素上就按新布局

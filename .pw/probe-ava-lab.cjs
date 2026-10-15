@@ -20,7 +20,7 @@ const server = http.createServer((req, res) => {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1300, height: 2000 } });
   page.on('pageerror', e => console.error('pageerror:', e.message));
-  await page.goto(`http://127.0.0.1:${PORT}/.pw/lab-avatars.html${tag === 'before' ? '' : '?v=next'}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`http://127.0.0.1:${PORT}/.pw/lab-avatars.html${tag === 'before' ? '' : tag === 'after' ? '?v=next' : '?v=' + tag}`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.__LAB && window.__LAB.done, null, { timeout: 120000 });
   const lab = await page.evaluate(() => window.__LAB);
   const png = path.join(ROOT, '.pw', 'shots', `ava-lab-${tag}.png`);

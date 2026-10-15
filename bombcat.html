@@ -2896,7 +2896,7 @@ function initScene() {
       const sig = `${p.name}|${p.cnt != null ? p.cnt : '?'}|${isTurn ? 1 : 0}|${dead ? 1 : 0}`;
       if (rec.sig !== sig) { rec.sig = sig; plaqueSetText(rec.grp, drawPlateTex(p, isTurn, dead)); }
       ch.getWorldPosition(WP);
-      rec.grp.position.set(WP.x, WP.y + 1.32, WP.z);   // 挂点同 DOM 投影高度;不随 dead 躺倒旋转（骷髅+灰名已表达）
+      rec.grp.position.set(WP.x, WP.y + 1.70, WP.z);   // 挂点=发顶(1.55)上方 0.15（信息不遮人轮 +1.32→+1.70：旧挂点正压发顶/脸颊带）；不随 dead 躺倒旋转（骷髅+灰名已表达）
       rec.grp.visible = true;
     }
     for (const [pid, rec] of plaqueGrps) if (!seen.has(pid)) {

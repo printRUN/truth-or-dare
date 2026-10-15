@@ -68,12 +68,12 @@ const ok = (c, msg) => { if (c) { pass++; console.log('  ✅', msg); } else { fa
   await host.waitForFunction(() => {
     if (!window.__three) return false;
     const a = window.__three.avFeats();
-    return a.length === 3 && a[0].hasFeat && a[0].style === 'fringe' && a[1].hasFeat && a[1].glasses === true && !a[2].hasFeat && a[2].faceVisible;   // 三角色特征全部落位（防断言竞态）；micah/Felix short→fringe=ava4 刘海判定（2D 发帘贴前帘）
+    return a.length === 3 && a[0].hasFeat && a[0].style === 'bald' && a[1].hasFeat && a[1].glasses === true && !a[2].hasFeat && a[2].faceVisible;   // 三角色特征全部落位（防断言竞态）；micah/Felix 金值 v5 翻面 fringe→bald（2026-10-15 用户反馈：2D micah/Felix 是明显光头，旧 fringe 是劈分把头皮渐变劈成假发——脸心泄漏否决后归 bald，目检 diag-ava-cases.png/ava-lab-b1.png 备案）
   }, null, { timeout: 25000 });
   const feats = await host.evaluate(() => window.__three.avFeats());
   console.log('  [debug]', JSON.stringify(feats));
   ok(feats.length === 3, `3 角色全部建角色（got ${feats.length}）`);
-  ok(feats[0].hasFeat && !feats[0].faceVisible && feats[0].style === 'fringe', `① micah/Felix（老白）→ 特征头贴片退役 + 刘海短发（short→fringe=ava4 分类演进；style=${feats[0].style} faceVisible=${feats[0].faceVisible}）`);
+  ok(feats[0].hasFeat && !feats[0].faceVisible && feats[0].style === 'bald', `① micah/Felix（老白）→ 特征头贴片退役 + 光头（金值 v5 翻面 fringe→bald：2D 即光头，旧 fringe=劈分误劈头皮渐变产生的假发，脸心泄漏否决修正——目检 diag-ava-cases.png 备案；style=${feats[0].style} faceVisible=${feats[0].faceVisible}）`);
   ok(feats[0].headColor !== '#e8b98c', `① 头球肤色迁移（${feats[0].headColor} ≠ 默认 #e8b98c）`);
   ok(feats[1].hasFeat && !feats[1].faceVisible && feats[1].glasses === true, `② miniavs/Felix（眼镜妹）→ 特征头 + 眼镜（glasses=${feats[1].glasses}）`);
   ok(!feats[2].hasFeat && feats[2].faceVisible, `③ emoji（默认仔）→ 贴片保留无特征子树（faceVisible=${feats[2].faceVisible}）`);
@@ -93,7 +93,7 @@ const ok = (c, msg) => { if (c) { pass++; console.log('  ✅', msg); } else { fa
   await host.waitForFunction(() => { const a = window.__three.avFeats(); return a[0].hasFeat && !a[0].faceVisible; }, null, { timeout: 15000 });
   ok(true, '④ emoji→person：特征头重建');
   const after = await host.evaluate(() => window.__three.avFeats());
-  ok(after[0].style === 'fringe' && after[0].headColor !== '#e8b98c', `④ 翻回后特征一致（short→fringe=ava4；style=${after[0].style} head=${after[0].headColor}）`);
+  ok(after[0].style === 'bald' && after[0].headColor !== '#e8b98c', `④ 翻回后特征一致（金值 v5 fringe→bald 同 ①；style=${after[0].style} head=${after[0].headColor}）`);
 
   ok(errs.length === 0, `零 pageerror（${errs.slice(0, 3).join(' | ') || 'clean'}）`);
   await browser.close();
