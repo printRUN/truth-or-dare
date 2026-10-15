@@ -24,6 +24,22 @@ const sha256 = f => crypto.createHash('sha256').update(fs.readFileSync(`${ROOT}/
 let bad = 0, total = 0;
 const re = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi;
 
+// ── 0. build.json 发版 token（2026-10-15 缓存治理轮）：tod/index 的外置件标签必须 ?v=token，其余页允许裸标签 ──
+const VERSIONED = ['index.html', 'tod.html'];
+let BUILD = null;
+try {
+  BUILD = JSON.parse(fs.readFileSync(`${ROOT}/build.json`, 'utf8')).build;
+  if (!/^[A-Za-z0-9._-]+$/.test(BUILD || '')) throw new Error('非法 token');
+} catch (e) { bad++; console.log('build.json 缺失/非法（发版一致性断言的锚）：' + e.message); }
+// 每页期望的标签形态：版本页锁 ?v=token（防发版忘同步），其他页接受裸/带版本均可
+const expectSrcTag = (file, base) => VERSIONED.includes(file) && BUILD
+  ? `<script src="${base}?v=${BUILD}"></script>`
+  : null;
+const hasSrcTag = (s, file, base) => {
+  const want = expectSrcTag(file, base);
+  return want ? s.includes(want) : s.includes(`<script src="${base}"></script>`) || s.includes(`<script src="${base}?v=`);
+};
+
 // ── 1. 五页内联脚本逐块语法扫描 ──
 for (const f of FILES) {
   const src = fs.readFileSync(`${ROOT}/${f}`, 'utf8');
@@ -39,10 +55,10 @@ for (const f of FILES) {
   console.log(`${f}: ${i} inline script block(s) scanned`);
 }
 
-// ── 2. three.r128.js：五页必须 src 引用、页面不得残留内联体、外置件语法+sha 锁 ──
+// ── 2. three.r128.js：五页必须 src 引用（版本页锁 ?v=token）、页面不得残留内联体、外置件语法+sha 锁 ──
 for (const f of NEED_THREE) {
   const src = fs.readFileSync(`${ROOT}/${f}`, 'utf8');
-  if (!src.includes('<script src="three.r128.js"></script>')) { bad++; console.log(`${f}: 缺 <script src="three.r128.js"> 引用`); }
+  if (!hasSrcTag(src, f, 'three.r128.js')) { bad++; console.log(`${f}: 缺 <script src="three.r128.js${VERSIONED.includes(f) ? '?v=' + BUILD : ''}"> 引用`); }
   if (src.includes('Copyright 2010-2021 Three.js Authors')) { bad++; console.log(`${f}: 残留内联 three（应只经 three.r128.js 引用）`); }
 }
 try {
@@ -56,7 +72,7 @@ try {
 // ── 3. dicebear-local.js：四页 src 引用、tod/index 无内联残留、外置件语法+sha 锁+纯 LF ──
 for (const f of NEED_DICEBEAR) {
   const src = fs.readFileSync(`${ROOT}/${f}`, 'utf8');
-  if (!src.includes('<script src="dicebear-local.js"></script>')) { bad++; console.log(`${f}: 缺 <script src="dicebear-local.js"> 引用`); }
+  if (!hasSrcTag(src, f, 'dicebear-local.js')) { bad++; console.log(`${f}: 缺 <script src="dicebear-local.js${VERSIONED.includes(f) ? '?v=' + BUILD : ''}"> 引用`); }
   if (src.includes('var DiceBearLocal=(()=>{')) { bad++; console.log(`${f}: 残留内联 DiceBear bundle（应只经 dicebear-local.js 引用）`); }
 }
 try {
@@ -71,7 +87,7 @@ try {
 // ── 3b. avatar-features.js（头像特征轮 SPEC §1.14）：三页 src 引用、无内联残留、外置件语法+sha 锁+纯 LF ──
 for (const f of NEED_FEAT) {
   const src = fs.readFileSync(`${ROOT}/${f}`, 'utf8');
-  if (!src.includes('<script src="avatar-features.js"></script>')) { bad++; console.log(`${f}: 缺 <script src="avatar-features.js"> 引用`); }
+  if (!hasSrcTag(src, f, 'avatar-features.js')) { bad++; console.log(`${f}: 缺 <script src="avatar-features.js${VERSIONED.includes(f) ? '?v=' + BUILD : ''}"> 引用`); }
   if (src.includes('function extractFeatures(')) { bad++; console.log(`${f}: 残留内联特征提取器（应只经 avatar-features.js 引用）`); }
 }
 try {
@@ -107,6 +123,23 @@ try {
   else if (JSON.stringify(t) !== JSON.stringify(x)) { bad++; console.log('tod.html 与 index.html 镜头区漂移！Cam/focusCam/home/rStep 必须两边同改'); }
   else console.log(`tod↔index 孪生镜头区一致 ✅（cam ${t.cam.length}B + focusCam + home + rStep）`);
 } catch (e) { bad++; console.log('孪生镜头区检查异常: ' + e.message); }
+
+// ── 6. 发版一致性（2026-10-15 缓存治理轮）：build.json ↔ 两页 __BUILD__ ↔ 两页全部 ?v= 值，四处必须同 token ──
+// 防的坑：改了页面忘换 token（旧版手机端永远拿不到更新）或只换了一半（新旧版本混跑）。
+if (BUILD) {
+  for (const f of VERSIONED) {
+    const s = fs.readFileSync(`${ROOT}/${f}`, 'utf8');
+    const m = s.match(/window\.__BUILD__\s*=\s*'([^']+)'/);
+    if (!m) { bad++; console.log(`${f}: 缺 window.__BUILD__（版本检查的锚）`); continue; }
+    if (m[1] !== BUILD) { bad++; console.log(`${f}: __BUILD__=${m[1]} ≠ build.json=${BUILD}（发版忘同步）`); }
+    const vs = [...s.matchAll(/\?v=([A-Za-z0-9._-]+)/g)].map(x => x[1]);
+    const drift = vs.filter(v => v !== BUILD);
+    const minTags = f === 'tod.html' ? 6 : 4;   // tod: 3 preload+3 script；index: 2 preload+2 script
+    if (vs.length < minTags) { bad++; console.log(`${f}: ?v= 标签只有 ${vs.length} 处（应 ≥${minTags}，preload 与 script 必须成对同 token）`); }
+    if (drift.length) { bad++; console.log(`${f}: ${drift.length} 处 ?v= 值漂移（${[...new Set(drift)].join(',')} ≠ ${BUILD}）`); }
+    if (m[1] === BUILD && !drift.length && vs.length >= minTags) console.log(`${f}: 发版一致性 OK（__BUILD__=${BUILD}，${vs.length} 处 ?v= 全同 token）`);
+  }
+}
 
 console.log(bad ? `FAILED: ${bad} problem(s)` : `ALL ${total} SCRIPT BLOCKS PARSE ✅`);
 process.exitCode = bad ? 1 : 0;

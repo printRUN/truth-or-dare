@@ -6,6 +6,40 @@
   <title>真心话大冒险 · 在线多人</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Sans+SC:wght@400;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <!-- 加载提速（2026-10-15）：三大件预载提到第 0 字节——此前 dicebear(线上 gzip 678KB) 要等 HTML 流传到 ~1/3 才开始下载，慢网手机白等数秒；
+       ?v= 随发版 token 变化（与下方 script 标签同值，check-syntax 锁一致性，改版必须同步）。 -->
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="script" href="dicebear-local.js?v=v20261015a">
+  <link rel="preload" as="script" href="avatar-features.js?v=v20261015a">
+  <link rel="preload" as="script" href="three.r128.js?v=v20261015a">
+  <!-- 更新不拿旧缓存（2026-10-15 用户点名）：文档级 no-cache 提示 + build.json 版本检查。详见下方脚本注释。 -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <script>
+  window.__BUILD__ = 'v20261015a';
+  /* 版本检查：本页 __BUILD__ 与 build.json 不一致 = 有新版。
+     · https 静态托管（无端口）且不在对局 → 带版本+时间戳 replace 强刷，无视一切 HTML 缓存（含不理 max-age 的 webview）；
+       会话内同一目标版本只自动刷一次（sessionStorage 护栏），绝不死循环。
+     · 对局中（非 join/arcade 屏）→ 只 toast 提示，回游戏中心后由 index 的同款检查自然落新版，不打断对局。
+     · file:// 下载版 / localhost·127 探针 / 带端口局域网 → 检查整体静默跳过（本地无「远端新版」概念）。
+     发版纪律：改完页面把 __BUILD__ 与 build.json 的 build 同步换成新 token（check-syntax 有三处一致性断言）。 */
+  (function () {
+    if (!/^https:$/.test(location.protocol) || location.port) return;
+    var jumped = null;
+    try { jumped = sessionStorage.getItem('tod:vjump:' + location.pathname); } catch (e) {}
+    fetch('build.json?nc=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      var nb = j && j.build;
+      if (!nb || nb === window.__BUILD__ || jumped === nb) return;
+      var scr = document.querySelector('.screen.active');
+      var inGame = !!scr && scr.id !== 'screen-join' && scr.id !== 'screen-arcade';
+      if (inGame) { if (typeof toast === 'function') toast('🔄 有新版本：回到游戏中心即自动更新'); return; }
+      try { sessionStorage.setItem('tod:vjump:' + location.pathname, nb); } catch (e) { return; }
+      var qs = new URLSearchParams(location.search); qs.set('v', nb); qs.set('nc', String(Date.now()));
+      location.replace(location.pathname + '?' + qs.toString() + location.hash);
+    }).catch(function () {});
+  })();
+  </script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
@@ -1949,8 +1983,8 @@
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="dicebear-local.js"></script>
-<script src="avatar-features.js"></script>
+<script src="dicebear-local.js?v=v20261015a"></script>
+<script src="avatar-features.js?v=v20261015a"></script>
 <script>
 'use strict';
 // ═══════════════════════════════════════════════════════════════
@@ -7149,7 +7183,7 @@ setTimeout(() => {
   setNet('', (urlRoom || rejoinName) ? '待加入' : '未连接');
 }, 1200);
 </script>
-<script src="three.r128.js"></script>
+<script src="three.r128.js?v=v20261015a"></script>
 <script>
 /* ══════════ Three.js 真 3D 场景（第三人称牌桌，body.three3d）v8 ══════════
    混合架构：WebGL 画布（body 层全屏，#bg-canvas 之上 #app 之下）渲染房间/桌子/牌堆/3D 人物与桌上卡；
