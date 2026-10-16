@@ -9,15 +9,15 @@
   <!-- 加载提速（2026-10-15）：三大件预载提到第 0 字节——此前 dicebear(线上 gzip 678KB) 要等 HTML 流传到 ~1/3 才开始下载，慢网手机白等数秒；
        ?v= 随发版 token 变化（与下方 script 标签同值，check-syntax 锁一致性，改版必须同步）。 -->
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preload" as="script" href="dicebear-local.js?v=v20261016c">
-  <link rel="preload" as="script" href="avatar-features.js?v=v20261016c">
-  <link rel="preload" as="script" href="three.r128.js?v=v20261016c">
+  <link rel="preload" as="script" href="dicebear-local.js?v=v20261016d">
+  <link rel="preload" as="script" href="avatar-features.js?v=v20261016d">
+  <link rel="preload" as="script" href="three.r128.js?v=v20261016d">
   <!-- 更新不拿旧缓存（2026-10-15 用户点名）：文档级 no-cache 提示 + build.json 版本检查。详见下方脚本注释。 -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <script>
-  window.__BUILD__ = 'v20261016c';
+  window.__BUILD__ = 'v20261016d';
   /* 版本检查：本页 __BUILD__ 与 build.json 不一致 = 有新版。
      · https 静态托管（无端口）且不在对局 → 带版本+时间戳 replace 强刷，无视一切 HTML 缓存（含不理 max-age 的 webview）；
        会话内同一目标版本只自动刷一次（sessionStorage 护栏），绝不死循环。
@@ -989,14 +989,14 @@
        （方屏 cy~159 实锤，ev-hud 2P sq 深 0.32）——统计行左对齐让中线即可，竖屏头在 ~33%vh 本就
        不撞顶带；turn/pick/choice 药丸窄（max-content）+ 在头下方，共用 3P 位置。 */
     body.players-2.three3d:not(.loperf):not(.landui) #cam > .stats-row { left: 8px; transform: none; justify-content: flex-start; }
-    /* 2P 中线彻底让给人（2026-10-16 用户实锤：方竖屏对手头升进顶带）：唯一远座正北正中，居中的 turn-info/
-       pick-tip 会与头部同 x——媒体查询锁定 0.8~1.0 比例带（正是 porK 中段斜坡生效、头顶抬得最高的区间），
-       与 stats-row 同列左对齐 + 限宽 40vw（在头左侧 x≤40% 折行，头顶 y1.56 投影 ≥26%vh 实测净空）；
-       <0.8 窄竖屏头在 33%vh 本就净空、≥1.0 方屏/桌面已实测，均保持既有居中布局不动。 */
-    @media (min-aspect-ratio: 4/5) and (max-aspect-ratio: 1/1) {
-      body.players-2.three3d:not(.loperf):not(.landui) #cam > .turn-info { left: 8px; transform: none; max-width: 40vw; }
-      body.players-2.three3d:not(.loperf):not(.landui) #cam > #pick-tip { left: 8px; transform: none; text-align: left; max-width: 40vw; }
-    }
+    /* 2P 中线彻底让给人（2026-10-16 用户实锤两次）：唯一远座正北正中，全比例下居中的 turn-info/pick-tip/
+       net-chip 都会与头部同 x——窄竖屏头 33%vh 撞 pick-tip 下缘、方竖屏 26% 撞芯片、宽幅/桌面 17% 撞
+       turn-info/net-chip（pc-fhd 0.44、1024×768 0.18、844×390 0.5 全设备扫描实测）——三件套与 stats-row
+       同列左对齐（左缘 8px 竖排堆叠），中线只留人头。 */
+    body.players-2.three3d:not(.loperf):not(.landui) #cam > .turn-info { left: 8px; transform: none; }
+    body.players-2.three3d:not(.loperf):not(.landui) #cam > #pick-tip { left: 8px; transform: none; text-align: left; }
+    body.players-2 #app > .net-chip { margin-left: 8px; margin-right: auto; }   /* 头常驻中线上，房号芯片同步靠左（窄竖屏段 pick-tip 下方 130px 起、头 277px 起，纵向已分层） */
+    body.players-2.landui #app > .net-chip { grid-area: 1 / 2; justify-self: start; margin-left: 8px; }   /* landui 网格档：1/2 格从居中改贴左（844×390 2P 头顶撞芯片 deep 0.5 实测） */
     @media (min-width: 601px) {
       body.players-2.three3d:not(.loperf):not(.landui) #cam > .stats-row { max-width: 44vw; overflow-x: auto; padding: 2px 4px; }   /* 方屏/横屏 2P：远座头 cy~159 正居中，「🏆领先」芯片会把行加宽压到头顶（ev-hud 2P sq 深 0.43 实锤）——限宽进左上角横滚（landui 38vw 同款契约）；竖屏头在 33%vh 不需要 */
     }
@@ -1017,6 +1017,7 @@
        沉到工具行上方的桌沿带。⚠ 必须显式 top：landui 网格给它的 grid-area 会把 abs 定位的
        top:auto 解析成网格静态位（-78px 顶回头部带），bottom 单写不生效（实测）。 */
     body.three3d:not(.loperf).landui #cam > .stats-row { position: absolute; grid-area: auto; top: calc(100% - 48px); bottom: auto; left: 8px; right: auto; transform: none; margin: 0; z-index: 40; flex-wrap: nowrap; max-width: 38vw; overflow-x: auto; padding: 2px 4px; }   /* grid-area:auto：abs 网格项若有 grid-area，包含块=那个小格（100% 只有小格高），必须退格让包含块回到整个 #cam；38vw=行尾收在自我中心头（南中 cx≈0.45vw，随视口缩放）左侧，余量进横向滚动 */
+    body.three3d:not(.loperf).landui #cam > .turn-info { position: absolute; grid-area: auto; top: calc(100% - 88px); left: 8px; transform: none; margin: 0; z-index: 40; pointer-events: none; }   /* landui 网格静态位把 turn-info 放到右侧远座头上（3P 844×390 深 0.5 实测）——挪到左下净区（stats 行上方、桥面板左缘 x<279 之外）；grid-area:auto 同上 trap */
     body.three3d:not(.loperf).landui #cam > .stats-row .stat-chip { flex: 0 0 auto; white-space: nowrap; }
     #stage-actions { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 64px); width: max-content; max-width: 96vw; z-index: 40; pointer-events: auto; text-align: center; padding: 14px 18px 16px; border-radius: 18px; display: flex; flex-direction: column; align-items: center; gap: 10px; background: rgba(23,15,44,0.78); border: 1px solid rgba(139,92,246,0.42); box-shadow: 0 14px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }   /* 初始隐藏由模块内联 style 控制（CSS 写 display:none 会吃掉 JS 的 display:''）；玻璃浮窗与押注面板同族，替代旧渐变贴条 */
     #stage-actions .card-actions button { padding: 10px 20px; font-size: 0.92rem; border-radius: 13px; min-height: 42px; }
@@ -1995,8 +1996,8 @@
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="dicebear-local.js?v=v20261016c"></script>
-<script src="avatar-features.js?v=v20261016c"></script>
+<script src="dicebear-local.js?v=v20261016d"></script>
+<script src="avatar-features.js?v=v20261016d"></script>
 <script>
 'use strict';
 // ═══════════════════════════════════════════════════════════════
@@ -7198,7 +7199,7 @@ setTimeout(() => {
   setNet('', (urlRoom || rejoinName) ? '待加入' : '未连接');
 }, 1200);
 </script>
-<script src="three.r128.js?v=v20261016c"></script>
+<script src="three.r128.js?v=v20261016d"></script>
 <script>
 /* ══════════ Three.js 真 3D 场景（第三人称牌桌，body.three3d）v8 ══════════
    混合架构：WebGL 画布（body 层全屏，#bg-canvas 之上 #app 之下）渲染房间/桌子/牌堆/3D 人物与桌上卡；
@@ -8026,6 +8027,7 @@ setTimeout(() => {
     const grid = document.getElementById('game-players-grid');
     if (!grid) return;
     const og = offsetChain(grid);
+    const headCircles = [];   // 本帧各角色头圆（视口坐标）——pick-tip 遮脸自隐用（见循环尾）
     grid.querySelectorAll('.player-card').forEach(card => {
       const ch = chars.get(card.dataset.pid);
       if (!ch) return;
@@ -8046,6 +8048,7 @@ setTimeout(() => {
       // 不再压在脸上）。1.13=头心 1.33−头半径 0.2；同深度投影差=像素距离，随座远近自适应。
       V.set(ch.position.x, 1.13, ch.position.z).project(camera);
       const chinPx = Math.max(34, Math.round((1 - (V.y + 1) / 2) * chh - wantY));
+      headCircles.push({ cx: wantX, cy: wantY + chinPx / 2, r: chinPx / 2 });   // 头圆=头顶(1.72)到下颌(1.13)投影带
       if (card.style.getPropertyValue('--chin') !== chinPx + 'px') card.style.setProperty('--chin', chinPx + 'px');
       const rsV = parseFloat(card.style.getPropertyValue('--rs')) || 1;
       const mw = (72 / rsV).toFixed(0) + 'px';   // 基数 72：留取整与文字折行余量（渲染宽恒 ≥72 ≥64）
@@ -8055,6 +8058,18 @@ setTimeout(() => {
         if (wrapEl) wrapEl.style.minWidth = mw;   // verify 量的是 wrap：只补 card 时 wrap 贴内容宽（远座 65px 贴 64 线，±1px 抖动即挂）
       }
     });
+    // pick-tip 遮脸自隐（信息不遮桌 2026-10-16 全设备扫描）：主持人点名提示是辅助信息，投影压到任一头圆即让位、
+    // 让开即回——小手机 3P（360×640 深 0.46）/landui 自座（0.49）实测根治，且随相机构图自适应、无需按视口写死。
+    const tipEl = document.getElementById('pick-tip');
+    if (tipEl && !tipEl.hidden) {
+      const tr = tipEl.getBoundingClientRect();
+      let cover = false;
+      for (const c of headCircles) {
+        const nx = Math.max(tr.x, Math.min(c.cx, tr.x + tr.width)), ny = Math.max(tr.y, Math.min(c.cy, tr.y + tr.height));
+        if (Math.hypot(c.cx - nx, c.cy - ny) < c.r) { cover = true; break; }
+      }
+      if (tipEl.style.visibility !== (cover ? 'hidden' : '')) tipEl.style.visibility = cover ? 'hidden' : '';
+    }
   }
 
   // ── DOM 桥：three3d 下把动作按钮 reparent 到 body 层 #stage-actions（记录原位，三时机归还）──
