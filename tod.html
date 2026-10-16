@@ -9,15 +9,15 @@
   <!-- 加载提速（2026-10-15）：三大件预载提到第 0 字节——此前 dicebear(线上 gzip 678KB) 要等 HTML 流传到 ~1/3 才开始下载，慢网手机白等数秒；
        ?v= 随发版 token 变化（与下方 script 标签同值，check-syntax 锁一致性，改版必须同步）。 -->
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preload" as="script" href="dicebear-local.js?v=v20261015a">
-  <link rel="preload" as="script" href="avatar-features.js?v=v20261015a">
-  <link rel="preload" as="script" href="three.r128.js?v=v20261015a">
+  <link rel="preload" as="script" href="dicebear-local.js?v=v20261016a">
+  <link rel="preload" as="script" href="avatar-features.js?v=v20261016a">
+  <link rel="preload" as="script" href="three.r128.js?v=v20261016a">
   <!-- 更新不拿旧缓存（2026-10-15 用户点名）：文档级 no-cache 提示 + build.json 版本检查。详见下方脚本注释。 -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <script>
-  window.__BUILD__ = 'v20261015a';
+  window.__BUILD__ = 'v20261016a';
   /* 版本检查：本页 __BUILD__ 与 build.json 不一致 = 有新版。
      · https 静态托管（无端口）且不在对局 → 带版本+时间戳 replace 强刷，无视一切 HTML 缓存（含不理 max-age 的 webview）；
        会话内同一目标版本只自动刷一次（sessionStorage 护栏），绝不死循环。
@@ -978,9 +978,13 @@
     body.three3d:not(.loperf):not(.landui) #cam > .stats-row .stat-chip { flex: 0 0 auto; white-space: nowrap; }
     body.three3d:not(.loperf):not(.landui) #cam > .turn-info { position: absolute; top: 42px; left: 50%; transform: translateX(-50%); width: max-content; max-width: 72vw; margin: 0; min-height: 1.35em; z-index: 40; pointer-events: none; }
     body.three3d:not(.loperf):not(.landui) #cam > #pick-tip { position: absolute; top: 78px; left: 50%; transform: translateX(-50%); width: max-content; max-width: 92vw; margin: 0; z-index: 40; text-align: center; }
-    body.three3d:not(.loperf):not(.landui) #choice-section { position: absolute; top: 74px; left: 0; right: 0; margin: 0; transform: none; z-index: 40; pointer-events: none; }   /* 区内可见的只剩 choice-hint（卡体 0.001 给 E2E force 点击），整区钉带=钉提示 */
+    body.three3d:not(.loperf):not(.landui) #cam > #choice-section { position: absolute; top: 74px; left: 0; right: 0; margin: 0; transform: none; z-index: 40; pointer-events: none; }   /* 区内可见的只剩 choice-hint（卡体 0.001 给 E2E force 点击），整区钉带=钉提示。⚠ 选择器必须带 #cam >：892 行 #cam > #choice-section (2,0,0) 会压过不带 #cam 的 (1,3,0)——钉带死锁曾让 hint/等待提示落回文档流正中桌心（2026-10-16 用户「信息遮桌」主诉根因） */
     body.three3d:not(.loperf):not(.landui) #choice-section > #choice-hint { margin: 0; white-space: nowrap; }
     body.three3d:not(.loperf):not(.landui) #cam > #ghost-bar { margin-top: 108px; }   /* 流内首排让出顶部信息带（stats/turn/pick 已抽走） */
+    /* 信息不遮桌（2026-10-16）：选卡/抽卡期持麦人名牌暂隐——3D 角色走位到牌堆时名牌横条+徽章投影正落桌心毡面
+       （证据 todwalk-H-choosing-land/por）；「谁在抽」由顶部 turn-info + hintTip Sprite + 脚下光环三重承载，
+       revealed 同帧摘类恢复。loperf 回退层不藏：那里选卡人是真实 DOM 化身，藏了就没人。 */
+    body.three3d:not(.loperf) #game-players-grid .player-card.is-chooser { visibility: hidden; }
     /* 2P 最小分档（2026-10-15）：唯一对手锚死正中（test-3d 锁），居中的统计芯片会正压远座头顶
        （方屏 cy~159 实锤，ev-hud 2P sq 深 0.32）——统计行左对齐让中线即可，竖屏头在 ~33%vh 本就
        不撞顶带；turn/pick/choice 药丸窄（max-content）+ 在头下方，共用 3P 位置。 */
@@ -1983,8 +1987,8 @@
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="dicebear-local.js?v=v20261015a"></script>
-<script src="avatar-features.js?v=v20261015a"></script>
+<script src="dicebear-local.js?v=v20261016a"></script>
+<script src="avatar-features.js?v=v20261016a"></script>
 <script>
 'use strict';
 // ═══════════════════════════════════════════════════════════════
@@ -3745,6 +3749,9 @@ function renderGameStatic() {
   // 各区块可见性
   const chooserId = S.turn.chooserId || activePlayerId();
   const chooser = S.players.find(p => p.id === chooserId);
+  // 信息不遮桌（2026-10-16）：选卡/抽卡期持麦人名牌暂隐（类挂同帧摘同帧，无闪缝）；visible 才不拦「点名下一轮」的点击语义由 JS 侧裁定，不受影响
+  const cpHide = (stage === 'choosing' || stage === 'drawing') ? chooserId : null;
+  document.querySelectorAll('#game-players-grid .player-card').forEach(c => c.classList.toggle('is-chooser', !!cpHide && c.dataset.pid === cpHide));
   updateGhostBar(stage);
   renderBetBox(stage, chooserId, scoring);
   paintSurprise(stage);
@@ -7183,7 +7190,7 @@ setTimeout(() => {
   setNet('', (urlRoom || rejoinName) ? '待加入' : '未连接');
 }, 1200);
 </script>
-<script src="three.r128.js?v=v20261015a"></script>
+<script src="three.r128.js?v=v20261016a"></script>
 <script>
 /* ══════════ Three.js 真 3D 场景（第三人称牌桌，body.three3d）v8 ══════════
    混合架构：WebGL 画布（body 层全屏，#bg-canvas 之上 #app 之下）渲染房间/桌子/牌堆/3D 人物与桌上卡；
@@ -7664,8 +7671,8 @@ setTimeout(() => {
   }
   cTruth.pool = makePool(0x38bdf8); cTruth.pool.position.set(-0.78, FELT_Y + 0.008, -0.12);   // 真心话青蓝：品牌蓝 0x3b82f6 在紫毡(色相258°)上被吞成「偏亮的紫」（挑刺 A#12）
   cDare.pool = makePool(0xf97316); cDare.pool.position.set(0.78, FELT_Y + 0.008, -0.12);
-  cTruth.label = makeTip(labelTexture(true), 0.62, 0.26); cTruth.label.position.set(-0.78, FELT_Y + 0.80, -0.12);   // 抬到卡上沿空档，不盖卡面图标（挑刺 A#2）
-  cDare.label = makeTip(labelTexture(false), 0.62, 0.26); cDare.label.position.set(0.78, FELT_Y + 0.80, -0.12);
+  cTruth.label = makeTip(labelTexture(true), 0.62, 0.26); cTruth.label.position.set(-0.78, FELT_Y + 0.14, 0.42);   // 双卡近侧下沿（信息不遮桌 2026-10-16）：原卡上沿 +0.80 在桌面宽幅相机下投进顶部信息带撞 stats/turn-info、竖屏落远座头高带——照 hintTip FIX-3 同款医学搬近侧毛毡带，贴自己的卡当标签且不盖卡面 icon
+  cDare.label = makeTip(labelTexture(false), 0.62, 0.26); cDare.label.position.set(0.74, FELT_Y + 0.16, 0.38);   /* dare 单侧再收（挑刺专家终审预留参数）：A 坐标目检其左缘压牌堆左上角 ~35×17px，收至 0.74/0.16/0.38 后叠 ~9px 且与 hintTip 净 8px */
   hintTip.spr = makeTip(hintTex, 1.42, 0.226);
   function tickChoiceFx(dt, sec, stage, canPickNow, hovName) {
     const choosing = stage === 'choosing';
