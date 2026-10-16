@@ -9,15 +9,15 @@
   <!-- 加载提速（2026-10-15）：三大件预载提到第 0 字节——此前 dicebear(线上 gzip 678KB) 要等 HTML 流传到 ~1/3 才开始下载，慢网手机白等数秒；
        ?v= 随发版 token 变化（与下方 script 标签同值，check-syntax 锁一致性，改版必须同步）。 -->
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preload" as="script" href="dicebear-local.js?v=v20261016b">
-  <link rel="preload" as="script" href="avatar-features.js?v=v20261016b">
-  <link rel="preload" as="script" href="three.r128.js?v=v20261016b">
+  <link rel="preload" as="script" href="dicebear-local.js?v=v20261016c">
+  <link rel="preload" as="script" href="avatar-features.js?v=v20261016c">
+  <link rel="preload" as="script" href="three.r128.js?v=v20261016c">
   <!-- 更新不拿旧缓存（2026-10-15 用户点名）：文档级 no-cache 提示 + build.json 版本检查。详见下方脚本注释。 -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <script>
-  window.__BUILD__ = 'v20261016b';
+  window.__BUILD__ = 'v20261016c';
   /* 版本检查：本页 __BUILD__ 与 build.json 不一致 = 有新版。
      · https 静态托管（无端口）且不在对局 → 带版本+时间戳 replace 强刷，无视一切 HTML 缓存（含不理 max-age 的 webview）；
        会话内同一目标版本只自动刷一次（sessionStorage 护栏），绝不死循环。
@@ -989,6 +989,14 @@
        （方屏 cy~159 实锤，ev-hud 2P sq 深 0.32）——统计行左对齐让中线即可，竖屏头在 ~33%vh 本就
        不撞顶带；turn/pick/choice 药丸窄（max-content）+ 在头下方，共用 3P 位置。 */
     body.players-2.three3d:not(.loperf):not(.landui) #cam > .stats-row { left: 8px; transform: none; justify-content: flex-start; }
+    /* 2P 中线彻底让给人（2026-10-16 用户实锤：方竖屏对手头升进顶带）：唯一远座正北正中，居中的 turn-info/
+       pick-tip 会与头部同 x——媒体查询锁定 0.8~1.0 比例带（正是 porK 中段斜坡生效、头顶抬得最高的区间），
+       与 stats-row 同列左对齐 + 限宽 40vw（在头左侧 x≤40% 折行，头顶 y1.56 投影 ≥26%vh 实测净空）；
+       <0.8 窄竖屏头在 33%vh 本就净空、≥1.0 方屏/桌面已实测，均保持既有居中布局不动。 */
+    @media (min-aspect-ratio: 4/5) and (max-aspect-ratio: 1/1) {
+      body.players-2.three3d:not(.loperf):not(.landui) #cam > .turn-info { left: 8px; transform: none; max-width: 40vw; }
+      body.players-2.three3d:not(.loperf):not(.landui) #cam > #pick-tip { left: 8px; transform: none; text-align: left; max-width: 40vw; }
+    }
     @media (min-width: 601px) {
       body.players-2.three3d:not(.loperf):not(.landui) #cam > .stats-row { max-width: 44vw; overflow-x: auto; padding: 2px 4px; }   /* 方屏/横屏 2P：远座头 cy~159 正居中，「🏆领先」芯片会把行加宽压到头顶（ev-hud 2P sq 深 0.43 实锤）——限宽进左上角横滚（landui 38vw 同款契约）；竖屏头在 33%vh 不需要 */
     }
@@ -1987,8 +1995,8 @@
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="dicebear-local.js?v=v20261016b"></script>
-<script src="avatar-features.js?v=v20261016b"></script>
+<script src="dicebear-local.js?v=v20261016c"></script>
+<script src="avatar-features.js?v=v20261016c"></script>
 <script>
 'use strict';
 // ═══════════════════════════════════════════════════════════════
@@ -7190,7 +7198,7 @@ setTimeout(() => {
   setNet('', (urlRoom || rejoinName) ? '待加入' : '未连接');
 }, 1200);
 </script>
-<script src="three.r128.js?v=v20261016b"></script>
+<script src="three.r128.js?v=v20261016c"></script>
 <script>
 /* ══════════ Three.js 真 3D 场景（第三人称牌桌，body.three3d）v8 ══════════
    混合架构：WebGL 画布（body 层全屏，#bg-canvas 之上 #app 之下）渲染房间/桌子/牌堆/3D 人物与桌上卡；
@@ -7988,7 +7996,7 @@ setTimeout(() => {
 
   // ── 相机：Cam.cur 映射 + 竖屏后撤（aspect<0.8）+ 揭晓近景 overlay（GL 独占通道，CSS 机位不动）──
   let revealK = 0, revealTarget = 0;
-  const porK = () => { const asp = camera.aspect || 1; return asp < 0.8 ? Math.min(1, (0.8 - asp) / 0.34) : 0; };   // 竖屏系数 0..1（syncPlayers 座位环 X 向压缩共用同一公式）
+  const porK = () => { const asp = camera.aspect || 1; return asp < 0.8 ? Math.min(1, (0.8 - asp) / 0.34) : asp < 1.0 ? 0.75 * (asp - 0.8) / 0.2 : 0; };   /* 竖屏系数 0..1（syncPlayers 座位环 X 向压缩共用同一公式）。2026-10-16 补中段斜坡：0.8≤asp<1.0 的「方竖屏」（手机分屏/平板竖持，用户 717×777 实锤）旧值恒 0=桌面机位，远座头升进标题/芯片顶带（2P 唯一远座正北正中=max 遮挡）——0→0.75 连续斜坡（asp=0.8 处与窄屏段 0 值接续、asp≥1.0 桌面/方屏已实测净空不动），717×777 得 pt≈0.46 头顶降到 ~26%vh；X 向压缩同步生效防侧座出画 */
   function syncCam() {
     const c = Cam.cur;
     const pt = porK();
