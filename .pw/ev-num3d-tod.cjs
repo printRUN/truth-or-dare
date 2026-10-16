@@ -54,10 +54,9 @@ async function joinTab(ctx, { name, room, tag }) {
   await b.page.waitForSelector('#screen-game.active', { timeout: 15000 });
   await a.page.waitForFunction(() => window.__three && document.body.classList.contains('three3d'), null, { timeout: 15000 });
 
-  console.log('— T2 桌面计分立牌 —');
-  const board1 = await a.page.evaluate(() => __three.scorePops().board);
-  ok(board1 && board1.visible === true, `计分立牌已立（sig=${board1 && board1.sig}）`);
-  ok(board1 && /\d+\|\d+\|\d+\|\d+\|\d+$/.test(board1.sig), 'sig=truth|dare|skips|scoring|players 五段');
+  console.log('— T2 桌面计分立牌（已退役） —');
+  const board1 = await a.page.evaluate(() => __three.scorePops());
+  ok(board1 && board1.board === undefined, '计分立牌已退役（信息不遮桌 2026-10-16：2P 压远座脸/名牌、方屏撞 turn-info、与 stats 芯片冗余）');
   await a.page.screenshot({ path: path.join(ROOT, '.pw', 'shots', 'ev-num3d-tod-board.png') });
 
   console.log('— T1 计分泡（弹出即收） —');
