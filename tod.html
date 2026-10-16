@@ -9,15 +9,15 @@
   <!-- 加载提速（2026-10-15）：三大件预载提到第 0 字节——此前 dicebear(线上 gzip 678KB) 要等 HTML 流传到 ~1/3 才开始下载，慢网手机白等数秒；
        ?v= 随发版 token 变化（与下方 script 标签同值，check-syntax 锁一致性，改版必须同步）。 -->
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preload" as="script" href="dicebear-local.js?v=v20261016d">
-  <link rel="preload" as="script" href="avatar-features.js?v=v20261016d">
-  <link rel="preload" as="script" href="three.r128.js?v=v20261016d">
+  <link rel="preload" as="script" href="dicebear-local.js?v=v20261016e">
+  <link rel="preload" as="script" href="avatar-features.js?v=v20261016e">
+  <link rel="preload" as="script" href="three.r128.js?v=v20261016e">
   <!-- 更新不拿旧缓存（2026-10-15 用户点名）：文档级 no-cache 提示 + build.json 版本检查。详见下方脚本注释。 -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <script>
-  window.__BUILD__ = 'v20261016d';
+  window.__BUILD__ = 'v20261016e';
   /* 版本检查：本页 __BUILD__ 与 build.json 不一致 = 有新版。
      · https 静态托管（无端口）且不在对局 → 带版本+时间戳 replace 强刷，无视一切 HTML 缓存（含不理 max-age 的 webview）；
        会话内同一目标版本只自动刷一次（sessionStorage 护栏），绝不死循环。
@@ -969,56 +969,51 @@
     body.three3d:not(.loperf) #game-players-grid .player-card.tp .avatar-wrap { padding-top: 6px; }
     body.three3d:not(.loperf) #game-players-grid .player-card .player-name { font-size: 15px; max-width: 128px; }   /* min-width：远座名牌可辨识下限（远座卡宽 ≥64px 契约） */   /* 15px：躺着可读（落地后截图实测防媒体查询压回） */
     @media (min-width: 768px) { body.three3d:not(.loperf) #game-players-grid .player-card .player-name { min-width: calc(96px / var(--rs)); } }   /* 缩放补偿：渲染宽恒 96px 不随座位 --rs 缩（远座卡宽 ≥64 契约）；竖屏不启用防互压 */
-    /* 顶部信息带（信息不遮人轮）：统计行/轮到谁/主持人点名提示/等待提示钉到 #cam 顶带，不再悬浮在
-       桌面远座头顶（2 人局时这条带正压远座头=用户截图病灶）。#cam 有 perspective 自成包含块，
-       absolute 锚 #cam 盒顶（页头之下）；远座头顶带 ≥60px 净空。landui 有自己的 grid 机位，不参与。
-       turn-info 是 max-content 药丸：3P+ 时正好嵌进两远座之间的中央空档（全宽会横穿两侧远座头）；
-       竖排统计 chip 禁折行（flex 收缩会把 chip 压成 38×114 竖条横在头上）。 */
-    body.three3d:not(.loperf):not(.landui) #cam > .stats-row { position: absolute; top: 4px; left: 50%; transform: translateX(-50%); margin: 0; z-index: 40; flex-wrap: nowrap; max-width: 96vw; overflow-x: auto; padding: 2px 4px; }
-    body.three3d:not(.loperf):not(.landui) #cam > .stats-row .stat-chip { flex: 0 0 auto; white-space: nowrap; }
-    body.three3d:not(.loperf):not(.landui) #cam > .turn-info { position: absolute; top: 42px; left: 50%; transform: translateX(-50%); width: max-content; max-width: 72vw; margin: 0; min-height: 1.35em; z-index: 40; pointer-events: none; }
-    body.three3d:not(.loperf):not(.landui) #cam > #pick-tip { position: absolute; top: 78px; left: 50%; transform: translateX(-50%); width: max-content; max-width: 92vw; margin: 0; z-index: 40; text-align: center; }
+    /* ═══ 顶部信息坞（2026-10-16 用户：整条信息浓缩到一处+滚动条精修）═══
+       旧「4/42/78 三行钉带 + 2P 左对齐分档 + landui 沉底档」整组退役：stats-row/turn-info/pick-tip 已在
+       HTML 里收进 #info-dock（左上角一块玻璃坞，中线让给人），本组规则只管坞内排布。非 three3d/loperf 档
+       display:contents 回退旧流式布局（loperf 的既有规则继续生效）。 */
+    body.three3d:not(.loperf) #info-dock {
+      position: absolute; top: 6px; left: 8px; z-index: 40;
+      display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+      width: max-content; max-width: min(430px, calc(100vw - 88px));   /* 右缘让出横屏钮/表情浮标 */
+      padding: 6px 9px 5px; border-radius: 14px;
+      background: rgba(18,11,36,0.52); border: 1px solid rgba(139,92,246,0.26);
+      box-shadow: 0 8px 26px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.06);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      pointer-events: none;
+    }
+    body.loperf #info-dock, body:not(.three3d) #info-dock { display: contents; }   /* 回退档：坞对布局透明，子元素走各自既有规则 */
+    #info-dock .net-chip { margin: 0 0 2px; padding: 3px 10px; font-size: 0.72rem; }
+    #info-dock .stats-row { position: static; margin: 0; padding: 0 1px 3px; max-width: 100%; overflow-x: auto; flex-wrap: nowrap; }
+    #info-dock .stats-row .stat-chip { flex: 0 0 auto; white-space: nowrap; font-size: 0.68rem; padding: 3px 9px; }
+    #info-dock .turn-info { position: static; transform: none; width: auto; max-width: 100%; margin: 0; min-height: 1.3em; text-align: left; font-size: 0.86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #info-dock #pick-tip { position: static; transform: none; width: auto; max-width: 100%; margin: 0; text-align: left; font-size: 0.68rem; opacity: 0.85; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    /* 精修滚动条（用户点名）：4px 圆角细条，紫调半透明、hover 加深，Firefox 走 scrollbar-width/color */
+    #info-dock .stats-row { scrollbar-width: thin; scrollbar-color: rgba(167,139,250,0.38) transparent; }
+    #info-dock .stats-row::-webkit-scrollbar { height: 4px; }
+    #info-dock .stats-row::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 999px; }
+    #info-dock .stats-row::-webkit-scrollbar-thumb { background: rgba(167,139,250,0.38); border-radius: 999px; }
+    #info-dock .stats-row:hover::-webkit-scrollbar-thumb { background: rgba(167,139,250,0.6); }
     body.three3d:not(.loperf):not(.landui) #cam > #choice-section { position: absolute; top: 74px; left: 0; right: 0; margin: 0; transform: none; z-index: 40; pointer-events: none; }   /* 区内可见的只剩 choice-hint（卡体 0.001 给 E2E force 点击），整区钉带=钉提示。⚠ 选择器必须带 #cam >：892 行 #cam > #choice-section (2,0,0) 会压过不带 #cam 的 (1,3,0)——钉带死锁曾让 hint/等待提示落回文档流正中桌心（2026-10-16 用户「信息遮桌」主诉根因） */
     body.three3d:not(.loperf):not(.landui) #choice-section > #choice-hint { margin: 0; white-space: nowrap; }
-    body.three3d:not(.loperf):not(.landui) #cam > #ghost-bar { margin-top: 108px; }   /* 流内首排让出顶部信息带（stats/turn/pick 已抽走） */
+    body.three3d:not(.loperf):not(.landui) #cam > #ghost-bar { margin-top: 96px; }   /* 流内首排让出顶部信息坞（坞较旧三行钉带更矮） */
     /* 信息不遮桌（2026-10-16）：选卡/抽卡期持麦人名牌暂隐——3D 角色走位到牌堆时名牌横条+徽章投影正落桌心毡面
        （证据 todwalk-H-choosing-land/por）；「谁在抽」由顶部 turn-info + hintTip Sprite + 脚下光环三重承载，
        revealed 同帧摘类恢复。loperf 回退层不藏：那里选卡人是真实 DOM 化身，藏了就没人。 */
-    body.three3d:not(.loperf) #game-players-grid .player-card.is-chooser { visibility: hidden; }
-    /* 2P 最小分档（2026-10-15）：唯一对手锚死正中（test-3d 锁），居中的统计芯片会正压远座头顶
-       （方屏 cy~159 实锤，ev-hud 2P sq 深 0.32）——统计行左对齐让中线即可，竖屏头在 ~33%vh 本就
-       不撞顶带；turn/pick/choice 药丸窄（max-content）+ 在头下方，共用 3P 位置。 */
-    body.players-2.three3d:not(.loperf):not(.landui) #cam > .stats-row { left: 8px; transform: none; justify-content: flex-start; }
-    /* 2P 中线彻底让给人（2026-10-16 用户实锤两次）：唯一远座正北正中，全比例下居中的 turn-info/pick-tip/
-       net-chip 都会与头部同 x——窄竖屏头 33%vh 撞 pick-tip 下缘、方竖屏 26% 撞芯片、宽幅/桌面 17% 撞
-       turn-info/net-chip（pc-fhd 0.44、1024×768 0.18、844×390 0.5 全设备扫描实测）——三件套与 stats-row
-       同列左对齐（左缘 8px 竖排堆叠），中线只留人头。 */
-    body.players-2.three3d:not(.loperf):not(.landui) #cam > .turn-info { left: 8px; transform: none; }
-    body.players-2.three3d:not(.loperf):not(.landui) #cam > #pick-tip { left: 8px; transform: none; text-align: left; }
-    body.players-2 #app > .net-chip { margin-left: 8px; margin-right: auto; }   /* 头常驻中线上，房号芯片同步靠左（窄竖屏段 pick-tip 下方 130px 起、头 277px 起，纵向已分层） */
-    body.players-2.landui #app > .net-chip { grid-area: 1 / 2; justify-self: start; margin-left: 8px; }   /* landui 网格档：1/2 格从居中改贴左（844×390 2P 头顶撞芯片 deep 0.5 实测） */
+    body.three3d:not(.loperf):not(.landui) #game-players-grid .player-card.is-chooser { visibility: hidden; }
+    /* 2P（≥601px 宽）坞限宽 44vw：远座头正居中，「🏆领先」芯片会把行加宽压到头顶（旧布局 ev-hud 2P sq 深
+       0.43 实锤、信息坞重构后 trim 锁再逮 deep 0.5）——窄竖屏头在 33%vh 纵向已分层，不需要。 */
     @media (min-width: 601px) {
-      body.players-2.three3d:not(.loperf):not(.landui) #cam > .stats-row { max-width: 44vw; overflow-x: auto; padding: 2px 4px; }   /* 方屏/横屏 2P：远座头 cy~159 正居中，「🏆领先」芯片会把行加宽压到头顶（ev-hud 2P sq 深 0.43 实锤）——限宽进左上角横滚（landui 38vw 同款契约）；竖屏头在 33%vh 不需要 */
+      body.players-2.three3d:not(.loperf):not(.landui) #info-dock { max-width: min(44vw, calc(100vw - 88px)); }
     }
-    /* 竖屏（≤600）：统计行左对齐（居中 + overflow 会把左端「第N手」裁成不可达）。（2026-10-15 A2 后删
-       「pick-tip/choice-section 沉底 bottom:95px」档：那是旧相机远座头顶到 178px 时代的死数，新构图里
-       该带正压在变大的自座/侧座头上（ev-hud por 深 0.45 实锤）——顶部 74px 档在新构图净空，全档统一。） */
-    @media (max-width: 600px) {
-      body.three3d:not(.loperf):not(.landui) #cam > .stats-row { left: 8px; transform: none; justify-content: flex-start; }
-    }
-    /* 2 人局：唯一对手锚死正北中央（test-3d 锁），顶带任何内容都会压它的头——整带下沉到远座
-       名牌条之下（横条挂在下颌下，随视口低 ~225-270px），统计行改左对齐再让出中线。
-       下沉量按视口分档（远座名牌条 screen 末端实测：竖屏 ~270 / 方横屏 ~225，cam 顶 134/158）。 */
-    /* 2 人局分档（2026-10-15 信息不遮人轮建立、同日 A2 相机改动后删除）：旧相机远座头悬在 y58-178，
-       顶带必须整体下沉到名牌条之下；A2 后撤收敛+fov 补宽后远座头降到 ~33%vh（取证 diag-mob-p2：
-       头顶 ~277px），顶带 4/42/74 三行全部净空——2P 与 3P 共用上方同一条顶带，players-2 分档整个退役。
-       （renderPlayers 的 body.players-2 类保留：其他样式钩子还在用。）
-    /* landui（强制横屏）：390 高的旋转画布把远座头顶到 y58-104，顶部没有任何净空带——统计行
-       沉到工具行上方的桌沿带。⚠ 必须显式 top：landui 网格给它的 grid-area 会把 abs 定位的
-       top:auto 解析成网格静态位（-78px 顶回头部带），bottom 单写不生效（实测）。 */
-    body.three3d:not(.loperf).landui #cam > .stats-row { position: absolute; grid-area: auto; top: calc(100% - 48px); bottom: auto; left: 8px; right: auto; transform: none; margin: 0; z-index: 40; flex-wrap: nowrap; max-width: 38vw; overflow-x: auto; padding: 2px 4px; }   /* grid-area:auto：abs 网格项若有 grid-area，包含块=那个小格（100% 只有小格高），必须退格让包含块回到整个 #cam；38vw=行尾收在自我中心头（南中 cx≈0.45vw，随视口缩放）左侧，余量进横向滚动 */
-    body.three3d:not(.loperf).landui #cam > .turn-info { position: absolute; grid-area: auto; top: calc(100% - 88px); left: 8px; transform: none; margin: 0; z-index: 40; pointer-events: none; }   /* landui 网格静态位把 turn-info 放到右侧远座头上（3P 844×390 深 0.5 实测）——挪到左下净区（stats 行上方、桥面板左缘 x<279 之外）；grid-area:auto 同上 trap */
-    body.three3d:not(.loperf).landui #cam > .stats-row .stat-chip { flex: 0 0 auto; white-space: nowrap; }
+    /* 坞落位按人数自适应（2026-10-16 全设备扫描教训：左上角在 3P 横屏正压左远座脸）：
+       2P=对手独占中线 → 坞靠左；3P+=两远座分居左右、其间是空档 → 坞居中（旧居中顶带的已验证净位）；
+       landui 网格维持靠左（844×390 实测干净，居中会与选卡面板顶带相碰）。 */
+    body.three3d:not(.loperf):not(.landui):not(.players-2) #info-dock { left: 50%; transform: translateX(-50%); align-items: center; }
+    body.three3d:not(.loperf):not(.landui):not(.players-2) #info-dock .turn-info { text-align: center; }
+    body.three3d:not(.loperf):not(.landui):not(.players-2) #info-dock #pick-tip { text-align: center; }
+    #stage-actions { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 64px); width: max-content; max-width: 96vw; z-index: 40; pointer-events: auto; text-align: center; padding: 14px 18px 16px; border-radius: 18px; display: flex; flex-direction: column; align-items: center; gap: 10px; background: rgba(23,15,44,0.78); border: 1px solid rgba(139,92,246,0.42); box-shadow: 0 14px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }   /* 初始隐藏由模块内联 style 控制（CSS 写 display:none 会吃掉 JS 的 display:''）；玻璃浮窗与押注面板同族，替代旧渐变贴条 */
     #stage-actions { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 64px); width: max-content; max-width: 96vw; z-index: 40; pointer-events: auto; text-align: center; padding: 14px 18px 16px; border-radius: 18px; display: flex; flex-direction: column; align-items: center; gap: 10px; background: rgba(23,15,44,0.78); border: 1px solid rgba(139,92,246,0.42); box-shadow: 0 14px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.08); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }   /* 初始隐藏由模块内联 style 控制（CSS 写 display:none 会吃掉 JS 的 display:''）；玻璃浮窗与押注面板同族，替代旧渐变贴条 */
     #stage-actions .card-actions button { padding: 10px 20px; font-size: 0.92rem; border-radius: 13px; min-height: 42px; }
     #stage-actions .answer-row button { padding: 10px 20px; font-size: 0.92rem; border-radius: 13px; min-height: 42px; }   /* 承接 .card-front .card-actions button 尺寸（祖先链在 body 层失配）；浮窗里放大到主操作级 */
@@ -1805,17 +1800,22 @@
           <i class="tp-chair"></i><i class="tp-shoulder"></i><i class="tp-head"></i><span class="tp-you">你</span>
         </div>
       </div>
-      <div class="stats-row">
-        <div class="stat-chip" id="chip-turn"><span id="turn-label">第</span> <span id="stat-turn">1</span> <span id="turn-unit">轮</span></div>
-        <div class="stat-chip" id="mode-chip">🔄 轮流</div>
-        <div class="stat-chip">💬 <span id="stat-truth">0</span></div>
-        <div class="stat-chip">🎯 <span id="stat-dare">0</span></div>
-        <div class="stat-chip" id="chip-skip">⏭ 跳过 <span id="stat-skip">0</span></div>
-        <div class="stat-chip" id="chip-leader" hidden>🏆 领先 <span id="stat-leader">-</span></div>
+      <!-- 顶部信息坞（2026-10-16 用户：整条信息浓缩到一处+滚动条精修）：连接/房号芯片（进游戏时 JS 搬入）、
+           统计芯片行（窄屏横向滚动=精修细滚动条）、轮次药丸、主持人点名提示——全部收进一块玻璃坞，中线让给人。
+           非 three3d/loperf 档 display:contents 回退旧流式布局；进游戏/退出时 net-chip 在坞与页头之间搬移归还。 -->
+      <div class="info-dock" id="info-dock">
+        <div class="stats-row">
+          <div class="stat-chip" id="chip-turn"><span id="turn-label">第</span> <span id="stat-turn">1</span> <span id="turn-unit">轮</span></div>
+          <div class="stat-chip" id="mode-chip">🔄 轮流</div>
+          <div class="stat-chip">💬 <span id="stat-truth">0</span></div>
+          <div class="stat-chip">🎯 <span id="stat-dare">0</span></div>
+          <div class="stat-chip" id="chip-skip">⏭ 跳过 <span id="stat-skip">0</span></div>
+          <div class="stat-chip" id="chip-leader" hidden>🏆 领先 <span id="stat-leader">-</span></div>
+        </div>
+        <div class="turn-info" id="turn-info"></div>
+        <p class="pick-tip" id="pick-tip" hidden>🎯 点玩家头像即可指定 TA 玩这一轮，或在工具面板里点「🎲 随机点名」</p>
       </div>
-      <div class="turn-info" id="turn-info"></div>
       <div class="players-grid ring3d" id="game-players-grid"></div>
-      <p class="pick-tip" id="pick-tip" hidden>🎯 点玩家头像即可指定 TA 玩这一轮，或在工具面板里点「🎲 随机点名」</p>
       <div id="ghost-bar" style="display:none;flex-direction:column;align-items:center;gap:8px">
         <p class="wait-note" id="ghost-note" style="color:#fbbf24"></p>
         <button class="btn btn-secondary" id="btn-ghost-skip" style="padding:9px 18px;font-size:0.88rem">⏭ 替 TA 跳过本轮</button>
@@ -1996,8 +1996,8 @@
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="dicebear-local.js?v=v20261016d"></script>
-<script src="avatar-features.js?v=v20261016d"></script>
+<script src="dicebear-local.js?v=v20261016e"></script>
+<script src="avatar-features.js?v=v20261016e"></script>
 <script>
 'use strict';
 // ═══════════════════════════════════════════════════════════════
@@ -3409,10 +3409,25 @@ function queueSceneEnter(name, back, prev) {
   if (overlayUp()) pendingSceneEnter = { name, back, prev };
   else { if (prev) { armPan(prev, name); SFX.play(name === 'result' ? 'win' : 'whoosh'); } armDepth(back); playSceneEnter(name, back); }
 }
-function renderScreen() {
-  const name = currentScreen();
+// 信息坞（2026-10-16）：连接/房号芯片进牌桌搬入坞首行、离场归还页头原位——坞只存在于 #cam（牌桌屏），
+// 大厅/加入页的芯片保持页头居中原样；搬移记录原父/原位，重复调用幂等（renderScreen 状态回包高频重跑）。
+let netChipHome = null;
+function netChipDock(into) {
+  const chip = document.querySelector('#app > .net-chip');
+  const dock = document.getElementById('info-dock');
+  if (!chip || !dock) return;
+  if (into && chip.parentElement !== dock) {
+    netChipHome = { parent: chip.parentElement, next: chip.nextSibling };
+    dock.prepend(chip);
+  } else if (!into && netChipHome && chip.parentElement === dock) {
+    netChipHome.parent.insertBefore(chip, netChipHome.next);
+    netChipHome = null;
+  }
+}
+function renderScreen() {  const name = currentScreen();
   applyTitle(name);   // 顶部标题唯一写入口（arcade 屏换「游戏中心」；同值短路，状态回包高频重跑无害）
   document.body.classList.toggle('on-arcade', name === 'arcade');   // 随屏驱动：离开 arcade 还 net-chip，深链回 arcade 再摘（early 脚本只管开机首帧）
+  netChipDock(name === 'game');   // 信息坞（2026-10-16）：进牌桌把连接/房号芯片搬进坞首行，离场归还页头原位
   if (name === 'game') perfWatch();   // 牌桌才是真负载，大厅测不出来的手机在这里补测一次
   let changed = false, txPrev = null, txBack = false;
   if (name !== lastScreenName) {
@@ -7199,7 +7214,7 @@ setTimeout(() => {
   setNet('', (urlRoom || rejoinName) ? '待加入' : '未连接');
 }, 1200);
 </script>
-<script src="three.r128.js?v=v20261016d"></script>
+<script src="three.r128.js?v=v20261016e"></script>
 <script>
 /* ══════════ Three.js 真 3D 场景（第三人称牌桌，body.three3d）v8 ══════════
    混合架构：WebGL 画布（body 层全屏，#bg-canvas 之上 #app 之下）渲染房间/桌子/牌堆/3D 人物与桌上卡；
